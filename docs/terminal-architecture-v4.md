@@ -1,8 +1,10 @@
 # Terminal Architecture V4
 
+> Historical tmux design only. It was superseded on 2026-07-09 by the direct-PTY decision in `terminal-runtime-decision.md` and must not guide current implementation.
+
 Last updated: 2026-07-03
 
-This is the current Exo terminal architecture target: embedded-first, tmux-durable, and xterm-owned. It applies the simplification algorithm to the tmux-backed terminal stack and supersedes the V3 planning snapshot.
+This file preserves the former tmux architecture for audit history. Statements below are not current product requirements.
 
 Canonical runtime decision record: `docs/terminal-runtime-decision.md`.
 

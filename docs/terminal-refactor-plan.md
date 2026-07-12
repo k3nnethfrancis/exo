@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-18
 
-Status note: this plan is historical for the tmux migration and is superseded for current design work. The current implementation uses tmux control mode as Exo's live bridge and does not use `node-pty`; sections below that describe a `node-pty` tmux attach bridge are kept only as historical context. For current requirements and implementation rules, use `docs/terminal-architecture-v4.md`, `docs/terminal-runtime-decision.md`, and `docs/terminal-quality-standard.md`.
+Status: historical tmux migration plan. The current implementation uses direct `node-pty`; none of the tmux, transcript, restore, or durability requirements below are active. Use `docs/terminal-runtime-decision.md`, `docs/terminal-quality-standard.md`, and `skills/terminal-stability/SKILL.md` for current requirements.
 
 ## Goal
 

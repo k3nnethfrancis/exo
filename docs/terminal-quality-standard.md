@@ -1,166 +1,63 @@
 # Terminal Quality Standard
 
-Last updated: 2026-06-23
+Last updated: 2026-07-11
 
-Terminals are a core Exo surface. They must feel like a normal local terminal, not like an embedded widget with special failure modes. If typing lags, output corrupts, scrollback behaves unpredictably, focus requires extra clicks, bottom status lines are clipped, or long-running agent sessions are lost during ordinary laptop use, the feature fails the useability standard.
+Exo terminals should behave like a normal local terminal. The operational source of truth is `skills/terminal-stability/SKILL.md`; the runtime decision is `terminal-runtime-decision.md`.
 
-Agents changing terminal code must use `skills/terminal-stability/SKILL.md` before editing. That skill is the operational checklist for this standard: ownership rules, hard invariants, focused tests, and real-app QA.
+## Product standard
 
-Use `docs/terminal-render-cleanup-protocol.md` for field-reported render glitches. Each new visible corruption shape should become a render-stability fixture before or with the fix.
+- Input is immediate and byte-faithful.
+- Output remains intact through resize, tab changes, pane changes, theme changes, window hide/show, and renderer reload.
+- xterm owns the live screen, selection, ordinary scrollback, and alternate-screen behavior.
+- A bounded in-memory tail exists only for renderer reload and explicit reads.
+- Quitting the desktop process ends its PTYs; no UI or documentation promises restore, transcripts, or app-exit persistence.
+- Shell is the terminal substrate. External agents and tools launch through provider-neutral configured Commands and the normal invocation path.
+- Focus returns to xterm on the first intentional click or keyboard action.
+- Mouse-mode TUI scroll ownership is visible and has a documented modifier escape to local scrollback.
 
-## Product Standard
+## Configuration discipline
 
-Exo terminals must meet these user-facing requirements:
+Expose user outcomes, not implementation tuning. Font size and genuine user-facing scrollback choices may be settings. Delivery coalescing, replay bounds, geometry timing, health thresholds, and provider startup timing stay internal when they are implementation invariants rather than user capabilities.
 
-- Typing feels immediate in shell, Claude, Codex, and future terminal agents.
-- Terminal output never visually corrupts during scroll, resize, tab switch, pane movement, theme change, or window hide/show.
-- Live scrollback behaves predictably and follows user settings.
-- Full transcripts remain durable and are clearly separate from live scrollback.
-- Long-running shell commands and agent sessions survive window close, app relaunch, and normal macOS sleep/wake when the runtime supports persistence.
-- Health/recovery states are visible and actionable.
-- Terminal focus works on the first click after using editor, explorer, browser preview, or settings.
-- Alternate-screen programs, wrapped lines, ANSI color/style output, status bars, and interactive prompts render correctly.
-- Values that affect user-visible terminal behavior are configurable in workspace settings and exposed in the Settings UI with concrete units.
+Do not add:
 
-## Configuration And Debuggability Standard
+- a tmux/direct-PTY selector;
+- transcript retention or restore settings;
+- provider-specific prompt scanning or readiness inside terminal core;
+- a second live screen buffer;
+- hidden fallbacks that change terminal semantics.
 
-Terminal behavior must not depend on hidden hardcoded caps or tuning values. Defaults are allowed, but they must be defaults for visible settings, not private limits embedded in runtime code.
+## Automated coverage
 
-Any value that can change user-visible capability, reliability, latency, history, or recovery behavior must live in workspace settings and be visible/editable in Settings:
+Use deterministic local processes and fake Commands, not live Claude, Codex, Fable, or other inference.
 
-- live scrollback line count
-- transcript retention
-- terminal read/tail defaults and maximums used by CLI/MCP/app reads
-- input coalescing delay
-- agent startup/message-submit timing
-- initial and minimum terminal geometry
+Required cases:
 
-Implementation constants are allowed only when they are protocol facts or internal invariants rather than user capability limits. Examples: ANSI/tmux key names, escape-sequence parsing tokens, fixed command protocol route names, and test fixture values.
+- fast words with spaces, multiline paste, Enter, Backspace, Escape, arrows, and Ctrl-C;
+- resize propagation to the PTY;
+- burst output, long wrapped lines, ANSI styles, carriage-return repaint, Unicode, and output without newlines;
+- ordinary wheel/trackpad scrollback and selection;
+- alternate-screen mouse-mode ownership plus modifier escape;
+- tab/pane switching without reset or full-buffer replay;
+- hidden-but-mounted terminal preservation;
+- renderer reload with bounded replay;
+- WebGL renderer loss with DOM/canvas fallback;
+- configured Command launch through the visible terminal and invocation path;
+- desktop-process exit with no persistence claim.
 
-Every new terminal value must be classified before merge:
+Mounted terminals receive append events only. Normal focus, tab switching, pane movement, and metadata refresh must not call `terminal.reset()` or replay a full snapshot.
 
-- user setting exposed in Settings UI
-- documented internal invariant with a clear reason it should not be user-tunable
-- test-only fixture value
+## Validation
 
-If a value would help a human debug lag, scrollback, rendering, focus, process survival, or agent-read behavior, it belongs in config and Settings.
+Before handing off terminal-visible work:
 
-## Pass/Fail Criteria
+```bash
+pnpm --filter @exo/desktop typecheck
+pnpm --filter @exo/desktop test
+pnpm --filter @exo/desktop build
+pnpm check:repo
+```
 
-A terminal change is not ready unless all relevant criteria pass:
+Then run the focused Electron terminal and configured-Command journeys. Installed-path, lifecycle, and packaging claims require the packaged app. Manual QA must cover ordinary shell input, paste, control keys, resize, scrollback, one mouse-mode TUI, one configured Command, renderer reload, and explicit app quit.
 
-- Idle local shell input p50 echo latency is under 75 ms and p90 is under 150 ms in Electron QA.
-- Output-streaming shell input should target p50 under 100 ms and p90 under 250 ms once the streaming latency suite lands.
-- No single local keystroke takes longer than 300 ms unless the terminal process itself is intentionally blocked.
-- No active terminal calls bounded-tail hydration while its xterm instance is mounted.
-- Large output bursts preserve visible bottom output, expected scrollback markers, and transcript contents.
-- Tab switching and pane resizing do not blank the viewport, show stale `[exited]`, or replay stale scrollback over current output.
-- The terminal remains interactive after close-window/show-window and after app relaunch when a persistent runtime is enabled.
-- Manual sleep/wake QA passes for at least shell and one fake agent session before any runtime persistence change is considered complete.
-
-These thresholds are product targets, not hidden caps. If they are too strict or too loose, update this document and the tests together.
-
-## Automated Test Strategy
-
-Automated and routine QA must not depend on live Claude/Codex inference. Provider inference is slow, flaky, network/model dependent, and confounds terminal quality with provider behavior.
-
-Use deterministic local stand-ins instead:
-
-- `/bin/cat` for input echo and focus tests.
-- Shell scripts for burst output, wrapped lines, and long scrollback.
-- Fake Claude/Codex commands that emit realistic ANSI output, streaming paragraphs, status/footer lines, spinner/update sequences, prompt markers, and then wait for input.
-- Local alternate-screen tools such as `less`, `vim`, or `top` where feasible.
-- Controlled process kill, bridge detach, app relaunch, and tmux reattach scenarios.
-
-Real Claude/Codex sessions belong in short manual smoke checks and dogfooding, not in CI gates.
-
-## Required Automated Coverage
-
-### Latency
-
-- Type 100 characters into `/bin/cat` and measure input-to-visible-echo latency.
-- Repeat while another terminal streams output.
-- Repeat after switching from editor/explorer/browser panes back to terminal.
-- Record p50/p90/max latency through test diagnostics.
-
-### Rendering Integrity
-
-- Emit 10k+ lines with top, middle, and bottom markers.
-- Emit long wrapped lines wider than the terminal.
-- Emit ANSI colors, bold, dim, inverse, carriage-return updates, and status/footer-like output.
-- Run the Terminal Render Stability fixture through tmux control-mode decoding, renderer write chunking, and Electron e2e with fake Claude/Codex only. The fixture must include Claude-like header/status/footer lines, box drawing, braille spinner frames, emoji, private-use/Nerd Font glyphs, ANSI styles, carriage-return updates, and wrapped prompt lines.
-- Fail the render-stability gate on Unicode replacement characters, `???` fallback text, common literal tofu placeholders, or missing required fixture fragments. Font-rendered tofu cannot be fully detected from terminal text alone, so keep terminal font fallback tests and visual QA in the loop for that class of failure.
-- Resize panes while output is streaming.
-- Switch terminal tabs while output is streaming.
-- Scroll up while output is streaming, then return to bottom.
-- Assert expected markers remain visible or reachable and no stale replay occurs.
-
-### Scrollback
-
-- Generate 5k, 50k, and stress-scale line bursts in focused suites.
-- Verify live scrollback follows the configured line count.
-- Verify transcript reads preserve full output independently from live scrollback.
-- Verify scroll to top/middle/bottom after tab switches and pane resizes.
-
-### Persistence And Recovery
-
-For tmux-backed runtime work:
-
-- Create shell/fake-agent sessions and verify tmux sessions/panes exist.
-- Close Exo window and reopen; input continues.
-- Quit/relaunch Exo and reattach; process continues.
-- Kill the bridge pty/client while the tmux pane keeps running; Exo reattaches.
-- Kill the tmux pane; Exo shows an exited/dead state and recovery actions.
-- Verify transcripts continue across detach/reattach.
-
-### Hydration Invariant
-
-- Mounted/live terminals receive append events only.
-- `terminals.read()` is allowed for initial mount, explicit transcript/tail commands, and reattach snapshots.
-- `terminals.read()` must not be called by active-tab focus, routine session polling, or metadata refresh for an already mounted terminal.
-- `TerminalView` must not `reset()` xterm during active focus or normal tab switching.
-
-## Manual QA Script
-
-Run this before marking terminal runtime work complete:
-
-1. Launch installed Exo.
-2. Open shell, fake Claude, and fake Codex terminals.
-3. Type quickly for 30 seconds in each; verify no missed characters or visible lag.
-4. Run:
-
-   ```bash
-   yes "exo terminal stress $(date)" | head -n 50000
-   ```
-
-5. Scroll to top, middle, and bottom.
-6. Switch terminal tabs at least 20 times.
-7. Resize editor/terminal/browser-preview panes while output streams.
-8. Close the Exo window, reopen, and continue typing.
-9. Relaunch Exo and verify persistent sessions reattach when tmux runtime is implemented.
-10. Sleep and wake the Mac during a shell command and fake-agent wait loop.
-11. Confirm no stale pasted history, blank viewport, clipped bottom line, focus miss, or scrollback loss.
-
-## Instrumentation Needed
-
-Terminal diagnostics should expose:
-
-- runtime kind
-- session id and backend id
-- process/pane status
-- bridge attached/detached status
-- last input time
-- last output time
-- input echo latency
-- pty/tmux write latency
-- xterm write queue bytes
-- xterm write drain latency
-- live scrollback line count
-- configured terminal runtime values
-- transcript path and write status
-- last resize dimensions and timestamp
-- renderer/tmux geometry divergence and the current attach generation
-
-The UI and CLI should surface unhealthy states without requiring users to inspect logs. Geometry divergence recovery should use the explicit reconnect/resync path rather than hidden refreshes.
-
--- Shoshin | 2026-06-18
+Any field-reported corruption shape should first be classified and reproduced using `terminal-render-cleanup-protocol.md` before changing transport or rendering behavior.
