@@ -36,7 +36,7 @@ export const smokeScenarios = [
   {
     name: 'shell-boot-tabs',
     file: 'apps/desktop/tests/e2e/shell.spec.ts',
-    grep: 'boots the shell, opens notes, and manages terminal tabs',
+    grep: 'boots the shell, opens notes, and creates terminals on demand',
     timeoutMs: 75_000,
   },
   {
@@ -60,7 +60,7 @@ export const smokeScenarios = [
   {
     name: 'preview-layout',
     file: 'apps/desktop/tests/e2e/preview-pane-layout.spec.ts',
-    grep: 'resizes the browser and terminal surfaces inside the right pane',
+    grep: 'uses one full-width preview surface in the utility pane',
     timeoutMs: 65_000,
   },
 ];
