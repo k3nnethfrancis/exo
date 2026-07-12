@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type {
   AgentCommand,
   FolderIndexStatus,
@@ -674,23 +675,25 @@ export function App() {
 
   function createBrowserPane(url = "about:blank") {
     const id = paneId();
-    setPreviewTabs((current) => addPreviewTab(current, { id, url }));
-    dispatchUtility({ type: "select", destination: "preview" });
+    flushSync(() => {
+      setPreviewTabs((current) => addPreviewTab(current, { id, url }));
+      dispatchUtility({ type: "select", destination: "preview" });
+    });
   }
 
   async function createUtilityTerminal(kind: "shell", cwd?: string) {
-    dispatchUtility({ type: "select", destination: "terminal" });
+    selectUtilitySurface("terminal");
     const session = await terminalState.createTerminal(kind, cwd);
     await terminalState.activateTerminal(session.id);
   }
 
   async function showUtilityTerminal(sessionId: string) {
-    dispatchUtility({ type: "select", destination: "terminal" });
+    selectUtilitySurface("terminal");
     await terminalState.activateTerminal(sessionId);
   }
 
   function openUtilityTerminal() {
-    dispatchUtility({ type: "select", destination: "terminal" });
+    selectUtilitySurface("terminal");
   }
 
   function toggleUtilitySurface() {
@@ -702,11 +705,15 @@ export function App() {
   }
 
   function openConnectionsSurface() {
-    dispatchUtility({ type: "select", destination: "connections" });
+    selectUtilitySurface("connections");
   }
 
   function focusBrowserPane() {
-    dispatchUtility({ type: "select", destination: "preview" });
+    selectUtilitySurface("preview");
+  }
+
+  function selectUtilitySurface(destination: "terminal" | "preview" | "connections") {
+    flushSync(() => dispatchUtility({ type: "select", destination }));
   }
 
   function closeBrowserPane() {
