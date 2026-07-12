@@ -130,6 +130,30 @@ describe("InvocationRunner readiness parity", () => {
     await expect(updated).resolves.toMatchObject({ status: "process-exited", changedFileRefs: [{ path: notePath, kind: "modified" }] });
     await expect(readFile(promptPath, "utf8")).resolves.toContain("Replace the title.");
   });
+
+  it("records a failed headless command instead of implying it completed without changes", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    await writeFile(notePath, "# Before\n", "utf8");
+    const command = {
+      ...createDefaultClaudeAgentCommand(), id: "fails", handle: "fails", label: "Fails",
+      command: "/bin/sh -c 'exit 17'",
+    };
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), new DirectInvocationProcessFactory());
+    const updated = new Promise<unknown>((resolve) => runner.once("updated", resolve));
+
+    await runner.authorizeAndStart(await runner.prepare({
+      context: "note", handle: command.handle, documentPath: notePath, mentionText: "@fails",
+      message: "Test failure.", documentBody: "# Before\n", allowUntrustedOneShot: true,
+    }));
+
+    await expect(updated).resolves.toMatchObject({
+      status: "failed",
+      exitCode: 17,
+      failureReason: "Command exited with code 17.",
+    });
+  });
 });
 
 function createRunner(

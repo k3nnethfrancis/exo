@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { indentWithTab } from "@codemirror/commands";
@@ -291,7 +291,9 @@ export function NoteEditor(props: NoteEditorProps) {
   const handleEditorChange = useMemo(
     () =>
       (value: string, update: ViewUpdate) => {
-        onBodyChange(value);
+        // CodeMirror has already applied this edit. Deprioritise the
+        // workspace-model update so long inline requests stay responsive.
+        startTransition(() => onBodyChange(value));
         maybeUpdateWikilinkSuggestions(update);
         maybeUpdateAgentSuggestions(update);
       },
@@ -698,32 +700,6 @@ export function NoteEditor(props: NoteEditorProps) {
         </div>
       </div>
 
-      {invocationReview ? (
-        <div className="invocation-review" data-testid="invocation-review-banner">
-          <div className="invocation-review__summary">
-            <strong>{invocationReview.record.status === "running" ? `Running @${invocationReview.record.command.handle}` : `Changed during @${invocationReview.record.command.handle}`}</strong>
-            <span>{formatInvocationReviewDetail(invocationReview.record, invocationReview.hasDirtyConflict)}</span>
-          </div>
-          <div className="invocation-review__actions">
-            {invocationReview.hasDirtyConflict ? (
-              <>
-                <button className="toolbar-button" data-testid="invocation-keep-dirty-buffer" onClick={invocationReview.onKeepDirtyBuffer} type="button">
-                  Keep buffer
-                </button>
-                <button className="toolbar-button toolbar-button--primary" data-testid="invocation-reload-disk" onClick={invocationReview.onReloadFromDisk} type="button">
-                  Reload disk
-                </button>
-              </>
-            ) : null}
-            {invocationReview.record.status === "running" ? (
-              <button className="toolbar-button" data-testid="invocation-end-observation" onClick={invocationReview.onEndObservation} type="button">
-                End
-              </button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
-
       {showNoteMetadata && !propertiesCollapsed ? (
         <div className="properties-card" data-testid="properties-panel">
           <div className="properties-card__content">
@@ -887,6 +863,7 @@ export function NoteEditor(props: NoteEditorProps) {
             data-testid="agent-suggestions"
             style={{ left: agentSuggestions.left, top: agentSuggestions.top }}
           >
+            <div className="agent-suggestions__title">Agents</div>
             {agentSuggestions.items.map((command) => (
               <button
                 key={command.id}
@@ -898,9 +875,11 @@ export function NoteEditor(props: NoteEditorProps) {
                   acceptAgentSuggestion(command);
                 }}
               >
-                {command.handle === "claude" || command.handle === "codex" ? <AgentIcon kind={command.handle} size={13} /> : null}
-                <span className={`agent-suggestions__handle agent-suggestions__handle--${command.handle === "claude" || command.handle === "codex" ? command.handle : "default"}`}>@{command.handle}</span>
-                <span className="agent-suggestions__label">{command.label}</span>
+                {command.handle === "claude" || command.handle === "codex" ? <AgentIcon kind={command.handle} size={16} /> : null}
+                <span className="agent-suggestions__copy">
+                  <span className="agent-suggestions__label">{command.label}</span>
+                  <span className="agent-suggestions__command">{command.command}</span>
+                </span>
               </button>
             ))}
           </div>
@@ -939,6 +918,31 @@ export function NoteEditor(props: NoteEditorProps) {
             ))}
           </div>
         ) : null}
+        {invocationReview ? (
+          <div className={`invocation-review invocation-review--${invocationReview.record.status}`} data-testid="invocation-review-banner" role="status">
+            <div className="invocation-review__summary">
+              <strong>{formatInvocationReviewTitle(invocationReview.record)}</strong>
+              <span>{formatInvocationReviewDetail(invocationReview.record, invocationReview.hasDirtyConflict)}</span>
+            </div>
+            <div className="invocation-review__actions">
+              {invocationReview.hasDirtyConflict ? (
+                <>
+                  <button className="toolbar-button" data-testid="invocation-keep-dirty-buffer" onClick={invocationReview.onKeepDirtyBuffer} type="button">
+                    Keep buffer
+                  </button>
+                  <button className="toolbar-button toolbar-button--primary" data-testid="invocation-reload-disk" onClick={invocationReview.onReloadFromDisk} type="button">
+                    Reload disk
+                  </button>
+                </>
+              ) : null}
+              {invocationReview.record.status === "running" ? (
+                <button className="toolbar-button" data-testid="invocation-end-observation" onClick={invocationReview.onEndObservation} type="button">
+                  End
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
       </div>
 
     </section>
@@ -960,11 +964,24 @@ function formatInvocationReviewDetail(record: InvocationRecord, hasDirtyConflict
   if (record.status === "running") {
     return "Observation is active for this document.";
   }
+  if (record.status === "failed") {
+    return record.failureReason ?? "The command did not complete.";
+  }
   if (record.changedFileRefs.length === 0) {
     return "No tagged document changes were observed.";
   }
   const ambiguous = record.changedFileRefs.some((file) => file.attribution === "ambiguous");
   return `${record.changedFileRefs.length} changed file${record.changedFileRefs.length === 1 ? "" : "s"}${ambiguous ? " with ambiguous attribution" : ""}.`;
+}
+
+function formatInvocationReviewTitle(record: InvocationRecord): string {
+  if (record.status === "running") {
+    return `Running @${record.command.handle}`;
+  }
+  if (record.status === "failed") {
+    return `@${record.command.handle} failed`;
+  }
+  return `@${record.command.handle} finished`;
 }
 
 function clampPosition(position: number, docLength: number): number {

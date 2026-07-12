@@ -150,7 +150,8 @@ export class InvocationRunner extends EventEmitter {
     let processExitCode: number | null = null;
     let observationReady = false;
     const settleHeadlessProcess = () => {
-      setTimeout(() => void this.settle(prepared.id, "process-exited", processExitCode ?? undefined), OBSERVATION_EXIT_GRACE_MS).unref?.();
+      const status = processExitCode && processExitCode !== 0 ? "failed" : "process-exited";
+      setTimeout(() => void this.settle(prepared.id, status, processExitCode ?? undefined), OBSERVATION_EXIT_GRACE_MS).unref?.();
     };
     try {
       const prompt = prepared.request.context === "note"
@@ -261,7 +262,7 @@ export class InvocationRunner extends EventEmitter {
     if (event.filePath) for (const observation of this.active.values()) observation.observedPaths.add(path.resolve(event.filePath));
   }
 
-  private async settle(id: string, status: "process-exited" | "user-ended", exitCode?: number): Promise<InvocationRecord | null> {
+  private async settle(id: string, status: "process-exited" | "user-ended" | "failed", exitCode?: number): Promise<InvocationRecord | null> {
     const observation = this.active.get(id); if (!observation || observation.finalizing) return null;
     observation.finalizing = true;
     const after = await snapshotTextFile(observation.before.path);
@@ -278,7 +279,7 @@ export class InvocationRunner extends EventEmitter {
       diffRefs.push({ id: diffId, path: observation.before.path, format: "unified", ref: diffRef });
       changedFileRefs.push({ path: observation.before.path, kind: after.exists ? observation.before.exists ? "modified" : "created" : "deleted", observedAt: new Date().toISOString(), attribution: observation.overlapAtStart || !observation.observedPaths.has(path.resolve(observation.before.path)) ? "ambiguous" : "likely", diffRefId: diffId });
     }
-    const next = { ...observation.record, status, endedAt: new Date().toISOString(), ...(exitCode === undefined ? {} : { exitCode }), changedFileRefs, diffRefs, attribution: changed ? { status: changedFileRefs.some((f) => f.attribution === "ambiguous") ? "ambiguous" as const : "likely" as const } : { status: "unattributed" as const, reason: "No tagged document changes observed." } };
+    const next = { ...observation.record, status, endedAt: new Date().toISOString(), ...(exitCode === undefined ? {} : { exitCode }), ...(status === "failed" ? { failureReason: `Command exited with code ${exitCode ?? "unknown"}.` } : {}), changedFileRefs, diffRefs, attribution: changed ? { status: changedFileRefs.some((f) => f.attribution === "ambiguous") ? "ambiguous" as const : "likely" as const } : { status: "unattributed" as const, reason: "No tagged document changes observed." } };
     await store.writeRecord(next); this.active.delete(id); if (observation.record.terminalSessionId) this.byTerminal.delete(observation.record.terminalSessionId); this.emit("updated", next); return next;
   }
 
