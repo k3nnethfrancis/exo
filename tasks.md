@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-11
+Last updated: 2026-07-12
 
 This is Exo's active execution ledger. It records only current work. Completed implementation belongs in Git and `ledger.md`; reproducible bugs belong in `issues.md`; architecture rationale belongs in `docs/exograph-simplification-plan.md`.
 
@@ -40,14 +40,14 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 ### 1. Finish Settings preservation proof — `EXO-ISSUE-102`
 
 - [x] Prove opening, waiting, closing, and reopening Settings performs no write when unchanged.
-- [ ] Prove appearance/search/terminal-only edits preserve Commands, layout, unknown keys, and migration metadata. Appearance now has Electron proof for Commands and unknown keys; layout and the remaining sections need the same journey coverage.
+- [x] Prove appearance/search/terminal-only edits preserve Commands, layout, unknown keys, and migration metadata. `3b90db2` adds an Electron journey across every non-structural section and fixes V2 canvas-layout normalization.
 - [x] Prove stale/concurrent settings patches reject rather than silently overwrite one another.
-- [ ] Prove a saved Command remains invokable after every Settings round trip.
+- [x] Prove a saved Command remains invokable after every Settings round trip.
 
 ### 2. Finish Note Root containment proof — `EXO-ISSUE-103`
 
-- [ ] Move remaining note operations to root-relative identities behind `WorkspaceFiles`.
-- [ ] Complete escape coverage: traversal, absolute paths, duplicate roots, symlink files/directories, missing ancestors, rename, and recursive delete. Existing focused proof covers traversal, absolute paths, symlink escapes, and missing ancestors; add explicit rename/delete/duplicate-root cases.
+- [x] Keep canonical-path authorization behind `WorkspaceFiles`; Fable explicitly deferred root-relative identities as a later interface-quality improvement.
+- [x] Complete escape coverage: traversal, absolute paths, duplicate roots, symlink files/directories, missing ancestors, rename, recursive delete, and former Project Root paths failing closed after removal.
 - [x] Prove desktop IPC and command-server reads share the same containment seam.
 - [ ] Dogfood a guarded copy of the real vault before closing the issue.
 
@@ -59,21 +59,21 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 
 ### 4. Finish the editor and invocation loop
 
-- [ ] Polish live Markdown typography, list hierarchy, indentation, and spacing with real-note visual QA.
-- [ ] Make new Markdown notes start with an editable H1; at the initial caret, Markdown syntax must remain visible.
+- [x] Polish live Markdown typography, list hierarchy, indentation, and spacing with Electron coverage; human visual inspection remains in the dogfood gate.
+- [x] Make new Markdown notes start with an editable H1; at the initial caret, Markdown syntax remains visible.
 - [x] Replace the one-line mention launcher with the editor-owned `@agent` composer: autocomplete, transient multiline draft, Enter for lines, Shift+Enter to invoke, explicit confirmation, visible terminal execution, and review.
 - [ ] Dogfood the default `@claude` path on real work, including a multiline request and a full document-context handoff.
 - [ ] Dogfood the full loop on real work: write a note, invoke a Command, inspect changes, and keep or reject them.
 
 ### 5. Distill the repository
 
-- [ ] Decide P0: discard the uncalled Command-readiness draft and make a keep/discard decision for current dirty docs before P4; do not polish stale material in place.
-- [ ] Reduce stale tmux/transcript/plugin/harness/MCP plans and completion-plan families to the canonical docs or delete them.
-- [ ] Delete Attached Folder / Project Root configuration, UI, IPC, and documentation rather than renaming the old project-context model.
-- [ ] Run a type and data-model review: every durable type, persisted setting, IPC payload, and filesystem object has one current product meaning, an owning module, validation/normalization where needed, and no legacy aliases or dead fields.
-- [ ] Refresh the documentation system as one coherent set: vision (`ashby.md`), `CONTEXT.md`, README, architecture, feature/interaction docs, ADRs, roadmap, tasks, issues, and changelog must agree with the shipped note-native product and link to their canonical source rather than duplicate stale plans.
-- [ ] Add a compact feature/data-model coverage index so a future worker can locate the implementation, tests, user-facing behavior, and source-of-truth documentation for every retained feature.
-- [ ] Review the untracked Command-readiness draft files and the current dirty documentation intentionally before the branch is declared clean.
+- [x] Decide P0: discard the uncalled Command-readiness draft and make a keep/discard decision for current dirty docs before P4; do not polish stale material in place.
+- [x] Reduce stale tmux/transcript/plugin/harness/MCP plans and completion-plan families to the canonical docs or delete them.
+- [x] Delete Attached Folder / Project Root configuration, UI, IPC, and documentation rather than renaming the old project-context model.
+- [x] Run a type and data-model review: every durable type, persisted setting, IPC payload, and filesystem object has one current product meaning, an owning module, validation/normalization where needed, and no legacy aliases or dead fields.
+- [x] Refresh the documentation system as one coherent set: vision (`ashby.md`), `CONTEXT.md`, README, architecture, feature/interaction docs, ADRs, roadmap, tasks, issues, and changelog agree with the shipped note-native product and link to canonical sources rather than duplicate stale plans.
+- [x] Add a compact feature/data-model coverage index so a future worker can locate the implementation, tests, user-facing behavior, and source-of-truth documentation for every retained feature.
+- [x] Review the untracked Command-readiness draft files and the current dirty documentation intentionally before the branch is declared clean.
 
 ## Next — The First Exograph Vertical Slice
 
