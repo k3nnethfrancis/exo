@@ -42,7 +42,6 @@ export function WorkspaceSearchField({ inputRef, query, onChange, onClear, onSub
         data-testid="workspace-search-input"
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
-        placeholder="Search workspace"
         ref={inputRef}
         spellCheck={false}
         type="search"
