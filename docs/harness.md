@@ -1,6 +1,6 @@
 # Exo Harness
 
-> General validation guidance remains useful, but the product framing in this document predates the Exograph pivot. On `refactor/note-native-exo`, use `docs/exograph-refactor-completion-plan.md` for active work sequencing and deletion targets.
+> General validation guidance remains useful, but the product framing in this document predates the Exograph pivot. On `refactor/note-native-exo`, use `tasks.md` for active work sequencing and `docs/reviews/2026-07-12-fable-loop-01-packet.md` for the reviewed deletion boundary.
 
 Last updated: 2026-07-03
 
@@ -62,8 +62,6 @@ pnpm --filter @exo/cli typecheck
 pnpm --filter @exo/cli test
 pnpm --filter @exo/core typecheck
 pnpm --filter @exo/core test
-pnpm --filter @exo/mcp typecheck
-pnpm --filter @exo/mcp test
 pnpm test:e2e
 pnpm test:visual
 ```
@@ -103,7 +101,7 @@ A PR or handoff may say "fallback app evidence collected" only when that bundle 
 
 ## Current Harness Coverage
 
-- Identity/context: `AGENTS.md`, `docs/strategy.md`, `../roadmap.md`, `../tasks.md`, and `ledger.md` describe the current exograph and Exo-on-Exo operating model.
+- Identity/context: `AGENTS.md`, `CONTEXT.md`, `../README.md`, `docs/architecture.md`, `../roadmap.md`, and `../tasks.md` describe the current note-native operating model. `ledger.md` is shipped history.
 - Coordination: `docs/harness.md`, work-chunk rules, app-QA expectations, and Exo CLI/AgentCommand surfaces give agents a shared development loop.
 - Control: `pnpm ci:check` is the canonical CI/local gate, but mechanical architecture controls are still incomplete.
 - Audit: issue tracking and manual review catch drift today; automated entropy scans are not yet implemented.

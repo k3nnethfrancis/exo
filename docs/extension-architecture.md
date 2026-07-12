@@ -255,16 +255,10 @@ Defer:
 
 ## Durable Docs And Skills
 
-Docs to create or update after this plan is accepted:
-
-- `docs/extension-architecture.md` as the active answer.
-- `docs/search-provider-contract.md` after the search provider contract is cleaned up.
-- Archive or mark superseded:
-  - `docs/plugin-system-architecture.md`;
-  - `docs/plugin-implementation-plan.md`;
-  - `docs/plugins.md`;
-  - `docs/activity-plugin-contract.md`;
-  - `docs/agent-harness-plugin-contract.md`.
+`docs/extension-architecture.md` is the active answer. The former plugin/profile
+contracts and implementation plans were retired during the P4 documentation pass;
+Git retains their historical text. Do not revive those documents as a compatibility
+layer. Write a focused decision only when a concrete extension seam earns it.
 
 Skills:
 

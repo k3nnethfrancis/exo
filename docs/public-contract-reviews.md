@@ -21,7 +21,7 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 
 ## Removal Approval Notes
 
-- architect-review: 2026-07-08 `docs/exograph-refactor-completion-plan.md#public-contract-approval` is the Fable-reviewed approval to remove the named MCP, routine, deep harness-manager, profile-apply, and plugin-manager product surfaces, subject to caller audits and the Phase 1 public-contract updates. This approval covers removals only; new command-server routes, CLI commands/flags, or shared protocol types remain out of scope.
+- architect-review: 2026-07-12 `docs/reviews/2026-07-12-fable-loop-01-packet.md#fable-ruling--2026-07-12` confirms removal of the retired Project Root, MCP, routine, deep harness-manager, profile-apply, and plugin-manager product surfaces after caller audit. This approval covers removals only; new command-server routes, CLI commands/flags, or shared protocol types remain out of scope.
 - architect-review: 2026-07-08 MCP removal audit deleted `packages/mcp`, `exo integrations`, MCP capability surfaces, MCP profile-template support, MCP public-contract guard slices, and Codex MCP launch injection. CLI remains the active local integration surface.
 
 ## Protected Surfaces

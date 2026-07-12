@@ -271,15 +271,13 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 ## Repository Map
 
 - `apps/desktop` - Electron main/preload/renderer, settings, terminal supervision, and the local command server.
-- `packages/core` - workspace model, note/project discovery, runtime config, launch plans, QMD adapter, and shared command protocol.
+- `packages/core` - Note Root workspace model, Markdown files, configured Commands, QMD adapter, and shared command protocol.
 - `packages/cli` - `bin/exo` command surface.
 - `docs/architecture.md` - package and runtime architecture.
-- `docs/strategy.md` - product direction and system model.
 - `docs/extension-architecture.md` - current extension architecture and core-versus-extension boundary.
 - `docs/terminal-runtime-decision.md` - current direct-PTY terminal decision.
 - `docs/harness.md` - developer harness, gates, and agent workflow.
 - `docs/usability-readiness.md` - near-term standard for installed daily use.
-- `docs/plugins.md` - historical plugin model, superseded by `docs/extension-architecture.md`.
 - `tasks.md` - active execution tracker.
 - `roadmap.md` - future work and sequencing.
 - `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade checklist.

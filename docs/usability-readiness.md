@@ -1,10 +1,10 @@
 # Usability Readiness Standard
 
-> Historical readiness standard for the pre-pivot Exo-on-Exo product path. On `refactor/note-native-exo`, use `docs/exograph-refactor-completion-plan.md`, `roadmap.md`, and `tasks.md` for active sequencing.
+> Installed-app readiness evidence complements the active sequencing in `tasks.md` and the reviewed boundary in `docs/reviews/2026-07-12-fable-loop-01-packet.md`.
 
-Last updated: 2026-05-31
+Last updated: 2026-07-12
 
-This is the near-term standard before Exo becomes Kenneth's daily installed runtime for notes, terminals, agent coordination, and Exo-on-Exo development.
+This is the near-term standard before Exo becomes Kenneth's daily installed runtime for notes, terminals, configured Commands, and Exo-on-Exo development.
 
 The goal is not public-release polish. The goal is a stable local app that can stay running while Kenneth works on other projects, while source builds are tested separately.
 
@@ -20,17 +20,17 @@ The goal is not public-release polish. The goal is a stable local app that can s
 ## Stable Runtime Model
 
 - Installed `Exo.app` is the stable daily runtime.
-- Installed Exo owns the menu bar icon, hidden-window process, command server, MCP bridge, workspace watchers, transcripts, and supervised agent terminals.
+- Installed Exo owns the menu bar icon, hidden-window process, command server, workspace watchers, direct PTYs, and configured-Command invocation.
 - Source builds are QA targets. Use `pnpm dev:qa` so dev Exo writes `.exo-dev/` runtime and user-data state instead of clobbering the stable runtime.
-- Repo-backed CLI/MCP installation is acceptable for local development, but a standalone packaged CLI/helper remains future work.
+- The repo-backed CLI is the local operator surface; a standalone packaged CLI/helper remains future work.
 
 ## Ready Means
 
-- Notes editing, project-file editing, save feedback, settings, panes, preview, terminals, CLI/MCP, and hidden-window runtime work in the installed app.
-- Terminal typing, tab switching, long output, scrollback, transcript access, and agent send/read are responsive enough for actual daily work.
+- Note editing, save feedback, settings, panes, preview, terminals, CLI search/read/status, configured-Command invocation, and hidden-window runtime work in the installed app.
+- Terminal typing, tab switching, long output, and ordinary scrollback are responsive enough for actual daily work.
 - The menu bar icon is visible after launching the installed app and exposes Show Exo, Settings, status/recovery, and Quit.
 - Closing the window hides Exo; quitting from the menu bar is the explicit operation that stops live agents.
-- `./bin/exo status`, `./bin/exo agents list`, and MCP agent tools work while the window is hidden.
+- `exo status`, `exo search`, and `exo read` remain useful while the window is hidden or the app is off; `exo open` and `exo spawn` connect to the resident app when it is available.
 - Dev QA can run with `pnpm dev:qa` while installed Exo remains available for monitoring.
 - Open critical usability issues are either resolved or explicitly moved into the live bug-bash backlog with a workaround.
 
@@ -55,4 +55,4 @@ These are allowed after initial install only if they do not block daily use:
 - signing/notarization
 - CI/harness expansions that are valuable but not required to safely use the current local app
 
-Anything that blocks terminal input, loses saves, breaks settings, hides the menu bar runtime, prevents CLI/MCP control, corrupts notes/project files, or makes installed and dev Exo fight over runtime state goes back to immediate readiness work.
+Anything that blocks terminal input, loses saves, breaks settings, hides the menu bar runtime, prevents CLI control, corrupts Notes, or makes installed and dev Exo fight over runtime state goes back to immediate readiness work.

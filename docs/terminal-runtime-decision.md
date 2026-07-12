@@ -44,4 +44,6 @@ Required proof is defined in `skills/terminal-stability/SKILL.md` and includes i
 
 ## Historical documents
 
-`terminal-architecture-v4.md`, `terminal-refactor-plan.md`, and `terminal-attach-spike-report.md` describe superseded tmux work. They are historical evidence only and are deletion candidates once remaining references are distilled.
+The tmux/transcript-era plans and spike reports were retired in the P4 documentation
+pass. Git retains their historical text. This decision and
+`skills/terminal-stability/SKILL.md` are the durable terminal policy.

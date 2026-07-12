@@ -35,20 +35,8 @@ Codex agents are actively completing trust, containment, editor/invocation, and 
 
 ## Historical material
 
-Completion/master/orchestration plans, plugin/profile/harness contracts, terminal-era plans, and dated audits remain only for archaeology until a separate deletion pass removes them. They are not active instructions.
-
-Examples include:
-
-- `plugin-system-architecture.md`
-- `plugin-implementation-plan.md`
-- `plugins.md`
-- `activity-plugin-contract.md`
-- `agent-harness-plugin-contract.md`
-- `plugin-surface-contract.md`
-- `graph-visualization-plugin-contract.md`
-- `profile-plugin-management-plan.md`
-- `terminal-architecture-v4.md`
-- `terminal-refactor-plan.md`
-- older Exograph completion/orchestration/detailed agent plans
-
-Use Git and `../ledger.md` for implementation history. Do not refresh superseded plans with new product work.
+The pre-note-native plugin/profile, harness, MCP, tmux, transcript, completion-plan,
+and pivot documents were retired in the P4 stale-document deletion pass. Use Git for
+their exact historical text; use `../ledger.md` and `reviews/` for retained milestones
+and dated review evidence. Do not recreate or refresh a retired plan as current product
+guidance.

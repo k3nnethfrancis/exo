@@ -2,9 +2,29 @@
 
 Last updated: 2026-07-04
 
-This is the fastest current-state handoff for Exo. It records what exists now, what changed recently, and what is next. Active bugs and QA findings live in root `issues.md`; active tasks live in `tasks.md`; future systems live in `roadmap.md`; product/system strategy lives in `docs/strategy.md`.
+This is the shipped-history handoff for Exo. Active bugs and QA findings live in root
+`issues.md`; active tasks live in `tasks.md`; future systems live in `roadmap.md`; the
+current product and architecture live in `README.md`, `CONTEXT.md`, and
+`docs/architecture.md`.
 
-## Current Handoff
+## Note-native current handoff — 2026-07-12
+
+- Exo is a Note-Root-only local Markdown exocortex: Markdown/frontmatter are canonical,
+  filesystem and QMD are concrete search adapters, Connections is the graph read model,
+  and configured Commands run explicit inline invocations with reviewable changes.
+- The production terminal is one direct `node-pty` lifecycle rendered by xterm; Exo does
+  not own tmux persistence or durable transcripts.
+- Project Roots/Attached Folders, MCP, routines, harness management, profiles, and a
+  Plugin Manager are retired product surfaces. A future Plugin is only a distribution
+  bundle after a concrete lower-rung seam earns it.
+- Current work and acceptance gates are in `tasks.md`; dated architectural rulings are
+  retained under `docs/reviews/`.
+
+> **Historical snapshot below.** The remaining entries predate the note-native
+> simplification and are preserved only as Git-era history. They do not describe the
+> shipped product or authorize implementation.
+
+## Pre-note-native historical snapshot
 
 - Root `issues.md` is now the canonical Exo bug, QA, and field-report tracker. The old `docs/issues.md` path was moved; the vault dogfooding note should be treated as intake/history only.
 - The current ship path is documented at the top of `roadmap.md` and mirrored as concrete checklist items in `tasks.md`.

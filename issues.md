@@ -153,7 +153,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [x] Keep CLI search/read/status and custom search/indexing provider seams working without MCP.
   - [x] Update README, roadmap, tasks, AGENTS, and changelog after the first deletion chunk.
 - WP1 audit artifact, 2026-07-08:
-  - Architectural approval in force: `docs/exograph-refactor-completion-plan.md` section `Public Contract Approval` authorizes removal of the named MCP, routine, deep harness-manager, profile-apply, and plugin-manager product surfaces, subject to the caller audits and repo public-contract updates listed in Phase 1. This audit does not authorize new public surfaces.
+  - Architectural approval in force: `docs/reviews/2026-07-12-fable-loop-01-packet.md` records the Fable-approved removal of the named MCP, routine, deep harness-manager, profile-apply, and plugin-manager product surfaces, subject to caller audits and public-contract updates. This ruling does not authorize new public surfaces.
   - MCP setup/install/file families:
     - Runtime/package surface: `packages/mcp/**`, `packages/mcp/bin/exo-mcp.mjs`, `packages/mcp/README.md`, root `package.json` build/test scripts, `pnpm-workspace.yaml`.
     - Public-contract guard: `scripts/check-repo.mjs` protected slices for `packages/mcp/src/index.ts#tool-schemas` and `packages/mcp/src/exo-client.ts#route-client-methods`; required-file check currently names `packages/mcp/README.md`; `docs/public-contract-reviews.md` carries existing hashes and needs an intentional removal note/hash update when slices move or disappear.

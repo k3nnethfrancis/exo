@@ -1,6 +1,6 @@
 # Fable review packet: Loop 01 trust, editor, and repository convergence
 
-Status: prepared for Fable; no implementation fan-out authorized yet.
+Status: Fable review received; implementation proceeds asynchronously under the recorded ruling below.
 
 ## Context
 
