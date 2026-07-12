@@ -113,6 +113,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const codeMirrorRef = useRef<ReactCodeMirrorRef>(null);
   const scrollTopByPathRef = useRef<Map<string, number>>(new Map());
   const selectionByPathRef = useRef<Map<string, { anchor: number; head: number }>>(new Map());
+  const seededAuthoringPathsRef = useRef<Set<string>>(new Set());
   const previousBodyRef = useRef(document?.body ?? "");
   const previousPathRef = useRef(document?.filePath ?? "");
   const restoringScrollRef = useRef(false);
@@ -527,6 +528,25 @@ export function NoteEditor(props: NoteEditorProps) {
     };
   }, [document, documentPath, documentBody, rawMarkdownMode, theme, fontSize]);
 
+  const handleEditorCreated = useMemo(
+    () =>
+      (view: EditorView) => {
+        if (!document || !useMarkdownEditing || rawMarkdownMode || seededAuthoringPathsRef.current.has(document.filePath)) {
+          return;
+        }
+        const initialPosition = initialMarkdownAuthoringPosition(document.body);
+        if (initialPosition === null || view.state.doc.toString() !== document.body) {
+          return;
+        }
+        seededAuthoringPathsRef.current.add(document.filePath);
+        const position = clampPosition(initialPosition, view.state.doc.length);
+        view.dispatch({ selection: EditorSelection.cursor(position) });
+        selectionByPathRef.current.set(document.filePath, { anchor: position, head: position });
+        view.focus();
+      },
+    [document, rawMarkdownMode, useMarkdownEditing],
+  );
+
   useEffect(() => {
     if (!document || !revealLineRequest || revealLineRequest.filePath !== document.filePath) {
       return;
@@ -857,6 +877,7 @@ export function NoteEditor(props: NoteEditorProps) {
             highlightSelectionMatches: false,
           }}
           onChange={handleEditorChange}
+          onCreateEditor={handleEditorCreated}
           height="100%"
         />
         {agentSuggestions ? (
@@ -946,6 +967,15 @@ function formatInvocationReviewDetail(record: InvocationRecord, hasDirtyConflict
 
 function clampPosition(position: number, docLength: number): number {
   return Math.max(0, Math.min(position, docLength));
+}
+
+function initialMarkdownAuthoringPosition(body: string): number | null {
+  // NoteDocument.body deliberately excludes frontmatter. A body containing only
+  // the generated H1 is the untouched authoring state for a new Markdown note.
+  if (!/^\n?# [^\n]+\n$/.test(body)) {
+    return null;
+  }
+  return body.indexOf("# ") + 2;
 }
 
 function getAgentCompletionContext(doc: { lineAt: (position: number) => { from: number; text: string }; sliceString: (from: number, to: number) => string }, position: number): {

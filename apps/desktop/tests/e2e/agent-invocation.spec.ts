@@ -41,16 +41,23 @@ test("keeps an inline agent draft available when focus moves through the editor"
   });
 
   try {
-    await appendEditorText(fixture.page, "\n@draft");
+    await moveEditorCursorToEnd(fixture.page);
+    await fixture.page.keyboard.press("Enter");
+    await fixture.page.keyboard.type("@draft");
+    await expect(fixture.page.getByTestId("agent-suggestion-draft")).toBeVisible();
     await fixture.page.keyboard.press("Enter");
     const composer = fixture.page.getByTestId("inline-agent-composer");
     const input = composer.locator("textarea");
+    await expect(composer).toBeVisible();
     await input.fill("Keep this draft available.");
+    await input.press("Enter");
+    await expect(input).toHaveValue("Keep this draft available.\n");
+    await expect(fixture.page.getByTestId("invocation-review-banner")).toHaveCount(0);
 
     await fixture.page.locator(".cm-content").click();
     await expect(composer).toBeVisible();
     await input.click();
-    await expect(input).toHaveValue("Keep this draft available.");
+    await expect(input).toHaveValue("Keep this draft available.\n");
 
     await input.press("Escape");
     await expect(composer).not.toBeVisible();
@@ -409,7 +416,21 @@ async function appendEditorText(page: Awaited<ReturnType<typeof launchExoWorkspa
       },
       selection: { anchor: position },
     });
+    view.focus();
   }, text);
+}
+
+async function moveEditorCursorToEnd(page: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["page"]): Promise<void> {
+  await page.locator(".cm-content").click();
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    view.focus();
+  });
 }
 
 async function latestInvocationRecord(workspaceRoot: string): Promise<Record<string, any>> {

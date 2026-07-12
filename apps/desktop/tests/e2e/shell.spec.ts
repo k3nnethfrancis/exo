@@ -16,7 +16,7 @@ import {
 } from "../terminalQuality";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-const initialMarkdownNotePattern = /^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n$/;
+const initialMarkdownNotePattern = /^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n\n# [^\n]+\n$/;
 
 function boxesOverlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
@@ -179,6 +179,18 @@ test("creates, renames, and deletes notes from the explorer", async () => {
   await page.getByTestId("workspace-dialog-confirm").click();
   await expect(page.getByTestId("editor-title")).toHaveText("mutation-qa");
   await expect.poll(async () => readFile(createdPath, "utf8")).toMatch(initialMarkdownNotePattern);
+  await expect(page.locator(".exo-md-line--h1")).toContainText("# mutation-qa");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        const view = content?.cmView?.view;
+        return view ? { text: view.state.doc.toString(), selection: view.state.selection.main.head } : null;
+      }),
+    )
+    .toEqual(expect.objectContaining({
+      selection: 3,
+    }));
 
   await page.getByTestId("sidebar").getByRole("button", { name: "mutation-qa" }).click({ button: "right" });
   await page.getByText("Rename").click();

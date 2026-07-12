@@ -622,26 +622,30 @@ button svg,
 
 .inline-agent-composer {
   box-sizing: border-box;
-  width: min(100%, 720px);
-  margin: 0.12rem 0 0.2rem;
-  background: color-mix(in srgb, var(--accent) 9%, transparent);
-  padding: 0.25rem 0.45rem 0.3rem;
+  width: min(100%, 760px);
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  column-gap: 0.42em;
+  align-items: start;
+  margin: 0.16rem 0 0.24rem;
+  padding: 0.1em 0.3em;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 12%, transparent), color-mix(in srgb, var(--accent) 5%, transparent) 74%, transparent);
 }
 
 .inline-agent-composer__label {
   color: var(--accent);
-  display: inline;
+  display: block;
   font-size: 0.84em;
   font-weight: 680;
   letter-spacing: 0;
   line-height: inherit;
-  margin-right: 0.42em;
+  padding-top: 0.02em;
 }
 
 .inline-agent-composer__input {
   box-sizing: border-box;
   width: 100%;
-  min-height: 1.55em;
+  min-height: 1.6em;
   resize: none;
   border: 0;
   outline: 0;
@@ -810,7 +814,7 @@ button svg,
 
 .editor-surface--live-preview .exo-md-line--list {
   position: relative;
-  line-height: 1.66;
+  line-height: 1.6;
 }
 
 .editor-surface--live-preview .exo-md-line--task {
@@ -825,7 +829,7 @@ button svg,
 
 .editor-surface--live-preview .exo-md-line--list-start,
 .editor-surface--live-preview .exo-md-line--list-continuation {
-  min-height: 1.66em;
+  min-height: 1.6em;
 }
 
 .editor-surface--live-preview .exo-md-line--quote {
@@ -1029,9 +1033,9 @@ button svg,
   content: "";
   position: absolute;
   left: calc(var(--exo-list-base-indent, 30px) + var(--exo-list-depth, 0) * var(--exo-list-indent-step, 28px) - var(--exo-list-marker-lane-width, 18px) + 6px);
-  top: calc(0.83lh - 2.5px);
-  width: 5px;
-  height: 5px;
+  top: calc(0.8lh - 2px);
+  width: 4px;
+  height: 4px;
   border-radius: 999px;
   background: var(--exo-list-bullet);
   pointer-events: none;
@@ -1051,9 +1055,9 @@ button svg,
   background: transparent;
   color: var(--exo-list-bullet);
   font-family: var(--sans);
-  font-size: 0.78em;
+  font-size: 0.76em;
   font-variant-numeric: tabular-nums;
-  font-weight: 550;
+  font-weight: 600;
   justify-content: flex-end;
   padding-right: 3px;
   opacity: 0.9;
