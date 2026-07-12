@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { WorkspaceSearchResults } from "@exo/core";
 import { ChevronRight, FileText, Folder, Globe2, Network, PanelLeft, PanelRight, SquareTerminal } from "lucide-react";
 
@@ -28,8 +28,10 @@ interface ShellLayoutProps {
   searchMessage: string | null;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
+  utilityWidth: number;
   onToggleSidebar: () => void;
   onResizeSidebar: (event: React.MouseEvent) => void;
+  onResizeUtility: (event: React.MouseEvent) => void;
   canvas: PaneNode;
   focusedPaneId: PaneNodeId;
   canvasActions: PaneTreeActions;
@@ -112,7 +114,10 @@ export function ShellLayout(props: ShellLayoutProps) {
           </button>
         </div>
       </header>
-      <div className={`workspace-shell${props.sidebarCollapsed ? " workspace-shell--sidebar-collapsed" : ""}${props.utilityOpen ? " workspace-shell--utility-open" : ""}`}>
+      <div
+        className={`workspace-shell${props.sidebarCollapsed ? " workspace-shell--sidebar-collapsed" : ""}${props.utilityOpen ? " workspace-shell--utility-open" : ""}`}
+        style={{ "--workspace-utility-width": `${props.utilityWidth}px` } as CSSProperties}
+      >
       <aside className="workspace-shell__explorer" style={{ width: props.sidebarCollapsed ? 0 : props.sidebarWidth }}>
         <FileTree
           attachedFolders={props.attachedSections}
@@ -142,6 +147,15 @@ export function ShellLayout(props: ShellLayoutProps) {
       <main className="workspace-shell__canvas">
         <PaneTree node={props.canvas} actions={props.canvasActions} focusedLeafId={props.focusedPaneId} renderLeaf={props.renderLeaf} hoverEdge={props.dragManager.hoverEdge} />
       </main>
+      {props.utilityOpen ? (
+        <div
+          aria-label="Resize utility pane"
+          className="pane-split-resizer pane-split-resizer--vertical workspace-shell__utility-resizer"
+          data-testid="utility-pane-resizer"
+          onMouseDown={props.onResizeUtility}
+          role="separator"
+        />
+      ) : null}
       <aside aria-hidden={!props.utilityOpen} className="workspace-shell__utility" data-testid="utility-pane">
         <nav className="workspace-utility-rail" aria-label="Utility pane">
           <button aria-label="Open preview" aria-pressed={props.utilityOpen && props.utilitySurface === "preview"} className="workspace-utility-rail__button" data-testid="utility-pane-preview" onClick={props.onOpenUtilityBrowser} title="Preview" type="button"><Globe2 size={16} aria-hidden="true" /></button>

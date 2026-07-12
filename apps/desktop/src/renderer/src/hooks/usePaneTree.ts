@@ -37,6 +37,7 @@ export interface WorkspaceCanvasLayout {
   canvas: PaneNode;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
+  utilityWidth: number;
 }
 
 export type DropEdge = "top" | "bottom" | "left" | "right" | "center";

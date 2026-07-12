@@ -11,8 +11,8 @@ const editor: PaneNode = {
 
 describe("WorkspaceCanvas persistence", () => {
   it("writes version two editor-only layouts", () => {
-    const snapshot = createWorkspaceCanvasSnapshot({ canvas: editor, sidebarCollapsed: false, sidebarWidth: 175 });
-    expect(snapshot).toEqual({ version: 2, canvas: editor, sidebarCollapsed: false, sidebarWidth: 175 });
+    const snapshot = createWorkspaceCanvasSnapshot({ canvas: editor, sidebarCollapsed: false, sidebarWidth: 175, utilityWidth: 430 });
+    expect(snapshot).toEqual({ version: 2, canvas: editor, sidebarCollapsed: false, sidebarWidth: 175, utilityWidth: 430 });
     expect(decodePersistedWorkspaceCanvas(snapshot)).toEqual(snapshot);
   });
 
@@ -40,9 +40,10 @@ describe("WorkspaceCanvas persistence", () => {
       },
       sidebarCollapsed: true,
       sidebarWidth: 220,
+      utilityWidth: 510,
     });
 
-    expect(restored).toEqual({ version: 2, canvas: editor, sidebarCollapsed: true, sidebarWidth: 220 });
+    expect(restored).toEqual({ version: 2, canvas: editor, sidebarCollapsed: true, sidebarWidth: 220, utilityWidth: 510 });
   });
 
   it("does not revive a separate legacy terminal tree", () => {

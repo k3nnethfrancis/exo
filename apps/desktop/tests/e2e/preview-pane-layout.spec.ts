@@ -65,6 +65,29 @@ test("uses one full-width preview surface in the utility pane", async () => {
   }
 });
 
+test("resizes the utility pane from its left edge", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture();
+
+  try {
+    await page.getByTestId("utility-pane-toggle").click();
+    const utilityPane = page.getByTestId("utility-pane");
+    const resizer = page.getByTestId("utility-pane-resizer");
+    const before = await utilityPane.boundingBox();
+    const handle = await resizer.boundingBox();
+    expect(before).not.toBeNull();
+    expect(handle).not.toBeNull();
+
+    await page.mouse.move(handle!.x + handle!.width / 2, handle!.y + 120);
+    await page.mouse.down();
+    await page.mouse.move(handle!.x - 140, handle!.y + 120, { steps: 8 });
+    await page.mouse.up();
+
+    await expect.poll(async () => (await utilityPane.boundingBox())?.width ?? 0).toBeGreaterThan(before!.width + 100);
+  } finally {
+    await cleanup();
+  }
+});
+
 test("opens absolute local HTML paths through the command server in the preview pane", async () => {
   const { page, runtimeRoot, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,

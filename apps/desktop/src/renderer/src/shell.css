@@ -170,7 +170,7 @@
 
 .workspace-shell {
   display: grid;
-  grid-template-columns: auto 6px minmax(0, 1fr) 0;
+  grid-template-columns: auto 6px minmax(0, 1fr) 0 0;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -201,12 +201,16 @@
 }
 
 .workspace-shell__utility {
-  grid-column: 4;
+  grid-column: 5;
   display: none;
 }
 
+.workspace-shell__utility-resizer {
+  grid-column: 4;
+}
+
 .workspace-shell--sidebar-collapsed {
-  grid-template-columns: 0 minmax(0, 1fr) 0;
+  grid-template-columns: 0 minmax(0, 1fr) 0 0;
 }
 
 .workspace-shell--sidebar-collapsed .workspace-shell__canvas {
@@ -214,15 +218,19 @@
 }
 
 .workspace-shell--sidebar-collapsed .workspace-shell__utility {
+  grid-column: 4;
+}
+
+.workspace-shell--sidebar-collapsed .workspace-shell__utility-resizer {
   grid-column: 3;
 }
 
 .workspace-shell--utility-open {
-  grid-template-columns: auto 6px minmax(0, 1fr) minmax(320px, 34vw);
+  grid-template-columns: auto 6px minmax(0, 1fr) 6px var(--workspace-utility-width);
 }
 
 .workspace-shell--sidebar-collapsed.workspace-shell--utility-open {
-  grid-template-columns: 0 minmax(0, 1fr) minmax(320px, 34vw);
+  grid-template-columns: 0 minmax(0, 1fr) 6px var(--workspace-utility-width);
 }
 
 .workspace-shell--utility-open .workspace-shell__utility {

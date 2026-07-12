@@ -7,6 +7,7 @@ interface UseWorkspaceLayoutPersistenceOptions {
   canvas: PaneNode;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
+  utilityWidth: number;
   layoutPersistenceReady: boolean;
   onboardingActive: boolean;
   workspaceModel: WorkspaceModel | null;
@@ -44,25 +45,27 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
   ]);
 }
 
-export function createWorkspaceCanvasSnapshot(input: Pick<UseWorkspaceLayoutPersistenceOptions, "canvas" | "sidebarCollapsed" | "sidebarWidth">): WorkspaceCanvasLayout {
+export function createWorkspaceCanvasSnapshot(input: Pick<UseWorkspaceLayoutPersistenceOptions, "canvas" | "sidebarCollapsed" | "sidebarWidth" | "utilityWidth">): WorkspaceCanvasLayout {
   return {
     version: 2,
     canvas: input.canvas,
     sidebarCollapsed: input.sidebarCollapsed,
     sidebarWidth: Math.round(input.sidebarWidth),
+    utilityWidth: Math.round(input.utilityWidth),
   };
 }
 
 /** Restore a safe editor-only canvas from current or legacy persisted layout. */
 export function decodePersistedWorkspaceCanvas(layout: unknown): WorkspaceCanvasLayout | null {
   if (!layout || typeof layout !== "object") return null;
-  const candidate = layout as { canvas?: unknown; editorTree?: unknown; terminalTree?: unknown; sidebarCollapsed?: unknown; sidebarWidth?: unknown };
+  const candidate = layout as { canvas?: unknown; editorTree?: unknown; terminalTree?: unknown; sidebarCollapsed?: unknown; sidebarWidth?: unknown; utilityWidth?: unknown };
   const canvas = decodeWorkspaceCanvasLayout(candidate.canvas ?? candidate.editorTree ?? candidate.terminalTree);
   return {
     version: 2,
     canvas,
     sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
     sidebarWidth: Number.isFinite(candidate.sidebarWidth) ? Math.round(candidate.sidebarWidth as number) : 175,
+    utilityWidth: Number.isFinite(candidate.utilityWidth) ? Math.round(candidate.utilityWidth as number) : 430,
   };
 }
 

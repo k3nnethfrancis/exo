@@ -242,6 +242,7 @@ export function App() {
     canvas: canvasTree,
     sidebarCollapsed: shellLayout.sidebarCollapsed,
     sidebarWidth: shellLayout.sidebarWidth,
+    utilityWidth: shellLayout.utilityWidth,
     layoutPersistenceReady,
     onboardingActive: Boolean(onboardingState),
     workspaceModel,
@@ -1006,8 +1007,10 @@ export function App() {
       attachedSections={[]}
       sidebarCollapsed={shellLayout.sidebarCollapsed}
       sidebarWidth={shellLayout.sidebarWidth}
+      utilityWidth={shellLayout.utilityWidth}
       onToggleSidebar={() => shellLayout.setSidebarCollapsed((current) => !current)}
       onResizeSidebar={(event) => shellLayout.startSidebarResize(event)}
+      onResizeUtility={shellLayout.startUtilityResize}
       canvas={canvasTree}
       focusedPaneId={focusedPaneId}
       canvasActions={canvasActions}
