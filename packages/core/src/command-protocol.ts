@@ -8,8 +8,6 @@ export const EXO_COMMAND_ROUTES = {
   indexStatus: "/index/status",
   indexRoots: "/index/roots",
   indexSync: "/index/sync",
-  indexUpdate: "/index/update",
-  indexEmbed: "/index/embed",
   open: "/open",
   openPreview: "/preview/open",
   focusPreview: "/preview/focus",

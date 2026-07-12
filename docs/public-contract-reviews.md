@@ -38,6 +38,8 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: architect-review: 2026-07-08 Fable Exograph completion review approved `AgentCommand` as the V1 agent identity and `exo spawn @handle` as a CLI-only configured-command launch surface; protocol update adds the spawn route request/response and invocation payload types.
 - sha256: `a61037495a1201d05172cf29d32abc5b25e28d775414580a45bad12137a49344`
 - review: architect-review: 2026-07-08 MCP removal audit removed MCP from the capability/caller-surface vocabulary and retained the existing app/CLI command protocol routes.
+- sha256: `0b02ba339dedc94bab35e89812a0360f313c62ea986797f3f8266f50ffe17183`
+- review: user-approved-exception: 2026-07-11 User explicitly authorized Codex to settle the refactor contract without Fable; removes stale `/index/update` and `/index/embed` constants after a zero-caller audit. Explicit `index sync` remains the public maintenance action.
 
 ### `apps/desktop/src/main/command-server.ts#route-table`
 
@@ -45,6 +47,8 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: guard-baseline: 2026-07-04 existing command-server HTTP method and route match surface; guard cleanup does not change behavior.
 - sha256: `60d347d59b9c6f3356472d6d67b33b006c90d52bc7265cda203b2b84af2b7bd8`
 - review: architect-review: 2026-07-08 Fable Exograph completion review approved routing configured AgentCommand spawn through the authenticated local command server, with token auth already required on all routes and structured untrusted-command errors.
+- sha256: `438da0c99da1136f4074bc4d1c6b3057e091c5be9e299d0a50243742b119ec5b`
+- review: user-approved-exception: 2026-07-11 User explicitly authorized Codex to settle the refactor contract without Fable; removed zero-caller terminal diagnostics/transcript/semantic-answer and index update/embed routes. The retained authenticated loopback routes are the V1 operator contract.
 
 ### `packages/cli/src/index.ts#commands-and-flags`
 
@@ -65,6 +69,8 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: architect-review: 2026-07-08 MCP removal audit deleted the legacy `exo integrations` command family and kept CLI search/read/status/terminal/AgentCommand surfaces as the active local integration path.
 - sha256: `e09e9624ff2f59e1655c34cbf714b12cfe2dca60a3cd3f7d565d1296be588ccb`
 - review: architect-review: 2026-07-09 Fable Exograph completion plan required deleting `profile-recovery` when no real recovery manifests exist; targeted manifest audit found none, so the CLI recovery command was removed with profile-apply proposal/recovery code.
+- sha256: `41ee36a7ec85c40682cf773ee01505d39f1b66331ca40bde702dc6e46c038095`
+- review: user-approved-exception: 2026-07-11 User explicitly authorized Codex to settle the refactor contract without Fable; restores `exo start` as the macOS packaged-app bootstrap and preserves app-off filesystem `status`, `search`, and `read`. Mutating/focus/terminal commands remain app-backed.
 
 ### `packages/cli/src/app-client.ts#route-client-methods`
 
@@ -74,3 +80,5 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: user-approved-exception: 2026-07-04 plugin architecture cleanup intentionally updated CLI app-client agent-create route payloads to submit harness ids through the registered harness path.
 - sha256: `27fbf0b328b454c9a3afe57fffc855ae1695dcbeac5eff074809b09046bcf3ec`
 - review: architect-review: 2026-07-08 Fable Exograph completion review approved adding the CLI app-client method for authenticated AgentCommand spawn over the local command server.
+- sha256: `28f5d85fd44f3636bc2fc7c2910f812e89ada29d363cef89c0b96171ac2769ac`
+- review: user-approved-exception: 2026-07-11 User explicitly authorized Codex to settle the refactor contract without Fable; removed client methods for the same zero-caller diagnostic/transcript/index-maintenance routes removed from the command server.

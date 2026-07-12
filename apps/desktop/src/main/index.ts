@@ -20,6 +20,7 @@ import {
   renameWorkspacePath,
   resolveWorkspaceModel,
   saveWorkspaceDocument,
+  workspaceModelFromSettings,
   WorkspaceIndex,
   qmdSearchProvider,
   searchNotes,
@@ -434,18 +435,6 @@ async function switchWorkspace(workspaceId: string, expectedRevision: string | n
   workspaceWatcherService.start(workspaceModel);
   terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
   return { ...saved, runtimeApply: { status: "applied" } };
-}
-
-function workspaceModelFromSettings(settings: WorkspaceSettings): WorkspaceModel {
-  return {
-    workspaceRoot: settings.workspaceRoot,
-    defaultTerminalCwd: settings.defaultTerminalCwd,
-    noteRoots: settings.noteRoots.map((path, index) => ({ id: `note-root-${index + 1}`, label: path.split("/").pop() || path, path, kind: "notes" })),
-    projectRoots: settings.projectRoots.map((path, index) => ({ id: `project-root-${index + 1}`, label: path.split("/").pop() || path, path, kind: "projects" })),
-    indexedRoots: settings.indexedRoots,
-    indexing: settings.indexing,
-    attachedWorkcells: [],
-  };
 }
 
 function applyOnboardingRuntimeEnv() {

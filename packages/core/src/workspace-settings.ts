@@ -3,7 +3,7 @@ import { chmod, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/pro
 import os from "node:os";
 import path from "node:path";
 
-import type { IndexMode, WorkspaceLayoutSettings, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
+import type { IndexMode, WorkspaceLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
 import { normalizeAgentCommands } from "./agent-invocation";
 import {
   DEFAULT_TERMINAL_AGENT_STARTUP_GRACE_MS,
@@ -265,6 +265,33 @@ export async function loadActiveWorkspaceSettings(env: NodeJS.ProcessEnv = proce
   const registry = await loadWorkspaceRegistry(env);
   const active = registry.workspaces.find((entry) => entry.id === registry.activeWorkspaceId) ?? registry.workspaces[0];
   return active?.settings ?? null;
+}
+
+/**
+ * Converts persisted workspace choices into the filesystem model shared by
+ * the desktop app and app-off operator commands. Settings remain user data;
+ * this function only gives them stable root identities for one operation.
+ */
+export function workspaceModelFromSettings(settings: WorkspaceSettings): WorkspaceModel {
+  return {
+    workspaceRoot: settings.workspaceRoot,
+    defaultTerminalCwd: settings.defaultTerminalCwd,
+    noteRoots: settings.noteRoots.map((targetPath, index) => ({
+      id: `note-root-${index + 1}`,
+      label: path.basename(targetPath) || targetPath,
+      path: targetPath,
+      kind: "notes" as const,
+    })),
+    projectRoots: settings.projectRoots.map((targetPath, index) => ({
+      id: `project-root-${index + 1}`,
+      label: path.basename(targetPath) || targetPath,
+      path: targetPath,
+      kind: "projects" as const,
+    })),
+    indexedRoots: settings.indexedRoots,
+    indexing: settings.indexing,
+    attachedWorkcells: [],
+  };
 }
 
 export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | null | undefined): WorkspaceSettings | null {
