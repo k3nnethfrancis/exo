@@ -234,3 +234,54 @@ test("returns to the Preview empty state after its final tab closes", async () =
     await cleanup();
   }
 });
+
+test("switches one utility pane between independent Preview, Terminal, and Connections destinations", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture();
+
+  try {
+    await expect.poll(async () => page.evaluate(() => window.exo.terminals.list())).toEqual([]);
+
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-preview").click();
+    await page.getByRole("button", { name: "New preview" }).click();
+    await page.getByTestId("browser-url-input").fill("http://localhost:8765/blog/self-improving-business-systems");
+    await page.getByTestId("browser-url-input").press("Enter");
+    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute(
+      "src",
+      "http://localhost:8765/blog/self-improving-business-systems",
+    );
+
+    await page.getByTestId("utility-pane-terminal").click();
+    await expect(page.getByTestId("utility-pane-terminal")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("terminal-dock")).toBeVisible();
+    await expect(page.getByTestId("browser-pane")).toHaveCount(0);
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(0);
+    await expect.poll(async () => page.evaluate(() => window.exo.terminals.list())).toEqual([]);
+
+    await page.getByTestId("new-terminal").click();
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
+    await expect.poll(async () => page.evaluate(async () => (await window.exo.terminals.list()).length)).toBe(1);
+
+    await page.getByTestId("utility-pane-connections").click();
+    await expect(page.getByTestId("utility-pane-connections")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("inspector-panel")).toBeVisible();
+    await expect(page.getByTestId("browser-pane")).toHaveCount(0);
+    await expect(page.getByTestId("terminal-dock")).toHaveCount(0);
+
+    await page.getByTestId("utility-pane-preview").click();
+    await expect(page.getByTestId("utility-pane-preview")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("browser-url-input")).toHaveValue(
+      "http://localhost:8765/blog/self-improving-business-systems",
+    );
+    await expect(page.getByTestId("terminal-dock")).toHaveCount(0);
+    await expect(page.getByTestId("inspector-panel")).toHaveCount(0);
+
+    await page.getByTestId("utility-pane-terminal").click();
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
+    await expect(page.getByTestId("browser-pane")).toHaveCount(0);
+    await expect(page.getByTestId("inspector-panel")).toHaveCount(0);
+    await expect.poll(async () => page.evaluate(async () => (await window.exo.terminals.list()).length)).toBe(1);
+  } finally {
+    await cleanup();
+  }
+});
