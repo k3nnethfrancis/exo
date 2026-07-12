@@ -10,9 +10,9 @@ const editor: PaneNode = {
 };
 
 describe("WorkspaceCanvas persistence", () => {
-  it("writes version two editor-only layouts", () => {
+  it("writes version three mixed-pane layouts", () => {
     const snapshot = createWorkspaceCanvasSnapshot({ canvas: editor, sidebarCollapsed: false, sidebarWidth: 175, utilityWidth: 430 });
-    expect(snapshot).toEqual({ version: 2, canvas: editor, sidebarCollapsed: false, sidebarWidth: 175, utilityWidth: 430 });
+    expect(snapshot).toEqual({ version: 3, canvas: editor, sidebarCollapsed: false, sidebarWidth: 175, utilityWidth: 430 });
     expect(decodePersistedWorkspaceCanvas(snapshot)).toEqual(snapshot);
   });
 
@@ -43,7 +43,7 @@ describe("WorkspaceCanvas persistence", () => {
       utilityWidth: 510,
     });
 
-    expect(restored).toEqual({ version: 2, canvas: editor, sidebarCollapsed: true, sidebarWidth: 220, utilityWidth: 510 });
+    expect(restored).toEqual({ version: 3, canvas: editor, sidebarCollapsed: true, sidebarWidth: 220, utilityWidth: 510 });
   });
 
   it("does not revive a separate legacy terminal tree", () => {
@@ -70,6 +70,25 @@ describe("WorkspaceCanvas persistence", () => {
     };
 
     const snapshot = createWorkspaceCanvasSnapshot({ canvas: folderEditor, sidebarCollapsed: false, sidebarWidth: 175, utilityWidth: 430 });
+
+    expect(decodePersistedWorkspaceCanvas(snapshot)).toEqual(snapshot);
+  });
+
+  it("preserves moved terminal and preview references without reviving old utility leaves", () => {
+    const canvas: PaneNode = {
+      kind: "split",
+      id: "mixed",
+      direction: "horizontal",
+      ratio: 0.5,
+      children: [
+        editor,
+        { kind: "split", id: "tools", direction: "vertical", ratio: 0.5, children: [
+          { kind: "leaf", id: "terminal", content: { kind: "terminal", terminalId: "term-1" } },
+          { kind: "leaf", id: "preview", content: { kind: "browser", previewId: "preview-1" } },
+        ] },
+      ],
+    };
+    const snapshot = createWorkspaceCanvasSnapshot({ canvas, sidebarCollapsed: false, sidebarWidth: 175, utilityWidth: 430 });
 
     expect(decodePersistedWorkspaceCanvas(snapshot)).toEqual(snapshot);
   });

@@ -3,8 +3,10 @@ import {
   mapLeaves,
   paneId,
   pruneEmptyLeaves,
+  removeNode,
   updateNode,
   type EditorPaneContent,
+  type PaneContent,
   type PaneLeaf,
   type PaneNode,
   type PaneNodeId,
@@ -35,10 +37,45 @@ export function usePaneDropOrchestration(options: UsePaneDropOrchestrationOption
 
     if (payload.kind === "document") {
       handleDocumentDrop(options, target.leafId, target.edge, payload.filePath, payload.sourcePaneId);
+    } else if (payload.kind === "terminal") {
+      handleSurfaceDrop(options, target.leafId, target.edge, { kind: "terminal", terminalId: payload.terminalId }, payload.sourcePaneId);
+    } else if (payload.kind === "preview") {
+      handleSurfaceDrop(options, target.leafId, target.edge, { kind: "browser", previewId: payload.previewId }, payload.sourcePaneId);
     } else if (payload.kind === "workspace-path" && payload.nodeKind === "file") {
       handleDocumentDrop(options, target.leafId, target.edge, payload.path);
     }
   });
+}
+
+function handleSurfaceDrop(
+  options: UsePaneDropOrchestrationOptions,
+  leafId: PaneNodeId,
+  edge: DropEdge,
+  content: PaneContent,
+  sourceLeafId?: PaneNodeId,
+) {
+  const targetLeaf = findNode(options.canvasTree, (node) => node.id === leafId && node.kind === "leaf") as PaneLeaf | undefined;
+  if (!targetLeaf) return;
+  if (sourceLeafId === leafId) return;
+  const dropEdge = edge === "center" ? "right" : edge;
+  const direction: "horizontal" | "vertical" = dropEdge === "left" || dropEdge === "right" ? "horizontal" : "vertical";
+  const position: "before" | "after" = dropEdge === "left" || dropEdge === "top" ? "before" : "after";
+  const newLeafId = paneId();
+  options.canvasActions.setTree((previous) => {
+    let tree = updateNode(previous, leafId, (node) => {
+    const newLeaf: PaneLeaf = { kind: "leaf", id: newLeafId, content };
+    return {
+      kind: "split",
+      id: paneId(),
+      direction,
+      ratio: 0.5,
+      children: position === "before" ? [newLeaf, node as PaneLeaf] : [node as PaneLeaf, newLeaf],
+    };
+    });
+    if (sourceLeafId && sourceLeafId !== leafId) tree = removeNode(tree, sourceLeafId) ?? tree;
+    return tree;
+  });
+  options.canvasActions.focusLeaf(newLeafId);
 }
 
 function handleDocumentDrop(

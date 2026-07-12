@@ -8,12 +8,12 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 - Adds one shared right-side utility destination with mutually exclusive Preview, Terminal, and Connections views.
 - Adds centered workspace search with an anchored result popover, typed titlebar breadcrumbs, and explicit Folder Index creation/maintenance.
-- Adds a version-two editor-only layout format. Legacy layouts are safely reduced to editor leaves on restore.
+- Adds a version-three mixed-pane layout format. Existing terminal and preview tabs can move into a canvas split while retaining their live session/tab identity.
 - Adds compact saved-Command readiness and explicitly confirmed one-shot Test controls inside Terminal.
 
 ### Changed
 
-- Makes Preview and Terminal independent utility surfaces with their own tabs; neither may become an editor split pane.
+- Keeps Preview and Terminal as independent utility destinations with their own tabs, while allowing a tab to be dragged into an editor split and returned by closing its canvas pane.
 - Makes folder creation create a minimal `index.md`, while imported folders remain read-only until the user explicitly creates an index.
 - Moves workspace Settings to the lower workspace menu and tightens Explorer/titlebar chrome.
 - Refines Workspace Settings around user-facing outcomes, compact responsive rows, and provider-neutral search maintenance.
@@ -24,7 +24,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Removed
 
-- Removes terminal and browser leaves, terminal pane placement, browser pane placement, and monitor-mode layout restoration from the editor canvas.
+- Removes legacy terminal/browser layout restoration that lacks stable session/tab identities.
 - Removes the duplicate Explorer search surface and dead Preview control.
 
 ### Superseded pre-refactor draft material

@@ -7,6 +7,7 @@ import type { ExoThemeVariant } from "../theme/types";
 import { AgentIcon } from "./AgentIcon";
 import { ChromeTab } from "./Chrome";
 import type { TerminalHydrationReason } from "./terminalHydration";
+import type { DragManager } from "../hooks/useDragManager";
 import { focusTerminal } from "./terminalRegistry";
 import { TerminalView } from "./TerminalView";
 
@@ -32,6 +33,8 @@ interface TerminalDockProps {
   onGeometryMeasured: (id: string, cols: number, rows: number) => void;
   onKill: (id: string) => void;
   onCreateTerminal: () => void;
+  dragManager?: DragManager;
+  onClosePane?: () => void;
 }
 
 export function TerminalDock(props: TerminalDockProps) {
@@ -57,6 +60,8 @@ export function TerminalDock(props: TerminalDockProps) {
     onGeometryMeasured,
     onKill,
     onCreateTerminal,
+    dragManager,
+    onClosePane,
   } = props;
   const activeSession = sessions.find((session) => session.id === activeTerminalId) ?? null;
   const terminalWritable = activeSession ? isTerminalInputEnabled(activeSession) : true;
@@ -111,14 +116,16 @@ export function TerminalDock(props: TerminalDockProps) {
                     onSetActiveTerminal(session.id);
                     focusTerminalAfterPaneActivation(session.id);
                   }}
+                  onMouseDown={(event) => dragManager?.startDrag(event, { kind: "terminal", terminalId: session.id, sourcePaneId: paneId })}
                   title={`${session.title} · ${session.health ?? session.status}${session.healthDetail ? ` · ${session.healthDetail}` : ""}`}
                   leading={<TerminalTabIcon kind={session.kind} />}
-                  closeLabel={`Close ${session.title}`}
+                  closeLabel={onClosePane ? `Return ${session.title} to utility panel` : `Close ${session.title}`}
                   closeTestId={`close-terminal-${session.kind}`}
                   closeIcon={<X size={12} />}
                   onClose={(event) => {
                     event.stopPropagation();
-                    onKill(session.id);
+                    if (onClosePane) onClosePane();
+                    else onKill(session.id);
                   }}
                 >
                   <span className={`status-dot status-dot--${session.health ?? session.status}`} />

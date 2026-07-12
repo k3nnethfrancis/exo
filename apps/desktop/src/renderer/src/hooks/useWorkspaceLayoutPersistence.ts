@@ -47,7 +47,7 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
 
 export function createWorkspaceCanvasSnapshot(input: Pick<UseWorkspaceLayoutPersistenceOptions, "canvas" | "sidebarCollapsed" | "sidebarWidth" | "utilityWidth">): WorkspaceCanvasLayout {
   return {
-    version: 2,
+    version: 3,
     canvas: input.canvas,
     sidebarCollapsed: input.sidebarCollapsed,
     sidebarWidth: Math.round(input.sidebarWidth),
@@ -55,13 +55,13 @@ export function createWorkspaceCanvasSnapshot(input: Pick<UseWorkspaceLayoutPers
   };
 }
 
-/** Restore a safe editor-only canvas from current or legacy persisted layout. */
+/** Restore a safe mixed-pane canvas; old utility leaves without stable ids are discarded. */
 export function decodePersistedWorkspaceCanvas(layout: unknown): WorkspaceCanvasLayout | null {
   if (!layout || typeof layout !== "object") return null;
   const candidate = layout as { canvas?: unknown; editorTree?: unknown; terminalTree?: unknown; sidebarCollapsed?: unknown; sidebarWidth?: unknown; utilityWidth?: unknown };
   const canvas = decodeWorkspaceCanvasLayout(candidate.canvas ?? candidate.editorTree ?? candidate.terminalTree);
   return {
-    version: 2,
+    version: 3,
     canvas,
     sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
     sidebarWidth: Number.isFinite(candidate.sidebarWidth) ? Math.round(candidate.sidebarWidth as number) : 175,

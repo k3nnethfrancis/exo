@@ -17,6 +17,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 export type DragPayload =
   | { kind: "document"; filePath: string; sourcePaneId?: string }
+  | { kind: "terminal"; terminalId: string; sourcePaneId?: string }
+  | { kind: "preview"; previewId: string; sourcePaneId?: string }
   | { kind: "workspace-path"; path: string; nodeKind: "file" | "directory" };
 
 export interface DragState {
@@ -51,7 +53,7 @@ function acceptsPayload(
   paneZone: string | undefined,
   payload: DragPayload,
 ): paneKind is PaneDropKind {
-  if (payload.kind === "document" || (payload.kind === "workspace-path" && payload.nodeKind === "file")) {
+  if (payload.kind === "document" || payload.kind === "terminal" || payload.kind === "preview" || (payload.kind === "workspace-path" && payload.nodeKind === "file")) {
     return paneKind === "editor";
   }
   if (payload.kind === "workspace-path") {
@@ -61,7 +63,7 @@ function acceptsPayload(
 }
 
 function acceptsTabTarget(tabKind: string | undefined, payload: DragPayload): tabKind is PaneDropKind {
-  if (payload.kind === "document") {
+  if (payload.kind === "document" || payload.kind === "terminal" || payload.kind === "preview") {
     return tabKind === "editor";
   }
   if (payload.kind === "workspace-path") {

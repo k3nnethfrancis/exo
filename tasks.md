@@ -21,7 +21,7 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
 
 ## Current Baseline
 
-- The UI convergence wave is installed and passing: compact Settings, centered search, breadcrumbs, title/properties chrome, one resizable utility pane, Preview/Terminal/Connections switching, and direct terminal creation.
+- The UI convergence wave is installed and passing: compact Settings, centered search, breadcrumbs, title/properties chrome, one resizable utility pane, Preview/Terminal/Connections switching, direct terminal creation, and drag-to-split live terminal/preview tabs.
 - The direct-PTY terminal and configured Command readiness/Test flow are live.
 - `exo start` launches the resident packaged app; app-off `status`, `search`, and `read` remain useful through filesystem roots.
 - `pnpm check`, `pnpm check:repo`, and `pnpm stable:smoke` are green on the current branch.

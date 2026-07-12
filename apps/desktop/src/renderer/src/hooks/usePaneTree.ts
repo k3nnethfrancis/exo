@@ -30,12 +30,23 @@ export interface EditorPaneContent {
   activeFolderPath?: string | null;
 }
 
-/** The editor canvas deliberately owns only note editors. */
-export type PaneContent = EditorPaneContent;
+/** A live terminal is referenced by id; its PTY and xterm screen stay owned elsewhere. */
+export interface TerminalPaneContent {
+  kind: "terminal";
+  terminalId: string;
+}
+
+/** A preview is referenced by id; its URL/tab state stays owned by the preview model. */
+export interface BrowserPaneContent {
+  kind: "browser";
+  previewId: string;
+}
+
+export type PaneContent = EditorPaneContent | TerminalPaneContent | BrowserPaneContent;
 
 /** The only layout shape written by the current canvas. */
 export interface WorkspaceCanvasLayout {
-  version: 2;
+  version: 3;
   canvas: PaneNode;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
@@ -152,25 +163,22 @@ export function pruneEmptyLeaves(tree: PaneNode, isEmpty: (leaf: PaneLeaf) => bo
   return next ?? tree;
 }
 
-/**
- * Converts the former two-zone persisted layout at the renderer boundary. The
- * result is the only tree the canvas needs at runtime; the old zone/monitor
- * arrangement intentionally has no behavioral preservation.
- */
+/** Converts persisted canvas state at the renderer boundary. */
 export function decodeWorkspaceCanvasLayout(candidate: unknown): PaneNode {
-  return editorOnlyCanvas(candidate) ?? emptyEditorCanvas();
+  return decodeCanvas(candidate) ?? emptyEditorCanvas();
 }
 
-/**
- * Legacy layouts may contain terminal/browser leaves. The canvas no longer
- * owns those surfaces, so restore only valid editor leaves and collapse the
- * resulting split tree rather than preserving a second rendering home.
- */
-export function editorOnlyCanvas(candidate: unknown): PaneNode | null {
+export function decodeCanvas(candidate: unknown): PaneNode | null {
   if (!candidate || typeof candidate !== "object") return null;
   const node = candidate as { kind?: unknown; id?: unknown; content?: unknown; direction?: unknown; ratio?: unknown; children?: unknown };
   if (node.kind === "leaf") {
-    const content = node.content as Partial<EditorPaneContent> | undefined;
+    const content = node.content as Partial<PaneContent> | undefined;
+    if (content?.kind === "terminal" && typeof content.terminalId === "string") {
+      return { kind: "leaf", id: typeof node.id === "string" ? node.id : paneId(), content: { kind: "terminal", terminalId: content.terminalId } };
+    }
+    if (content?.kind === "browser" && typeof content.previewId === "string") {
+      return { kind: "leaf", id: typeof node.id === "string" ? node.id : paneId(), content: { kind: "browser", previewId: content.previewId } };
+    }
     if (content?.kind !== "editor") return null;
     return {
       kind: "leaf",
@@ -187,8 +195,8 @@ export function editorOnlyCanvas(candidate: unknown): PaneNode | null {
     };
   }
   if (node.kind !== "split" || !Array.isArray(node.children) || node.children.length !== 2) return null;
-  const left = editorOnlyCanvas(node.children[0]);
-  const right = editorOnlyCanvas(node.children[1]);
+  const left = decodeCanvas(node.children[0]);
+  const right = decodeCanvas(node.children[1]);
   if (!left) return right;
   if (!right) return left;
   return {
@@ -233,9 +241,9 @@ function setResizeShield(active: boolean) {
 }
 
 export interface PaneTreeActions {
-  splitLeaf: (leafId: PaneNodeId, direction: "horizontal" | "vertical", newContent: EditorPaneContent, position: "before" | "after") => PaneLeaf;
+  splitLeaf: (leafId: PaneNodeId, direction: "horizontal" | "vertical", newContent: PaneContent, position: "before" | "after") => PaneLeaf;
   removeLeaf: (leafId: PaneNodeId) => void;
-  updateLeafContent: (leafId: PaneNodeId, updater: (content: EditorPaneContent) => EditorPaneContent) => void;
+  updateLeafContent: (leafId: PaneNodeId, updater: (content: PaneContent) => PaneContent) => void;
   startResize: (splitId: PaneNodeId, axis: "horizontal" | "vertical", clientPos: number, containerSize: number) => void;
   focusLeaf: (leafId: PaneNodeId) => void;
   setTree: (treeOrUpdater: PaneNode | ((prev: PaneNode) => PaneNode)) => void;

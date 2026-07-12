@@ -972,7 +972,12 @@ export function App() {
   const titleSegments = activeDocument
     ? workspaceBreadcrumb(activeDocument.filePath, workspaceModel?.noteRoots.map((root) => root.path) ?? [])
     : [{ kind: "folder" as const, label: workspaceLabel, path: workspaceModel?.workspaceRoot ?? "" }];
-  const activePreview = previewTabs.tabs.find((tab) => tab.id === previewTabs.activeId) ?? null;
+  const canvasLeaves = collectLeaves(canvasTree);
+  const canvasTerminalIds = new Set(canvasLeaves.flatMap((leaf) => leaf.content.kind === "terminal" ? [leaf.content.terminalId] : []));
+  const canvasPreviewIds = new Set(canvasLeaves.flatMap((leaf) => leaf.content.kind === "browser" ? [leaf.content.previewId] : []));
+  const utilityTerminalSessions = terminalSessions.filter((session) => !canvasTerminalIds.has(session.id));
+  const utilityPreviewTabs = previewTabs.tabs.filter((tab) => !canvasPreviewIds.has(tab.id));
+  const activePreview = utilityPreviewTabs.find((tab) => tab.id === previewTabs.activeId) ?? utilityPreviewTabs[0] ?? null;
   const utilityContent = utilityState.destination === "preview" && activePreview ? (
     <BrowserPane
       paneId={activePreview.id}
@@ -985,11 +990,12 @@ export function App() {
         return result.url;
       }}
       onClosePane={closeBrowserPane}
-      tabs={previewTabs.tabs}
-      activeTabId={previewTabs.activeId}
+      tabs={utilityPreviewTabs}
+      activeTabId={activePreview.id}
       onSelectTab={(id) => setPreviewTabs((current) => selectPreviewTab(current, id))}
       onCreateTab={() => createBrowserPane()}
       onCloseTab={closeBrowserTab}
+      dragManager={dragManager}
     />
   ) : utilityState.destination === "preview" ? (
     <section className="utility-preview-empty" data-testid="preview-empty-state">
@@ -1003,10 +1009,10 @@ export function App() {
     <TerminalDock
       paneId="utility-terminal"
       compact={false}
-      empty={terminalSessions.length === 0}
+      empty={utilityTerminalSessions.length === 0}
       focused={utilityState.open}
-      sessions={terminalSessions}
-      activeTerminalId={activeTerminalId}
+      sessions={utilityTerminalSessions}
+      activeTerminalId={utilityTerminalSessions.some((session) => session.id === activeTerminalId) ? activeTerminalId : utilityTerminalSessions[0]?.id ?? null}
       hydrationSnapshots={terminalHydrationSnapshots}
       hydrationVersions={terminalHydrationVersions}
       hydrationReasons={terminalHydrationReasons}
@@ -1022,6 +1028,7 @@ export function App() {
       onGeometryMeasured={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
       onKill={(id) => void terminalState.killTerminal(id)}
       onCreateTerminal={() => void createUtilityTerminal("shell")}
+      dragManager={dragManager}
     />
   ) : null;
 
@@ -1058,6 +1065,64 @@ export function App() {
       onOpenUtilityTerminal={openUtilityTerminal}
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderLeaf={(leaf, isFocused) => {
+        if (leaf.content.kind === "terminal") {
+          const terminalId = leaf.content.terminalId;
+          const session = terminalSessions.find((entry) => entry.id === terminalId);
+          if (!session) {
+            return <section className="utility-preview-empty"><div><strong>Terminal closed</strong><p>This shell is no longer running.</p></div></section>;
+          }
+          return (
+            <TerminalDock
+              paneId={leaf.id}
+              compact={false}
+              empty={false}
+              focused={isFocused}
+              sessions={[session]}
+              activeTerminalId={session.id}
+              hydrationSnapshots={terminalHydrationSnapshots}
+              hydrationVersions={terminalHydrationVersions}
+              hydrationReasons={terminalHydrationReasons}
+              hydratingTerminalIds={terminalState.hydratingTerminalIds}
+              theme={resolvedTheme}
+              fontSize={terminalFontSize}
+              scrollbackLines={terminalRuntimeScrollbackLines}
+              onFocus={() => canvasActions.focusLeaf(leaf.id)}
+              onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
+              onHydrated={(id) => terminalState.markTerminalHydrated(id)}
+              onSetActiveTerminal={(id) => void terminalState.activateTerminal(id)}
+              onWrite={(id, data) => void window.exo.terminals.write(id, data)}
+              onGeometryMeasured={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
+              onKill={(id) => void terminalState.killTerminal(id)}
+              onCreateTerminal={() => void createUtilityTerminal("shell")}
+              onClosePane={() => canvasActions.removeLeaf(leaf.id)}
+              dragManager={dragManager}
+            />
+          );
+        }
+        if (leaf.content.kind === "browser") {
+          const previewId = leaf.content.previewId;
+          const tab = previewTabs.tabs.find((entry) => entry.id === previewId);
+          if (!tab) {
+            return <section className="utility-preview-empty"><div><strong>Preview closed</strong><p>This preview is no longer open.</p></div></section>;
+          }
+          return (
+            <BrowserPane
+              paneId={leaf.id}
+              url={tab.url}
+              compact={false}
+              onFocus={() => canvasActions.focusLeaf(leaf.id)}
+              onNavigate={async (target) => {
+                const result = await window.exo.workspace.resolvePreviewTarget(target);
+                setPreviewTabs((current) => updatePreviewTabUrl(current, tab.id, result.url));
+                return result.url;
+              }}
+              onClosePane={() => canvasActions.removeLeaf(leaf.id)}
+              tabs={[tab]}
+              activeTabId={tab.id}
+              dragManager={dragManager}
+            />
+          );
+        }
         const pane: EditorPaneState = {
           id: leaf.id,
           openPaths: leaf.content.openPaths,
