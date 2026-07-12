@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type {
   AgentCommand,
-  type FolderIndexStatus,
-  type IndexStatus,
-  type InvocationRecord,
-  type SearchResult,
-  type WorkspaceModel,
-  type WorkspaceSettings,
+  FolderIndexStatus,
+  IndexStatus,
+  InvocationRecord,
+  SearchResult,
+  WorkspaceModel,
+  WorkspaceSettings,
 } from "@exo/core";
 
 import type { TerminalSessionInfo } from "../../shared/api";

@@ -68,7 +68,6 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
 
   async function ensureDocumentLoaded(filePath: string) {
     const [document, diskVersion] = await Promise.all([window.exo.notes.read(filePath), window.exo.notes.stat(filePath)]);
-    const graphContext = await loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel);
 
     setOpenDocuments((current) => ({
       ...current,
@@ -80,7 +79,11 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
         body: current[filePath]?.dirty ? current[filePath].body : document.body,
       },
     }));
-    updateMarkdownContext(filePath, graphContext);
+    void loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel).then((graphContext) => {
+      updateMarkdownContext(filePath, graphContext);
+    }).catch((error) => {
+      console.warn("[exo] failed to load graph context", { filePath, error });
+    });
   }
 
   function scheduleRefresh(filePath: string, diskVersion?: FileStatInfo | null) {

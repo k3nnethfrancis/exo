@@ -19,6 +19,7 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
   const [message, setMessage] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(submittedQuery);
   const runRef = useRef(0);
+  const filenameResultsByQueryRef = useRef(new Map<string, WorkspaceSearchResults>());
 
   useEffect(() => {
     const runId = ++runRef.current;
@@ -30,16 +31,28 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
       return;
     }
 
+    const normalizedQuery = deferredQuery.trim();
+    const cachedResults = filenameResultsByQueryRef.current.get(normalizedQuery);
+    if (cachedResults) {
+      startTransition(() => {
+        setResults(cachedResults);
+        setResultMode("filename");
+        setResultQuery(normalizedQuery);
+        setMessage(null);
+      });
+    }
+
     const timeout = window.setTimeout(async () => {
       try {
         const nextResults = await window.exo.workspace.searchWorkspace(deferredQuery);
         if (runRef.current !== runId) {
           return;
         }
+        filenameResultsByQueryRef.current.set(normalizedQuery, nextResults);
         startTransition(() => {
           setResults(nextResults);
           setResultMode("filename");
-          setResultQuery(deferredQuery.trim());
+          setResultQuery(normalizedQuery);
           setMessage(null);
         });
       } catch (error) {

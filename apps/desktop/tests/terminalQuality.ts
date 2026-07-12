@@ -6,6 +6,7 @@ export interface LatencySummary {
   max: number;
   p50: number;
   p90: number;
+  p99: number;
   samples: number[];
 }
 
@@ -18,6 +19,7 @@ export function latencySummary(samples: number[]): LatencySummary {
     max: sorted[sorted.length - 1],
     p50: percentile(sorted, 0.5),
     p90: percentile(sorted, 0.9),
+    p99: percentile(sorted, 0.99),
     samples,
   };
 }
