@@ -55,6 +55,22 @@ describe("WorkspaceFiles", () => {
     );
   });
 
+  it("rejects deleting an existing path that escapes through a symlink", async () => {
+    const workspaceRoot = await temporaryRoot();
+    const noteRoot = path.join(workspaceRoot, "notes");
+    const outsideRoot = path.join(workspaceRoot, "outside");
+    await mkdir(noteRoot);
+    await mkdir(outsideRoot);
+    await writeFile(path.join(outsideRoot, "secret.md"), "# Secret\n", "utf8");
+    await symlink(outsideRoot, path.join(noteRoot, "linked-outside"));
+
+    const files = new WorkspaceFiles([noteRoot]);
+
+    await expect(files.writable(path.join(noteRoot, "linked-outside", "secret.md"))).rejects.toThrow(
+      "outside configured note roots",
+    );
+  });
+
   it("allows a missing destination when its nearest existing ancestor is inside a note root", async () => {
     const workspaceRoot = await temporaryRoot();
     const noteRoot = path.join(workspaceRoot, "notes");
@@ -101,6 +117,36 @@ describe("WorkspaceFiles", () => {
     const files = new WorkspaceFiles([noteRoot]);
 
     await expect(files.writable(noteRoot)).rejects.toThrow("configured note root itself");
+  });
+
+  it("rejects a rename destination outside the Note Root while allowing an in-root source", async () => {
+    const workspaceRoot = await temporaryRoot();
+    const noteRoot = path.join(workspaceRoot, "notes");
+    const sourcePath = path.join(noteRoot, "source.md");
+    await mkdir(noteRoot);
+    await writeFile(sourcePath, "# Source\n", "utf8");
+
+    const files = new WorkspaceFiles([noteRoot]);
+
+    await expect(files.writable(sourcePath)).resolves.toBe(sourcePath);
+    await expect(files.writable(path.join(workspaceRoot, "outside.md"))).rejects.toThrow(
+      "outside configured note roots",
+    );
+  });
+
+  it("accepts duplicate Note Root declarations without broadening access", async () => {
+    const workspaceRoot = await temporaryRoot();
+    const noteRoot = path.join(workspaceRoot, "notes");
+    const notePath = path.join(noteRoot, "inside.md");
+    await mkdir(noteRoot);
+    await writeFile(notePath, "# Inside\n", "utf8");
+
+    const files = new WorkspaceFiles([noteRoot, noteRoot]);
+
+    await expect(files.existing(notePath)).resolves.toBe(notePath);
+    await expect(files.existing(path.join(workspaceRoot, "outside.md"))).rejects.toThrow(
+      "outside configured note roots",
+    );
   });
 
   async function temporaryRoot(): Promise<string> {
