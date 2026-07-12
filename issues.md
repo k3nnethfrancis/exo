@@ -8,6 +8,21 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
 
 ## Open
 
+### EXO-ISSUE-105: Folder breadcrumb activation intentionally creates a minimal Folder Index
+
+- Status: accepted product exception; monitor in real-vault use
+- Severity: low
+- Area: Folder Indexes, titlebar breadcrumbs, filesystem mutation
+- Source:
+  - User direction, 2026-07-11: clicking a folder breadcrumb should create/open its index so the folder has an immediate place for meaning.
+  - Fable review, 2026-07-11: this is a create-on-navigation side effect and must be explicit rather than silently treated as the general Folder Overview rule.
+- Decision:
+  - In a writable Note Root only, clicking a folder breadcrumb calls `ensureFolderIndex`, creates a minimal `index.md` only when absent, reloads the tree, and opens it.
+  - Startup inspection is read-only. Attached folders and paths outside Note Roots never receive this action.
+  - Existing `index.md` files are never overwritten.
+- Follow-up:
+  - [ ] Dogfood on a real vault. If navigation-created indexes feel surprising, replace this breadcrumb action with a non-creating Folder Overview and an explicit “Create index” authoring action.
+
 ### EXO-ISSUE-104: Preview pane lifecycle had nondeterministic Electron evidence during Wave 1
 
 - Status: monitoring; not reproduced on the clean current tree
