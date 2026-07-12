@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { inflateSync } from "node:zlib";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -274,6 +274,27 @@ describe("AppLifecycleController", () => {
 
       expect(window.loadFile).toHaveBeenCalledTimes(2);
       expect(window.visible).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("recovers the packaged renderer entry after a failed hard reload without retrying Preview failures", () => {
+    vi.useFakeTimers();
+    try {
+      const controller = appLifecycleController();
+      const window = controller.createWindow() as any;
+      const rendererUrl = pathToFileURL(path.join(currentDirectory, "../renderer/index.html")).toString();
+
+      window.webContents.emit("did-fail-load", {}, -2, "ERR_FAILED", rendererUrl);
+      vi.advanceTimersByTime(750);
+
+      expect(window.loadFile).toHaveBeenCalledTimes(2);
+
+      window.webContents.emit("did-fail-load", {}, -102, "ERR_CONNECTION_REFUSED", "http://localhost:8765");
+      vi.advanceTimersByTime(750);
+
+      expect(window.loadFile).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }

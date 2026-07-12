@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, Tray, type MenuItemConstructorOptions } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import type { TerminalSessionInfo } from "../shared/api";
 
@@ -127,6 +128,15 @@ export class AppLifecycleController {
       const details = { errorCode, errorDescription, validatedURL };
       console.error("[main] renderer failed to load", details);
       this.options.logMain("renderer failed to load", details);
+
+      // A native hard reload can occasionally leave a packaged file:// renderer
+      // navigating to a bundled asset instead of Exo's document. Recover only
+      // the actual renderer entry point; Preview navigation errors must remain
+      // visible to the person using Exo.
+      if (this.isRendererEntryUrl(validatedURL)) {
+        this.rendererReady = false;
+        this.scheduleRendererRecovery(window, "load-failed");
+      }
     });
 
     this.mainWindow = window;
@@ -282,6 +292,11 @@ export class AppLifecycleController {
     }
   }
 
+  private isRendererEntryUrl(url: string): boolean {
+    const rendererPath = path.join(this.options.currentDirectory, "../renderer/index.html");
+    return url === pathToFileURL(rendererPath).toString();
+  }
+
   private scheduleRendererRecovery(window: BrowserWindow, reason: string) {
     if (process.env.EXO_AUTO_RECOVER_RENDERER === "0") {
       return;
@@ -357,5 +372,5 @@ export class AppLifecycleController {
 }
 
 function shouldRecoverRenderer(reason: string): boolean {
-  return reason === "crashed" || reason === "oom" || reason === "killed" || reason === "abnormal-exit" || reason === "launch-failed";
+  return reason === "crashed" || reason === "oom" || reason === "killed" || reason === "abnormal-exit" || reason === "launch-failed" || reason === "load-failed";
 }
