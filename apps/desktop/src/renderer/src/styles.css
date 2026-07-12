@@ -623,35 +623,33 @@ button svg,
 .inline-agent-composer {
   box-sizing: border-box;
   width: min(100%, 720px);
-  margin: 0.36rem 0 0.64rem;
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--surface-border));
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface-1));
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 72%, transparent);
-  padding: 8px 10px 9px 12px;
+  margin: 0.12rem 0 0.2rem;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  padding: 0.25rem 0.45rem 0.3rem;
 }
 
 .inline-agent-composer__label {
   color: var(--accent);
-  font-size: 11px;
-  font-weight: 720;
-  letter-spacing: 0.02em;
-  line-height: 1.1;
-  margin-bottom: 5px;
+  display: inline;
+  font-size: 0.84em;
+  font-weight: 680;
+  letter-spacing: 0;
+  line-height: inherit;
+  margin-right: 0.42em;
 }
 
 .inline-agent-composer__input {
   box-sizing: border-box;
   width: 100%;
-  min-height: 34px;
+  min-height: 1.55em;
   resize: none;
   border: 0;
   outline: 0;
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 0.96rem;
-  line-height: 1.55;
+  font-size: inherit;
+  line-height: inherit;
   padding: 0;
 }
 

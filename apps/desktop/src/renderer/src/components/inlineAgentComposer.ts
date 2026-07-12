@@ -55,13 +55,6 @@ export function inlineAgentComposerExtension(options: {
 }): Extension {
   return [
     composerState,
-    EditorView.domEventHandlers({
-      mousedown(event, view) {
-        if (!(event.target instanceof HTMLElement) || event.target.closest(".inline-agent-composer")) return false;
-        if (view.state.field(composerState, false)) view.dispatch({ effects: closeComposer.of(null) });
-        return false;
-      },
-    }),
     EditorView.baseTheme({
       ".inline-agent-composer": { display: "block" },
     }),

@@ -35,6 +35,30 @@ await appendFile(notePath, "\\nagent appended line\\n", "utf8");
   }
 });
 
+test("keeps an inline agent draft available when focus moves through the editor", async () => {
+  const fixture = await launchInvocationFixture("draft", {
+    scriptBody: "await new Promise((resolve) => setTimeout(resolve, 30_000));",
+  });
+
+  try {
+    await appendEditorText(fixture.page, "\n@draft");
+    await fixture.page.keyboard.press("Enter");
+    const composer = fixture.page.getByTestId("inline-agent-composer");
+    const input = composer.locator("textarea");
+    await input.fill("Keep this draft available.");
+
+    await fixture.page.locator(".cm-content").click();
+    await expect(composer).toBeVisible();
+    await input.click();
+    await expect(input).toHaveValue("Keep this draft available.");
+
+    await input.press("Escape");
+    await expect(composer).not.toBeVisible();
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 test("shows a dirty-buffer conflict choice when an invocation changes the open note", async () => {
   const fixture = await launchInvocationFixture("conflict", {
     scriptBody: `
