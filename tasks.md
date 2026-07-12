@@ -26,6 +26,15 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
 - `exo start` launches the resident packaged app; app-off `status`, `search`, and `read` remain useful through filesystem roots.
 - `pnpm check`, `pnpm check:repo`, and `pnpm stable:smoke` are green on the current branch.
 
+## Loop 01 architectural ruling — 2026-07-12
+
+Fable approved the execution order: decide P0, then run Settings preservation and editor/invocation polish in parallel, then delete Project Roots while closing containment, then distill types/docs. The review is recorded in `docs/reviews/2026-07-12-fable-loop-01-packet.md`.
+
+- Park or discard the uncalled Command-readiness draft; do not integrate a new settings surface without a live product caller.
+- P2 is pre-authorized to remove—not empty—`workspace.projectRoots` from status output, `EXO_PROJECT_ROOTS` from Command environments, and persisted settings. `projectRoots` is a known removed key, not an unknown field to preserve.
+- EXO-ISSUE-103 closes on canonical-path authorization plus expanded fail-closed coverage and guarded real-vault dogfood. Root-relative identities are a later interface-quality improvement.
+- Keep P3 deliberate: no save-triggered or arbitrary-mention invocation; real-work dogfood closes the loop.
+
 ## Now — Trust Before Features
 
 ### 1. Finish Settings preservation proof — `EXO-ISSUE-102`
@@ -58,6 +67,7 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
 
 ### 5. Distill the repository
 
+- [ ] Decide P0: discard the uncalled Command-readiness draft and make a keep/discard decision for current dirty docs before P4; do not polish stale material in place.
 - [ ] Reduce stale tmux/transcript/plugin/harness/MCP plans and completion-plan families to the canonical docs or delete them.
 - [ ] Delete Attached Folder / Project Root configuration, UI, IPC, and documentation rather than renaming the old project-context model.
 - [ ] Run a type and data-model review: every durable type, persisted setting, IPC payload, and filesystem object has one current product meaning, an owning module, validation/normalization where needed, and no legacy aliases or dead fields.

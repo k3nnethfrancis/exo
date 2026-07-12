@@ -76,6 +76,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [ ] Prove ordinary wikilink creation still works inside each Note Root.
   - [ ] Complete guarded real-vault-copy dogfooding before closing.
   - 2026-07-10 Wave 1: added main-process `WorkspaceFiles` authorization at renderer IPC and note-service boundaries. Focused regressions cover traversal, allowed/rejected absolute paths, existing and missing-descendant symlink escapes, valid missing ancestors, note-root self-mutation, wikilink traversal, and in-root absolute wikilink creation. The existing command-server read route now authorizes absolute targets before provider I/O and provider-resolved document ids afterward. The remaining acceptance work is root-relative identities and guarded real-vault-copy proof. The product decision on 2026-07-12 is to delete Attached Folder / Project Root capability, not preserve it as another authorization class.
+  - 2026-07-12 Loop 01 Fable ruling: root-relative identities are not required for closure. Expand canonical-path behavior coverage and prove former Project Root paths fail closed after P2; keep root-relative IDs as a bounded later interface-quality follow-up.
 
 ### EXO-ISSUE-102: Opening Workspace Settings can erase Agent Commands and pane layout
 
@@ -98,6 +99,7 @@ This root file is the only canonical Exo issue tracker. Field notes from daily d
   - [ ] Prove concurrent patches cannot silently clobber one another.
   - [ ] Prove a seeded command remains invokable after the Settings round trip.
   - 2026-07-10 Wave 1: a fresh Settings dialog is now clean rather than autosave-idle; focused saves merge over authoritative settings; normalization preserves unknown top-level fields. Reads and saves carry an explicit SHA-256 revision, so stale clients reject; local rapid patches serialize on each returned snapshot. Settings and registry write through a recoverable journaled transaction and configuration files are forced to `0600`. Focused evidence proves a seeded Command survives an actual Settings-style edit/reload and launches. Cross-process compare-and-swap is intentionally not claimed: all supported app writes are main-process-owned.
+  - 2026-07-12 Loop 01 Fable ruling: preserve unknown fields generally, but treat the deleted `projectRoots` field as a known removed key that normalization strips without re-onboarding or losing commands, layout, indexed roots, migration metadata, or unrelated future keys.
 
 ### EXO-ISSUE-101: Replace tmux/harness terminal architecture with direct pty and AgentCommand launch
 
