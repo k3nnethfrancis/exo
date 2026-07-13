@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createDefaultClaudeAgentCommand, type WorkspaceSettings } from "@exo/core";
 
 import type { TerminalManager } from "./terminal-manager";
-import { commandForHeadlessInvocation, extractClaudeSessionId, InvocationRunner, InvocationRunnerError } from "./invocation-runner";
+import { commandForClaudeResume, commandForHeadlessInvocation, extractClaudeSessionId, InvocationRunner, InvocationRunnerError } from "./invocation-runner";
 import { DirectInvocationProcessFactory, type InvocationProcess, type InvocationProcessFactory } from "./invocation-process";
 import type { WorkspaceWatcherService } from "./workspace-watchers";
 
@@ -184,7 +184,7 @@ describe("InvocationRunner readiness parity", () => {
     expect(rejected.review).toMatchObject({ status: "rejected" });
     await expect(readFile(notePath, "utf8")).resolves.toBe("# Before\n");
     await runner.resumeInTerminal(completed.id);
-    expect(terminalManager.commands).toContainEqual(expect.objectContaining({ command: `claude --resume '${sessionId}'` }));
+    expect(terminalManager.commands).toContainEqual(expect.objectContaining({ command: expect.stringContaining(`--resume '${sessionId}'`) }));
   });
 
   it("does not guess session provenance from malformed output", () => {
@@ -192,6 +192,12 @@ describe("InvocationRunner readiness parity", () => {
     expect(extractClaudeSessionId("ordinary output\n{\"session_id\":\"ce4b9e26-2574-4433-a054-1110cd403792\"}"))
       .toBe("ce4b9e26-2574-4433-a054-1110cd403792");
     expect(commandForHeadlessInvocation(createDefaultClaudeAgentCommand())).toBe("claude -p --output-format json");
+  });
+
+  it("resumes with the configured Claude executable, not an assumed global binary", () => {
+    const command = { ...createDefaultClaudeAgentCommand(), command: '"/Applications/Claude/bin/claude" -p --output-format json' };
+    expect(commandForClaudeResume(command, "ce4b9e26-2574-4433-a054-1110cd403792"))
+      .toBe('"/Applications/Claude/bin/claude" --resume \'ce4b9e26-2574-4433-a054-1110cd403792\'');
   });
 });
 

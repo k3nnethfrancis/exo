@@ -320,7 +320,7 @@ export class InvocationRunner extends EventEmitter {
       throw new InvocationRunnerError("resume-unavailable", "This invocation does not have resumable Claude session provenance.");
     }
     return this.options.terminalManager.createAgentCommand(
-      { ...record.command, command: `claude --resume ${shellArgument(record.providerSessionId)}` },
+      { ...record.command, command: commandForClaudeResume(record.command, record.providerSessionId) },
       record.cwd,
     );
   }
@@ -408,4 +408,16 @@ function shellArgument(value: string): string { return `'${value.replace(/'/g, "
 export function commandForHeadlessInvocation(command: AgentCommand): string {
   if (command.handle !== "claude" || /(?:^|\s)--output-format(?:\s|=)/.test(command.command)) return command.command;
   return `${command.command} --output-format json`;
+}
+
+/** Reuse the configured Claude executable for the visible provider-native
+ * handoff, removing only print-mode switches that conflict with --resume. */
+export function commandForClaudeResume(command: AgentCommand, sessionId: string): string {
+  const executable = command.command
+    .replace(/(?:^|\s)-p(?:\s|$)/g, " ")
+    .replace(/(?:^|\s)--print(?:\s|$)/g, " ")
+    .replace(/(?:^|\s)--output-format(?:\s+\S+|=\S+)?/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+  return `${executable} --resume ${shellArgument(sessionId)}`;
 }
