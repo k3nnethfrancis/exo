@@ -1,6 +1,6 @@
 # Exo Issues
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 This is the canonical active bug, release-QA, and dogfood tracker. It contains
 only work that can still change a current Exo decision or release claim. Git
@@ -88,6 +88,32 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     invocation boundary speculatively.
 
 ## Monitoring
+
+### EXO-ISSUE-107: Preferred Exo-managed Fable review path is unavailable
+
+- Status: resolved on 2026-07-13; affects architectural-review workflow, not end-user runtime
+- Area: configured Commands, operator tooling, public-contract review
+- Resolution: `exo-fable-oracle` is now a named tmux session, not an Exo-owned
+  lifecycle. A focused packet runs through `claude -p --model fable` in a
+  dedicated tmux window, writes a durable result artifact, and can be inspected
+  through tmux or an Exo terminal. The consent rule and externalized ruling
+  remain mandatory.
+
+### EXO-ISSUE-108: Exo MCP must stabilize caller scope before public release
+
+- Status: implementation and dogfood required
+- Severity: high before public MCP stabilization
+- Area: `exo mcp serve`, provider setup, Workspace scope, agent-context onboarding
+- Fable ruling: keep the frozen read-only three-tool MCP, but resolve its
+  Workspace from caller cwd rather than app-active state. Permit a
+  single-Workspace fallback only when unambiguous; report ambiguity and refuse
+  retrieval otherwise. `workspace_status` must state the resolved identity and
+  roots, and app retrieval must not cross that resolved scope.
+- Required proof: cwd/singleton/ambiguity/app-mismatch tests; read-path
+  containment and bounded-output tests; protocol snapshots; provider setup
+  idempotency, missing-CLI, and removal documentation; and 10–20 real
+  Claude/Codex sessions measuring Exo discovery, search-before-read, and
+  zero out-of-root reads.
 
 ### EXO-ISSUE-104: Preview pane lifecycle evidence
 

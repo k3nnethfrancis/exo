@@ -24,6 +24,7 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - architect-review: 2026-07-12 `docs/reviews/2026-07-12-fable-loop-01-packet.md#fable-ruling--2026-07-12` confirms removal of the retired Project Root, MCP, routine, deep harness-manager, profile-apply, and plugin-manager product surfaces after caller audit. This approval covers removals only; new command-server routes, CLI commands/flags, or shared protocol types remain out of scope.
 - architect-review: 2026-07-08 MCP removal audit deleted `packages/mcp`, `exo integrations`, MCP capability surfaces, MCP profile-template support, MCP public-contract guard slices, and Codex MCP launch injection. CLI remains the active local integration surface.
 - user-approved-exception: 2026-07-13 user explicitly restored one bounded Exo MCP surface for first-run Claude/Codex setup. It is a CLI-owned stdio retrieval adapter (`workspace_status`, `search_notes`, `read_note`) over the existing Workspace scope, with no generic MCP manager, arbitrary-server setup, or mutation tools. This must receive focused architecture review before public stabilization.
+- architect-review: 2026-07-13 `docs/reviews/2026-07-13-fable-mcp-agent-context-packet.md#fable-ruling--2026-07-13` approves the MCP as a frozen three-tool, read-only transport—not a CLI replacement or host-instruction writer. Public stabilization requires caller-cwd Workspace resolution, explicit status identity, refusal on ambiguous scope, app-scope parity, and the documented test/dogfood gate.
 
 ## Protected Surfaces
 

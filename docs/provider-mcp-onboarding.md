@@ -4,13 +4,25 @@ Exo can install its own small, read-only MCP server into the locally installed C
 
 ## What agents receive
 
-The installed `exo` server gives an agent three tools for the active Workspace:
+The installed `exo` server gives an agent exactly three tools:
 
-- `workspace_status` — current Workspace roots, app availability, and retrieval health.
-- `search_notes` — scoped search across the Workspace's Note Roots. It uses the running app's configured retrieval when available and filesystem retrieval otherwise.
+- `workspace_status` — resolved Workspace identity and roots, app availability, and retrieval health.
+- `search_notes` — scoped search across the resolved Workspace's Note Roots. It uses the running app's configured retrieval only when that app Workspace is the same resolved scope; otherwise it uses bounded filesystem retrieval.
 - `read_note` — reads a Note Root path, normally one returned by `search_notes`.
 
 The server has no write, terminal, agent-launch, configuration, or arbitrary-path tool. MCP access does not bypass ordinary inline-invocation confirmation or diff review.
+
+## Scope contract
+
+The provider process resolves Exo by its caller cwd, never by whichever
+Workspace happens to be open in the app. A cwd inside a configured Note Root
+selects that Workspace. If no root contains the cwd, Exo may use the only
+configured Workspace; if there is no unique answer, `workspace_status` reports
+the ambiguity and retrieval refuses rather than guessing.
+
+This cwd contract is the public stabilization target from the 2026-07-13 Fable
+review. The current adapter must not be presented as stabilized until its
+implementation and tests match this section.
 
 ## Installation contract
 
@@ -23,8 +35,24 @@ codex mcp add exo -- exo mcp serve
 
 The provider owns its config and authentication. Exo owns the `exo mcp serve` process only. The local `exo` command must be installed and on `PATH` (or `EXO_CLI_PATH` can point at it); `scripts/install-mac-app --with-cli` provides the supported macOS setup.
 
+Exo does not install or maintain provider instruction files or Skills. Tool
+descriptions provide the local search-then-read rule. Stabilization work will
+add a short provider-neutral invocation-prompt instruction to use Exo retrieval
+for additional Workspace context when it is available. A future instruction
+template, if real dogfood earns it, will be copy-out only and remain user-owned.
+
 ## Boundary
 
 This does not restore a generic MCP manager, arbitrary server form, plugin runtime, or authority layer. Exo exposes only its own bounded retrieval context so configured agents can orient and research within the same Workspace a person selected.
+
+## Stabilization gate
+
+Before this becomes a public stable contract, prove cwd resolution and
+containment, protocol/tool-list snapshots, bounded output, setup re-run safety,
+and documented provider-native removal. Dogfood 10–20 context-seeking sessions
+across Claude and Codex: record whether agents discover Exo retrieval, search
+before reading, and remain inside resolved roots. A failure to discover tools
+may earn a user-managed copy-out instruction template; it does not earn an
+automatic host-file writer.
 
 -- Shoshin | 2026-07-13
