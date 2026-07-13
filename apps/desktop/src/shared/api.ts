@@ -105,6 +105,8 @@ export interface IndexSyncStateEvent {
 
 export interface LaunchAgentInvocationInput {
   handle: string;
+  /** UUID stored in the inert <exo-invocation> document envelope. */
+  protocolInvocationId: string;
   documentPath: string;
   mentionText: string;
   message: string;

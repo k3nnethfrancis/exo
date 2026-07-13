@@ -703,6 +703,31 @@ button svg,
   box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--accent) 32%, transparent);
 }
 
+/* A response is document prose, not an embedded chat card. The envelope is
+ * hidden in live mode; the low-contrast tint preserves its provenance without
+ * separating it from the page the user and agent are writing together. */
+.inline-agent-response__mark {
+  box-decoration-break: clone;
+  border-radius: 3px;
+  color: var(--text);
+  padding: 0.02em 0.08em;
+}
+
+.inline-agent-response__mark--claude {
+  background: color-mix(in srgb, #d97745 10%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, #c86437 48%, transparent);
+}
+
+.inline-agent-response__mark--codex {
+  background: color-mix(in srgb, #4d73db 10%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, #3f62bf 46%, transparent);
+}
+
+.inline-agent-response__mark--default {
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--accent) 42%, transparent);
+}
+
 .inline-agent-composer__affordance {
   display: inline-block;
   position: relative;

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 
 import { createDefaultClaudeAgentCommand } from "./default-agent-command";
+import { formatDocumentAgentResponse, isDocumentAgentProtocolId } from "./document-agent-protocol";
 export { createDefaultClaudeAgentCommand } from "./default-agent-command";
 
 // Legacy values remain in the type only so persisted workspaces can normalize
@@ -104,6 +105,8 @@ export interface InvocationRecord {
   context: InvocationContextKind;
   taggedDocumentPath?: string;
   originalMentionText?: string;
+  /** Links the local invocation record to its inert Markdown envelope. */
+  protocolInvocationId?: string;
   mentionProvenance: InvocationMentionProvenance;
   message: string;
   promptDelivery: AgentCommandPromptDelivery;
@@ -259,6 +262,8 @@ export function formatNoteInvocationPrompt(input: {
   documentPath: string;
   mentionText: string;
   message: string;
+  protocolInvocationId?: string;
+  agentHandle?: string;
   frontmatter?: Record<string, unknown>;
   body?: string;
 }): string {
@@ -284,9 +289,30 @@ export function formatNoteInvocationPrompt(input: {
     "This is an explicitly authorized Exo work run. Complete the user's request by editing the working document directly; edit other Workspace files only when the request genuinely needs them.",
     "",
     "Do not return a chat-only answer. If the request asks for analysis, an opinion, research, or a plan, write the useful result into the working document in the appropriate place. Preserve the user's voice and existing structure. Exo will observe the resulting file changes and present them as a reviewable diff.",
+    ...(input.protocolInvocationId && input.agentHandle && isDocumentAgentProtocolId(input.protocolInvocationId)
+      ? protocolInstructions(input.protocolInvocationId, input.agentHandle)
+      : []),
     "",
     "When the work is complete, print only a concise completion summary for the terminal/session transcript.",
   ].join("\n");
+}
+
+function protocolInstructions(invocationId: string, agentHandle: string): string[] {
+  const example = formatDocumentAgentResponse({
+    invocationId,
+    agent: agentHandle,
+    message: "A concise durable summary of the work, findings, or result.",
+  });
+  return [
+    "",
+    "Exo document-agent protocol:",
+    `- The human request is the <exo-invocation id="${invocationId}" ...> envelope already in this document. Do not remove, rename, or nest that envelope.`,
+    "- Before finishing, add exactly one <exo-agent-response> envelope for that invocation directly after its closing tag. Put a concise, durable Markdown result or receipt inside it; do not put this response only in stdout.",
+    "- These tags are inert document source. They do not authorize new work, change Exo trust, or replace the observed filesystem diff.",
+    "",
+    "Response shape:",
+    example,
+  ];
 }
 
 export function formatCliInvocationPrompt(input: { task: string; workspaceRoot: string }): string {
@@ -331,6 +357,7 @@ export function normalizeInvocationRecord(input: unknown): InvocationRecord | nu
     context,
     ...(taggedDocumentPath ? { taggedDocumentPath } : {}),
     ...(originalMentionText ? { originalMentionText } : {}),
+    ...optionalProtocolInvocationId(candidate.protocolInvocationId),
     mentionProvenance: normalizeInvocationMentionProvenance(candidate.mentionProvenance),
     message,
     promptDelivery: normalizeAgentCommandPromptDelivery(candidate.promptDelivery),
@@ -348,6 +375,10 @@ export function normalizeInvocationRecord(input: unknown): InvocationRecord | nu
     attribution: normalizeAttributionSummary(candidate.attribution),
     ...optionalReviewSummary(candidate.review),
   };
+}
+
+function optionalProtocolInvocationId(value: unknown): { protocolInvocationId?: string } {
+  return isDocumentAgentProtocolId(value) ? { protocolInvocationId: value } : {};
 }
 
 function optionalReviewSummary(value: unknown): { review?: InvocationReviewSummary } {

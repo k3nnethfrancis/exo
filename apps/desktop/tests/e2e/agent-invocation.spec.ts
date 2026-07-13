@@ -39,11 +39,12 @@ await appendFile(notePath, "\\nagent appended line\\n", "utf8");
     });
     expect(record).not.toHaveProperty("terminalSessionId");
     await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Document snapshot at invocation:");
+    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Exo document-agent protocol:");
     await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("# Agent Invocation");
     await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Review this document.");
-    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain('<exo-invocation agent="append" status="sent">');
+    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain('<exo-invocation id="');
     await expect(readFile(path.join(fixture.workspaceRoot, ".exo/invocations", record.id, "before.md"), "utf8"))
-      .resolves.toContain('<exo-invocation agent="append" status="sent">');
+      .resolves.toContain('agent="append" status="sent">');
   } finally {
     await fixture.cleanup();
   }
@@ -93,7 +94,7 @@ test("renders a sent Claude invocation as highlighted prose without its source e
     await fixture.page.keyboard.press("Shift+Enter");
 
     await expect(fixture.page.getByRole("dialog", { name: "Run @claude?" })).toBeVisible();
-    const openingEnvelope = fixture.page.locator(".cm-line").filter({ hasText: '<exo-invocation agent="claude" status="sent">' });
+    const openingEnvelope = fixture.page.locator(".cm-line").filter({ hasText: '<exo-invocation id="' });
     const closingEnvelope = fixture.page.locator(".cm-line").filter({ hasText: "</exo-invocation>" });
     await expect(openingEnvelope).toBeHidden();
     await expect(closingEnvelope).toBeHidden();
@@ -101,10 +102,28 @@ test("renders a sent Claude invocation as highlighted prose without its source e
     await expect(mention).toBeVisible();
     await expect(mention).toHaveCSS("color", "rgb(184, 79, 36)");
 
+    await fixture.page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) throw new Error("Unable to resolve CodeMirror view");
+      const text = view.state.doc.toString();
+      const invocationOpening = text.match(/<exo-invocation\b[^>]*>/)?.[0];
+      const invocationId = invocationOpening?.match(/\bid="([^"]+)"/)?.[1];
+      if (!invocationId) throw new Error("Missing protocol invocation id");
+      view.dispatch({ changes: {
+        from: text.length,
+        insert: `\n\n<exo-agent-response invocation="${invocationId}" agent="claude">\nDurable Claude result.\n</exo-agent-response>`,
+      } });
+    });
+    const responseEnvelope = fixture.page.locator(".cm-line").filter({ hasText: '<exo-agent-response invocation="' });
+    await expect(responseEnvelope).toBeHidden();
+    await expect(fixture.page.locator(".inline-agent-response__mark--claude").filter({ hasText: "Durable Claude result." })).toBeVisible();
+
     await fixture.page.getByRole("button", { name: "Cancel" }).click();
     await fixture.page.getByTestId("toggle-markdown-mode").click();
     await expect(openingEnvelope).toBeVisible();
     await expect(closingEnvelope).toBeVisible();
+    await expect(responseEnvelope).toBeVisible();
     expect(await fixture.page.locator(".cm-content").evaluate((content) => ({
       opening: (content.textContent?.match(/<exo-invocation/g) ?? []).length,
       closing: (content.textContent?.match(/<\/exo-invocation>/g) ?? []).length,
@@ -118,7 +137,8 @@ test("renders a sent Claude invocation as highlighted prose without its source e
       const view = content?.cmView?.view;
       if (!view) throw new Error("Unable to resolve CodeMirror view");
       const text = view.state.doc.toString();
-      const opening = '<exo-invocation agent="claude" status="sent">\n';
+      const opening = text.match(/<exo-invocation id="[^"]+" agent="claude" status="sent">\n/)?.[0];
+      if (!opening) throw new Error("Missing protocol invocation envelope");
       const first = text.indexOf(opening);
       const close = text.indexOf("\n</exo-invocation>", first);
       view.dispatch({ changes: [
@@ -261,7 +281,7 @@ test("live Claude edits the tagged document and produces a resumable review", as
       readFile(path.join(artifactRoot, "before.md"), "utf8"),
       readFile(path.join(artifactRoot, "after.md"), "utf8"),
     ]);
-    expect(before).toContain('<exo-invocation agent="claude" status="sent">');
+    expect(before).toContain('<exo-invocation id="');
     expect(before.match(/EXO_LIVE_CLAUDE_EDIT_OK/g)).toHaveLength(1);
     expect(after.match(/EXO_LIVE_CLAUDE_EDIT_OK/g)).toHaveLength(2);
     await expect(fixture.page.locator('[data-testid^="terminal-tab-"]')).toHaveCount(0);

@@ -10,6 +10,7 @@ export * from "./graph-snapshot";
 export * from "./graph-query";
 export * from "./workspace-graph";
 export * from "./agent-invocation";
+export * from "./document-agent-protocol";
 export * from "./agent-command-trust-store";
 export * from "./invocation-store";
 export * from "./store-paths";

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createDefaultClaudeAgentCommand, type WorkspaceSettings } from "@exo/core";
+import { createDefaultClaudeAgentCommand, formatDocumentAgentInvocation, type WorkspaceSettings } from "@exo/core";
 
 import type { TerminalManager } from "./terminal-manager";
 import { commandForClaudeResume, commandForHeadlessInvocation, extractClaudeSessionId, InvocationRunner, InvocationRunnerError } from "./invocation-runner";
@@ -12,6 +12,7 @@ import { DirectInvocationProcessFactory, type InvocationProcess, type Invocation
 import type { WorkspaceWatcherService } from "./workspace-watchers";
 
 const temporaryRoots: string[] = [];
+const TEST_PROTOCOL_INVOCATION_ID = "11111111-1111-4111-8111-111111111111";
 
 afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -86,9 +87,10 @@ describe("InvocationRunner readiness parity", () => {
     const terminalManager = new FakeTerminalManager();
     const processFactory = new FakeInvocationProcessFactory();
     const runner = createRunner(settings(root, command), terminalManager, processFactory);
+    const documentBody = protocolNoteBody("# Current note\n\nThis is the current editor content.", command.handle, "Summarize this note.");
     await writeFile(
       path.join(root, "note.md"),
-      "---\ntags:\n  - project\n---\n# Current note\n\nThis is the current editor content.",
+      `---\ntags:\n  - project\n---\n${documentBody}`,
       "utf8",
     );
     const prepared = await runner.prepare({
@@ -97,8 +99,9 @@ describe("InvocationRunner readiness parity", () => {
       documentPath: path.join(root, "note.md"),
       mentionText: "@echo",
       message: "Summarize this note.",
+      protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID,
       documentFrontmatter: { tags: ["project"] },
-      documentBody: "# Current note\n\nThis is the current editor content.",
+      documentBody,
       allowUntrustedOneShot: true,
     });
 
@@ -109,6 +112,8 @@ describe("InvocationRunner readiness parity", () => {
     expect(processFactory.process.prompts).toHaveLength(1);
     expect(processFactory.process.prompts[0]).toContain("This is the current editor content.");
     expect(processFactory.process.prompts[0]).toContain('"project"');
+    expect(processFactory.process.prompts[0]).toContain("Exo document-agent protocol:");
+    expect(processFactory.process.prompts[0]).toContain(`<exo-agent-response invocation="${TEST_PROTOCOL_INVOCATION_ID}" agent="echo">`);
   });
 
   it("refuses to baseline an editor snapshot that is not the saved document", async () => {
@@ -134,7 +139,8 @@ describe("InvocationRunner readiness parity", () => {
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const promptPath = path.join(root, "received-prompt.txt");
-    await writeFile(notePath, "# Before\n", "utf8");
+    const documentBody = protocolNoteBody("# Before\n", "fake-headless", "Replace the title.");
+    await writeFile(notePath, documentBody, "utf8");
     const command = {
       ...createDefaultClaudeAgentCommand(), id: "fake-headless", handle: "fake-headless", label: "Fake headless",
       command: `/bin/sh -c 'cat > "${promptPath}"; printf "# After\\n" > "${notePath}"'`,
@@ -145,7 +151,7 @@ describe("InvocationRunner readiness parity", () => {
 
     const result = await runner.authorizeAndStart(await runner.prepare({
       context: "note", handle: command.handle, documentPath: notePath, mentionText: "@fake-headless",
-      message: "Replace the title.", documentBody: "# Before\n", allowUntrustedOneShot: true,
+      message: "Replace the title.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody, allowUntrustedOneShot: true,
     }));
 
     expect(result.terminal).toBeUndefined();
@@ -158,7 +164,8 @@ describe("InvocationRunner readiness parity", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
-    await writeFile(notePath, "# Before\n", "utf8");
+    const documentBody = protocolNoteBody("# Before\n", "fails", "Test failure.");
+    await writeFile(notePath, documentBody, "utf8");
     const command = {
       ...createDefaultClaudeAgentCommand(), id: "fails", handle: "fails", label: "Fails",
       command: "/bin/sh -c 'exit 17'",
@@ -169,7 +176,7 @@ describe("InvocationRunner readiness parity", () => {
 
     await runner.authorizeAndStart(await runner.prepare({
       context: "note", handle: command.handle, documentPath: notePath, mentionText: "@fails",
-      message: "Test failure.", documentBody: "# Before\n", allowUntrustedOneShot: true,
+      message: "Test failure.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody, allowUntrustedOneShot: true,
     }));
 
     await expect(updated).resolves.toMatchObject({
@@ -183,7 +190,8 @@ describe("InvocationRunner readiness parity", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
-    await writeFile(notePath, "# Before\n", "utf8");
+    const documentBody = protocolNoteBody("# Before\n", "claude", "Update this.");
+    await writeFile(notePath, documentBody, "utf8");
     const sessionId = "ce4b9e26-2574-4433-a054-1110cd403792";
     const command = {
       ...createDefaultClaudeAgentCommand(),
@@ -193,7 +201,7 @@ describe("InvocationRunner readiness parity", () => {
     const runner = createRunner(settings(root, command), terminalManager, new DirectInvocationProcessFactory());
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     await runner.authorizeAndStart(await runner.prepare({
-      context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude", message: "Update this.", documentBody: "# Before\n", allowUntrustedOneShot: true,
+      context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude", message: "Update this.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody, allowUntrustedOneShot: true,
     }));
     const completed = await updated;
     expect(completed).toMatchObject({
@@ -201,11 +209,11 @@ describe("InvocationRunner readiness parity", () => {
       review: { status: "pending" },
     });
     const review = await runner.getReview(completed.id);
-    expect(review).toMatchObject({ canReject: true, before: "# Before\n", after: "# After\n" });
+    expect(review).toMatchObject({ canReject: true, before: documentBody, after: "# After\n" });
     expect(review?.patch).toContain("-# Before");
     const rejected = await runner.rejectReview(completed.id, completed.review?.afterSha256 ?? null);
     expect(rejected.review).toMatchObject({ status: "rejected" });
-    await expect(readFile(notePath, "utf8")).resolves.toBe("# Before\n");
+    await expect(readFile(notePath, "utf8")).resolves.toBe(documentBody);
     await runner.resumeInTerminal(completed.id);
     expect(terminalManager.commands).toContainEqual(expect.objectContaining({ command: expect.stringContaining(`--resume '${sessionId}'`) }));
   });
@@ -228,14 +236,15 @@ describe("InvocationRunner readiness parity", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
-    await writeFile(notePath, "# Before\n", "utf8");
+    const documentBody = protocolNoteBody("# Before\n", "claude", "Update this.");
+    await writeFile(notePath, documentBody, "utf8");
     const processFactory = new FakeInvocationProcessFactory();
     const runner = createRunner(settings(root, createDefaultClaudeAgentCommand()), new FakeTerminalManager(), processFactory);
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     await runner.authorizeAndStart(await runner.prepare({
       context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude",
-      message: "Update this.", documentBody: "# Before\n", allowUntrustedOneShot: true,
+      message: "Update this.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody, allowUntrustedOneShot: true,
     }));
     processFactory.process.exit(0, JSON.stringify([{ type: "result", subtype: "success", permission_denials: [{ tool_name: "Edit" }] }]));
 
@@ -265,6 +274,14 @@ function createRunner(
     invocationProcessFactory,
     workspaceWatcherService: watcher as unknown as WorkspaceWatcherService,
   });
+}
+
+function protocolNoteBody(prefix: string, handle: string, message: string): string {
+  return `${prefix.replace(/\n?$/, "\n\n")}${formatDocumentAgentInvocation({
+    id: TEST_PROTOCOL_INVOCATION_ID,
+    agent: handle,
+    message: `@${handle} ${message}`,
+  })}\n`;
 }
 
 class FakeTerminalManager extends EventEmitter {

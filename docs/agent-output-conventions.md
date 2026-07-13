@@ -2,7 +2,7 @@
 
 Last updated: 2026-07-13
 
-status: shipped prompt contract; real-work dogfood remains.
+status: shipped document-agent protocol; real-work response-block dogfood remains.
 
 ## Problem
 
@@ -29,7 +29,7 @@ Message:
 Document snapshot at invocation:
 <frontmatter and exact saved body>
 
-Complete the request by editing the working document directly. Do not return a chat-only answer. Exo will observe the resulting file change and show the user a reviewable diff.
+Complete the request by editing the working document directly. Do not return a chat-only answer. Preserve the supplied `<exo-invocation>` envelope and append one linked `<exo-agent-response>` envelope containing the durable result or a concise receipt. Exo will observe the resulting file change and show the user a reviewable diff.
 ```
 
 V1 should test whether the final sentence materially improves real outputs. The original thin prompt omitted it; direct-write V1 likely needs it.
@@ -70,10 +70,14 @@ Default convention:
 
 - If asked to answer, critique, research, or plan, the agent writes the useful result into the working document.
 - The agent edits the source file directly; chat-only stdout is not the product result.
+- The agent writes one durable `<exo-agent-response invocation="…">` envelope
+  immediately after the matching request envelope. It is portable Markdown
+  source and renders as page-native prose in Exo, not a chat card.
 - If asked to create an artifact, the agent should create a nearby file or an `.exo` artifact only if instructed.
 - The user reviews changes through Exo's diff banner.
 
-V1 does not require agents to write inline comments, sidecar replies, or proposal batches.
+V1 does not require agents to write inline comments or proposal batches. The
+linked response envelope is the one durable reply convention.
 
 ## Prototype Evidence Required
 
@@ -106,9 +110,10 @@ Local agents are just commands. Exo should not assume model provider, auth, or o
 
 ## Red Lines
 
-- No harness-specific parser for output in V1.
+- No harness-specific parser for output in V1; the document-agent protocol is
+  provider-agnostic and its XML-like envelopes are inert source text.
 - No hidden prompt expansion beyond the visible template.
 - No claim that an agent will edit correctly without prototype evidence.
 - No skill install or provider config mutation as part of command setup.
 
--- Exo | 2026-07-08
+-- Exo | 2026-07-13

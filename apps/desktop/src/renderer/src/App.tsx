@@ -459,6 +459,7 @@ export function App() {
       }
       const result = await window.exo.workspace.launchAgentInvocation({
         handle: pending.draft.handle,
+        protocolInvocationId: pending.draft.protocolInvocationId,
         documentPath: pending.document.filePath,
         mentionText: `@${pending.draft.handle}`,
         message: pending.draft.message,

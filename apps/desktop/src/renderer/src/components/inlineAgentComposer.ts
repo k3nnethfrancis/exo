@@ -1,7 +1,9 @@
 import { Facet, Prec, StateEffect, StateField, type EditorState, type Extension, type Range } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, WidgetType, keymap } from "@codemirror/view";
+import { findDocumentAgentEnvelopes, formatDocumentAgentInvocation } from "@exo/core/document-agent-protocol";
 
 export interface InlineAgentDraft {
+  protocolInvocationId: string;
   handle: string;
   message: string;
   documentBody: string;
@@ -104,11 +106,11 @@ export function inlineAgentComposerExtension(options: {
 function invocationDecorations(state: EditorState): DecorationSet {
   const text = state.doc.toString();
   const decorations: Array<Range<Decoration>> = [];
-  const invocations = persistedInvocationRanges(text);
+  const envelopes = findDocumentAgentEnvelopes(text);
   const envelopeLineStarts = new Set<number>();
-  for (const invocation of invocations) {
-    envelopeLineStarts.add(state.doc.lineAt(invocation.from).from);
-    envelopeLineStarts.add(state.doc.lineAt(invocation.to - 1).from);
+  for (const envelope of envelopes) {
+    envelopeLineStarts.add(state.doc.lineAt(envelope.from).from);
+    envelopeLineStarts.add(state.doc.lineAt(envelope.to - 1).from);
   }
   for (const lineFrom of envelopeLineStarts) {
     decorations.push(Decoration.line({ class: "inline-agent-invocation__envelope-line" }).range(lineFrom));
@@ -116,51 +118,28 @@ function invocationDecorations(state: EditorState): DecorationSet {
   // Invalid historical nesting is rendered as the one user-authored request,
   // not as overlapping CodeMirror marks. Every metadata tag is concealed, but
   // only the innermost payload receives the invocation treatment.
-  for (const invocation of invocations.filter((candidate) => !invocations.some(
+  for (const invocation of envelopes.filter((candidate) => !envelopes.some(
     (other) => other.from > candidate.from && other.to < candidate.to,
   ))) {
+    const markClass = invocation.kind === "response"
+      ? `inline-agent-response__mark inline-agent-response__mark--${agentPresentation(invocation.agent)}`
+      : `inline-agent-composer__mark inline-agent-composer__mark--${agentPresentation(invocation.agent)}`;
     decorations.push(Decoration.mark({
-      class: `inline-agent-composer__mark inline-agent-composer__mark--${agentPresentation(invocation.handle)}`,
+      class: markClass,
     }).range(invocation.contentFrom, invocation.contentTo));
-    const mention = `@${invocation.handle}`;
-    if (text.startsWith(mention, invocation.contentFrom)) {
+    const mention = `@${invocation.agent}`;
+    if (invocation.kind === "invocation" && text.startsWith(mention, invocation.contentFrom)) {
       decorations.push(Decoration.mark({
-        class: `inline-agent-composer__mention inline-agent-composer__mention--${agentPresentation(invocation.handle)}`,
+        class: `inline-agent-composer__mention inline-agent-composer__mention--${agentPresentation(invocation.agent)}`,
       }).range(invocation.contentFrom, invocation.contentFrom + mention.length));
     }
   }
   return Decoration.set(decorations, true);
 }
 
-interface PersistedInvocationRange {
-  handle: string;
-  from: number;
-  contentFrom: number;
-  contentTo: number;
-  to: number;
-}
-
-function persistedInvocationRanges(text: string): PersistedInvocationRange[] {
-  const ranges: PersistedInvocationRange[] = [];
-  const openings: Array<{ handle: string; from: number; contentFrom: number }> = [];
-  const tokens = /<exo-invocation agent="([a-z0-9_-]+)" status="sent">\n|\n<\/exo-invocation>/g;
-  for (const token of text.matchAll(tokens)) {
-    const from = token.index ?? 0;
-    const to = from + token[0].length;
-    if (token[1]) {
-      openings.push({ handle: token[1], from, contentFrom: to });
-      continue;
-    }
-    const opening = openings.pop();
-    if (opening && opening.contentFrom <= from) {
-      ranges.push({ ...opening, contentTo: from, to });
-    }
-  }
-  return ranges;
-}
-
 export function isPersistedInvocationPosition(state: EditorState, position: number): boolean {
-  return persistedInvocationRanges(state.doc.toString())
+  return findDocumentAgentEnvelopes(state.doc.toString())
+    .filter((envelope) => envelope.kind === "invocation")
     .some((invocation) => position >= invocation.from && position <= invocation.to);
 }
 
@@ -173,18 +152,15 @@ function sendInlineAgentComposer(view: EditorView): boolean {
   if (!composer) return false;
   const message = view.state.sliceDoc(composer.messageFrom, composer.to).trim();
   if (!message) return true;
-  const openingTag = `<exo-invocation agent="${composer.handle}" status="sent">\n`;
-  const closingTag = `\n</exo-invocation>`;
-  const alreadyPersisted = isPersistedInvocationPosition(view.state, composer.from);
+  const protocolInvocationId = globalThis.crypto.randomUUID();
+  const source = view.state.sliceDoc(composer.from, composer.to);
+  const envelope = formatDocumentAgentInvocation({ id: protocolInvocationId, agent: composer.handle, message: source });
   view.dispatch({
-    changes: alreadyPersisted ? undefined : [
-      { from: composer.from, to: composer.from, insert: openingTag },
-      { from: composer.to, to: composer.to, insert: closingTag },
-    ],
+    changes: { from: composer.from, to: composer.to, insert: envelope },
     effects: closeComposer.of(null),
     userEvent: "input.complete",
   });
-  view.state.facet(composerCallbackFacet)({ handle: composer.handle, message, documentBody: view.state.doc.toString() });
+  view.state.facet(composerCallbackFacet)({ protocolInvocationId, handle: composer.handle, message, documentBody: view.state.doc.toString() });
   return true;
 }
 

@@ -304,6 +304,7 @@ function registerIpcHandlers() {
     launchAgentInvocation: async (input) => invocationRunner.authorizeAndStart(await invocationRunner.prepare({
       context: "note", handle: input.handle, documentPath: input.documentPath,
       mentionText: input.mentionText, message: input.message,
+      protocolInvocationId: input.protocolInvocationId,
       documentFrontmatter: input.documentFrontmatter, documentBody: input.documentBody,
       allowUntrustedOneShot: input.allowUntrustedOneShot, persistTrust: input.persistTrust,
     })),

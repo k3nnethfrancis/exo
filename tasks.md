@@ -65,6 +65,7 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 - [x] Prove the real default `@claude` command edits a tagged note headlessly, returns session provenance, and produces a pending review from the exact saved document baseline. Real-work personal dogfood remains in `EXO-ISSUE-106`.
 - [ ] Dogfood the full loop on real work: write a note, invoke a Command, inspect changes, and keep or reject them.
 - [x] Require inline Commands to perform the requested durable Workspace work, capture provider session provenance where available, show exact tagged-document diffs with Keep/Reject, and offer a Claude `Resume in Shell` handoff after completion.
+- [x] Establish the V1 document-agent protocol: a UUID-addressed, inert `<exo-invocation>` source envelope and a linked `<exo-agent-response>` result envelope; Exo renders both as page-native Markdown while retaining raw portability. `docs/document-agent-protocol.md`.
 
 ### 5. Distill the repository
 

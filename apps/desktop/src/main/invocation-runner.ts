@@ -10,6 +10,7 @@ import {
   deriveAgentCommandLaunch,
   formatCliInvocationPrompt,
   formatNoteInvocationPrompt,
+  findDocumentAgentEnvelopes,
   InvocationStore,
   readWorkspaceDocument,
   WorkspaceFiles,
@@ -19,6 +20,7 @@ import {
   type AgentCommand,
   type InvocationRecord,
   type WorkspaceSettings,
+  isDocumentAgentProtocolId,
 } from "@exo/core";
 
 import type { TerminalSessionInfo } from "../shared/api";
@@ -33,6 +35,7 @@ export interface InvocationRequest {
   handle: string;
   task?: string;
   documentPath?: string;
+  protocolInvocationId?: string;
   mentionText?: string;
   documentFrontmatter?: Record<string, unknown>;
   documentBody?: string;
@@ -135,6 +138,7 @@ export class InvocationRunner extends EventEmitter {
     const pending: InvocationRecord = {
       id, status: "pending", context: request.context,
       ...(request.context === "note" ? { taggedDocumentPath: request.documentPath, originalMentionText: request.mentionText, mentionProvenance: "human-authored" as const } : { mentionProvenance: "unknown" as const }),
+      ...(request.protocolInvocationId ? { protocolInvocationId: request.protocolInvocationId } : {}),
       message: request.message,
       promptDelivery: command.promptDelivery,
       command: agentCommandSnapshot(command), cwd, createdAt: now,
@@ -151,6 +155,17 @@ export class InvocationRunner extends EventEmitter {
           "document-drift",
           "The editor and saved document changed before invocation. Save the current note and try again.",
         );
+      }
+      if (!request.protocolInvocationId || !isDocumentAgentProtocolId(request.protocolInvocationId)) {
+        throw new InvocationRunnerError("protocol-invalid", "This invocation is missing its document protocol identity. Recompose the request and try again.");
+      }
+      const envelope = findDocumentAgentEnvelopes(persisted.body).find((candidate) =>
+        candidate.kind === "invocation" &&
+        candidate.id === request.protocolInvocationId &&
+        candidate.agent === command.handle,
+      );
+      if (!envelope) {
+        throw new InvocationRunnerError("protocol-invalid", "The saved document no longer contains this invocation envelope. Recompose the request and try again.");
       }
       before = verified;
     }
@@ -187,6 +202,8 @@ export class InvocationRunner extends EventEmitter {
             documentPath: prepared.request.documentPath!,
             mentionText: prepared.request.mentionText ?? "",
             message: prepared.request.message,
+            protocolInvocationId: prepared.request.protocolInvocationId,
+            agentHandle: prepared.command.handle,
             frontmatter: prepared.request.documentFrontmatter,
             body: prepared.request.documentBody,
           })

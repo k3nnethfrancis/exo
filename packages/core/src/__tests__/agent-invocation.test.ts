@@ -10,6 +10,7 @@ import {
   normalizeAgentHandle,
   normalizeInvocationRecord,
 } from "../agent-invocation";
+import { findDocumentAgentEnvelopes, formatDocumentAgentInvocation, formatDocumentAgentResponse } from "../document-agent-protocol";
 
 describe("agent invocation model", () => {
   it("derives one command launch decision for CLI and note contexts", () => {
@@ -146,10 +147,13 @@ describe("agent invocation model", () => {
   });
 
   it("formats an explicit invocation with its message and document snapshot", () => {
+    const protocolInvocationId = "11111111-1111-4111-8111-111111111111";
     const prompt = formatNoteInvocationPrompt({
       documentPath: "/workspace/notes/task.md",
       mentionText: "@claude",
       message: "Find relevant context and link it.",
+      protocolInvocationId,
+      agentHandle: "claude",
       frontmatter: { tags: ["exo"] },
       body: "# Task\n\nCurrent draft",
     });
@@ -160,6 +164,22 @@ describe("agent invocation model", () => {
     expect(prompt).toContain("explicitly authorized Exo work run");
     expect(prompt).toContain("Do not return a chat-only answer.");
     expect(prompt).toContain("editing the working document directly");
+    expect(prompt).toContain("Exo document-agent protocol:");
+    expect(prompt).toContain(`<exo-agent-response invocation="${protocolInvocationId}" agent="claude">`);
+  });
+
+  it("round-trips the inert document-agent envelopes and ignores malformed source", () => {
+    const invocationId = "11111111-1111-4111-8111-111111111111";
+    const document = [
+      "# Note",
+      formatDocumentAgentInvocation({ id: invocationId, agent: "claude", message: "@claude inspect this note" }),
+      formatDocumentAgentResponse({ invocationId, agent: "claude", message: "## Finding\n\nThe durable result." }),
+      '<exo-agent-response invocation="not-an-id" agent="claude">\nIgnore me\n</exo-agent-response>',
+    ].join("\n\n");
+    expect(findDocumentAgentEnvelopes(document)).toEqual([
+      expect.objectContaining({ kind: "invocation", id: invocationId, agent: "claude", status: "sent" }),
+      expect.objectContaining({ kind: "response", invocationId, agent: "claude" }),
+    ]);
   });
 
   it("normalizes invocation records with lifecycle and attribution placeholders", () => {
