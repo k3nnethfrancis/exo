@@ -503,9 +503,31 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
   background: color-mix(in srgb, var(--sidebar-bg) 98%, var(--editor-bg));
   border-right: 0;
   padding-top: 0;
+}
+
+/*
+ * The workspace menu floats over the Explorer rather than taking a permanent
+ * footer row. Keep the last rows readable: scroll content gets a landing area
+ * above the control and fades into the panel before it reaches that space.
+ */
+.sidebar__main::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  height: 76px;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--sidebar-bg) 98%, var(--editor-bg)) 62%
+  );
 }
 
 .sidebar__top {
@@ -724,11 +746,12 @@
   overflow-y: auto;
   overflow-x: hidden;
   overscroll-behavior: contain;
-  padding: 4px 10px 0 16px;
+  /* Matches the Explorer's scroll-edge fade and the floating workspace menu. */
+  padding: 4px 10px 84px 16px;
 }
 
 .sidebar--mirrored .sidebar__content {
-  padding: 4px 16px 0 10px;
+  padding: 4px 16px 84px 10px;
 }
 
 .sidebar__content--notes {
