@@ -239,7 +239,11 @@ describe("InvocationRunner readiness parity", () => {
     const documentBody = protocolNoteBody("# Before\n", "claude", "Update this.");
     await writeFile(notePath, documentBody, "utf8");
     const processFactory = new FakeInvocationProcessFactory();
-    const runner = createRunner(settings(root, createDefaultClaudeAgentCommand()), new FakeTerminalManager(), processFactory);
+    // This test exercises Claude's structured output semantics, not a locally
+    // installed Claude binary. An explicit executable keeps it deterministic
+    // on CI and on machines without Claude installed.
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     await runner.authorizeAndStart(await runner.prepare({

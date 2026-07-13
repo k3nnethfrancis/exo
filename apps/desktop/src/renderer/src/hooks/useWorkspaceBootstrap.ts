@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand, type AgentCommand, type IndexStatus, type TreeNode, type WorkspaceModel, type WorkspaceSettings, type WorkspaceSettingsRevision } from "@exo/core";
+import type { AgentCommand, IndexStatus, TreeNode, WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
+import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "@exo/core/default-agent-command";
 
 import type { TerminalSessionInfo, WorkspaceRegistryEntry, WorkspaceSetupState } from "../../../shared/api";
 import type { PaneNode } from "./usePaneTree";
