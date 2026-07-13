@@ -86,6 +86,11 @@ describe("InvocationRunner readiness parity", () => {
     const terminalManager = new FakeTerminalManager();
     const processFactory = new FakeInvocationProcessFactory();
     const runner = createRunner(settings(root, command), terminalManager, processFactory);
+    await writeFile(
+      path.join(root, "note.md"),
+      "---\ntags:\n  - project\n---\n# Current note\n\nThis is the current editor content.",
+      "utf8",
+    );
     const prepared = await runner.prepare({
       context: "note",
       handle: command.handle,
@@ -104,6 +109,24 @@ describe("InvocationRunner readiness parity", () => {
     expect(processFactory.process.prompts).toHaveLength(1);
     expect(processFactory.process.prompts[0]).toContain("This is the current editor content.");
     expect(processFactory.process.prompts[0]).toContain('"project"');
+  });
+
+  it("refuses to baseline an editor snapshot that is not the saved document", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    await writeFile(notePath, "# Saved\n", "utf8");
+    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo" };
+    const runner = createRunner(settings(root, command));
+
+    await expect(runner.prepare({
+      context: "note",
+      handle: "echo",
+      documentPath: notePath,
+      mentionText: "@echo",
+      message: "Update this.",
+      documentBody: "# Stale editor body\n",
+    })).rejects.toMatchObject({ code: "document-drift" });
   });
 
   it("executes a configured note command through stdin without creating a terminal", async () => {
@@ -188,10 +211,38 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("does not guess session provenance from malformed output", () => {
+    const sessionId = "ce4b9e26-2574-4433-a054-1110cd403792";
     expect(extractClaudeSessionId('{"session_id":"not-a-session"}')).toBeNull();
-    expect(extractClaudeSessionId("ordinary output\n{\"session_id\":\"ce4b9e26-2574-4433-a054-1110cd403792\"}"))
-      .toBe("ce4b9e26-2574-4433-a054-1110cd403792");
-    expect(commandForHeadlessInvocation(createDefaultClaudeAgentCommand())).toBe("claude -p --output-format json");
+    expect(extractClaudeSessionId(`ordinary output\n{"session_id":"${sessionId}"}`)).toBe(sessionId);
+    expect(extractClaudeSessionId(JSON.stringify([
+      { type: "system", session_id: sessionId },
+      { type: "result", session_id: sessionId, permission_denials: [] },
+    ]))).toBe(sessionId);
+    expect(commandForHeadlessInvocation(createDefaultClaudeAgentCommand()))
+      .toBe("claude -p --permission-mode acceptEdits --output-format json");
+    expect(commandForHeadlessInvocation({ ...createDefaultClaudeAgentCommand(), command: "claude -p --permission-mode bypassPermissions" }))
+      .toBe("claude -p --permission-mode bypassPermissions --output-format json");
+  });
+
+  it("reports structured Claude permission denials as failures instead of successful no-change runs", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    await writeFile(notePath, "# Before\n", "utf8");
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, createDefaultClaudeAgentCommand()), new FakeTerminalManager(), processFactory);
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+
+    await runner.authorizeAndStart(await runner.prepare({
+      context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude",
+      message: "Update this.", documentBody: "# Before\n", allowUntrustedOneShot: true,
+    }));
+    processFactory.process.exit(0, JSON.stringify([{ type: "result", subtype: "success", permission_denials: [{ tool_name: "Edit" }] }]));
+
+    await expect(updated).resolves.toMatchObject({
+      status: "failed",
+      failureReason: "Claude could not edit the document because its write permission was denied.",
+    });
   });
 
   it("resumes with the configured Claude executable, not an assumed global binary", () => {
@@ -253,12 +304,19 @@ class FakeInvocationProcessFactory implements InvocationProcessFactory {
 
 class FakeInvocationProcess implements InvocationProcess {
   prompts: string[] = [];
+  private exitHandler: ((event: { exitCode: number | null; stdout: string }) => void) | null = null;
 
   async send(prompt: string): Promise<void> {
     this.prompts.push(prompt);
   }
 
-  onExit(_handler: (event: { exitCode: number | null; stdout: string }) => void): void {}
+  onExit(handler: (event: { exitCode: number | null; stdout: string }) => void): void {
+    this.exitHandler = handler;
+  }
+
+  exit(exitCode: number | null, stdout: string): void {
+    this.exitHandler?.({ exitCode, stdout });
+  }
 
   kill(): void {}
 }

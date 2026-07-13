@@ -27,7 +27,7 @@ The product test is simple: a person can open an existing Markdown folder, resum
 
 ## Shipped Core Loop: Inline Command Invocation
 
-Inline invocation is not a future bet. Typing `@` in the Markdown editor offers configured Commands; selecting one opens a transient multiline composer. Only Shift+Enter, after explicit confirmation, launches the configured local Command in the visible terminal, writes an invocation record, and presents observed changes for review. The CLI can start the same configured Command with `exo spawn`.
+Inline invocation is not a future bet. Typing `@` in the Markdown editor offers configured Commands; selecting one opens a transient multiline composer. Only Shift+Enter, after explicit confirmation, launches the configured local Command headlessly with the saved document snapshot, writes an invocation record, and presents observed changes for review. A provider session can be resumed explicitly in a visible Shell when provenance is available. The CLI can start the same configured Command with `exo spawn`.
 
 The remaining work is quality rather than a second system: make the inline affordance easier to notice, keep mention parsing precise, prove dirty-document/save and trust behavior, and ship the first user-editable **Find and connect relevant context** skill through this loop. Do not reintroduce a harness manager or Skill Manager to achieve that.
 
@@ -95,7 +95,7 @@ Keep or reuse:
 ### WP4: Invocation Quality and First Skill
 
 - Make valid mention invocation visibly inline and keyboard-reachable without turning any Markdown text into an auto-run trigger.
-- Keep the existing user-owned `AgentCommand` model, explicit confirmation, visible terminal launch, local trust, `exo spawn`, and `.exo/invocations/` record as the one execution path.
+- Keep the existing user-owned `AgentCommand` model, explicit confirmation, headless note launch, optional provider-session handoff to Shell, local trust, `exo spawn`, and `.exo/invocations/` record as the one execution path.
 - Close the remaining save/trust/dirty-document acceptance evidence.
 - Ship **Find and connect relevant context** as the first provider-neutral, editable skill delivered through a configured Command and reviewed Markdown changes.
 

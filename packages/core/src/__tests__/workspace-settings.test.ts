@@ -48,7 +48,7 @@ describe("workspace settings registry", () => {
       explorerScale: 1,
       exploreIndexSearchOnEnter: true,
       indexUpdateStrategy: "on-save",
-      agentCommands: [{ id: "claude", label: "Claude", handle: "claude", command: "claude -p", cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1, enabled: true }],
+      agentCommands: [{ id: "claude", label: "Claude", handle: "claude", command: "claude -p --model sonnet", cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1, enabled: true }],
       layout: { version: 2, sidebarCollapsed: false, sidebarWidth: 240, utilityWidth: 360, canvas: { kind: "leaf", id: "editor", content: { kind: "editor", openPaths: [], activePath: null } } },
       migrationMetadata: { source: "legacy-build" },
       futureSetting: { retained: true },

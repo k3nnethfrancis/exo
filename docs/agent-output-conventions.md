@@ -1,8 +1,8 @@
 # Agent Output Conventions
 
-Last updated: 2026-07-08
+Last updated: 2026-07-13
 
-status: planning. Blocks productized command templates.
+status: shipped prompt contract; real-work dogfood remains.
 
 ## Problem
 
@@ -15,15 +15,21 @@ Exo should avoid deep harness integration, but it still owns the invocation prom
 Base prompt:
 
 ```text
-You have been tagged in an Exo document.
+You were explicitly invoked from an Exo document.
 
 Document:
 <absolute-or-workspace-relative-path>
 
-Message:
-<mention text>
+Invocation:
+<explicit @handle>
 
-Open the document to see its full contents. If the request asks for a change, edit the relevant file directly. Exo will refresh the document and show the user a diff of files changed during this invocation.
+Message:
+<user-authored multiline request>
+
+Document snapshot at invocation:
+<frontmatter and exact saved body>
+
+Complete the request by editing the working document directly. Do not return a chat-only answer. Exo will observe the resulting file change and show the user a reviewable diff.
 ```
 
 V1 should test whether the final sentence materially improves real outputs. The original thin prompt omitted it; direct-write V1 likely needs it.
@@ -39,9 +45,9 @@ Candidate templates:
   "id": "claude",
   "label": "Claude",
   "handle": "claude",
-  "command": "claude -p",
+  "command": "claude -p --permission-mode acceptEdits",
   "cwdPolicy": "workspace_root",
-  "promptDelivery": "terminal_input"
+  "promptDelivery": "stdin"
 }
 ```
 
@@ -52,18 +58,18 @@ Candidate templates:
   "handle": "codex",
   "command": "codex",
   "cwdPolicy": "workspace_root",
-  "promptDelivery": "terminal_input"
+  "promptDelivery": "stdin"
 }
 ```
 
-The actual prompt-delivery mechanism must match Exo's terminal launch path.
+Note invocations deliver one complete prompt over stdin to a headless process. CLI/Test commands may still use a visible terminal.
 
 ## Output Convention
 
 Default convention:
 
-- If asked to answer or critique, the agent may answer in terminal output.
-- If asked to modify the document, the agent should edit the source file directly.
+- If asked to answer, critique, research, or plan, the agent writes the useful result into the working document.
+- The agent edits the source file directly; chat-only stdout is not the product result.
 - If asked to create an artifact, the agent should create a nearby file or an `.exo` artifact only if instructed.
 - The user reviews changes through Exo's diff banner.
 

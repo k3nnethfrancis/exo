@@ -2,7 +2,7 @@
 
 Last updated: 2026-07-09
 
-status: Fable-reviewed planning packet. Agent D did not implement code and did not contact Fable directly; the orchestrator routed review and incorporated the amendments below.
+status: historical Fable-reviewed planning packet. The shipped note-invocation path supersedes its terminal-launch and prompt-delivery assumptions; use `docs/architecture.md`, `tasks.md`, and `issues.md` for current behavior.
 
 ## Fable Amendments
 
@@ -145,7 +145,7 @@ The branch already contains a first implementation of this slice:
    `exo spawn @handle <task>` should remain app-backed in V1, require trusted config, reject `note_dir`, return JSON with invocation/terminal refs, and fail clearly when the app is unavailable.
 
 7. Finish lifecycle and monitor visibility.
-   Running invocations need a visible terminal/session. Interactive sessions must be endable without terminating the terminal, and app restart must mark active records orphaned honestly.
+   Historical assumption: running invocations used a visible terminal/session. The shipped note path is headless, with explicit provider-session handoff to Shell after completion; app restart still marks active records orphaned honestly.
 
 8. Handoff to Agent E/F.
    Agent E consumes invocation records and terminal exit/user-end events for diff attribution. Agent F verifies CLI, renderer, Electron, and real pointer-prompt dogfooding.

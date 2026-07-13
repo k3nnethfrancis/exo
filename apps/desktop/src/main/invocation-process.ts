@@ -56,7 +56,9 @@ class DirectInvocationProcess implements InvocationProcess {
   }
 
   onExit(handler: (event: { exitCode: number | null; stdout: string }) => void): void {
-    this.child.once("exit", (exitCode) => handler({ exitCode, stdout: this.stdout }));
+    // `close` fires only after stdio is drained; `exit` can race the final JSON
+    // chunk and lose session/failure provenance.
+    this.child.once("close", (exitCode) => handler({ exitCode, stdout: this.stdout }));
   }
 
   kill(): void {

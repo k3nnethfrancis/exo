@@ -689,6 +689,10 @@ button svg,
 .inline-agent-composer__mention--codex { color: #3f62bf; }
 .inline-agent-composer__mention--default { color: var(--accent); }
 
+.cm-line.inline-agent-invocation__envelope-line {
+  display: none;
+}
+
 .inline-agent-composer__mark--codex {
   background: color-mix(in srgb, #4d73db 16%, transparent);
   box-shadow: inset 0 -1px 0 color-mix(in srgb, #3f62bf 34%, transparent);

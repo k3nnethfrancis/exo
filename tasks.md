@@ -61,8 +61,8 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 
 - [x] Polish live Markdown typography, list hierarchy, indentation, and spacing with Electron coverage; human visual inspection remains in the dogfood gate.
 - [x] Make new Markdown notes start with an editable H1; at the initial caret, Markdown syntax remains visible.
-- [x] Replace the one-line mention launcher with a page-native `@agent` composer: autocomplete, in-document multiline request text, agent-colored highlight, anchored send affordance, Enter for lines, Shift+Enter/click to invoke, explicit confirmation, visible terminal execution, and review. `e4ffb89`.
-- [ ] Dogfood the default `@claude` path on real work, including a multiline request and a full document-context handoff.
+- [x] Replace the one-line mention launcher with a page-native `@agent` composer: autocomplete, in-document multiline request text, agent-colored highlight, anchored send affordance, Enter for lines, Shift+Enter/click to invoke, explicit confirmation, headless execution, optional provider-session handoff to Shell, and review. `e4ffb89` plus the July 13 invocation repair.
+- [x] Prove the real default `@claude` command edits a tagged note headlessly, returns session provenance, and produces a pending review from the exact saved document baseline. Real-work personal dogfood remains in `EXO-ISSUE-106`.
 - [ ] Dogfood the full loop on real work: write a note, invoke a Command, inspect changes, and keep or reject them.
 - [x] Require inline Commands to perform the requested durable Workspace work, capture provider session provenance where available, show exact tagged-document diffs with Keep/Reject, and offer a Claude `Resume in Shell` handoff after completion.
 

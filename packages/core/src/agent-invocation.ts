@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
+import { createDefaultClaudeAgentCommand } from "./default-agent-command";
+export { createDefaultClaudeAgentCommand } from "./default-agent-command";
+
 // Legacy values remain in the type only so persisted workspaces can normalize
 // safely. New commands and normalized records use stdin exclusively.
 export const AGENT_COMMAND_PROMPT_DELIVERIES = ["terminalInputAfterLaunch", "stdin", "argv"] as const;
@@ -252,19 +255,6 @@ export function deriveAgentCommandLaunch(
   return { launchable: true, cwd };
 }
 
-export function createDefaultClaudeAgentCommand(): AgentCommand {
-  return {
-    id: "claude",
-    label: "Claude",
-    handle: "claude",
-    command: "claude -p",
-    cwdPolicy: "workspace_root",
-    promptDelivery: DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY,
-    version: 1,
-    enabled: true,
-  };
-}
-
 export function formatNoteInvocationPrompt(input: {
   documentPath: string;
   mentionText: string;
@@ -398,9 +388,14 @@ function normalizeAgentCommandId(value: unknown, fallback: string): string {
 
 /** Upgrade only the prior built-in Claude default, never an arbitrary command. */
 function migrateLegacyDefaultClaudeCommand(candidate: Partial<AgentCommand>, command: string | null): string | null {
-  return candidate.id === "claude" && candidate.handle === "claude" && candidate.label === "Claude" &&
-      command === "claude" && candidate.promptDelivery === "terminalInputAfterLaunch"
-    ? "claude -p"
+  const isBuiltInIdentity = candidate.id === "claude" && candidate.handle === "claude" && candidate.label === "Claude";
+  const isOriginalInteractiveDefault = command === "claude" && candidate.promptDelivery === "terminalInputAfterLaunch";
+  const isPriorHeadlessDefault = command === "claude -p" &&
+    (candidate.promptDelivery === "stdin" || candidate.promptDelivery === undefined) &&
+    (candidate.cwdPolicy === "workspace_root" || candidate.cwdPolicy === undefined) &&
+    (candidate.version === 1 || candidate.version === undefined);
+  return isBuiltInIdentity && (isOriginalInteractiveDefault || isPriorHeadlessDefault)
+    ? createDefaultClaudeAgentCommand().command
     : command;
 }
 

@@ -9,6 +9,7 @@ import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
 import { Code2, Plus, Save, SlidersHorizontal } from "lucide-react";
 import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
+import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 import type { InvocationReviewPayload } from "../../../shared/api";
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
 import type { ExoThemeVariant } from "../theme/types";
@@ -16,7 +17,7 @@ import { codeLanguageForPath } from "./codeLanguages";
 import { AgentIcon } from "./AgentIcon";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
-import { inlineAgentComposerExtension, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
+import { inlineAgentComposerExtension, isPersistedInvocationPosition, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
 import {
   buildNoteGraphContext,
   graphReferencesForMarkdownMode,
@@ -165,7 +166,7 @@ export function NoteEditor(props: NoteEditorProps) {
   }, [graphContext, rawMarkdownMode, showNoteMetadata]);
   const invocationCommands = useMemo(() => {
     const enabled = agentCommands.filter((command) => command.enabled);
-    return enabled.some((command) => command.handle === "claude") ? enabled : [defaultClaudeAgentCommand(), ...enabled];
+    return enabled.some((command) => command.handle === "claude") ? enabled : [createDefaultClaudeAgentCommand(), ...enabled];
   }, [agentCommands]);
   const invokeAgentRef = useRef(onInvokeAgent);
   const openTargetRef = useRef(onOpenTarget);
@@ -181,8 +182,11 @@ export function NoteEditor(props: NoteEditorProps) {
   useEffect(() => { saveRef.current = onSave; }, [onSave]);
   useEffect(() => { zoomEditorRef.current = onZoomEditor; }, [onZoomEditor]);
   const agentComposer = useMemo(
-    () => inlineAgentComposerExtension({ onSend: (draft) => invokeAgentRef.current(draft) }),
-    [],
+    () => inlineAgentComposerExtension({
+      onSend: (draft) => invokeAgentRef.current(draft),
+      renderPersistedInvocations: !rawMarkdownMode,
+    }),
+    [rawMarkdownMode],
   );
   const normalizedNewPropertyKey = normalizeFrontmatterPropertyKey(newPropertyKey);
   const newPropertyKeyFeedback = frontmatterPropertyKeyFeedback(newPropertyKey, document?.frontmatter ?? {});
@@ -273,6 +277,10 @@ export function NoteEditor(props: NoteEditorProps) {
         }
         const range = update.state.selection.main;
         if (!range.empty) {
+          setAgentSuggestions(null);
+          return;
+        }
+        if (isPersistedInvocationPosition(update.state, range.head)) {
           setAgentSuggestions(null);
           return;
         }
@@ -1067,19 +1075,6 @@ export function nextSuggestionIndex(current: number, count: number, delta: -1 | 
     return 0;
   }
   return (current + delta + count) % count;
-}
-
-function defaultClaudeAgentCommand(): AgentCommand {
-  return {
-    id: "claude",
-    label: "Claude",
-    handle: "claude",
-    command: "claude -p",
-    cwdPolicy: "workspace_root",
-    promptDelivery: "stdin",
-    version: 1,
-    enabled: true,
-  };
 }
 
 export function shouldUseMarkdownRenderer(document: Pick<NoteDocument, "kind"> | null): boolean {

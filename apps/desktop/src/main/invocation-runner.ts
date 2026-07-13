@@ -11,6 +11,7 @@ import {
   formatCliInvocationPrompt,
   formatNoteInvocationPrompt,
   InvocationStore,
+  readWorkspaceDocument,
   WorkspaceFiles,
   normalizeAgentHandle,
   resolveInvocationStoreLayout,
@@ -139,7 +140,20 @@ export class InvocationRunner extends EventEmitter {
       command: agentCommandSnapshot(command), cwd, createdAt: now,
       changedFileRefs: [], diffRefs: [], attribution: { status: "pending" },
     };
-    const before = request.context === "note" ? await snapshotTextFile(request.documentPath!) : undefined;
+    let before = request.context === "note" ? await snapshotTextFile(request.documentPath!) : undefined;
+    if (request.context === "note" && request.documentBody !== undefined) {
+      const persisted = await readWorkspaceDocument(request.documentPath!);
+      const verified = await snapshotTextFile(request.documentPath!);
+      const frontmatterMatches = request.documentFrontmatter === undefined ||
+        JSON.stringify(persisted.frontmatter) === JSON.stringify(request.documentFrontmatter);
+      if (before?.sha256 !== verified.sha256 || persisted.body !== request.documentBody || !frontmatterMatches) {
+        throw new InvocationRunnerError(
+          "document-drift",
+          "The editor and saved document changed before invocation. Save the current note and try again.",
+        );
+      }
+      before = verified;
+    }
     return { id, request, command, cwd, before, pending };
   }
 
@@ -158,10 +172,14 @@ export class InvocationRunner extends EventEmitter {
     let processExited = false;
     let processExitCode: number | null = null;
     let processStdout = "";
+    let processFailureReason: string | null = null;
     let observationReady = false;
     const settleHeadlessProcess = () => {
-      const status = processExitCode && processExitCode !== 0 ? "failed" : "process-exited";
-      setTimeout(() => void this.settle(prepared.id, status, processExitCode ?? undefined), OBSERVATION_EXIT_GRACE_MS).unref?.();
+      const status = processExitCode !== 0 || processFailureReason ? "failed" : "process-exited";
+      setTimeout(
+        () => void this.settle(prepared.id, status, processExitCode ?? undefined, processFailureReason ?? undefined),
+        OBSERVATION_EXIT_GRACE_MS,
+      ).unref?.();
     };
     try {
       const prompt = prepared.request.context === "note"
@@ -183,6 +201,7 @@ export class InvocationRunner extends EventEmitter {
           processExited = true;
           processExitCode = exitCode;
           processStdout = stdout;
+          processFailureReason = claudeInvocationFailure(prepared.command, stdout);
           const observation = this.active.get(prepared.id);
           if (observation) {
             observation.record = applyProviderSessionProvenance(observation.record, stdout);
@@ -343,7 +362,7 @@ export class InvocationRunner extends EventEmitter {
     if (event.filePath) for (const observation of this.active.values()) observation.observedPaths.add(path.resolve(event.filePath));
   }
 
-  private async settle(id: string, status: "process-exited" | "user-ended" | "failed", exitCode?: number): Promise<InvocationRecord | null> {
+  private async settle(id: string, status: "process-exited" | "user-ended" | "failed", exitCode?: number, failureReason?: string): Promise<InvocationRecord | null> {
     const observation = this.active.get(id); if (!observation || observation.finalizing) return null;
     observation.finalizing = true;
     const after = await snapshotTextFile(observation.before.path);
@@ -365,7 +384,7 @@ export class InvocationRunner extends EventEmitter {
       diffRefs.push({ id: diffId, path: observation.before.path, format: "unified", ref: diffRef });
       changedFileRefs.push({ path: observation.before.path, kind: after.exists ? observation.before.exists ? "modified" : "created" : "deleted", observedAt: new Date().toISOString(), attribution: observation.overlapAtStart || !observation.observedPaths.has(path.resolve(observation.before.path)) ? "ambiguous" : "likely", diffRefId: diffId });
     }
-    const next = { ...observation.record, status, endedAt: new Date().toISOString(), ...(exitCode === undefined ? {} : { exitCode }), ...(status === "failed" ? { failureReason: `Command exited with code ${exitCode ?? "unknown"}.` } : {}), changedFileRefs, diffRefs, ...(changed ? { review: { status: "pending" as const, beforeSha256: observation.before.sha256, afterSha256: after.sha256 } } : {}), attribution: changed ? { status: changedFileRefs.some((f) => f.attribution === "ambiguous") ? "ambiguous" as const : "likely" as const } : { status: "unattributed" as const, reason: "No tagged document changes observed." } };
+    const next = { ...observation.record, status, endedAt: new Date().toISOString(), ...(exitCode === undefined ? {} : { exitCode }), ...(status === "failed" ? { failureReason: failureReason ?? `Command exited with code ${exitCode ?? "unknown"}.` } : {}), changedFileRefs, diffRefs, ...(changed ? { review: { status: "pending" as const, beforeSha256: observation.before.sha256, afterSha256: after.sha256 } } : {}), attribution: changed ? { status: changedFileRefs.some((f) => f.attribution === "ambiguous") ? "ambiguous" as const : "likely" as const } : { status: "unattributed" as const, reason: status === "failed" ? failureReason ?? "The Command failed before changing the tagged document." : "No tagged document changes observed." } };
     await store.writeRecord(next); this.active.delete(id); if (observation.record.terminalSessionId) this.byTerminal.delete(observation.record.terminalSessionId); this.emit("updated", next); return next;
   }
 
@@ -378,7 +397,18 @@ export class InvocationRunner extends EventEmitter {
   }
 }
 
-async function snapshotTextFile(filePath: string): Promise<FileSnapshot> { try { await stat(filePath); const content = await readFile(filePath, "utf8"); return { path: filePath, exists: true, content, sha256: createHash("sha256").update(content).digest("hex") }; } catch { return { path: filePath, exists: false, content: "", sha256: null }; } }
+async function snapshotTextFile(filePath: string): Promise<FileSnapshot> {
+  try {
+    await stat(filePath);
+    const content = await readFile(filePath, "utf8");
+    return { path: filePath, exists: true, content, sha256: createHash("sha256").update(content).digest("hex") };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return { path: filePath, exists: false, content: "", sha256: null };
+    }
+    throw error;
+  }
+}
 function wholeFileDiff(before: FileSnapshot, after: FileSnapshot): string { return [`--- a/${path.basename(before.path)}`, `+++ b/${path.basename(after.path)}`, `@@ -1 +1 @@`, ...before.content.split("\n").map((line) => `-${line}`), ...after.content.split("\n").map((line) => `+${line}`), ""].join("\n"); }
 
 function applyProviderSessionProvenance(record: InvocationRecord, stdout: string): InvocationRecord {
@@ -388,13 +418,34 @@ function applyProviderSessionProvenance(record: InvocationRecord, stdout: string
 
 /** Claude's print JSON is untrusted process output; accept only a real UUID. */
 export function extractClaudeSessionId(stdout: string): string | null {
-  for (const line of stdout.split(/\r?\n/).reverse()) {
-    try {
-      const parsed = JSON.parse(line) as { session_id?: unknown };
-      if (typeof parsed.session_id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(parsed.session_id)) return parsed.session_id;
-    } catch { /* Ignore non-structured command output. */ }
+  for (const event of claudeOutputEvents(stdout).reverse()) {
+    const sessionId = event.session_id;
+    if (typeof sessionId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sessionId)) {
+      return sessionId;
+    }
   }
   return null;
+}
+
+function claudeInvocationFailure(command: AgentCommand, stdout: string): string | null {
+  if (command.handle !== "claude") return null;
+  const result = claudeOutputEvents(stdout).reverse().find((event) => event.type === "result");
+  return Array.isArray(result?.permission_denials) && result.permission_denials.length > 0
+    ? "Claude could not edit the document because its write permission was denied."
+    : null;
+}
+
+function claudeOutputEvents(stdout: string): Array<Record<string, unknown>> {
+  const parsed: unknown[] = [];
+  try {
+    parsed.push(JSON.parse(stdout.trim()));
+  } catch {
+    for (const line of stdout.split(/\r?\n/)) {
+      try { parsed.push(JSON.parse(line)); } catch { /* Ignore unstructured output. */ }
+    }
+  }
+  return parsed.flatMap((value) => Array.isArray(value) ? value : [value])
+    .filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value));
 }
 
 async function readTextOrNull(filePath: string): Promise<string | null> {

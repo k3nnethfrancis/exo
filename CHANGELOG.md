@@ -23,6 +23,8 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Makes the inline `@claude` path genuinely headless and writable: the visible, fingerprinted default now uses `acceptEdits`, real Claude event-array output supplies session provenance, structured permission denials fail explicitly, and process finalization waits for drained output.
+- Keeps sent invocation envelopes visible only in raw Markdown, retains the agent-colored mention in live preview, prevents re-wrapping an existing invocation, and saves/prompts/baselines the same document snapshot before observation.
 - Captures bounded structured output from headless invocations so Claude session provenance is retained instead of silently discarded; generic Commands remain output-agnostic.
 - Makes Markdown completion insert readable link aliases and removes whole-note live-preview work from ordinary editor selection and typing.
 - Keeps inline agent typing off the synchronous workspace render path, clarifies headless command failures, and moves invocation status into a compact bottom-left toast.

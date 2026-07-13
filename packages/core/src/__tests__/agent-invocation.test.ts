@@ -56,15 +56,23 @@ describe("agent invocation model", () => {
     });
   });
 
-  it("upgrades only the old built-in Claude default to its headless command", () => {
+  it("upgrades only prior built-in Claude defaults to the current headless edit command", () => {
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude",
       cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",
-    })).toMatchObject({ command: "claude -p", promptDelivery: "stdin" });
+    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", promptDelivery: "stdin" });
+    expect(normalizeAgentCommand({
+      id: "claude", label: "Claude", handle: "claude", command: "claude -p",
+      cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
+    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
       id: "custom", label: "My Claude", handle: "claude", command: "claude",
       cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",
     })).toMatchObject({ command: "claude", promptDelivery: "stdin" });
+    expect(normalizeAgentCommand({
+      id: "claude", label: "Claude", handle: "claude", command: "claude -p --model sonnet",
+      cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
+    })).toMatchObject({ command: "claude -p --model sonnet" });
   });
 
   it("rejects V1 command records with env or template execution fields", () => {

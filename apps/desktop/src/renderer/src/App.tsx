@@ -11,12 +11,14 @@ import type {
 } from "@exo/core";
 
 import type { InvocationReviewPayload, TerminalSessionInfo } from "../../shared/api";
+import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
 import { InvocationAuthorizationDialog } from "./components/InvocationAuthorizationDialog";
+import type { InlineAgentDraft } from "./components/inlineAgentComposer";
 import { PathList } from "./components/PathList";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
@@ -63,7 +65,7 @@ interface PendingInvocationAuthorization {
   command: AgentCommand;
   cwd: string;
   document: OpenEditorDocument;
-  draft: { handle: string; message: string };
+  draft: InlineAgentDraft;
   fingerprint: string | null;
 }
 
@@ -408,13 +410,18 @@ export function App() {
     return status;
   }
 
-  async function invokeInlineAgent(draft: { handle: string; message: string }) {
+  async function invokeInlineAgent(draft: InlineAgentDraft) {
     const document = activeDocument;
     if (!document) {
       return;
     }
+    // CodeMirror owns the authoritative post-envelope body. Its ordinary
+    // React propagation is deliberately deprioritized for typing latency, so
+    // publish this exact snapshot to the synchronous document ref before any
+    // trust/fingerprint await can race the invocation save.
+    flushSync(() => updateBody(draft.documentBody));
     const command = workspaceSettingsRef.current?.agentCommands?.find((entry) => entry.handle === draft.handle)
-      ?? (draft.handle === "claude" ? defaultClaudeAgentCommand() : undefined);
+      ?? (draft.handle === "claude" ? createDefaultClaudeAgentCommand() : undefined);
     if (!command) {
       window.alert(`No AgentCommand is configured for @${draft.handle}.`);
       return;
@@ -442,16 +449,21 @@ export function App() {
 
   async function startInlineAgentInvocation(pending: PendingInvocationAuthorization, persistTrust: boolean) {
     try {
-      if (pending.document.dirty) {
-        await saveDocument(pending.document.filePath);
+      await saveDocument(pending.document.filePath);
+      const persisted = await window.exo.notes.read(pending.document.filePath);
+      const expectedBody = pending.document.kind === "markdown"
+        ? markdownBodyAsSaved(pending.draft.documentBody)
+        : pending.draft.documentBody;
+      if (persisted.body !== expectedBody) {
+        throw new Error("The document changed after this invocation was composed. Review the note and send it again.");
       }
       const result = await window.exo.workspace.launchAgentInvocation({
         handle: pending.draft.handle,
         documentPath: pending.document.filePath,
         mentionText: `@${pending.draft.handle}`,
         message: pending.draft.message,
-        documentFrontmatter: pending.document.frontmatter,
-        documentBody: pending.document.body,
+        documentFrontmatter: persisted.frontmatter,
+        documentBody: persisted.body,
         allowUntrustedOneShot: !persistTrust,
         persistTrust,
       });
@@ -1441,17 +1453,8 @@ function dirname(filePath: string): string {
   return index > 0 ? normalized.slice(0, index) : ".";
 }
 
-function defaultClaudeAgentCommand(): AgentCommand {
-  return {
-    id: "claude",
-    label: "Claude",
-    handle: "claude",
-    command: "claude -p",
-    cwdPolicy: "workspace_root",
-    promptDelivery: "stdin",
-    version: 1,
-    enabled: true,
-  };
+function markdownBodyAsSaved(body: string): string {
+  return body.endsWith("\n") ? body : `${body}\n`;
 }
 
 async function agentCommandExecutableFingerprintForRenderer(command: AgentCommand): Promise<string> {

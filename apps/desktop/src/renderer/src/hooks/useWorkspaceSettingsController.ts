@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
-import {
-  type IndexStatus,
-  type WorkspaceSettings,
-  type WorkspaceSettingsRevision,
+import type {
+  IndexStatus,
+  WorkspaceSettings,
+  WorkspaceSettingsRevision,
 } from "@exo/core";
+import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 import type { AppearanceMode } from "../appearance";
 import { normalizeColorThemeId } from "../theme/registry";
 import {
@@ -125,7 +126,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
-      agentCommands: settings.agentCommands?.length ? settings.agentCommands : [defaultClaudeAgentCommand()],
+      agentCommands: settings.agentCommands?.length ? settings.agentCommands : [createDefaultClaudeAgentCommand()],
       saveStatus: "saved",
       errorMessage: null,
       appliedWorkspaceKey,
@@ -330,19 +331,6 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     chooseFolder,
     runIndexUpdate,
     saveDialog,
-  };
-}
-
-function defaultClaudeAgentCommand(): NonNullable<WorkspaceSettings["agentCommands"]>[number] {
-  return {
-    id: "claude",
-    label: "Claude",
-    handle: "claude",
-    command: "claude -p",
-    cwdPolicy: "workspace_root",
-    promptDelivery: "stdin",
-    version: 1,
-    enabled: true,
   };
 }
 

@@ -86,7 +86,7 @@ The future Skill flow adds a reviewed, bounded proposal step; it is not claimed 
 | Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context | search/graph tests; `../README.md` |
 | Canvas and panes | `WorkspaceCanvasLayoutSettings`, pane tree | Notes, Terminal, Preview, and Connections share one canvas | pane E2E; `../README.md` |
 | Terminal | `TerminalManager`, direct `node-pty`, xterm | Live terminal with bounded reload tail; no durable session history | terminal suite; `terminal-runtime-decision.md` |
-| Commands and invocation | `AgentCommand`, `InvocationRunner`, invocation records | Explicit inline invocation, visible execution, observed-change review | invocation E2E; `../issues.md#exo-issue-106` |
+| Commands and invocation | `AgentCommand`, `InvocationRunner`, invocation records | Explicit inline invocation, headless document work, optional session handoff, observed-change review | invocation E2E; `../issues.md#exo-issue-106` |
 | Command server and CLI | `command-protocol.ts`, `CommandServerLifecycle` | Resident-app commands plus app-off read/search/status where supported | command-server tests; `public-contract-reviews.md` |
 
 This is the maintained pointer index. `tasks.md` decides what is next; it must not be used to imply implementation.

@@ -41,6 +41,9 @@ await appendFile(notePath, "\\nagent appended line\\n", "utf8");
     await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Document snapshot at invocation:");
     await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("# Agent Invocation");
     await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Review this document.");
+    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain('<exo-invocation agent="append" status="sent">');
+    await expect(readFile(path.join(fixture.workspaceRoot, ".exo/invocations", record.id, "before.md"), "utf8"))
+      .resolves.toContain('<exo-invocation agent="append" status="sent">');
   } finally {
     await fixture.cleanup();
   }
@@ -75,6 +78,64 @@ test("keeps an inline agent draft available when focus moves through the editor"
   }
 });
 
+test("renders a sent Claude invocation as highlighted prose without its source envelope", async () => {
+  const fixture = await launchInvocationFixture("claude", {
+    scriptBody: "await new Promise((resolve) => setTimeout(resolve, 30_000));",
+  });
+
+  try {
+    await moveEditorCursorToEnd(fixture.page);
+    await fixture.page.keyboard.press("Enter");
+    await fixture.page.keyboard.type("@claude");
+    await expect(fixture.page.getByTestId("agent-suggestion-claude")).toBeVisible();
+    await fixture.page.keyboard.press("Enter");
+    await fixture.page.keyboard.type("what task should I work on first?");
+    await fixture.page.keyboard.press("Shift+Enter");
+
+    await expect(fixture.page.getByRole("dialog", { name: "Run @claude?" })).toBeVisible();
+    const openingEnvelope = fixture.page.locator(".cm-line").filter({ hasText: '<exo-invocation agent="claude" status="sent">' });
+    const closingEnvelope = fixture.page.locator(".cm-line").filter({ hasText: "</exo-invocation>" });
+    await expect(openingEnvelope).toBeHidden();
+    await expect(closingEnvelope).toBeHidden();
+    const mention = fixture.page.locator(".inline-agent-composer__mention--claude").filter({ hasText: "@claude" }).last();
+    await expect(mention).toBeVisible();
+    await expect(mention).toHaveCSS("color", "rgb(184, 79, 36)");
+
+    await fixture.page.getByRole("button", { name: "Cancel" }).click();
+    await fixture.page.getByTestId("toggle-markdown-mode").click();
+    await expect(openingEnvelope).toBeVisible();
+    await expect(closingEnvelope).toBeVisible();
+    expect(await fixture.page.locator(".cm-content").evaluate((content) => ({
+      opening: (content.textContent?.match(/<exo-invocation/g) ?? []).length,
+      closing: (content.textContent?.match(/<\/exo-invocation>/g) ?? []).length,
+    }))).toEqual({ opening: 1, closing: 1 });
+    await fixture.page.getByTestId("toggle-markdown-mode").click();
+    await expect(openingEnvelope).toBeHidden();
+    await expect(closingEnvelope).toBeHidden();
+
+    await fixture.page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) throw new Error("Unable to resolve CodeMirror view");
+      const text = view.state.doc.toString();
+      const opening = '<exo-invocation agent="claude" status="sent">\n';
+      const first = text.indexOf(opening);
+      const close = text.indexOf("\n</exo-invocation>", first);
+      view.dispatch({ changes: [
+        { from: first, insert: opening },
+        { from: close + "\n</exo-invocation>".length, insert: "\n</exo-invocation>" },
+      ] });
+    });
+    await expect(openingEnvelope).toHaveCount(2);
+    await expect(closingEnvelope).toHaveCount(2);
+    await expect.poll(async () => openingEnvelope.evaluateAll((lines) => lines.every((line) => getComputedStyle(line).display === "none"))).toBe(true);
+    await expect.poll(async () => closingEnvelope.evaluateAll((lines) => lines.every((line) => getComputedStyle(line).display === "none"))).toBe(true);
+    await expect(fixture.page.locator(".inline-agent-composer__mention--claude").filter({ hasText: "@claude" }).last()).toHaveCSS("color", "rgb(184, 79, 36)");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 test("shows a dirty-buffer conflict choice when an invocation changes the open note", async () => {
   const fixture = await launchInvocationFixture("conflict", {
     scriptBody: `
@@ -95,8 +156,8 @@ await appendFile(notePath, "\\nagent disk line\\n", "utf8");
     );
     await expect(fixture.page.getByTestId("invocation-keep-dirty-buffer")).toBeVisible();
     await expect(fixture.page.getByTestId("invocation-reload-disk")).toBeVisible();
-    await expect(fixture.page.getByTestId("editor-panel")).toContainText("local unsaved line");
-    await expect(fixture.page.getByTestId("editor-panel")).not.toContainText("agent disk line");
+    await expect(fixture.page.locator(".cm-content")).toContainText("local unsaved line");
+    await expect(fixture.page.locator(".cm-content")).not.toContainText("agent disk line");
 
     await fixture.page.getByTestId("invocation-keep-dirty-buffer").click();
     await expect(fixture.page.getByTestId("invocation-review-banner")).not.toContainText("Disk changed while this editor has unsaved edits.");
@@ -175,18 +236,34 @@ await appendFile(notePath, "\\ndogfood pointer prompt run " + next + "\\n", "utf
   }
 });
 
-test("live Claude receives the current document context through a headless invocation", async () => {
+test("live Claude edits the tagged document and produces a resumable review", async () => {
   test.skip(process.env.EXO_LIVE_CLAUDE_E2E !== "1", "Set EXO_LIVE_CLAUDE_E2E=1 to run the live Claude pointer-prompt gate.");
   const fixture = await launchLiveClaudeInvocationFixture();
 
   try {
-    await invokeConfiguredAgent(fixture.page, "claude");
+    await invokeConfiguredAgent(
+      fixture.page,
+      "claude",
+      "Append a section named Claude Verification containing the exact text EXO_LIVE_CLAUDE_EDIT_OK.",
+    );
     await expect.poll(async () => latestInvocationRecord(fixture.workspaceRoot), { timeout: 120_000 }).toMatchObject({
       status: "process-exited",
       command: { handle: "claude" },
+      review: { status: "pending" },
     });
     const record = await latestInvocationRecord(fixture.workspaceRoot);
+    expect(record.providerSessionId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(record.changedFileRefs).toEqual([expect.objectContaining({ path: fixture.notePath, kind: "modified" })]);
     expect(record).not.toHaveProperty("terminalSessionId");
+    await expect.poll(async () => readFile(fixture.notePath, "utf8")).toContain("EXO_LIVE_CLAUDE_EDIT_OK");
+    const artifactRoot = path.join(fixture.workspaceRoot, ".exo/invocations", record.id);
+    const [before, after] = await Promise.all([
+      readFile(path.join(artifactRoot, "before.md"), "utf8"),
+      readFile(path.join(artifactRoot, "after.md"), "utf8"),
+    ]);
+    expect(before).toContain('<exo-invocation agent="claude" status="sent">');
+    expect(before.match(/EXO_LIVE_CLAUDE_EDIT_OK/g)).toHaveLength(1);
+    expect(after.match(/EXO_LIVE_CLAUDE_EDIT_OK/g)).toHaveLength(2);
     await expect(fixture.page.locator('[data-testid^="terminal-tab-"]')).toHaveCount(0);
   } finally {
     await fixture.cleanup();
@@ -291,46 +368,14 @@ async function launchCommandInvocationFixture(
 
 async function launchLiveClaudeInvocationFixture(): Promise<Awaited<ReturnType<typeof launchExoWorkspaceFixture>> & { notePath: string }> {
   let notePath = "";
-  let scriptPath = "";
   const fixture = await launchExoWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     env: process.env.HOME ? { HOME: process.env.HOME } : {},
     prepareWorkspace: async (workspaceRoot) => {
       const noteRoot = path.join(workspaceRoot, "notes/test-notes");
-      const projectRoot = path.join(workspaceRoot, "projects/sample-project");
       notePath = path.join(noteRoot, "agent-invocation.md");
-      scriptPath = path.join(projectRoot, "live-claude-agent.mjs");
-      await mkdir(projectRoot, { recursive: true });
-      await writeFile(notePath, "# Live Claude Pointer\n\n@claude read this document and reply with EXO_LIVE_CLAUDE_POINTER_OK plus the H1 text.\n", "utf8");
-      await writeFile(scriptPath, `
-import { spawn } from "node:child_process";
-
-let input = "";
-
-process.stdin.setEncoding("utf8");
-process.stdin.on("data", (chunk) => {
-  input += chunk;
-});
-process.stdin.once("end", run);
-
-function run() {
-  if (!input.includes("Document snapshot at invocation:") || !input.includes("# Live Claude Pointer")) {
-    process.exit(1);
-  }
-  const prompt = input + "\\n\\nReply with exactly one line containing EXO_LIVE_CLAUDE_POINTER_OK and the document H1.";
-  const child = spawn("claude", ["--print", "--permission-mode", "bypassPermissions", prompt], {
-    cwd: process.cwd(),
-    env: process.env,
-    stdio: ["ignore", "inherit", "inherit"],
-  });
-  child.on("exit", (code) => process.exit(code ?? 0));
-  child.on("error", (error) => {
-    console.error(error);
-    process.exit(1);
-  });
-}
-`.trimStart(), "utf8");
+      await writeFile(notePath, "# Live Claude Edit\n\nThis fixture proves Exo can authorize a real headless document edit.\n", "utf8");
     },
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       await writeFile(settingsPath, JSON.stringify({
@@ -342,7 +387,7 @@ function run() {
           id: "claude",
           label: "@claude",
           handle: "claude",
-          command: `${shellQuote(process.execPath)} ${shellQuote(scriptPath)}`,
+          command: "claude -p --permission-mode acceptEdits",
           cwdPolicy: "workspace_root",
           promptDelivery: "stdin",
           version: 1,
@@ -365,13 +410,17 @@ function run() {
   return { ...fixture, notePath };
 }
 
-async function invokeConfiguredAgent(page: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["page"], handle: string): Promise<void> {
+async function invokeConfiguredAgent(
+  page: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["page"],
+  handle: string,
+  message = "Review this document.",
+): Promise<void> {
   await appendEditorText(page, `\n@${handle}`);
   await expect(page.getByTestId(`agent-suggestion-${handle}`)).toBeVisible();
   await page.keyboard.press("Enter");
   const composer = page.getByTestId("inline-agent-composer");
   await expect(composer).toHaveCount(1);
-  await page.keyboard.type("Review this document.");
+  await page.keyboard.type(message);
   await page.keyboard.press("Shift+Enter");
   const authorization = page.getByRole("dialog", { name: `Run @${handle}?` });
   await expect(authorization).toBeVisible();

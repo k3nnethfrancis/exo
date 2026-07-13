@@ -73,9 +73,14 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - `@` opens configured Command autocomplete; Enter creates a transient,
     page-native multiline draft; only Shift+Enter invokes. Saving a note and
     arbitrary Markdown mentions never invoke a Command.
-  - The prompt includes the explicit message and current document snapshot;
-    terminal execution, dirty-buffer protection, and changed-file review are
-    covered by focused Electron tests (`04d74c3`).
+  - The prompt includes the explicit message and exact saved document snapshot.
+    Note invocations run headlessly; a real Claude session can be resumed in a
+    visible Shell after completion.
+  - Legacy nested invocation envelopes render as one agent-colored request in
+    live preview, while raw mode exposes the durable source markup.
+  - Dirty-buffer protection, permission-denial failure, changed-file review,
+    provider session capture, and a real Claude edit are covered by focused
+    unit and Electron tests.
 - Human acceptance:
   - [ ] On real work, send a multiline `@claude` request with document context,
     inspect the resulting Markdown changes, and explicitly keep or reject
