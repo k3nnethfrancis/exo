@@ -101,7 +101,7 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-108: Exo MCP must stabilize caller scope before public release
 
-- Status: implementation and dogfood required
+- Status: implementation complete; public-alpha proof and dogfood required
 - Severity: high before public MCP stabilization
 - Area: `exo mcp serve`, provider setup, Workspace scope, agent-context onboarding
 - Current decision: keep the frozen read-only two-tool MCP (`workspace_status`,
@@ -112,11 +112,13 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   single-Workspace fallback only when unambiguous; report ambiguity and refuse
   retrieval otherwise. `workspace_status` must state the resolved identity and
   roots, and app retrieval must not cross that resolved scope.
-- Required proof: cwd/singleton/ambiguity/app-mismatch tests; read-path
-  containment and bounded-output tests; protocol snapshots; provider setup
+- Completed proof: caller-cwd, singleton fallback, ambiguity refusal, and
+  app-mismatch fallback tests. The adapter reports resolved Workspace identity
+  and roots and never consumes a running app outside that scope.
+- Remaining proof: bounded-output/protocol snapshots; provider setup
   idempotency, missing-CLI, and removal documentation; and 10–20 real
-  Claude/Codex sessions measuring Exo discovery, search-before-read, and
-  zero out-of-root reads.
+  Claude/Codex sessions measuring Exo discovery, search-before-read, and zero
+  out-of-root reads.
 
 ### EXO-ISSUE-104: Preview pane lifecycle evidence
 

@@ -27,17 +27,16 @@ codex mcp add exo -- exo mcp serve
 
 - `workspace_status`
 - `search_notes`
-- `read_note`
 
-The server resolves the active Exo Workspace, uses the running app's retrieval
-when available, and otherwise performs bounded filesystem retrieval inside the
-configured Note Roots. It has no write, terminal, agent-launch, arbitrary-path,
-or configuration tool. Its MCP initialization and tool descriptions tell an
-agent to search before reading broadly. The normal Exo CLI remains the broader
-human/operator surface.
+The server resolves the caller's Workspace from cwd, uses the running app's
+retrieval only when that app is in the same scope, and otherwise performs
+bounded filesystem retrieval inside the configured Note Roots. It has no write,
+terminal, agent-launch, arbitrary-path, or configuration tool. Its MCP
+initialization and tool descriptions tell an agent to search before reading
+broadly. The normal Exo CLI remains the broader human/operator surface.
 
-The change is currently a user-approved exception and needs post-hoc
-architectural review before public stabilization. Relevant implementation:
+The change is a user-approved exception with the Fable ruling recorded below.
+Relevant implementation:
 
 - `packages/cli/src/mcp-server.ts`
 - `apps/desktop/src/main/provider-mcp-setup.ts`

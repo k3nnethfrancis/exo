@@ -18,6 +18,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 ### Changed
 
 - Narrows the optional Exo MCP from status/search/read to workspace status and search only; agents use returned paths through their own native file permissions.
+- Resolves Exo MCP scope from the provider process's caller directory, refuses ambiguous Workspace matches, and falls back to scoped filesystem retrieval when a running app belongs elsewhere.
 - Keeps Preview and Terminal as independent utility destinations with their own tabs, while allowing a tab to be dragged into an editor split and returned by closing its canvas pane.
 - Makes folder creation create a minimal `index.md`, while imported folders remain read-only until the user explicitly creates an index.
 - Moves workspace Settings to the lower workspace menu and tightens Explorer/titlebar chrome.

@@ -4,6 +4,7 @@ import path from "node:path";
 import {
   filesystemSearchProvider,
   loadActiveWorkspaceSettings,
+  listWorkspaceRegistryEntries,
   resolveWorkspaceModel,
   workspaceEnvOverrides,
   workspaceModelFromSettings,
@@ -17,6 +18,18 @@ const MAX_SEARCH_RESULTS = 20;
 
 type JsonRecord = Record<string, unknown>;
 type JsonRpcId = string | number | null;
+type AppClientLike = Pick<AppClient, "getStatus" | "getIndexStatus" | "search">;
+
+type WorkspaceScope =
+  | {
+      status: "resolved";
+      source: "environment" | "caller-cwd" | "single-workspace-fallback";
+      cwd: string;
+      workspaceId: string | null;
+      workspaceLabel: string | null;
+      model: WorkspaceModel;
+    }
+  | { status: "unresolved" | "ambiguous"; cwd: string; candidateCount: number };
 
 /**
  * Read-only MCP adapter for the active Exo Workspace. The same command-server
@@ -28,12 +41,17 @@ export async function runExoMcpServer(options: {
   input?: NodeJS.ReadableStream;
   output?: NodeJS.WritableStream;
   error?: NodeJS.WritableStream;
+  /** Test seam; production uses the authenticated desktop-app client. */
+  connectApp?: (runtimeRoot: string, env: NodeJS.ProcessEnv) => Promise<AppClientLike | null>;
+  /** The MCP child process's cwd; callers may override it only for tests. */
+  cwd?: string;
 } = {}): Promise<void> {
   const env = options.env ?? process.env;
   const input = options.input ?? process.stdin;
   const output = options.output ?? process.stdout;
   const error = options.error ?? process.stderr;
-  const operations = await createOperations(env);
+  const scope = await resolveWorkspaceScope(env, options.cwd ?? process.cwd());
+  const operations = await createOperations(env, scope, options.connectApp ?? AppClient.connect);
   const lines = readline.createInterface({ input, crlfDelay: Infinity });
 
   for await (const line of lines) {
@@ -55,27 +73,63 @@ interface ExoMcpOperations {
   search(query: string, limit: number): Promise<JsonRecord>;
 }
 
-async function createOperations(env: NodeJS.ProcessEnv): Promise<ExoMcpOperations> {
-  const model = await resolveWorkspace(env);
-  const runtimeRoot = env.EXO_RUNTIME_ROOT ?? path.join(model.workspaceRoot, ".exo");
-  const client = await AppClient.connect(runtimeRoot, env);
-  if (client) {
+async function createOperations(
+  env: NodeJS.ProcessEnv,
+  scope: WorkspaceScope,
+  connectApp: (runtimeRoot: string, env: NodeJS.ProcessEnv) => Promise<AppClientLike | null>,
+): Promise<ExoMcpOperations> {
+  if (scope.status !== "resolved") {
     return {
-      status: async () => workspaceStatus(model, true, await client.getIndexStatus()),
+      status: async () => workspaceStatus(scope, false, null),
+      search: async () => {
+        throw new Error(scopeError(scope));
+      },
+    };
+  }
+  const { model } = scope;
+  const runtimeRoot = env.EXO_RUNTIME_ROOT ?? path.join(model.workspaceRoot, ".exo");
+  const client = await connectApp(runtimeRoot, env).catch(() => null);
+  if (client && (await clientMatchesWorkspace(client, model))) {
+    return {
+      status: async () => workspaceStatus(scope, true, await client.getIndexStatus()),
       search: (query, limit) => client.search(query, { limit }),
     };
   }
   return {
-    status: async () => workspaceStatus(model, false, await filesystemSearchProvider.getStatus(model, runtimeRoot)),
-    search: async (query, limit) => ({ ...await filesystemSearchProvider.search(model, runtimeRoot, query, { limit }) }),
+    status: async () => workspaceStatus(scope, false, await filesystemSearchProvider.getStatus(model, runtimeRoot)),
+    search: async (query, limit) => ({
+      ...(await filesystemSearchProvider.search(model, runtimeRoot, query, { limit })),
+    }),
   };
 }
 
-function workspaceStatus(model: WorkspaceModel, appAvailable: boolean, search: unknown): JsonRecord {
+async function clientMatchesWorkspace(client: AppClientLike, model: WorkspaceModel): Promise<boolean> {
+  try {
+    return workspaceMatches(model, await client.getStatus());
+  } catch {
+    return false;
+  }
+}
+
+function workspaceStatus(scope: WorkspaceScope, appAvailable: boolean, search: unknown): JsonRecord {
+  if (scope.status !== "resolved") {
+    return {
+      ok: true,
+      app: { available: false },
+      workspace: { status: scope.status, callerCwd: scope.cwd, candidateCount: scope.candidateCount },
+      search,
+    };
+  }
+  const { model } = scope;
   return {
     ok: true,
     app: { available: appAvailable },
     workspace: {
+      status: "resolved",
+      resolution: scope.source,
+      callerCwd: scope.cwd,
+      id: scope.workspaceId,
+      label: scope.workspaceLabel,
       root: model.workspaceRoot,
       noteRoots: model.noteRoots.map((root) => ({ id: root.id, label: root.label, path: root.path })),
       indexing: model.indexing,
@@ -84,10 +138,76 @@ function workspaceStatus(model: WorkspaceModel, appAvailable: boolean, search: u
   };
 }
 
-async function resolveWorkspace(env: NodeJS.ProcessEnv): Promise<WorkspaceModel> {
-  if (workspaceEnvOverrides(env)) return resolveWorkspaceModel(env);
-  const settings = await loadActiveWorkspaceSettings(env);
-  return settings ? workspaceModelFromSettings(settings) : resolveWorkspaceModel(env);
+async function resolveWorkspaceScope(env: NodeJS.ProcessEnv, cwd: string): Promise<WorkspaceScope> {
+  const resolvedCwd = path.resolve(cwd);
+  if (workspaceEnvOverrides(env)) {
+    return {
+      status: "resolved",
+      source: "environment",
+      cwd: resolvedCwd,
+      workspaceId: null,
+      workspaceLabel: null,
+      model: resolveWorkspaceModel(env),
+    };
+  }
+  const activeSettings = await loadActiveWorkspaceSettings(env);
+  const workspaces = await listWorkspaceRegistryEntries(env, activeSettings);
+  const matches = workspaces.filter((workspace) =>
+    workspace.settings.noteRoots.some((root) => isWithin(root, resolvedCwd)),
+  );
+  if (matches.length === 1) {
+    const workspace = matches[0];
+    return {
+      status: "resolved",
+      source: "caller-cwd",
+      cwd: resolvedCwd,
+      workspaceId: workspace.id,
+      workspaceLabel: workspace.label,
+      model: workspaceModelFromSettings(workspace.settings),
+    };
+  }
+  if (matches.length > 1) return { status: "ambiguous", cwd: resolvedCwd, candidateCount: matches.length };
+  if (workspaces.length === 1) {
+    const workspace = workspaces[0];
+    return {
+      status: "resolved",
+      source: "single-workspace-fallback",
+      cwd: resolvedCwd,
+      workspaceId: workspace.id,
+      workspaceLabel: workspace.label,
+      model: workspaceModelFromSettings(workspace.settings),
+    };
+  }
+  return { status: "unresolved", cwd: resolvedCwd, candidateCount: workspaces.length };
+}
+
+function workspaceMatches(model: WorkspaceModel, status: Record<string, unknown>): boolean {
+  const workspace = isRecord(status.workspace) ? status.workspace : null;
+  if (
+    !workspace ||
+    typeof workspace.root !== "string" ||
+    path.resolve(workspace.root) !== path.resolve(model.workspaceRoot)
+  ) {
+    return false;
+  }
+  const roots = Array.isArray(workspace.noteRoots) ? workspace.noteRoots : [];
+  const appRoots = roots
+    .map((root) => (isRecord(root) && typeof root.path === "string" ? path.resolve(root.path) : null))
+    .filter((root): root is string => Boolean(root))
+    .sort();
+  const expectedRoots = model.noteRoots.map((root) => path.resolve(root.path)).sort();
+  return appRoots.length === expectedRoots.length && appRoots.every((root, index) => root === expectedRoots[index]);
+}
+
+function isWithin(root: string, target: string): boolean {
+  const relative = path.relative(path.resolve(root), target);
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative));
+}
+
+function scopeError(scope: Extract<WorkspaceScope, { status: "unresolved" | "ambiguous" }>): string {
+  return scope.status === "ambiguous"
+    ? `Caller cwd matches ${scope.candidateCount} Exo Workspaces; search is refused until the scope is unambiguous.`
+    : `No Exo Workspace matches caller cwd (${scope.cwd}); search is refused.`;
 }
 
 async function handleRequest(request: JsonRecord, operations: ExoMcpOperations): Promise<JsonRecord | null> {

@@ -14,14 +14,14 @@ The server has no note-reading, write, terminal, agent-launch, configuration, or
 ## Scope contract
 
 The provider process resolves Exo by its caller cwd, never by whichever
-Workspace happens to be open in the app. A cwd inside a configured Note Root
-selects that Workspace. If no root contains the cwd, Exo may use the only
-configured Workspace; if there is no unique answer, `workspace_status` reports
-the ambiguity and retrieval refuses rather than guessing.
+Workspace happens to be open in the app. A cwd inside exactly one configured
+Note Root selects that Workspace. If no root contains the cwd, Exo may use the
+only configured Workspace. If there is no unique answer, `workspace_status`
+reports the condition and retrieval refuses rather than guessing.
 
-This cwd contract is the public stabilization target from the 2026-07-13 Fable
-review. The current adapter must not be presented as stabilized until its
-implementation and tests match this section.
+When a running desktop app belongs to that same resolved Workspace, Exo reuses
+its configured retrieval. If the app is unavailable, stale, or belongs to a
+different Workspace, Exo safely uses bounded filesystem retrieval instead.
 
 ## Installation contract
 
@@ -35,9 +35,7 @@ codex mcp add exo -- exo mcp serve
 The provider owns its config and authentication. Exo owns the `exo mcp serve` process only. The local `exo` command must be installed and on `PATH` (or `EXO_CLI_PATH` can point at it); `scripts/install-mac-app --with-cli` provides the supported macOS setup.
 
 Exo does not install or maintain provider instruction files or Skills. Tool
-descriptions provide the local search-then-read rule. Stabilization work will
-add a short provider-neutral invocation-prompt instruction to use Exo retrieval
-for additional Workspace context when it is available. A future instruction
+descriptions provide the local search-then-read rule. A future instruction
 template, if real dogfood earns it, will be copy-out only and remain user-owned.
 
 ## Boundary
@@ -46,12 +44,12 @@ This does not restore a generic MCP manager, arbitrary server form, plugin runti
 
 ## Stabilization gate
 
-Before this becomes a public stable contract, prove cwd resolution and
-containment, protocol/tool-list snapshots, bounded output, setup re-run safety,
-and documented provider-native removal. Dogfood 10–20 context-seeking sessions
-across Claude and Codex: record whether agents discover Exo retrieval, search
-before reading, and remain inside resolved roots. A failure to discover tools
-may earn a user-managed copy-out instruction template; it does not earn an
-automatic host-file writer.
+Caller-cwd resolution, singleton fallback, ambiguity refusal, app-scope parity,
+and the frozen two-tool list are automated. Before the contract is promoted
+from alpha, finish protocol/output/setup coverage and dogfood 10–20
+context-seeking sessions across Claude and Codex. Record whether agents
+discover Exo retrieval, search before reading, and remain inside resolved
+roots. A failure to discover tools may earn a user-managed copy-out instruction
+template; it does not earn an automatic host-file writer.
 
 -- Shoshin | 2026-07-13
