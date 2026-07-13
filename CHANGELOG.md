@@ -7,6 +7,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 ### Added
 
 - Renders contained Markdown image attachments in the live editor while preserving raw source editing at the caret.
+- Adds reviewable inline Command outcomes: exact tagged-note patch, Keep/Reject with dirty-buffer and disk-drift protection, and Claude **Resume in Shell** when the command returned a real session id.
 - Adds an **Agents** section to Workspace Settings for configuring the commands behind `@` mentions.
 - Adds one shared right-side utility destination with mutually exclusive Preview, Terminal, and Connections views.
 - Adds centered workspace search with an anchored result popover, typed titlebar breadcrumbs, and explicit Folder Index creation/maintenance.
@@ -22,6 +23,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Captures bounded structured output from headless invocations so Claude session provenance is retained instead of silently discarded; generic Commands remain output-agnostic.
 - Makes Markdown completion insert readable link aliases and removes whole-note live-preview work from ordinary editor selection and typing.
 - Keeps inline agent typing off the synchronous workspace render path, clarifies headless command failures, and moves invocation status into a compact bottom-left toast.
 - Restores bounded CodeMirror editor scrolling after the editor action chrome became an out-of-flow overlay.

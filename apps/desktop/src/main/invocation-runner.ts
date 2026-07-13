@@ -11,6 +11,7 @@ import {
   formatCliInvocationPrompt,
   formatNoteInvocationPrompt,
   InvocationStore,
+  WorkspaceFiles,
   normalizeAgentHandle,
   resolveInvocationStoreLayout,
   safeStoreSegment,
@@ -61,6 +62,14 @@ export interface HeadlessInvocationResult {
 }
 
 export type InvocationStartResult = InvocationResult | HeadlessInvocationResult;
+
+export interface InvocationReviewPayload {
+  invocation: InvocationRecord;
+  patch: string | null;
+  before: string | null;
+  after: string | null;
+  canReject: boolean;
+}
 
 export class InvocationRunnerError extends Error {
   constructor(readonly code: string, message: string, readonly details: Record<string, unknown> = {}) {
@@ -148,6 +157,7 @@ export class InvocationRunner extends EventEmitter {
     let invocationProcess: InvocationProcess | undefined;
     let processExited = false;
     let processExitCode: number | null = null;
+    let processStdout = "";
     let observationReady = false;
     const settleHeadlessProcess = () => {
       const status = processExitCode && processExitCode !== 0 ? "failed" : "process-exited";
@@ -165,13 +175,18 @@ export class InvocationRunner extends EventEmitter {
         : formatCliInvocationPrompt({ task: prepared.request.task ?? prepared.request.message, workspaceRoot: settings.workspaceRoot });
       if (prepared.request.context === "note") {
         invocationProcess = (this.options.invocationProcessFactory ?? new DirectInvocationProcessFactory()).launch({
-          command: prepared.command.command,
+          command: commandForHeadlessInvocation(prepared.command),
           cwd: prepared.cwd,
           env: globalThis.process.env,
         });
-        invocationProcess.onExit(({ exitCode }) => {
+        invocationProcess.onExit(({ exitCode, stdout }) => {
           processExited = true;
           processExitCode = exitCode;
+          processStdout = stdout;
+          const observation = this.active.get(prepared.id);
+          if (observation) {
+            observation.record = applyProviderSessionProvenance(observation.record, stdout);
+          }
           if (observationReady) settleHeadlessProcess();
         });
         await invocationProcess.send(prompt);
@@ -181,12 +196,12 @@ export class InvocationRunner extends EventEmitter {
         if (!delivered.ok) throw new InvocationRunnerError("prompt-delivery-failed", "Agent prompt could not be delivered.");
       }
       const startedAt = new Date().toISOString();
-      const running = {
+      const running = applyProviderSessionProvenance({
         ...prepared.pending,
         status: "running" as const,
         startedAt,
         ...(terminal ? { terminalSessionId: terminal.id } : {}),
-      };
+      }, processStdout);
       await store.writeRecord(running);
       if (prepared.before) this.observe(running, prepared.before);
       if (invocationProcess && prepared.before) {
@@ -244,6 +259,72 @@ export class InvocationRunner extends EventEmitter {
   async get(id: string): Promise<InvocationRecord | null> { return new InvocationStore(this.options.getWorkspaceSettings().workspaceRoot).readRecord(id); }
   async review(id: string): Promise<InvocationRecord | null> { return this.get(id); }
 
+  async getReview(id: string): Promise<InvocationReviewPayload | null> {
+    const store = new InvocationStore(this.options.getWorkspaceSettings().workspaceRoot);
+    const invocation = await store.readRecord(id);
+    if (!invocation?.taggedDocumentPath || invocation.diffRefs.length === 0) return null;
+    const layout = resolveInvocationStoreLayout(store.layout.workspaceRoot);
+    const base = path.join(layout.invocationsDir, safeStoreSegment(id));
+    const [patch, before, after] = await Promise.all([
+      readTextOrNull(path.join(base, "diffs", "diff-1.patch")),
+      readTextOrNull(path.join(base, "before.md")),
+      readTextOrNull(path.join(base, "after.md")),
+    ]);
+    return {
+      invocation,
+      patch,
+      before,
+      after,
+      canReject: invocation.review?.status === "pending" && before !== null && after !== null,
+    };
+  }
+
+  async keepReview(id: string): Promise<InvocationRecord | null> {
+    const store = new InvocationStore(this.options.getWorkspaceSettings().workspaceRoot);
+    const record = await store.readRecord(id);
+    if (!record?.review || record.review.status !== "pending") return record;
+    const next = { ...record, review: { ...record.review, status: "kept" as const, reviewedAt: new Date().toISOString() } };
+    await store.writeRecord(next);
+    this.emit("updated", next);
+    return next;
+  }
+
+  async rejectReview(id: string, expectedAfterSha256: string | null): Promise<InvocationRecord> {
+    const settings = this.options.getWorkspaceSettings();
+    const store = new InvocationStore(settings.workspaceRoot);
+    const record = await store.readRecord(id);
+    if (!record?.taggedDocumentPath || !record.review || record.review.status !== "pending") {
+      throw new InvocationRunnerError("review-unavailable", "This invocation has no pending document review.");
+    }
+    if (record.review.afterSha256 !== expectedAfterSha256) {
+      throw new InvocationRunnerError("review-drift", "The proposed document version no longer matches this review.");
+    }
+    const filePath = await new WorkspaceFiles(settings.noteRoots).writable(record.taggedDocumentPath);
+    const current = await snapshotTextFile(filePath);
+    if (current.sha256 !== record.review.afterSha256) {
+      throw new InvocationRunnerError("review-drift", "The document changed after the invocation. Exo will not overwrite newer work.");
+    }
+    const beforePath = path.join(resolveInvocationStoreLayout(settings.workspaceRoot).invocationsDir, safeStoreSegment(id), "before.md");
+    const before = await readTextOrNull(beforePath);
+    if (before === null) throw new InvocationRunnerError("review-unavailable", "The original document snapshot is unavailable.");
+    await writeFile(filePath, before, "utf8");
+    const next = { ...record, review: { ...record.review, status: "rejected" as const, reviewedAt: new Date().toISOString() } };
+    await store.writeRecord(next);
+    this.emit("updated", next);
+    return next;
+  }
+
+  async resumeInTerminal(id: string): Promise<TerminalSessionInfo> {
+    const record = await this.get(id);
+    if (!record?.providerSessionId || record.command.handle !== "claude") {
+      throw new InvocationRunnerError("resume-unavailable", "This invocation does not have resumable Claude session provenance.");
+    }
+    return this.options.terminalManager.createAgentCommand(
+      { ...record.command, command: `claude --resume ${shellArgument(record.providerSessionId)}` },
+      record.cwd,
+    );
+  }
+
   async markOrphanedRunningInvocations(): Promise<void> {
     const store = new InvocationStore(this.options.getWorkspaceSettings().workspaceRoot);
     for (const record of await store.listRecords()) if (record.status === "pending" || record.status === "running") {
@@ -276,10 +357,15 @@ export class InvocationRunner extends EventEmitter {
       const diffPath = path.join(resolveInvocationStoreLayout(store.layout.workspaceRoot).invocationsDir, safeStoreSegment(id), "diffs", `${diffId}.patch`);
       await mkdir(path.dirname(diffPath), { recursive: true });
       await writeFile(diffPath, wholeFileDiff(observation.before, after), "utf8");
+      const artifactRoot = path.dirname(path.dirname(diffPath));
+      await Promise.all([
+        writeFile(path.join(artifactRoot, "before.md"), observation.before.content, "utf8"),
+        writeFile(path.join(artifactRoot, "after.md"), after.content, "utf8"),
+      ]);
       diffRefs.push({ id: diffId, path: observation.before.path, format: "unified", ref: diffRef });
       changedFileRefs.push({ path: observation.before.path, kind: after.exists ? observation.before.exists ? "modified" : "created" : "deleted", observedAt: new Date().toISOString(), attribution: observation.overlapAtStart || !observation.observedPaths.has(path.resolve(observation.before.path)) ? "ambiguous" : "likely", diffRefId: diffId });
     }
-    const next = { ...observation.record, status, endedAt: new Date().toISOString(), ...(exitCode === undefined ? {} : { exitCode }), ...(status === "failed" ? { failureReason: `Command exited with code ${exitCode ?? "unknown"}.` } : {}), changedFileRefs, diffRefs, attribution: changed ? { status: changedFileRefs.some((f) => f.attribution === "ambiguous") ? "ambiguous" as const : "likely" as const } : { status: "unattributed" as const, reason: "No tagged document changes observed." } };
+    const next = { ...observation.record, status, endedAt: new Date().toISOString(), ...(exitCode === undefined ? {} : { exitCode }), ...(status === "failed" ? { failureReason: `Command exited with code ${exitCode ?? "unknown"}.` } : {}), changedFileRefs, diffRefs, ...(changed ? { review: { status: "pending" as const, beforeSha256: observation.before.sha256, afterSha256: after.sha256 } } : {}), attribution: changed ? { status: changedFileRefs.some((f) => f.attribution === "ambiguous") ? "ambiguous" as const : "likely" as const } : { status: "unattributed" as const, reason: "No tagged document changes observed." } };
     await store.writeRecord(next); this.active.delete(id); if (observation.record.terminalSessionId) this.byTerminal.delete(observation.record.terminalSessionId); this.emit("updated", next); return next;
   }
 
@@ -294,3 +380,32 @@ export class InvocationRunner extends EventEmitter {
 
 async function snapshotTextFile(filePath: string): Promise<FileSnapshot> { try { await stat(filePath); const content = await readFile(filePath, "utf8"); return { path: filePath, exists: true, content, sha256: createHash("sha256").update(content).digest("hex") }; } catch { return { path: filePath, exists: false, content: "", sha256: null }; } }
 function wholeFileDiff(before: FileSnapshot, after: FileSnapshot): string { return [`--- a/${path.basename(before.path)}`, `+++ b/${path.basename(after.path)}`, `@@ -1 +1 @@`, ...before.content.split("\n").map((line) => `-${line}`), ...after.content.split("\n").map((line) => `+${line}`), ""].join("\n"); }
+
+function applyProviderSessionProvenance(record: InvocationRecord, stdout: string): InvocationRecord {
+  const providerSessionId = record.command.handle === "claude" ? extractClaudeSessionId(stdout) : null;
+  return providerSessionId ? { ...record, providerSessionId } : record;
+}
+
+/** Claude's print JSON is untrusted process output; accept only a real UUID. */
+export function extractClaudeSessionId(stdout: string): string | null {
+  for (const line of stdout.split(/\r?\n/).reverse()) {
+    try {
+      const parsed = JSON.parse(line) as { session_id?: unknown };
+      if (typeof parsed.session_id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(parsed.session_id)) return parsed.session_id;
+    } catch { /* Ignore non-structured command output. */ }
+  }
+  return null;
+}
+
+async function readTextOrNull(filePath: string): Promise<string | null> {
+  try { return await readFile(filePath, "utf8"); } catch { return null; }
+}
+
+function shellArgument(value: string): string { return `'${value.replace(/'/g, "'\\\"'\\\"'")}'`; }
+
+/** Claude's documented print JSON exposes its real session_id. Generic Commands
+ * retain their configured command and simply have no resumable provenance. */
+export function commandForHeadlessInvocation(command: AgentCommand): string {
+  if (command.handle !== "claude" || /(?:^|\s)--output-format(?:\s|=)/.test(command.command)) return command.command;
+  return `${command.command} --output-format json`;
+}

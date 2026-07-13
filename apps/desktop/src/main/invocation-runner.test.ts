@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createDefaultClaudeAgentCommand, type WorkspaceSettings } from "@exo/core";
 
 import type { TerminalManager } from "./terminal-manager";
-import { InvocationRunner, InvocationRunnerError } from "./invocation-runner";
+import { commandForHeadlessInvocation, extractClaudeSessionId, InvocationRunner, InvocationRunnerError } from "./invocation-runner";
 import { DirectInvocationProcessFactory, type InvocationProcess, type InvocationProcessFactory } from "./invocation-process";
 import type { WorkspaceWatcherService } from "./workspace-watchers";
 
@@ -140,8 +140,9 @@ describe("InvocationRunner readiness parity", () => {
       ...createDefaultClaudeAgentCommand(), id: "fails", handle: "fails", label: "Fails",
       command: "/bin/sh -c 'exit 17'",
     };
-    const runner = createRunner(settings(root, command), new FakeTerminalManager(), new DirectInvocationProcessFactory());
-    const updated = new Promise<unknown>((resolve) => runner.once("updated", resolve));
+    const terminalManager = new FakeTerminalManager();
+    const runner = createRunner(settings(root, command), terminalManager, new DirectInvocationProcessFactory());
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     await runner.authorizeAndStart(await runner.prepare({
       context: "note", handle: command.handle, documentPath: notePath, mentionText: "@fails",
@@ -153,6 +154,44 @@ describe("InvocationRunner readiness parity", () => {
       exitCode: 17,
       failureReason: "Command exited with code 17.",
     });
+  });
+
+  it("captures only a real Claude JSON session id and stores it with the reviewed change", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    await writeFile(notePath, "# Before\n", "utf8");
+    const sessionId = "ce4b9e26-2574-4433-a054-1110cd403792";
+    const command = {
+      ...createDefaultClaudeAgentCommand(),
+      command: `/bin/sh -c 'printf "# After\\n" > "${notePath}"; printf "{\\\"session_id\\\":\\\"${sessionId}\\\"}\\n"'`,
+    };
+    const terminalManager = new FakeTerminalManager();
+    const runner = createRunner(settings(root, command), terminalManager, new DirectInvocationProcessFactory());
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    await runner.authorizeAndStart(await runner.prepare({
+      context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude", message: "Update this.", documentBody: "# Before\n", allowUntrustedOneShot: true,
+    }));
+    const completed = await updated;
+    expect(completed).toMatchObject({
+      providerSessionId: sessionId,
+      review: { status: "pending" },
+    });
+    const review = await runner.getReview(completed.id);
+    expect(review).toMatchObject({ canReject: true, before: "# Before\n", after: "# After\n" });
+    expect(review?.patch).toContain("-# Before");
+    const rejected = await runner.rejectReview(completed.id, completed.review?.afterSha256 ?? null);
+    expect(rejected.review).toMatchObject({ status: "rejected" });
+    await expect(readFile(notePath, "utf8")).resolves.toBe("# Before\n");
+    await runner.resumeInTerminal(completed.id);
+    expect(terminalManager.commands).toContainEqual(expect.objectContaining({ command: `claude --resume '${sessionId}'` }));
+  });
+
+  it("does not guess session provenance from malformed output", () => {
+    expect(extractClaudeSessionId('{"session_id":"not-a-session"}')).toBeNull();
+    expect(extractClaudeSessionId("ordinary output\n{\"session_id\":\"ce4b9e26-2574-4433-a054-1110cd403792\"}"))
+      .toBe("ce4b9e26-2574-4433-a054-1110cd403792");
+    expect(commandForHeadlessInvocation(createDefaultClaudeAgentCommand())).toBe("claude -p --output-format json");
   });
 });
 
@@ -174,9 +213,11 @@ function createRunner(
 class FakeTerminalManager extends EventEmitter {
   created = 0;
   messages: string[] = [];
+  commands: unknown[] = [];
 
-  async createAgentCommand(_command: unknown, cwd: string) {
+  async createAgentCommand(command: unknown, cwd: string) {
     this.created += 1;
+    this.commands.push(command);
     return {
       id: `terminal-${this.created}`,
       title: "Echo",
@@ -211,7 +252,7 @@ class FakeInvocationProcess implements InvocationProcess {
     this.prompts.push(prompt);
   }
 
-  onExit(_handler: (event: { exitCode: number | null }) => void): void {}
+  onExit(_handler: (event: { exitCode: number | null; stdout: string }) => void): void {}
 
   kill(): void {}
 }

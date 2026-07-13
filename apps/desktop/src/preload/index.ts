@@ -42,6 +42,10 @@ const api: DesktopApi = {
     getAgentCommandLaunchFacts: (commandId) => invokeDesktop("workspace:get-agent-command-launch-facts", commandId),
     testAgentCommand: (input) => invokeDesktop("workspace:test-agent-command", input),
     endAgentInvocation: (invocationId) => invokeDesktop("workspace:end-agent-invocation", invocationId),
+    getInvocationReview: (invocationId) => invokeDesktop("workspace:get-invocation-review", invocationId),
+    keepInvocationReview: (invocationId) => invokeDesktop("workspace:keep-invocation-review", invocationId),
+    rejectInvocationReview: (input) => invokeDesktop("workspace:reject-invocation-review", input),
+    resumeInvocationInTerminal: (invocationId) => invokeDesktop("workspace:resume-invocation-in-terminal", invocationId),
     onInvocationUpdated: (callback) => {
       const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
       ipcRenderer.on("workspace:invocation-updated", listener);

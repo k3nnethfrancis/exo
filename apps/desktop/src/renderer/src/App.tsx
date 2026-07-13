@@ -10,7 +10,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { TerminalSessionInfo } from "../../shared/api";
+import type { InvocationReviewPayload, TerminalSessionInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -80,6 +80,7 @@ export function App() {
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const [invocationReview, setInvocationReview] = useState<{
     record: InvocationRecord;
+    payload?: InvocationReviewPayload | null;
   } | null>(null);
   const [pendingInvocationAuthorization, setPendingInvocationAuthorization] = useState<PendingInvocationAuthorization | null>(null);
   const [keptInvocationConflicts, setKeptInvocationConflicts] = useState<Set<string>>(() => new Set());
@@ -215,9 +216,8 @@ export function App() {
         scheduleOpenDocumentRefresh(record.taggedDocumentPath);
       }
       setKeptInvocationConflicts(new Set());
-      setInvocationReview((current) =>
-        current?.record.id === record.id ? { record } : current,
-      );
+      setInvocationReview((current) => current?.record.id === record.id ? { record } : current);
+      void loadInvocationReview(record);
     });
   }, [scheduleOpenDocumentRefresh]);
 
@@ -457,6 +457,7 @@ export function App() {
       });
       setKeptInvocationConflicts(new Set());
       setInvocationReview({ record: result.invocation });
+      void loadInvocationReview(result.invocation);
       setPendingInvocationAuthorization(null);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : String(error));
@@ -476,6 +477,46 @@ export function App() {
     }
     setKeptInvocationConflicts(new Set());
     setInvocationReview({ record: finalized });
+    void loadInvocationReview(finalized);
+  }
+
+  async function loadInvocationReview(record: InvocationRecord) {
+    if (record.diffRefs.length === 0) return;
+    const payload = await window.exo.workspace.getInvocationReview(record.id).catch(() => null);
+    setInvocationReview((current) => current?.record.id === record.id ? { record, payload } : current);
+  }
+
+  async function keepInvocationReview() {
+    if (!invocationReview) return;
+    const record = await window.exo.workspace.keepInvocationReview(invocationReview.record.id);
+    if (record) { setInvocationReview({ record }); await loadInvocationReview(record); }
+  }
+
+  async function rejectInvocationReview() {
+    if (!invocationReview?.payload) return;
+    const taggedDocumentPath = invocationReview.record.taggedDocumentPath;
+    if (taggedDocumentPath && openDocuments[taggedDocumentPath]?.dirty) {
+      window.alert("Save or keep your unsaved editor changes before rejecting this invocation.");
+      return;
+    }
+    if (!window.confirm("Reject this invocation’s document change and restore the version from before it ran?")) return;
+    try {
+      const record = await window.exo.workspace.rejectInvocationReview({
+        invocationId: invocationReview.record.id,
+        expectedAfterSha256: invocationReview.payload.invocation.review?.afterSha256 ?? null,
+      });
+      if (record.taggedDocumentPath) await reloadOpenDocumentFromDisk(record.taggedDocumentPath);
+      setInvocationReview({ record });
+      await loadInvocationReview(record);
+    } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
+  }
+
+  async function resumeInvocationInTerminal() {
+    if (!invocationReview) return;
+    try {
+      await window.exo.workspace.resumeInvocationInTerminal(invocationReview.record.id);
+      dispatchUtility({ type: "select", destination: "terminal" });
+    } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
   }
 
   function keepInvocationDirtyBuffer(invocationId: string, filePath: string) {
@@ -1217,6 +1258,10 @@ export function App() {
                       onEndObservation: () => void endActiveInvocationObservation(),
                       onKeepDirtyBuffer: () => pane.activePath ? keepInvocationDirtyBuffer(invocationReview.record.id, pane.activePath) : undefined,
                       onReloadFromDisk: () => void (pane.activePath ? reloadInvocationDiskVersion(invocationReview.record.id, pane.activePath) : Promise.resolve()),
+                      reviewPayload: invocationReview.payload ?? null,
+                      onKeepReview: () => void keepInvocationReview(),
+                      onRejectReview: () => void rejectInvocationReview(),
+                      onResumeInTerminal: invocationReview.record.providerSessionId ? () => void resumeInvocationInTerminal() : undefined,
                     }
                   : null
               }

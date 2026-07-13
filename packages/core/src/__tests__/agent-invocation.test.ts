@@ -170,6 +170,8 @@ describe("agent invocation model", () => {
       changedFileRefs: [{ path: "/tmp/note.md", kind: "modified", attribution: "ambiguous", diffRefId: "diff-1" }],
       diffRefs: [{ id: "diff-1", path: "/tmp/note.md", format: "unified", ref: ".exo/invocations/inv-1/diff.patch" }],
       attribution: { status: "ambiguous", reason: "user and agent touched the file during the invocation window" },
+      providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
+      review: { status: "pending", beforeSha256: "a".repeat(64), afterSha256: "b".repeat(64) },
     });
 
     expect(record).toMatchObject({
@@ -180,7 +182,19 @@ describe("agent invocation model", () => {
       command: { id: "claude", handle: "claude", version: 1, executableFingerprint: expect.any(String) },
       changedFileRefs: [{ path: "/tmp/note.md", kind: "modified", attribution: "ambiguous", diffRefId: "diff-1" }],
       attribution: { status: "ambiguous" },
+      providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
+      review: { status: "pending" },
     });
+  });
+
+  it("drops malformed persisted review hashes and session provenance", () => {
+    const record = normalizeInvocationRecord({
+      id: "inv-unsafe", status: "process-exited", context: "cli", message: "task", promptDelivery: "stdin",
+      command: createDefaultClaudeAgentCommand(), cwd: "/tmp", createdAt: "2026-07-08T00:00:00.000Z",
+      providerSessionId: "made-up", review: { status: "pending", beforeSha256: "invalid", afterSha256: "also-invalid" },
+    });
+    expect(record?.providerSessionId).toBeUndefined();
+    expect(record?.review).toBeUndefined();
   });
 
   it("normalizes CLI invocation records without a tagged document", () => {

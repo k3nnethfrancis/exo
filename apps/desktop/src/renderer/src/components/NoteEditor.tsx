@@ -9,6 +9,7 @@ import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
 import { Code2, Plus, Save, SlidersHorizontal } from "lucide-react";
 import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
+import type { InvocationReviewPayload } from "../../../shared/api";
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
 import type { ExoThemeVariant } from "../theme/types";
 import { codeLanguageForPath } from "./codeLanguages";
@@ -965,7 +966,26 @@ export function NoteEditor(props: NoteEditorProps) {
                   End
                 </button>
               ) : null}
+              {invocationReview.onResumeInTerminal ? (
+                <button className="toolbar-button" data-testid="invocation-resume-terminal" onClick={invocationReview.onResumeInTerminal} type="button">
+                  Resume in Shell
+                </button>
+              ) : null}
             </div>
+            {invocationReview.reviewPayload?.patch ? (
+              <div className="invocation-review__proposal" data-testid="invocation-review-proposal">
+                <div className="invocation-review__proposal-header">
+                  <strong>Proposed document change</strong>
+                  {invocationReview.reviewPayload.invocation.review?.status === "pending" ? (
+                    <span>
+                      <button className="toolbar-button" data-testid="invocation-keep-review" onClick={invocationReview.onKeepReview} type="button">Keep</button>
+                      {invocationReview.reviewPayload.canReject && !invocationReview.hasDirtyConflict ? <button className="toolbar-button" data-testid="invocation-reject-review" onClick={invocationReview.onRejectReview} type="button">Reject</button> : null}
+                    </span>
+                  ) : <span>{invocationReview.reviewPayload.invocation.review?.status === "kept" ? "Kept" : "Rejected"}</span>}
+                </div>
+                <pre>{invocationReview.reviewPayload.patch}</pre>
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -980,6 +1000,10 @@ interface NoteInvocationReview {
   onEndObservation: () => void;
   onKeepDirtyBuffer: () => void;
   onReloadFromDisk: () => void;
+  reviewPayload: InvocationReviewPayload | null;
+  onKeepReview: () => void;
+  onRejectReview: () => void;
+  onResumeInTerminal?: () => void;
 }
 
 function formatInvocationReviewDetail(record: InvocationRecord, hasDirtyConflict = false): string {

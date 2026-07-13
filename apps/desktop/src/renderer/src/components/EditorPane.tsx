@@ -1,4 +1,5 @@
 import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
+import type { InvocationReviewPayload } from "../../../shared/api";
 import type { DragManager } from "../hooks/useDragManager";
 import type { ExoThemeVariant } from "../theme/types";
 
@@ -188,4 +189,8 @@ export interface EditorInvocationReview {
   onEndObservation: () => void;
   onKeepDirtyBuffer: () => void;
   onReloadFromDisk: () => void;
+  reviewPayload: InvocationReviewPayload | null;
+  onKeepReview: () => void;
+  onRejectReview: () => void;
+  onResumeInTerminal?: () => void;
 }

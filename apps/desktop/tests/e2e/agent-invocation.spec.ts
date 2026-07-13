@@ -24,9 +24,11 @@ await appendFile(notePath, "\\nagent appended line\\n", "utf8");
   try {
     await invokeConfiguredAgent(fixture.page, "append");
 
-    await expect(fixture.page.getByTestId("invocation-review-banner")).toContainText("Changed during @append", { timeout: 10_000 });
+    await expect(fixture.page.getByTestId("invocation-review-banner")).toContainText("@append finished", { timeout: 10_000 });
     await expect(fixture.page.getByTestId("editor-panel")).toContainText("agent appended line", { timeout: 10_000 });
-    await expect(fixture.page.getByTestId("invocation-review-banner")).not.toContainText("Show diff");
+    await expect(fixture.page.getByTestId("invocation-review-proposal")).toContainText("agent appended line");
+    await expect(fixture.page.getByTestId("invocation-keep-review")).toBeVisible();
+    await expect(fixture.page.getByTestId("invocation-reject-review")).toBeVisible();
     await expect(fixture.page.locator('[data-testid^="terminal-tab-"]')).toHaveCount(0);
 
     const record = await latestInvocationRecord(fixture.workspaceRoot);

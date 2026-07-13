@@ -64,7 +64,7 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 - [x] Replace the one-line mention launcher with a page-native `@agent` composer: autocomplete, in-document multiline request text, agent-colored highlight, anchored send affordance, Enter for lines, Shift+Enter/click to invoke, explicit confirmation, visible terminal execution, and review. `e4ffb89`.
 - [ ] Dogfood the default `@claude` path on real work, including a multiline request and a full document-context handoff.
 - [ ] Dogfood the full loop on real work: write a note, invoke a Command, inspect changes, and keep or reject them.
-- [ ] Require inline Commands to perform the requested durable Workspace work, capture provider session provenance where available, and offer a Claude `Resume in Shell` handoff after completion.
+- [x] Require inline Commands to perform the requested durable Workspace work, capture provider session provenance where available, show exact tagged-document diffs with Keep/Reject, and offer a Claude `Resume in Shell` handoff after completion.
 
 ### 5. Distill the repository
 

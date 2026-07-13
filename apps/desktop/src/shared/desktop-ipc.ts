@@ -22,6 +22,10 @@ export interface DesktopInvokeHandlers {
   "workspace:get-agent-command-launch-facts": WorkspaceApi["getAgentCommandLaunchFacts"];
   "workspace:test-agent-command": WorkspaceApi["testAgentCommand"];
   "workspace:end-agent-invocation": WorkspaceApi["endAgentInvocation"];
+  "workspace:get-invocation-review": WorkspaceApi["getInvocationReview"];
+  "workspace:keep-invocation-review": WorkspaceApi["keepInvocationReview"];
+  "workspace:reject-invocation-review": WorkspaceApi["rejectInvocationReview"];
+  "workspace:resume-invocation-in-terminal": WorkspaceApi["resumeInvocationInTerminal"];
   "workspace:index-sync": WorkspaceApi["syncIndex"];
   "workspace:index-update": WorkspaceApi["updateIndex"];
   "workspace:index-embed": WorkspaceApi["embedIndex"];

@@ -82,6 +82,19 @@ export interface InvocationAttributionSummary {
   reason?: string;
 }
 
+export type InvocationReviewStatus = "pending" | "kept" | "rejected";
+
+/**
+ * Review state refers to the one tagged document snapshot captured by Exo.
+ * It is provenance, not a second durable document model.
+ */
+export interface InvocationReviewSummary {
+  status: InvocationReviewStatus;
+  beforeSha256: string | null;
+  afterSha256: string | null;
+  reviewedAt?: string;
+}
+
 export interface InvocationRecord {
   id: string;
   status: InvocationStatus;
@@ -99,9 +112,12 @@ export interface InvocationRecord {
   exitCode?: number;
   failureReason?: string;
   terminalSessionId?: string;
+  /** Provider-emitted provenance, never inferred from command output. */
+  providerSessionId?: string;
   changedFileRefs: InvocationChangedFileRef[];
   diffRefs: InvocationDiffRef[];
   attribution: InvocationAttributionSummary;
+  review?: InvocationReviewSummary;
 }
 
 const AGENT_HANDLE_PATTERN = /^[a-z][a-z0-9_-]{1,31}$/;
@@ -336,10 +352,38 @@ export function normalizeInvocationRecord(input: unknown): InvocationRecord | nu
     ...optionalIntegerField("exitCode", candidate.exitCode),
     ...optionalStringField("failureReason", candidate.failureReason),
     ...optionalStringField("terminalSessionId", candidate.terminalSessionId),
+    ...optionalProviderSessionId(candidate.providerSessionId),
     changedFileRefs: normalizeChangedFileRefs(candidate.changedFileRefs),
     diffRefs: normalizeDiffRefs(candidate.diffRefs),
     attribution: normalizeAttributionSummary(candidate.attribution),
+    ...optionalReviewSummary(candidate.review),
   };
+}
+
+function optionalReviewSummary(value: unknown): { review?: InvocationReviewSummary } {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+  const candidate = value as Partial<InvocationReviewSummary>;
+  const status = candidate.status === "kept" || candidate.status === "rejected" ? candidate.status : "pending";
+  const beforeSha256 = normalizeNullableSha256(candidate.beforeSha256);
+  const afterSha256 = normalizeNullableSha256(candidate.afterSha256);
+  if (beforeSha256 === undefined || afterSha256 === undefined) {
+    return {};
+  }
+  return { review: { status, beforeSha256, afterSha256, ...optionalStringField("reviewedAt", candidate.reviewedAt) } };
+}
+
+function normalizeNullableSha256(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value) ? value : undefined;
+}
+
+function optionalProviderSessionId(value: unknown): { providerSessionId?: string } {
+  const normalized = normalizeRequiredString(value);
+  return normalized && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized)
+    ? { providerSessionId: normalized }
+    : {};
 }
 
 function hasUnsupportedAgentCommandV1Fields(candidate: Record<string, unknown>): boolean {

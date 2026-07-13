@@ -121,6 +121,14 @@ export interface LaunchAgentInvocationResponse {
   terminal?: TerminalSessionInfo;
 }
 
+export interface InvocationReviewPayload {
+  invocation: InvocationRecord;
+  patch: string | null;
+  before: string | null;
+  after: string | null;
+  canReject: boolean;
+}
+
 export interface AgentCommandLaunchFacts {
   commandId: string;
   handle: string;
@@ -158,6 +166,10 @@ export interface DesktopApi {
     getAgentCommandLaunchFacts: (commandId: string) => Promise<AgentCommandLaunchFacts>;
     testAgentCommand: (input: TestAgentCommandInput) => Promise<LaunchAgentInvocationResponse>;
     endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;
+    getInvocationReview: (invocationId: string) => Promise<InvocationReviewPayload | null>;
+    keepInvocationReview: (invocationId: string) => Promise<InvocationRecord | null>;
+    rejectInvocationReview: (input: { invocationId: string; expectedAfterSha256: string | null }) => Promise<InvocationRecord>;
+    resumeInvocationInTerminal: (invocationId: string) => Promise<TerminalSessionInfo>;
     onInvocationUpdated: (callback: (record: InvocationRecord) => void) => () => void;
     syncIndex: () => Promise<IndexSyncResult>;
     updateIndex: () => Promise<IndexStatus>;

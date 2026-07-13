@@ -24,6 +24,10 @@ export interface WorkspaceIpcHandlers {
   getAgentCommandLaunchFacts: WorkspaceApi["getAgentCommandLaunchFacts"];
   testAgentCommand: WorkspaceApi["testAgentCommand"];
   endAgentInvocation: WorkspaceApi["endAgentInvocation"];
+  getInvocationReview: WorkspaceApi["getInvocationReview"];
+  keepInvocationReview: WorkspaceApi["keepInvocationReview"];
+  rejectInvocationReview: WorkspaceApi["rejectInvocationReview"];
+  resumeInvocationInTerminal: WorkspaceApi["resumeInvocationInTerminal"];
   resolvePreviewTarget: WorkspaceApi["resolvePreviewTarget"];
   getGraphContext: NotesApi["getGraphContext"];
   getMainWindow: () => BrowserWindow | null;
@@ -75,6 +79,10 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   );
   handleDesktopInvoke("workspace:test-agent-command", async (_event, input) => handlers.testAgentCommand(input));
   handleDesktopInvoke("workspace:end-agent-invocation", async (_event, invocationId) => handlers.endAgentInvocation(invocationId));
+  handleDesktopInvoke("workspace:get-invocation-review", async (_event, invocationId) => handlers.getInvocationReview(invocationId));
+  handleDesktopInvoke("workspace:keep-invocation-review", async (_event, invocationId) => handlers.keepInvocationReview(invocationId));
+  handleDesktopInvoke("workspace:reject-invocation-review", async (_event, input) => handlers.rejectInvocationReview(input));
+  handleDesktopInvoke("workspace:resume-invocation-in-terminal", async (_event, invocationId) => handlers.resumeInvocationInTerminal(invocationId));
   handleDesktopInvoke("workspace:index-sync", async () => handlers.syncIndex());
   handleDesktopInvoke("workspace:index-update", async () => handlers.updateIndex());
   handleDesktopInvoke("workspace:index-embed", async () => handlers.embedIndex());

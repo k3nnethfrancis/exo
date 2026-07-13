@@ -4,7 +4,7 @@ import { commandEnvironment } from "./command-environment";
 
 export interface InvocationProcess {
   send(prompt: string): Promise<void>;
-  onExit(handler: (event: { exitCode: number | null }) => void): void;
+  onExit(handler: (event: { exitCode: number | null; stdout: string }) => void): void;
   kill(): void;
 }
 
@@ -22,14 +22,22 @@ export class DirectInvocationProcessFactory implements InvocationProcessFactory 
     const child = spawn("/bin/sh", ["-lc", input.command], {
       cwd: input.cwd,
       env: commandEnvironment(input.env),
-      stdio: ["pipe", "ignore", "ignore"],
+      stdio: ["pipe", "pipe", "ignore"],
     });
     return new DirectInvocationProcess(child);
   }
 }
 
 class DirectInvocationProcess implements InvocationProcess {
-  constructor(private readonly child: ChildProcess) {}
+  private stdout = "";
+
+  constructor(private readonly child: ChildProcess) {
+    // Output is retained only long enough to obtain structured provenance on
+    // exit. It is deliberately not a chat/transcript surface.
+    child.stdout?.on("data", (chunk: Buffer | string) => {
+      this.stdout = appendBounded(this.stdout, String(chunk));
+    });
+  }
 
   async send(prompt: string): Promise<void> {
     await new Promise<void>((resolve, reject) => {
@@ -47,11 +55,18 @@ class DirectInvocationProcess implements InvocationProcess {
     });
   }
 
-  onExit(handler: (event: { exitCode: number | null }) => void): void {
-    this.child.once("exit", (exitCode) => handler({ exitCode }));
+  onExit(handler: (event: { exitCode: number | null; stdout: string }) => void): void {
+    this.child.once("exit", (exitCode) => handler({ exitCode, stdout: this.stdout }));
   }
 
   kill(): void {
     this.child.kill();
   }
+}
+
+const MAX_INVOCATION_STDOUT_CHARS = 256_000;
+
+function appendBounded(existing: string, next: string): string {
+  const combined = existing + next;
+  return combined.length > MAX_INVOCATION_STDOUT_CHARS ? combined.slice(-MAX_INVOCATION_STDOUT_CHARS) : combined;
 }
