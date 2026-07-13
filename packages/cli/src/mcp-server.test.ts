@@ -13,7 +13,7 @@ afterEach(async () => {
 });
 
 describe("Exo MCP server", () => {
-  it("serves the active workspace through read-only status, search, and read tools", async () => {
+  it("serves workspace discovery through status and search tools", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "research.md");
@@ -32,15 +32,19 @@ describe("Exo MCP server", () => {
       JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} }),
       JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }),
       JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "search_notes", arguments: { query: "context" } } }),
-      JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "read_note", arguments: { target: notePath } } }),
+      JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "workspace_status", arguments: {} } }),
     ].join("\n"));
     await server;
 
     const responses = text.trim().split("\n").map((line) => JSON.parse(line));
     expect(responses[0].result).toMatchObject({ protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } } });
-    expect(responses[1].result.tools.map((tool: { name: string }) => tool.name)).toEqual(["workspace_status", "search_notes", "read_note"]);
-    expect(responses[2].result.content[0].text).toContain("research.md");
-    expect(responses[3].result.content[0].text).toContain("Exo holds local context.");
+    expect(responses[1].result.tools.map((tool: { name: string }) => tool.name)).toEqual(["workspace_status", "search_notes"]);
+    expect(JSON.parse(responses[2].result.content[0].text).results[0]).toMatchObject({ filePath: notePath, title: "Research", snippet: expect.any(String) });
+    expect(JSON.parse(responses[3].result.content[0].text)).toMatchObject({
+      app: { available: false },
+      workspace: { root, noteRoots: [{ path: root }], indexing: { enabled: false } },
+      search: expect.any(Object),
+    });
   });
 
   it("returns tool errors as MCP tool results rather than crashing the protocol", async () => {

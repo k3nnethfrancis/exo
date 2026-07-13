@@ -6,7 +6,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Added
 
-- Adds a focused first-run flow: choose one main wiki, optionally install Exo's read-only Workspace status/search/read MCP tools into Claude and Codex, then persist editable local invocation commands.
+- Adds a focused first-run flow: choose one main wiki, optionally install Exo's Workspace status/search MCP tools into Claude and Codex, then persist editable local invocation commands.
 - Renders contained Markdown image attachments in the live editor while preserving raw source editing at the caret.
 - Adds reviewable inline Command outcomes: exact tagged-note patch, Keep/Reject with dirty-buffer and disk-drift protection, and Claude **Resume in Shell** when the command returned a real session id.
 - Adds an **Agents** section to Workspace Settings for configuring the commands behind `@` mentions.
@@ -17,6 +17,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Changed
 
+- Narrows the optional Exo MCP from status/search/read to workspace status and search only; agents use returned paths through their own native file permissions.
 - Keeps Preview and Terminal as independent utility destinations with their own tabs, while allowing a tab to be dragged into an editor split and returned by closing its canvas pane.
 - Makes folder creation create a minimal `index.md`, while imported folders remain read-only until the user explicitly creates an index.
 - Moves workspace Settings to the lower workspace menu and tightens Explorer/titlebar chrome.

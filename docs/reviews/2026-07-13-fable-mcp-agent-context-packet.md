@@ -167,3 +167,12 @@ Fable approved Option C with mandatory revisions before public stabilization:
   tests, bounded-output and protocol snapshots, idempotent provider setup and
   uninstall documentation, plus 10–20 real-session dogfood observations across
   Claude and Codex.
+
+## User refinement — 2026-07-13
+
+The user narrowed the short-term transport further: remove `read_note`. Search
+already returns an absolute `filePath` with title, snippet, score, and source.
+An agent that needs content can use that path with its own native shell/file
+permissions; Exo MCP grants only workspace discovery. The resulting frozen
+surface is `workspace_status` plus `search_notes`. This is a scope reduction;
+Fable's cwd-resolution and stabilization gate remain unchanged.

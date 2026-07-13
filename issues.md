@@ -104,7 +104,10 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 - Status: implementation and dogfood required
 - Severity: high before public MCP stabilization
 - Area: `exo mcp serve`, provider setup, Workspace scope, agent-context onboarding
-- Fable ruling: keep the frozen read-only three-tool MCP, but resolve its
+- Current decision: keep the frozen read-only two-tool MCP (`workspace_status`,
+  `search_notes`), narrowed by user decision from Fable's original three-tool
+  recommendation because agents can use returned paths under their own native
+  permissions. Resolve its
   Workspace from caller cwd rather than app-active state. Permit a
   single-Workspace fallback only when unambiguous; report ambiguity and refuse
   retrieval otherwise. `workspace_status` must state the resolved identity and

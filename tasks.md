@@ -97,9 +97,9 @@ Start only after the trust gates above pass.
 ### First-run essentials — 2026-07-13
 
 - [x] Make first-run choose exactly one main wiki; separate wikis remain separate Workspaces for now.
-- [x] Restore a narrow, read-only Exo MCP server for Claude/Codex installation: `workspace_status`, `search_notes`, and `read_note` use the same Workspace scope and retrieval semantics as Exo. It is not a general MCP manager, plugin runtime, or arbitrary-server form.
+- [x] Restore a narrow Exo MCP discovery server for Claude/Codex installation: `workspace_status` and `search_notes` expose scope and ranked note metadata. It is not a general MCP manager, plugin runtime, arbitrary-server form, or note-reading/write surface.
 - [x] Reorder first-run as main wiki → optional Exo MCP install → editable local Claude/Codex invocation Commands. Commands have clear recommended defaults and a fully visible, editable command value.
-- [ ] Stabilize the Exo MCP public contract per Fable: freeze its three tools; bind retrieval to caller cwd with only an unambiguous single-Workspace fallback; report resolved scope in status; add app-mismatch/containment/protocol/setup tests; make onboarding/removal copy explicit; and dogfood 10–20 real Claude/Codex context-seeking sessions before treating ambient instruction templates as earned.
+- [ ] Stabilize the Exo MCP public contract: freeze its two discovery tools (`workspace_status`, `search_notes`); bind retrieval to caller cwd with only an unambiguous single-Workspace fallback; report resolved scope in status; add app-mismatch/containment/protocol/setup tests; make onboarding/removal copy explicit; and dogfood 10–20 real Claude/Codex context-seeking sessions before treating ambient instruction templates as earned.
 
 ### Folder Overview and Folder Index
 

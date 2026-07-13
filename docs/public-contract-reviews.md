@@ -25,6 +25,7 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - architect-review: 2026-07-08 MCP removal audit deleted `packages/mcp`, `exo integrations`, MCP capability surfaces, MCP profile-template support, MCP public-contract guard slices, and Codex MCP launch injection. CLI remains the active local integration surface.
 - user-approved-exception: 2026-07-13 user explicitly restored one bounded Exo MCP surface for first-run Claude/Codex setup. It is a CLI-owned stdio retrieval adapter (`workspace_status`, `search_notes`, `read_note`) over the existing Workspace scope, with no generic MCP manager, arbitrary-server setup, or mutation tools. This must receive focused architecture review before public stabilization.
 - architect-review: 2026-07-13 `docs/reviews/2026-07-13-fable-mcp-agent-context-packet.md#fable-ruling--2026-07-13` approves the MCP as a frozen three-tool, read-only transport—not a CLI replacement or host-instruction writer. Public stabilization requires caller-cwd Workspace resolution, explicit status identity, refusal on ambiguous scope, app-scope parity, and the documented test/dogfood gate.
+- user-approved-exception: 2026-07-13 user narrowed the short-term MCP from three tools to two: `workspace_status` and `search_notes`. `read_note` was deleted because search already returns a note's path and metadata; a provider's native file permissions, not Exo MCP, govern subsequent reads or writes. This is a scope reduction; the cwd-stabilization gate remains.
 
 ## Protected Surfaces
 
@@ -74,7 +75,7 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - sha256: `41ee36a7ec85c40682cf773ee01505d39f1b66331ca40bde702dc6e46c038095`
 - review: user-approved-exception: 2026-07-11 User explicitly authorized Codex to settle the refactor contract without Fable; restores `exo start` as the macOS packaged-app bootstrap and preserves app-off filesystem `status`, `search`, and `read`. Mutating/focus/terminal commands remain app-backed.
 - sha256: `df34fa9c662c551dd0655155ecccd93ca030447c9d522bf8f3788c248d1b4dcd`
-- review: user-approved-exception: 2026-07-13 User explicitly requested first-run installation of Exo MCP into Claude/Codex. Adds `exo mcp serve`, a stdio-only, read-only adapter that exposes the current Workspace status/search/read context and no mutation, terminal, or agent-launch tools.
+- review: user-approved-exception: 2026-07-13 User explicitly requested first-run installation of Exo MCP into Claude/Codex. Adds `exo mcp serve`, a stdio-only discovery adapter that exposes current Workspace status/search context and no note-reading, mutation, terminal, or agent-launch tools.
 
 ### `packages/cli/src/app-client.ts#route-client-methods`
 

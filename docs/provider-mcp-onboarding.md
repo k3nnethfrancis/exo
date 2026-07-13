@@ -4,13 +4,12 @@ Exo can install its own small, read-only MCP server into the locally installed C
 
 ## What agents receive
 
-The installed `exo` server gives an agent exactly three tools:
+The installed `exo` server gives an agent exactly two discovery tools:
 
 - `workspace_status` — resolved Workspace identity and roots, app availability, and retrieval health.
-- `search_notes` — scoped search across the resolved Workspace's Note Roots. It uses the running app's configured retrieval only when that app Workspace is the same resolved scope; otherwise it uses bounded filesystem retrieval.
-- `read_note` — reads a Note Root path, normally one returned by `search_notes`.
+- `search_notes` — scoped search across the resolved Workspace's Note Roots. It returns absolute file paths plus title, snippet, score, and source metadata. It uses the running app's configured retrieval only when that app Workspace is the same resolved scope; otherwise it uses bounded filesystem retrieval.
 
-The server has no write, terminal, agent-launch, configuration, or arbitrary-path tool. MCP access does not bypass ordinary inline-invocation confirmation or diff review.
+The server has no note-reading, write, terminal, agent-launch, configuration, or arbitrary-path tool. An agent with native shell authority can read a discovered path under its own provider permission model; Exo does not grant that authority. MCP access does not bypass ordinary inline-invocation confirmation or diff review.
 
 ## Scope contract
 

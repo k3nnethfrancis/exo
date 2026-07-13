@@ -14,7 +14,6 @@ import { AppClient } from "./app-client";
 
 const MCP_PROTOCOL_VERSION = "2025-06-18";
 const MAX_SEARCH_RESULTS = 20;
-const MAX_READ_LINES = 500;
 
 type JsonRecord = Record<string, unknown>;
 type JsonRpcId = string | number | null;
@@ -54,7 +53,6 @@ export async function runExoMcpServer(options: {
 interface ExoMcpOperations {
   status(): Promise<JsonRecord>;
   search(query: string, limit: number): Promise<JsonRecord>;
-  read(target: string, fromLine: number | undefined, maxLines: number | undefined): Promise<JsonRecord>;
 }
 
 async function createOperations(env: NodeJS.ProcessEnv): Promise<ExoMcpOperations> {
@@ -63,20 +61,26 @@ async function createOperations(env: NodeJS.ProcessEnv): Promise<ExoMcpOperation
   const client = await AppClient.connect(runtimeRoot, env);
   if (client) {
     return {
-      status: () => client.getStatus(),
+      status: async () => workspaceStatus(model, true, await client.getIndexStatus()),
       search: (query, limit) => client.search(query, { limit }),
-      read: (target, fromLine, maxLines) => client.readDocument(target, { fromLine, maxLines }),
     };
   }
   return {
-    status: async () => ({
-      ok: true,
-      app: { available: false },
-      workspace: { root: model.workspaceRoot, noteRoots: model.noteRoots.map((root) => root.path) },
-      search: await filesystemSearchProvider.getStatus(model, runtimeRoot),
-    }),
+    status: async () => workspaceStatus(model, false, await filesystemSearchProvider.getStatus(model, runtimeRoot)),
     search: async (query, limit) => ({ ...await filesystemSearchProvider.search(model, runtimeRoot, query, { limit }) }),
-    read: async (target, fromLine, maxLines) => ({ ...await filesystemSearchProvider.read(model, runtimeRoot, target, { fromLine, maxLines }) }),
+  };
+}
+
+function workspaceStatus(model: WorkspaceModel, appAvailable: boolean, search: unknown): JsonRecord {
+  return {
+    ok: true,
+    app: { available: appAvailable },
+    workspace: {
+      root: model.workspaceRoot,
+      noteRoots: model.noteRoots.map((root) => ({ id: root.id, label: root.label, path: root.path })),
+      indexing: model.indexing,
+    },
+    search,
   };
 }
 
@@ -97,7 +101,7 @@ async function handleRequest(request: JsonRecord, operations: ExoMcpOperations):
       protocolVersion: MCP_PROTOCOL_VERSION,
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: "exo", version: "0.1.0-alpha.3" },
-      instructions: "Use Exo to orient within the active Markdown workspace. Search before reading broadly; read paths returned by search. Exo MCP tools are read-only.",
+      instructions: "Use Exo to orient within the current Markdown workspace. Search returns paths and metadata; use your native file tools only when your own permissions allow it. Exo MCP tools do not read or write notes.",
     });
   }
   if (method === "ping") return jsonRpcResult(id, {});
@@ -110,29 +114,16 @@ function toolDefinitions(): JsonRecord[] {
   return [
     {
       name: "workspace_status",
-      description: "Describe the active Exo workspace, its Markdown roots, application availability, and search health.",
+      description: "Describe the current Exo workspace: its roots and indexing configuration, application availability, and retrieval health.",
       inputSchema: { type: "object", additionalProperties: false, properties: {} },
     },
     {
       name: "search_notes",
-      description: "Search the active Exo workspace. Uses the running Exo app's configured retrieval when available, otherwise safe filesystem search across its Note Roots.",
+      description: "Search the current Exo workspace. Returns ranked note metadata including absolute file paths, title, snippet, score, and source. Uses configured retrieval when available, otherwise scoped filesystem search.",
       inputSchema: {
         type: "object", additionalProperties: false,
         properties: { query: { type: "string", minLength: 1 }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } },
         required: ["query"],
-      },
-    },
-    {
-      name: "read_note",
-      description: "Read a Markdown note inside the active Exo workspace. Pass a path returned by search_notes.",
-      inputSchema: {
-        type: "object", additionalProperties: false,
-        properties: {
-          target: { type: "string", minLength: 1 },
-          from_line: { type: "integer", minimum: 1 },
-          max_lines: { type: "integer", minimum: 1, maximum: MAX_READ_LINES },
-        },
-        required: ["target"],
       },
     },
   ];
@@ -147,10 +138,6 @@ async function callTool(rawParams: unknown, operations: ExoMcpOperations): Promi
     if (name === "search_notes") {
       const query = requiredString(args.query, "query");
       return toolResult(await operations.search(query, boundedInteger(args.limit, 10, 1, MAX_SEARCH_RESULTS)));
-    }
-    if (name === "read_note") {
-      const target = requiredString(args.target, "target");
-      return toolResult(await operations.read(target, optionalInteger(args.from_line, 1), optionalInteger(args.max_lines, MAX_READ_LINES)));
     }
     return toolError(`Unknown Exo tool: ${name || "(missing name)"}`);
   } catch (cause) {
@@ -185,11 +172,6 @@ function isRecord(value: unknown): value is JsonRecord {
 function requiredString(value: unknown, name: string): string {
   if (typeof value !== "string" || !value.trim()) throw new Error(`${name} is required.`);
   return value.trim();
-}
-
-function optionalInteger(value: unknown, maximum: number): number | undefined {
-  if (value === undefined) return undefined;
-  return boundedInteger(value, maximum, 1, maximum);
 }
 
 function boundedInteger(value: unknown, fallback: number, minimum: number, maximum: number): number {
