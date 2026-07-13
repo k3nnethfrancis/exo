@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { createDefaultClaudeAgentCommand } from "./default-agent-command";
 import { formatDocumentAgentResponse, isDocumentAgentProtocolId } from "./document-agent-protocol";
-export { createDefaultClaudeAgentCommand } from "./default-agent-command";
+export { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
 
 // Legacy values remain in the type only so persisted workspaces can normalize
 // safely. New commands and normalized records use stdin exclusively.

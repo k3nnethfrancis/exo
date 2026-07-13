@@ -21,6 +21,7 @@ export interface DesktopInvokeHandlers {
   "workspace:get-agent-command-trust": WorkspaceApi["getAgentCommandTrust"];
   "workspace:get-agent-command-launch-facts": WorkspaceApi["getAgentCommandLaunchFacts"];
   "workspace:test-agent-command": WorkspaceApi["testAgentCommand"];
+  "workspace:configure-provider-mcp": WorkspaceApi["configureProviderMcp"];
   "workspace:end-agent-invocation": WorkspaceApi["endAgentInvocation"];
   "workspace:get-invocation-review": WorkspaceApi["getInvocationReview"];
   "workspace:keep-invocation-review": WorkspaceApi["keepInvocationReview"];

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { IndexStatus, TreeNode, WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
+import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand, type AgentCommand, type IndexStatus, type TreeNode, type WorkspaceModel, type WorkspaceSettings, type WorkspaceSettingsRevision } from "@exo/core";
 
 import type { TerminalSessionInfo, WorkspaceRegistryEntry, WorkspaceSetupState } from "../../../shared/api";
 import type { PaneNode } from "./usePaneTree";
@@ -8,7 +8,7 @@ import { pathLabel, pickInitialNote } from "../workspaceTree";
 
 export interface OnboardingState {
   mode: "first-run" | "switch";
-  step: "select" | "configure";
+  step: "select" | "configure" | "agents" | "mcp";
   workspaces: WorkspaceRegistryEntry[];
   selectedWorkspaceId: string | null;
   notesFolder: string;
@@ -16,6 +16,7 @@ export interface OnboardingState {
   indexMode: WorkspaceSettings["indexing"]["mode"];
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
+  agentCommands: AgentCommand[];
   status: "idle" | "saving" | "error";
   errorMessage: string | null;
 }
@@ -88,6 +89,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
           indexMode: "hybrid",
           exploreIndexSearchOnEnter: false,
           indexUpdateStrategy: settings.indexUpdateStrategy,
+          agentCommands: settings.agentCommands && settings.agentCommands.length > 0 ? settings.agentCommands : defaultOnboardingAgentCommands(),
           status: "idle",
           errorMessage: null,
         });
@@ -211,6 +213,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       indexMode: current?.indexing.mode ?? "off",
       exploreIndexSearchOnEnter: current?.exploreIndexSearchOnEnter ?? false,
       indexUpdateStrategy: current?.indexUpdateStrategy ?? "on-save",
+      agentCommands: current?.agentCommands ?? defaultOnboardingAgentCommands(),
       status: "idle",
       errorMessage: null,
     });
@@ -228,6 +231,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
             indexMode: "hybrid",
             exploreIndexSearchOnEnter: true,
             indexUpdateStrategy: "on-save",
+            agentCommands: defaultOnboardingAgentCommands(),
             status: "idle",
             errorMessage: null,
           }
@@ -301,6 +305,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         indexing: { enabled: indexMode !== "off" && indexedRootPaths.length > 0, mode: indexMode, backend: "qmd" },
         exploreIndexSearchOnEnter: indexMode !== "off" && current.exploreIndexSearchOnEnter,
         indexUpdateStrategy: current.indexUpdateStrategy,
+        agentCommands: current.agentCommands,
       };
       const saved = await window.exo.workspace.saveSettings({
         settings: nextSettings,
@@ -350,4 +355,8 @@ export function defaultTerminalCwdForNotesFolder(notesFolder: string): string {
   }
   const slashIndex = normalized.lastIndexOf("/");
   return slashIndex > 0 ? normalized.slice(0, slashIndex) : normalized;
+}
+
+export function defaultOnboardingAgentCommands(): AgentCommand[] {
+  return [createDefaultClaudeAgentCommand(), createDefaultCodexAgentCommand()];
 }

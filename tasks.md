@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
 
 This is Exo's active execution ledger. It records only current work. Completed implementation belongs in Git and `ledger.md`; reproducible bugs belong in `issues.md`; architecture rationale belongs in `docs/exograph-simplification-plan.md`.
 
@@ -93,6 +93,12 @@ Start only after the trust gates above pass.
 
 - [ ] Before launch, define and evaluate a human-approved ontology onboarding flow: selected active-Workspace Note Roots, global retrieval across those roots, configured Command selection, a provider-neutral ontology proposal, before/after graph comparison, explicit migration-plan approval, and ordinary diff review. Do not begin implementation until the current invocation/dogfood gates and a bounded fixture/eval packet are complete. `notes/shoshin-codex/projects/exo/insights.md#2026-07-13--ontology-first-onboarding-could-make-the-initial-graph-personally-valuable`.
 
+### First-run essentials — 2026-07-13
+
+- [x] Make first-run choose exactly one main wiki; separate wikis remain separate Workspaces for now.
+- [x] Persist editable, local Claude and Codex invocation Commands during first-run setup.
+- [x] Offer an explicit, optional provider-MCP handoff that calls the selected provider's native CLI. Exo stores no MCP definition or credential and does not host an MCP server. `docs/provider-mcp-onboarding.md`.
+
 ### Folder Overview and Folder Index
 
 - [x] Double-click a Folder to open its Overview: durable title/properties from optional `index.md`, direct children, local graph, and relevant context.
@@ -115,6 +121,6 @@ Start only after the trust gates above pass.
 
 ## Explicitly Deferred
 
-Do not reopen Plugin Manager, MCP, routines, a harness manager, Feed/Gym/training, cloud indexing, or a general extension runtime. A future Plugin is a distribution bundle only after proven skills, Commands, and providers need repeatable installation, versioning, or sharing.
+Do not reopen Plugin Manager, an Exo-hosted MCP runtime/manager, routines, a harness manager, Feed/Gym/training, cloud indexing, or a general extension runtime. The narrow first-run provider-MCP handoff is not an Exo MCP system: it is an explicit one-time call to Claude/Codex's own configuration CLI. A future Plugin is a distribution bundle only after proven skills, Commands, and providers need repeatable installation, versioning, or sharing.
 
 -- Shoshin | 2026-07-11

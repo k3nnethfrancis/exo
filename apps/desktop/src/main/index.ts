@@ -47,6 +47,7 @@ import { WorkspaceConfigStore, workspaceSettingsFromModel } from "./workspace-co
 import { registerTerminalIpcHandlers } from "./terminal-ipc";
 import { TerminalManager } from "./terminal-manager";
 import { registerWorkspaceIpcHandlers } from "./workspace-ipc";
+import { configureProviderMcp } from "./provider-mcp-setup";
 import { resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace-watchers";
@@ -311,6 +312,7 @@ function registerIpcHandlers() {
     getAgentCommandTrust: (handle) => invocationRunner.getCommandTrust(handle),
     getAgentCommandLaunchFacts: (commandId) => invocationRunner.getCommandLaunchFacts(commandId),
     testAgentCommand: (input) => invocationRunner.testCommand(input.commandId, input.expectedFingerprint),
+    configureProviderMcp,
     endAgentInvocation: (invocationId) => invocationRunner.endObservation(invocationId),
     getInvocationReview: (invocationId) => invocationRunner.getReview(invocationId),
     keepInvocationReview: (invocationId) => invocationRunner.keepReview(invocationId),

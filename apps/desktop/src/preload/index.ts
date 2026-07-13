@@ -41,6 +41,7 @@ const api: DesktopApi = {
     getAgentCommandTrust: (handle) => invokeDesktop("workspace:get-agent-command-trust", handle),
     getAgentCommandLaunchFacts: (commandId) => invokeDesktop("workspace:get-agent-command-launch-facts", commandId),
     testAgentCommand: (input) => invokeDesktop("workspace:test-agent-command", input),
+    configureProviderMcp: (input) => invokeDesktop("workspace:configure-provider-mcp", input),
     endAgentInvocation: (invocationId) => invokeDesktop("workspace:end-agent-invocation", invocationId),
     getInvocationReview: (invocationId) => invokeDesktop("workspace:get-invocation-review", invocationId),
     keepInvocationReview: (invocationId) => invokeDesktop("workspace:keep-invocation-review", invocationId),

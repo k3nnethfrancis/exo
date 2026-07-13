@@ -87,6 +87,7 @@ The future Skill flow adds a reviewed, bounded proposal step; it is not claimed 
 | Canvas and panes | `WorkspaceCanvasLayoutSettings`, pane tree | Notes, Terminal, Preview, and Connections share one canvas | pane E2E; `../README.md` |
 | Terminal | `TerminalManager`, direct `node-pty`, xterm | Live terminal with bounded reload tail; no durable session history | terminal suite; `terminal-runtime-decision.md` |
 | Commands and invocation | `AgentCommand`, `InvocationRunner`, invocation records | Explicit inline invocation, headless document work, optional session handoff, observed-change review | invocation E2E; `../issues.md#exo-issue-106` |
+| Provider MCP handoff | `provider-mcp-setup.ts` | Optional first-run write through Claude/Codex native CLIs; no Exo MCP runtime or stored credentials | `provider-mcp-setup.test.ts`; `provider-mcp-onboarding.md` |
 | Command server and CLI | `command-protocol.ts`, `CommandServerLifecycle` | Resident-app commands plus app-off read/search/status where supported | command-server tests; `public-contract-reviews.md` |
 
 This is the maintained pointer index. `tasks.md` decides what is next; it must not be used to imply implementation.

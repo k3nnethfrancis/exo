@@ -13,3 +13,17 @@ export function createDefaultClaudeAgentCommand(): AgentCommand {
     enabled: true,
   };
 }
+
+/** The built-in Command entry for a local Codex executable. */
+export function createDefaultCodexAgentCommand(): AgentCommand {
+  return {
+    id: "codex",
+    label: "Codex",
+    handle: "codex",
+    command: "codex exec --sandbox workspace-write -",
+    cwdPolicy: "workspace_root",
+    promptDelivery: "stdin",
+    version: 1,
+    enabled: true,
+  };
+}

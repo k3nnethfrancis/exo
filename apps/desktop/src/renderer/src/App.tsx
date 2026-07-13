@@ -10,7 +10,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { InvocationReviewPayload, TerminalSessionInfo } from "../../shared/api";
+import type { InvocationReviewPayload, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
 import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
@@ -76,6 +76,17 @@ export function App() {
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter });
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
+  const [onboardingMcp, setOnboardingMcp] = useState({
+    providers: ["claude", "codex"] as Array<"claude" | "codex">,
+    name: "",
+    transport: "stdio" as "stdio" | "http",
+    command: "",
+    args: "",
+    url: "",
+    status: "idle" as "idle" | "saving" | "done" | "error",
+    results: [] as ProviderMcpSetupResult[],
+    errorMessage: null as string | null,
+  });
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
@@ -909,14 +920,14 @@ export function App() {
       <div className="onboarding-shell" data-testid="onboarding">
         <div className="onboarding-card" data-testid="onboarding-card">
           <div className="onboarding-card__eyebrow">
-            {onboardingState.mode === "first-run" ? "First setup" : "Switch workspace"}
+            {onboardingState.mode === "first-run" ? "Set up Exo" : "Switch workspace"}
           </div>
           {onboardingState.step === "select" ? (
             <>
               <div className="onboarding-card__body" data-testid="onboarding-card-body">
-                <h1 className="onboarding-card__title">Select workspace</h1>
+                <h1 className="onboarding-card__title">Choose a wiki</h1>
                 <p className="onboarding-card__copy">
-                  Workspaces are saved notes folders with terminal defaults, settings, and advanced search state.
+                  Each workspace begins with one main Markdown wiki. It keeps its own search, appearance, and agent settings.
                 </p>
                 <div className="workspace-picker" data-testid="workspace-picker">
                   {onboardingState.workspaces.length > 0 ? (
@@ -959,7 +970,7 @@ export function App() {
                   </button>
                 ) : null}
                 <button className="toolbar-button" data-testid="workspace-picker-new" onClick={workspaceBootstrap.startNewWorkspaceSetup} type="button">
-                  Add notes folder
+                  New main wiki
                 </button>
                 <button
                   className="toolbar-button toolbar-button--primary"
@@ -968,32 +979,32 @@ export function App() {
                   onClick={() => void workspaceBootstrap.activateSelectedWorkspace()}
                   type="button"
                 >
-                  {onboardingState.status === "saving" ? "Opening…" : "Open workspace"}
+                  {onboardingState.status === "saving" ? "Opening…" : "Open wiki"}
                 </button>
               </div>
             </>
-          ) : (
+          ) : onboardingState.step === "configure" ? (
             <>
               <div className="onboarding-card__body" data-testid="onboarding-card-body">
                 <h1 className="onboarding-card__title">
-                  {onboardingState.mode === "first-run" ? "Open notes folder" : "Choose notes folder"}
+                  {onboardingState.mode === "first-run" ? "Choose your main wiki" : "Choose a main wiki"}
                 </h1>
                 <p className="onboarding-card__copy">
-                  Select an existing Markdown folder or create one, then confirm where terminals should start.
+                  Pick the Markdown folder Exo should treat as this workspace. You can make another Workspace for a separate wiki later.
                 </p>
                 <div className="onboarding-grid">
                   <div className="onboarding-section onboarding-section--primary">
                     <div className="onboarding-section__header">
                       <div>
-                        <div className="dialog-field__label">Notes folder</div>
-                        <div className="onboarding-section__hint">Required. This Markdown folder identifies the workspace.</div>
+                        <div className="dialog-field__label">Main wiki</div>
+                        <div className="onboarding-section__hint">Required. Exo indexes Markdown inside this one folder.</div>
                       </div>
                       <button className="toolbar-button" data-testid="onboarding-choose-notes" onClick={() => void workspaceBootstrap.selectNotesFolderForOnboarding()} type="button">
                         Select
                       </button>
                     </div>
                     <PathList
-                      emptyLabel="No notes folder selected."
+                      emptyLabel="No main wiki selected."
                       paths={onboardingState.notesFolder ? [onboardingState.notesFolder] : []}
                       testId="onboarding-notes-folder"
                       onRemove={() =>
@@ -1003,7 +1014,8 @@ export function App() {
                       }
                     />
                   </div>
-                  <div className="onboarding-section">
+                  <details className="onboarding-section onboarding-section--advanced">
+                    <summary>Advanced</summary>
                     <div className="onboarding-section__header">
                       <div>
                         <div className="dialog-field__label">Default terminal</div>
@@ -1023,7 +1035,7 @@ export function App() {
                         )
                       }
                     />
-                  </div>
+                  </details>
                 </div>
               </div>
               <div className="onboarding-card__actions">
@@ -1044,11 +1056,126 @@ export function App() {
                   className="toolbar-button toolbar-button--primary"
                   data-testid="onboarding-continue"
                   disabled={!onboardingState.notesFolder.trim() || onboardingState.status === "saving"}
-                  onClick={() => void workspaceBootstrap.completeOnboarding()}
+                  onClick={() => setOnboardingState((current) => current ? { ...current, step: "agents", status: "idle", errorMessage: null } : current)}
                   type="button"
                 >
-                  {onboardingState.status === "saving" ? "Saving…" : "Open workspace"}
+                  Continue to agents
                 </button>
+              </div>
+            </>
+          ) : onboardingState.step === "agents" ? (
+            <>
+              <div className="onboarding-card__body" data-testid="onboarding-card-body">
+                <h1 className="onboarding-card__title">Set up agents</h1>
+                <p className="onboarding-card__copy">
+                  Exo invokes agents through their installed local CLIs. These commands stay on this computer and can be edited later in Settings.
+                </p>
+                <div className="onboarding-agent-list">
+                  {onboardingState.agentCommands.map((command) => (
+                    <label className="onboarding-agent" key={command.id}>
+                      <input
+                        checked={command.enabled}
+                        type="checkbox"
+                        onChange={(event) => setOnboardingState((current) => current ? {
+                          ...current,
+                          agentCommands: current.agentCommands.map((entry) => entry.id === command.id ? { ...entry, enabled: event.target.checked } : entry),
+                        } : current)}
+                      />
+                      <span className="onboarding-agent__copy">
+                        <strong>{command.label}</strong>
+                        <span>@{command.handle}</span>
+                        <input
+                          aria-label={`${command.label} command`}
+                          className="onboarding-agent__command"
+                          spellCheck={false}
+                          value={command.command}
+                          onChange={(event) => setOnboardingState((current) => current ? {
+                            ...current,
+                            agentCommands: current.agentCommands.map((entry) => entry.id === command.id ? { ...entry, command: event.target.value } : entry),
+                          } : current)}
+                        />
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <div className="onboarding-section onboarding-section--summary">
+                  <div className="dialog-field__label">How invocations run</div>
+                  <div className="onboarding-section__hint">Messages are sent headlessly from the main wiki. Exo shows any document changes for review; it never grants a provider broader file access itself.</div>
+                </div>
+              </div>
+              <div className="onboarding-card__actions">
+                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "configure", errorMessage: null } : current)} type="button">Back</button>
+                <button className="toolbar-button toolbar-button--primary" onClick={() => setOnboardingState((current) => current ? { ...current, step: "mcp", errorMessage: null } : current)} type="button">Continue</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="onboarding-card__body" data-testid="onboarding-card-body">
+                <h1 className="onboarding-card__title">Connect an MCP server</h1>
+                <p className="onboarding-card__copy">
+                  Optional. Exo can add one server to Claude and Codex through their own native configuration. Exo does not store server credentials or run an MCP server.
+                </p>
+                <div className="onboarding-section onboarding-section--primary">
+                  <div className="dialog-field__label">Add it to</div>
+                  <div className="onboarding-provider-picks">
+                    {(["claude", "codex"] as const).map((provider) => (
+                      <label className="dialog-check" key={provider}>
+                        <input checked={onboardingMcp.providers.includes(provider)} type="checkbox" onChange={(event) => setOnboardingMcp((current) => ({
+                          ...current,
+                          providers: event.target.checked ? [...current.providers, provider] : current.providers.filter((entry) => entry !== provider),
+                          status: "idle", errorMessage: null, results: [],
+                        }))} />
+                        <span>{provider === "claude" ? "Claude" : "Codex"}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <div className="onboarding-grid">
+                    <label className="dialog-field">
+                      <span className="dialog-field__label">Server name</span>
+                      <input className="dialog-card__input" placeholder="filesystem" value={onboardingMcp.name} onChange={(event) => setOnboardingMcp((current) => ({ ...current, name: event.target.value, status: "idle", errorMessage: null, results: [] }))} />
+                    </label>
+                    <label className="dialog-field">
+                      <span className="dialog-field__label">Connection</span>
+                      <select className="dialog-card__input" value={onboardingMcp.transport} onChange={(event) => setOnboardingMcp((current) => ({ ...current, transport: event.target.value as "stdio" | "http", status: "idle", errorMessage: null, results: [] }))}>
+                        <option value="stdio">Local command</option>
+                        <option value="http">HTTP URL</option>
+                      </select>
+                    </label>
+                    {onboardingMcp.transport === "stdio" ? <>
+                      <label className="dialog-field">
+                        <span className="dialog-field__label">Executable</span>
+                        <input className="dialog-card__input" placeholder="npx" value={onboardingMcp.command} onChange={(event) => setOnboardingMcp((current) => ({ ...current, command: event.target.value, status: "idle", errorMessage: null, results: [] }))} />
+                      </label>
+                      <label className="dialog-field">
+                        <span className="dialog-field__label">Arguments</span>
+                        <input className="dialog-card__input" placeholder="One argument per line" value={onboardingMcp.args} onChange={(event) => setOnboardingMcp((current) => ({ ...current, args: event.target.value, status: "idle", errorMessage: null, results: [] }))} />
+                      </label>
+                    </> : <label className="dialog-field onboarding-section--primary">
+                      <span className="dialog-field__label">Server URL</span>
+                      <input className="dialog-card__input" placeholder="https://mcp.example.com" value={onboardingMcp.url} onChange={(event) => setOnboardingMcp((current) => ({ ...current, url: event.target.value, status: "idle", errorMessage: null, results: [] }))} />
+                    </label>}
+                  </div>
+                  <div className="onboarding-card__actions onboarding-card__actions--inline">
+                    <button className="toolbar-button" disabled={onboardingMcp.status === "saving"} onClick={() => void (async () => {
+                      setOnboardingMcp((current) => ({ ...current, status: "saving", errorMessage: null, results: [] }));
+                      try {
+                        const results = await window.exo.workspace.configureProviderMcp({
+                          providers: onboardingMcp.providers, name: onboardingMcp.name, transport: onboardingMcp.transport,
+                          command: onboardingMcp.command, args: onboardingMcp.args.split("\n").map((part) => part.trim()).filter(Boolean), url: onboardingMcp.url,
+                        });
+                        setOnboardingMcp((current) => ({ ...current, status: results.every((result) => result.ok) ? "done" : "error", results, errorMessage: results.some((result) => !result.ok) ? "One or more providers could not add this server." : null }));
+                      } catch (error) {
+                        setOnboardingMcp((current) => ({ ...current, status: "error", errorMessage: error instanceof Error ? error.message : String(error), results: [] }));
+                      }
+                    })()} type="button">{onboardingMcp.status === "saving" ? "Adding…" : "Add MCP server"}</button>
+                  </div>
+                  {onboardingMcp.errorMessage ? <div className="dialog-card__status dialog-card__status--error">{onboardingMcp.errorMessage}</div> : null}
+                  {onboardingMcp.results.map((result) => <div className={`dialog-card__status${result.ok ? "" : " dialog-card__status--error"}`} key={result.provider}>{result.detail}</div>)}
+                </div>
+              </div>
+              <div className="onboarding-card__actions">
+                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "agents", errorMessage: null } : current)} type="button">Back</button>
+                <button className="toolbar-button toolbar-button--primary" disabled={onboardingState.status === "saving"} onClick={() => void workspaceBootstrap.completeOnboarding()} type="button">{onboardingState.status === "saving" ? "Opening…" : "Open Exo"}</button>
               </div>
             </>
           )}

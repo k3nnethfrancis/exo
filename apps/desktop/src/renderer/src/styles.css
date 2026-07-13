@@ -2672,6 +2672,15 @@ select.dialog-card__input {
   overflow: auto;
 }
 
+.onboarding-card__body > * {
+  animation: onboarding-appear 180ms ease-out both;
+}
+
+@keyframes onboarding-appear {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .onboarding-card__eyebrow {
   color: var(--muted);
   font-size: 11px;
@@ -2716,6 +2725,95 @@ select.dialog-card__input {
 
 .onboarding-section--summary {
   background: var(--surface-2);
+}
+
+.onboarding-section--advanced {
+  align-content: start;
+}
+
+.onboarding-section--advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.onboarding-section--advanced[open] summary {
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.onboarding-agent-list {
+  display: grid;
+  gap: 8px;
+}
+
+.onboarding-agent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 62px;
+  padding: 12px 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--surface-1);
+  cursor: pointer;
+}
+
+.onboarding-agent:hover {
+  border-color: var(--surface-border-strong);
+  background: var(--surface-2);
+}
+
+.onboarding-agent input {
+  accent-color: var(--accent);
+}
+
+.onboarding-agent__copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.onboarding-agent__copy strong {
+  font-size: 14px;
+}
+
+.onboarding-agent__copy span {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--mono-font);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onboarding-agent__command {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-family: var(--mono-font);
+  font-size: 12px;
+  outline: none;
+}
+
+.onboarding-agent__command:focus {
+  color: var(--text);
+}
+
+.onboarding-provider-picks {
+  display: flex;
+  gap: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-card__body > * {
+    animation: none;
+  }
 }
 
 .onboarding-section__header {

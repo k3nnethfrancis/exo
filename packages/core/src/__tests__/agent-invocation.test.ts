@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   agentCommandExecutableFingerprint,
   createDefaultClaudeAgentCommand,
+  createDefaultCodexAgentCommand,
   deriveAgentCommandLaunch,
   formatNoteInvocationPrompt,
   normalizeAgentCommand,
@@ -13,6 +14,20 @@ import {
 import { findDocumentAgentEnvelopes, formatDocumentAgentInvocation, formatDocumentAgentResponse } from "../document-agent-protocol";
 
 describe("agent invocation model", () => {
+  it("ships a headless Codex command suitable for a workspace invocation", () => {
+    const command = createDefaultCodexAgentCommand();
+    expect(command).toMatchObject({
+      id: "codex",
+      handle: "codex",
+      command: "codex exec --sandbox workspace-write -",
+      cwdPolicy: "workspace_root",
+      promptDelivery: "stdin",
+      enabled: true,
+    });
+    expect(deriveAgentCommandLaunch(command, { kind: "note", workspaceRoot: "/workspace", documentPath: "/workspace/a.md" }))
+      .toEqual({ launchable: true, cwd: "/workspace" });
+  });
+
   it("derives one command launch decision for CLI and note contexts", () => {
     const command = createDefaultClaudeAgentCommand();
     expect(deriveAgentCommandLaunch(command, { kind: "cli", workspaceRoot: "/workspace" })).toEqual({

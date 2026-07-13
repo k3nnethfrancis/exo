@@ -151,6 +151,22 @@ export interface TestAgentCommandInput {
   expectedFingerprint: string;
 }
 
+/** A one-time request to write an MCP entry through a provider's own CLI. */
+export interface ProviderMcpSetupInput {
+  providers: Array<"claude" | "codex">;
+  name: string;
+  transport: "stdio" | "http";
+  command?: string;
+  args?: string[];
+  url?: string;
+}
+
+export interface ProviderMcpSetupResult {
+  provider: "claude" | "codex";
+  ok: boolean;
+  detail: string;
+}
+
 export interface DesktopApi {
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
@@ -167,6 +183,7 @@ export interface DesktopApi {
     getAgentCommandTrust: (handle: string) => Promise<AgentCommandTrustStatus>;
     getAgentCommandLaunchFacts: (commandId: string) => Promise<AgentCommandLaunchFacts>;
     testAgentCommand: (input: TestAgentCommandInput) => Promise<LaunchAgentInvocationResponse>;
+    configureProviderMcp: (input: ProviderMcpSetupInput) => Promise<ProviderMcpSetupResult[]>;
     endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;
     getInvocationReview: (invocationId: string) => Promise<InvocationReviewPayload | null>;
     keepInvocationReview: (invocationId: string) => Promise<InvocationRecord | null>;
