@@ -331,6 +331,7 @@ function registerIpcHandlers() {
       return { url: result.url, source: result.source };
     },
     resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
+    resolveMarkdownImage: (sourceFilePath, target) => workspaceNotesService.resolveMarkdownImage(sourceFilePath, target),
     saveNote: async (filePath, frontmatter, body) => {
       await saveWorkspaceDocument(filePath, frontmatter, body);
       indexingService.scheduleForFile(filePath, "note-save");

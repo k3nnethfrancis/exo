@@ -69,6 +69,10 @@ export interface FileStatInfo {
   mtimeMs: number;
 }
 
+export interface ResolvedMarkdownImage {
+  url: string;
+}
+
 export interface WorkspaceSetupState {
   complete: boolean;
   onboardingComplete: boolean;
@@ -187,6 +191,7 @@ export interface DesktopApi {
     stat: (filePath: string) => Promise<FileStatInfo | null>;
     getGraphContext: (filePath: string) => Promise<WorkspaceGraphContext | null>;
     resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
+    resolveMarkdownImage: (sourceFilePath: string, target: string) => Promise<ResolvedMarkdownImage>;
     ensureTarget: (sourceFilePath: string, target: string) => Promise<string>;
     suggestTargets: (
       sourceFilePath: string,

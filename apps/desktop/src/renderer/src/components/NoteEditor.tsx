@@ -169,6 +169,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const invokeAgentRef = useRef(onInvokeAgent);
   const openTargetRef = useRef(onOpenTarget);
   const openTagRef = useRef(onOpenTag);
+  const resolveMarkdownImageRef = useRef(window.exo.notes.resolveMarkdownImage);
   const saveRef = useRef(onSave);
   const zoomEditorRef = useRef(onZoomEditor);
   useEffect(() => {
@@ -485,10 +486,11 @@ export function NoteEditor(props: NoteEditorProps) {
     () => markdownLivePreview({
       onOpenTarget: (target) => openTargetRef.current(target),
       onOpenTag: (tag) => openTagRef.current(tag),
+      onResolveImage: (target) => resolveMarkdownImageRef.current(documentPath, target),
       suppressedGeneratedTitle,
       graphReferences,
     }),
-    [graphReferences, suppressedGeneratedTitle],
+    [documentPath, graphReferences, suppressedGeneratedTitle],
   );
   const editorExtensions = useMemo(
     () => useMarkdownEditing

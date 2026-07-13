@@ -1,6 +1,7 @@
-import { access, readdir } from "node:fs/promises";
+import { access, readdir, realpath, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   createWorkspaceFile,
@@ -69,6 +70,26 @@ export class WorkspaceNotesService {
     const normalizedTarget = path.basename(target, ".md").toLowerCase();
     const noteFiles = await listMarkdownFiles(this.noteRootPaths());
     return noteFiles.find((filePath) => path.basename(filePath, ".md").toLowerCase() === normalizedTarget) ?? null;
+  }
+
+  /**
+   * Produces a renderer-safe URL for an attachment referenced by a Markdown
+   * note. The renderer never turns a Markdown target into a file URL itself:
+   * this method verifies both source and target through WorkspaceFiles first.
+   */
+  async resolveMarkdownImage(sourceFilePath: string, target: string): Promise<{ url: string }> {
+    const files = this.workspaceFiles();
+    const sourcePath = await files.existing(sourceFilePath);
+    const normalizedTarget = normalizeMarkdownImageTarget(target);
+    const imagePath = await files.existing(this.resolveMarkdownImagePath(sourcePath, normalizedTarget));
+    // Point the renderer at the canonical path that WorkspaceFiles authorized,
+    // rather than leaving a later file: load to follow a mutable symlink.
+    const canonicalImagePath = await realpath(imagePath);
+    const fileStat = await stat(canonicalImagePath);
+    if (!fileStat.isFile()) {
+      throw new Error("Markdown image target must be an existing file.");
+    }
+    return { url: pathToFileURL(canonicalImagePath).toString() };
   }
 
   async ensureTarget(sourceFilePath: string, target: string): Promise<string> {
@@ -171,6 +192,38 @@ export class WorkspaceNotesService {
 
   private workspaceFiles(): WorkspaceFiles {
     return new WorkspaceFiles(this.noteRootPaths());
+  }
+
+  private resolveMarkdownImagePath(sourcePath: string, target: string): string {
+    if (!target.startsWith("/")) {
+      return path.resolve(path.dirname(sourcePath), target);
+    }
+    // Markdown authored for a site commonly uses `/images/...` to mean the
+    // site's content root. In Exo that means the source note's Note Root, not
+    // the machine root. The final candidate still passes canonical containment.
+    const sourceRoot = this.options.getWorkspaceModel().noteRoots
+      .map((root) => path.resolve(root.path))
+      .filter((rootPath) => isPathWithin(rootPath, sourcePath))
+      .sort((left, right) => right.length - left.length)[0];
+    if (!sourceRoot) {
+      throw new Error("Source note is outside configured note roots.");
+    }
+    return path.resolve(sourceRoot, target.replace(/^\/+/, ""));
+  }
+}
+
+function normalizeMarkdownImageTarget(target: string): string {
+  const normalized = target.trim();
+  if (!normalized) {
+    throw new Error("Markdown image target cannot be empty.");
+  }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(normalized) || normalized.startsWith("//")) {
+    throw new Error("Remote Markdown images are not enabled in this workspace.");
+  }
+  try {
+    return decodeURIComponent(normalized);
+  } catch {
+    throw new Error("Markdown image target has invalid URL encoding.");
   }
 }
 

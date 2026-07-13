@@ -50,6 +50,7 @@ import {
 import {
   clampSelectionToRenderedListText,
   listEnterEdit,
+  markdownImageTarget,
   shouldSuppressGeneratedTitleLine,
   visibleLineNumbers,
   wikilinkExitEdit,
@@ -665,6 +666,12 @@ describe("markdown live preview title suppression", () => {
     expect(shouldSuppressGeneratedTitleLine("# Daily Review", "2026-06-14")).toBe(false);
     expect(shouldSuppressGeneratedTitleLine("## 2026-06-14", "2026-06-14")).toBe(false);
     expect(shouldSuppressGeneratedTitleLine("# 2026-06-14", null)).toBe(false);
+  });
+
+  it("keeps spaces in Markdown image filenames while removing an optional title", () => {
+    expect(markdownImageTarget("attachments/chart one.png")).toBe("attachments/chart one.png");
+    expect(markdownImageTarget('attachments/chart one.png "Quarterly chart"')).toBe("attachments/chart one.png");
+    expect(markdownImageTarget("  attachments/chart%20one.png  ")).toBe("attachments/chart%20one.png");
   });
 });
 

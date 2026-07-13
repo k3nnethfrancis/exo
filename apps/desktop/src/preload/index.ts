@@ -105,6 +105,7 @@ const api: DesktopApi = {
     stat: (filePath) => invokeDesktop("notes:stat", filePath),
     getGraphContext: (filePath) => invokeDesktop("notes:get-graph-context", filePath),
     resolveTarget: (sourceFilePath, target) => invokeDesktop("notes:resolve-target", sourceFilePath, target),
+    resolveMarkdownImage: (sourceFilePath, target) => invokeDesktop("notes:resolve-markdown-image", sourceFilePath, target),
     ensureTarget: (sourceFilePath, target) => invokeDesktop("notes:ensure-target", sourceFilePath, target),
     suggestTargets: (sourceFilePath, query) => invokeDesktop("notes:suggest-targets", sourceFilePath, query),
   },

@@ -42,6 +42,7 @@ export interface DesktopInvokeHandlers {
   "notes:stat": NotesApi["stat"];
   "notes:get-graph-context": NotesApi["getGraphContext"];
   "notes:resolve-target": NotesApi["resolveTarget"];
+  "notes:resolve-markdown-image": NotesApi["resolveMarkdownImage"];
   "notes:ensure-target": NotesApi["ensureTarget"];
   "notes:suggest-targets": NotesApi["suggestTargets"];
   "terminals:ensure-default": TerminalsApi["ensureDefault"];

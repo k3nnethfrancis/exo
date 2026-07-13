@@ -36,6 +36,7 @@ export interface WorkspaceIpcHandlers {
   readNote: NotesApi["read"];
   renamePath: WorkspaceApi["renamePath"];
   resolveTarget: NotesApi["resolveTarget"];
+  resolveMarkdownImage: NotesApi["resolveMarkdownImage"];
   saveNote: NotesApi["save"];
   saveSettings: WorkspaceApi["saveSettings"];
   searchIndex: WorkspaceApi["searchIndex"];
@@ -159,6 +160,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     return handlers.getGraphContext(authorizedPath);
   });
   handleDesktopInvoke("notes:resolve-target", async (_event, sourceFilePath, target) => handlers.resolveTarget(sourceFilePath, target));
+  handleDesktopInvoke("notes:resolve-markdown-image", async (_event, sourceFilePath, target) =>
+    handlers.resolveMarkdownImage(sourceFilePath, target),
+  );
   handleDesktopInvoke("notes:ensure-target", async (_event, sourceFilePath, target) => handlers.ensureTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:suggest-targets", async (_event, sourceFilePath, query) => handlers.suggestTargets(sourceFilePath, query));
   handleDesktopInvoke("shell:open-external", async (_event, target) => shell.openExternal(target));

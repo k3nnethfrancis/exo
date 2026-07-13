@@ -1,6 +1,7 @@
-import { access, mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, realpath, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import type { WorkspaceModel } from "@exo/core";
@@ -55,6 +56,46 @@ describe("WorkspaceNotesService", () => {
     await expect(service.resolveTarget(sourcePath, "../../outside")).rejects.toThrow(
       "outside configured note roots",
     );
+  });
+
+  it("resolves contained relative Markdown images without granting renderer path access", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const sourcePath = path.join(noteRoot, "folder", "source.md");
+    const imagePath = path.join(noteRoot, "folder", "attachments", "chart one.png");
+    await mkdir(path.dirname(imagePath), { recursive: true });
+    await writeFile(sourcePath, "# Source\n", "utf8");
+    await writeFile(imagePath, "not a real png", "utf8");
+
+    const imageUrl = pathToFileURL(await realpath(imagePath)).toString();
+    await expect(service.resolveMarkdownImage(sourcePath, "attachments/chart%20one.png")).resolves.toEqual({
+      url: imageUrl,
+    });
+    await expect(service.resolveMarkdownImage(sourcePath, "/folder/attachments/chart one.png")).resolves.toEqual({
+      url: imageUrl,
+    });
+  });
+
+  it("rejects escaped, remote, and missing Markdown image targets", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const sourcePath = path.join(noteRoot, "folder", "source.md");
+    await writeFile(sourcePath, "# Source\n", "utf8");
+
+    await expect(service.resolveMarkdownImage(sourcePath, "../../outside.png")).rejects.toThrow("outside configured note roots");
+    await expect(service.resolveMarkdownImage(sourcePath, "file:///outside.png")).rejects.toThrow("not enabled");
+    await expect(service.resolveMarkdownImage(sourcePath, "https://example.com/image.png")).rejects.toThrow("not enabled");
+    await expect(service.resolveMarkdownImage(sourcePath, "missing.png")).rejects.toThrow();
+  });
+
+  it("rejects a Markdown image that escapes through an in-root symlink", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const sourcePath = path.join(noteRoot, "folder", "source.md");
+    const outsideDirectory = path.join(path.dirname(noteRoot), "outside-images");
+    await writeFile(sourcePath, "# Source\n", "utf8");
+    await mkdir(outsideDirectory);
+    await writeFile(path.join(outsideDirectory, "secret.png"), "outside", "utf8");
+    await symlink(outsideDirectory, path.join(noteRoot, "folder", "attachments"));
+
+    await expect(service.resolveMarkdownImage(sourcePath, "attachments/secret.png")).rejects.toThrow("outside configured note roots");
   });
 
   it("creates a missing absolute wiki target at its requested in-root path", async () => {

@@ -6,6 +6,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Added
 
+- Renders contained Markdown image attachments in the live editor while preserving raw source editing at the caret.
 - Adds an **Agents** section to Workspace Settings for configuring the commands behind `@` mentions.
 - Adds one shared right-side utility destination with mutually exclusive Preview, Terminal, and Connections views.
 - Adds centered workspace search with an anchored result popover, typed titlebar breadcrumbs, and explicit Folder Index creation/maintenance.

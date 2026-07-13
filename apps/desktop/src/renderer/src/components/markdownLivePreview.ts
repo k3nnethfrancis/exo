@@ -45,6 +45,7 @@ const codeDecoration = Decoration.mark({ class: "exo-md-inline-code" });
 interface MarkdownLivePreviewOptions {
   onOpenTarget: (target: string) => void;
   onOpenTag: (tag: string) => void;
+  onResolveImage: (target: string) => Promise<{ url: string }>;
   suppressedGeneratedTitle?: string | null;
   graphReferences?: MarkdownGraphReferences | null;
 }
@@ -797,7 +798,7 @@ function buildDecorations(view: EditorView, options: MarkdownLivePreviewOptions,
     const hasChildren = linesWithChildren.has(lineNumber);
     const isFolded = foldedLines.has(lineNumber);
     decorateLine(line.from, line.number, text, cursorPos, listContexts, lineDecorations, hasChildren, isFolded);
-    decorateInline(line.from, text, cursorPos, inlineDecorations);
+    decorateInline(line.from, text, cursorPos, inlineDecorations, options);
   }
 
   // Line decorations (from === to, point decorations) must come first at each position,
@@ -1035,11 +1036,18 @@ function isThematicBreak(text: string) {
   return [...trimmed].filter((char) => char === marker).length >= 3;
 }
 
-function decorateInline(lineFrom: number, text: string, cursorPos: number, out: DecorationEntry[]) {
+function decorateInline(
+  lineFrom: number,
+  text: string,
+  cursorPos: number,
+  out: DecorationEntry[],
+  options: MarkdownLivePreviewOptions,
+) {
   applyDelimited(text, lineFrom, /\*\*(.+?)\*\*/g, 2, boldDecoration, out, cursorPos);
   applyDelimited(text, lineFrom, /(?<!\*)\*([^*]+)\*(?!\*)/g, 1, italicDecoration, out, cursorPos);
   applyDelimited(text, lineFrom, /~~(.+?)~~/g, 2, strikeDecoration, out, cursorPos);
   applyWikilinks(text, lineFrom, out, cursorPos);
+  applyMarkdownImages(text, lineFrom, out, cursorPos, options);
   applyMarkdownLinks(text, lineFrom, out, cursorPos);
 
   applyDelimited(text, lineFrom, /`([^`\n]+)`/g, 1, codeDecoration, out, cursorPos);
@@ -1047,6 +1055,96 @@ function decorateInline(lineFrom: number, text: string, cursorPos: number, out: 
     const offset = match[1] ? match[1].length : 0;
     return [start + offset, start + offset + match[2].length + 1, { "data-exo-tag": match[2] }];
   }, "exo-md-tag");
+}
+
+/**
+ * The Markdown source stays canonical. Outside the image's range it becomes a
+ * widget; placing the caret in that range removes the widget and exposes the
+ * exact source for ordinary CodeMirror editing.
+ */
+function applyMarkdownImages(
+  text: string,
+  lineFrom: number,
+  out: DecorationEntry[],
+  cursorPos: number,
+  options: MarkdownLivePreviewOptions,
+) {
+  for (const match of text.matchAll(/!\[([^\]]*)\]\(\s*(?:<([^>]+)>|(.+?))\s*\)/g)) {
+    const start = lineFrom + (match.index ?? 0);
+    const end = start + match[0].length;
+    if (cursorWithin(cursorPos, start, end)) {
+      continue;
+    }
+    const target = markdownImageTarget(match[2] ?? match[3] ?? "");
+    if (!target) {
+      continue;
+    }
+    out.push({
+      from: start,
+      to: end,
+      decoration: Decoration.replace({ widget: new MarkdownImageWidget(match[1], target, options.onResolveImage) }),
+    });
+  }
+}
+
+export function markdownImageTarget(rawTarget: string): string {
+  // Optional Markdown titles follow a target in quotes or parentheses. Keep
+  // ordinary spaces in local filenames intact.
+  return rawTarget.trim().replace(/\s+(?:"[^"]*"|'[^']*'|\([^)]*\))$/, "").trim();
+}
+
+class MarkdownImageWidget extends WidgetType {
+  constructor(
+    private readonly alt: string,
+    private readonly target: string,
+    private readonly resolveImage: MarkdownLivePreviewOptions["onResolveImage"],
+  ) {
+    super();
+  }
+
+  toDOM() {
+    const wrap = document.createElement("span");
+    wrap.className = "exo-md-image exo-md-image--loading";
+    wrap.contentEditable = "false";
+    wrap.dataset.testid = "markdown-image";
+    wrap.setAttribute("aria-label", this.alt || "Markdown image");
+
+    const fallback = document.createElement("span");
+    fallback.className = "exo-md-image__fallback";
+    fallback.textContent = this.alt || "Image";
+    wrap.appendChild(fallback);
+
+    void this.resolveImage(this.target).then(({ url }) => {
+      const image = document.createElement("img");
+      image.className = "exo-md-image__asset";
+      image.src = url;
+      image.alt = this.alt;
+      image.loading = "lazy";
+      image.decoding = "async";
+      image.addEventListener("load", () => {
+        wrap.classList.remove("exo-md-image--loading", "exo-md-image--missing");
+        fallback.remove();
+      }, { once: true });
+      image.addEventListener("error", () => {
+        wrap.classList.remove("exo-md-image--loading");
+        wrap.classList.add("exo-md-image--missing");
+        image.remove();
+      }, { once: true });
+      wrap.appendChild(image);
+    }).catch(() => {
+      wrap.classList.remove("exo-md-image--loading");
+      wrap.classList.add("exo-md-image--missing");
+    });
+    return wrap;
+  }
+
+  eq(other: MarkdownImageWidget) {
+    return other.alt === this.alt && other.target === this.target;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
 }
 
 function applyDelimited(
@@ -1115,6 +1213,11 @@ function applyWikilinks(text: string, lineFrom: number, out: DecorationEntry[], 
 function applyMarkdownLinks(text: string, lineFrom: number, out: DecorationEntry[], cursorPos: number) {
   for (const match of text.matchAll(/\[([^\]]+)\]\(([^)]+)\)/g)) {
     const start = lineFrom + (match.index ?? 0);
+    // Images are handled by their own replacement widget. Without this guard,
+    // the link parser would also decorate the nested `[alt](target)` range.
+    if (start > lineFrom && text[start - lineFrom - 1] === "!") {
+      continue;
+    }
     const end = start + match[0].length;
     const label = match[1];
     const labelStart = start + 1;

@@ -1069,6 +1069,53 @@ button svg,
   padding: 0.04em 0.3em;
 }
 
+.editor-surface--live-preview .exo-md-image {
+  display: inline-block;
+  vertical-align: top;
+  max-width: 100%;
+  min-height: 1.6em;
+  margin: 0.45rem 0;
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.editor-surface--live-preview .exo-md-image__asset {
+  display: block;
+  width: auto;
+  max-width: min(100%, 760px);
+  height: auto;
+  max-height: min(72vh, 720px);
+  object-fit: contain;
+  background: var(--surface-2);
+}
+
+.editor-surface--live-preview .exo-md-image__fallback {
+  display: inline-block;
+  min-width: 9rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  color: var(--muted);
+  font-size: 0.84em;
+}
+
+.editor-surface--live-preview .exo-md-image--loading .exo-md-image__fallback::after {
+  content: "Loading image…";
+}
+
+.editor-surface--live-preview .exo-md-image--loading .exo-md-image__fallback {
+  font-size: 0;
+}
+
+.editor-surface--live-preview .exo-md-image--loading .exo-md-image__fallback::after {
+  font-size: 12px;
+}
+
+.editor-surface--live-preview .exo-md-image--missing .exo-md-image__fallback::before {
+  content: "Image unavailable: ";
+}
+
 .editor-surface--live-preview .exo-md-link {
   color: var(--accent);
   text-decoration: underline;
