@@ -149,7 +149,9 @@ describe("agent invocation model", () => {
     expect(prompt).toContain("Message:\nFind relevant context and link it.");
     expect(prompt).toContain('"tags": [');
     expect(prompt).toContain("# Task");
-    expect(prompt).toContain("This is an explicitly authorized run.");
+    expect(prompt).toContain("explicitly authorized Exo work run");
+    expect(prompt).toContain("Do not return a chat-only answer.");
+    expect(prompt).toContain("editing the working document directly");
   });
 
   it("normalizes invocation records with lifecycle and attribution placeholders", () => {

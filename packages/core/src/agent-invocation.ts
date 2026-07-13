@@ -275,7 +275,11 @@ export function formatNoteInvocationPrompt(input: {
     input.body ?? "(The current body was not supplied; read the file from disk.)",
     "--- end snapshot ---",
     "",
-    "This is an explicitly authorized run. If the request asks for a change, edit the relevant file directly. Exo will observe document changes and show the user a diff after the invocation.",
+    "This is an explicitly authorized Exo work run. Complete the user's request by editing the working document directly; edit other Workspace files only when the request genuinely needs them.",
+    "",
+    "Do not return a chat-only answer. If the request asks for analysis, an opinion, research, or a plan, write the useful result into the working document in the appropriate place. Preserve the user's voice and existing structure. Exo will observe the resulting file changes and present them as a reviewable diff.",
+    "",
+    "When the work is complete, print only a concise completion summary for the terminal/session transcript.",
   ].join("\n");
 }
 
