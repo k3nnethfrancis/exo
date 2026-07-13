@@ -89,6 +89,10 @@ Start only after the trust gates above pass.
 - [ ] Dogfood personal and project-adjacent Workspaces for 2–4 weeks. Log real switching friction and concrete cross-scope requests; only recurring need may earn CLI-only `exo search --all` research.
 - [x] Start a durable product-insight log at `notes/shoshin-codex/projects/exo/insights.md`; capture evidence, confidence, decision influence, and next validation rather than turning every observation into scope.
 
+### Launch onboarding discovery — deliberately deferred
+
+- [ ] Before launch, define and evaluate a human-approved ontology onboarding flow: selected active-Workspace Note Roots, global retrieval across those roots, configured Command selection, a provider-neutral ontology proposal, before/after graph comparison, explicit migration-plan approval, and ordinary diff review. Do not begin implementation until the current invocation/dogfood gates and a bounded fixture/eval packet are complete. `notes/shoshin-codex/projects/exo/insights.md#2026-07-13--ontology-first-onboarding-could-make-the-initial-graph-personally-valuable`.
+
 ### Folder Overview and Folder Index
 
 - [x] Double-click a Folder to open its Overview: durable title/properties from optional `index.md`, direct children, local graph, and relevant context.
