@@ -1,31 +1,30 @@
-# Provider MCP onboarding
+# Exo MCP onboarding
 
-Exo's first-run flow can optionally add one MCP server to locally installed Claude and/or Codex. This is a provider-owned configuration handoff, not an Exo MCP product surface.
+Exo can install its own small, read-only MCP server into the locally installed Claude and/or Codex CLI during first-run setup.
 
-## Contract
+## What agents receive
 
-- The person selects the providers, connection type, and server details, then explicitly chooses **Add MCP server**.
-- For a local server, Exo passes the executable and one argument per line directly to the selected provider CLI without a shell.
-- For an HTTP server, Exo accepts only `http` or `https` URLs.
-- Exo does not store the MCP definition, secret, environment variables, tokens, or authentication state.
-- Exo does not host an MCP server, inject MCP tools into invocations, expose a general integration manager, or synchronize MCP configuration between machines.
-- Failure is provider-specific and visible. The user can continue onboarding without MCP configuration.
+The installed `exo` server gives an agent three tools for the active Workspace:
 
-## Native commands
+- `workspace_status` — current Workspace roots, app availability, and retrieval health.
+- `search_notes` — scoped search across the Workspace's Note Roots. It uses the running app's configured retrieval when available and filesystem retrieval otherwise.
+- `read_note` — reads a Note Root path, normally one returned by `search_notes`.
 
-The desktop process delegates to the installed CLIs:
+The server has no write, terminal, agent-launch, configuration, or arbitrary-path tool. MCP access does not bypass ordinary inline-invocation confirmation or diff review.
+
+## Installation contract
+
+The person selects Claude and/or Codex, then explicitly chooses **Install Exo tools**. Exo delegates to the provider's native configuration CLI:
 
 ```text
-claude mcp add --scope user <name> -- <executable> <args…>
-claude mcp add --scope user --transport http <name> <url>
-codex mcp add <name> -- <executable> <args…>
-codex mcp add <name> --url <url>
+claude mcp add --scope user exo -- exo mcp serve
+codex mcp add exo -- exo mcp serve
 ```
 
-Provider login and server-specific authorization remain outside Exo. The configuration belongs to the local machine, just like the configured invocation commands and command trust.
+The provider owns its config and authentication. Exo owns the `exo mcp serve` process only. The local `exo` command must be installed and on `PATH` (or `EXO_CLI_PATH` can point at it); `scripts/install-mac-app --with-cli` provides the supported macOS setup.
 
-## Why this boundary exists
+## Boundary
 
-An MCP server can be useful to a chosen agent, but it does not need to become a second Exo data model, provider runtime, extension registry, or authority layer. The workspace remains a single main Markdown wiki with local search and explicit configured-Command invocation.
+This does not restore a generic MCP manager, arbitrary server form, plugin runtime, or authority layer. Exo exposes only its own bounded retrieval context so configured agents can orient and research within the same Workspace a person selected.
 
 -- Shoshin | 2026-07-13

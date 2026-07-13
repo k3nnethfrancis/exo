@@ -151,14 +151,9 @@ export interface TestAgentCommandInput {
   expectedFingerprint: string;
 }
 
-/** A one-time request to write an MCP entry through a provider's own CLI. */
+/** An explicit installation of Exo's read-only MCP server into provider-owned config. */
 export interface ProviderMcpSetupInput {
   providers: Array<"claude" | "codex">;
-  name: string;
-  transport: "stdio" | "http";
-  command?: string;
-  args?: string[];
-  url?: string;
 }
 
 export interface ProviderMcpSetupResult {

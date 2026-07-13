@@ -2757,7 +2757,6 @@ select.dialog-card__input {
   border: 1px solid var(--surface-border);
   border-radius: 12px;
   background: var(--surface-1);
-  cursor: pointer;
 }
 
 .onboarding-agent:hover {
@@ -2765,7 +2764,13 @@ select.dialog-card__input {
   background: var(--surface-2);
 }
 
-.onboarding-agent input {
+.onboarding-agent__enabled {
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.onboarding-agent__enabled input {
   accent-color: var(--accent);
 }
 
@@ -2777,6 +2782,14 @@ select.dialog-card__input {
 
 .onboarding-agent__copy strong {
   font-size: 14px;
+}
+
+.onboarding-agent__copy strong em {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 500;
 }
 
 .onboarding-agent__copy span {
@@ -2791,14 +2804,17 @@ select.dialog-card__input {
 .onboarding-agent__command {
   width: 100%;
   min-width: 0;
-  padding: 0;
+  min-height: 2.7em;
+  padding: 3px 0;
   border: 0;
   background: transparent;
   color: var(--muted);
   font: inherit;
   font-family: var(--mono-font);
   font-size: 12px;
+  line-height: 1.35;
   outline: none;
+  resize: vertical;
 }
 
 .onboarding-agent__command:focus {
@@ -2808,6 +2824,34 @@ select.dialog-card__input {
 .onboarding-provider-picks {
   display: flex;
   gap: 16px;
+}
+
+.onboarding-mcp-tools {
+  display: grid;
+  gap: 2px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.onboarding-mcp-tools li {
+  display: grid;
+  gap: 2px;
+  padding: 9px 0;
+  border-top: 1px solid var(--surface-border);
+}
+
+.onboarding-mcp-tools li:first-child {
+  border-top: 0;
+}
+
+.onboarding-mcp-tools strong {
+  font-size: 13px;
+}
+
+.onboarding-mcp-tools span {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 @media (prefers-reduced-motion: reduce) {

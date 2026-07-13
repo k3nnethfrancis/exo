@@ -96,8 +96,8 @@ Start only after the trust gates above pass.
 ### First-run essentials — 2026-07-13
 
 - [x] Make first-run choose exactly one main wiki; separate wikis remain separate Workspaces for now.
-- [x] Persist editable, local Claude and Codex invocation Commands during first-run setup.
-- [x] Offer an explicit, optional provider-MCP handoff that calls the selected provider's native CLI. Exo stores no MCP definition or credential and does not host an MCP server. `docs/provider-mcp-onboarding.md`.
+- [x] Restore a narrow, read-only Exo MCP server for Claude/Codex installation: `workspace_status`, `search_notes`, and `read_note` use the same Workspace scope and retrieval semantics as Exo. It is not a general MCP manager, plugin runtime, or arbitrary-server form.
+- [x] Reorder first-run as main wiki → optional Exo MCP install → editable local Claude/Codex invocation Commands. Commands have clear recommended defaults and a fully visible, editable command value.
 
 ### Folder Overview and Folder Index
 
@@ -121,6 +121,6 @@ Start only after the trust gates above pass.
 
 ## Explicitly Deferred
 
-Do not reopen Plugin Manager, an Exo-hosted MCP runtime/manager, routines, a harness manager, Feed/Gym/training, cloud indexing, or a general extension runtime. The narrow first-run provider-MCP handoff is not an Exo MCP system: it is an explicit one-time call to Claude/Codex's own configuration CLI. A future Plugin is a distribution bundle only after proven skills, Commands, and providers need repeatable installation, versioning, or sharing.
+Do not reopen Plugin Manager, routines, a harness manager, Feed/Gym/training, cloud indexing, or a general extension runtime. The only MCP surface permitted is the narrow, read-only Exo server explicitly installed into Claude/Codex during setup; it is not an MCP manager, arbitrary-server form, plugin system, or mutation surface. A future Plugin is a distribution bundle only after proven skills, Commands, and providers need repeatable installation, versioning, or sharing.
 
 -- Shoshin | 2026-07-11

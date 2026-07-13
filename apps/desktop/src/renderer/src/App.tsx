@@ -78,11 +78,6 @@ export function App() {
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const [onboardingMcp, setOnboardingMcp] = useState({
     providers: ["claude", "codex"] as Array<"claude" | "codex">,
-    name: "",
-    transport: "stdio" as "stdio" | "http",
-    command: "",
-    args: "",
-    url: "",
     status: "idle" as "idle" | "saving" | "done" | "error",
     results: [] as ProviderMcpSetupResult[],
     errorMessage: null as string | null,
@@ -1056,10 +1051,10 @@ export function App() {
                   className="toolbar-button toolbar-button--primary"
                   data-testid="onboarding-continue"
                   disabled={!onboardingState.notesFolder.trim() || onboardingState.status === "saving"}
-                  onClick={() => setOnboardingState((current) => current ? { ...current, step: "agents", status: "idle", errorMessage: null } : current)}
+                  onClick={() => setOnboardingState((current) => current ? { ...current, step: "mcp", status: "idle", errorMessage: null } : current)}
                   type="button"
                 >
-                  Continue to agents
+                  Continue to Exo tools
                 </button>
               </div>
             </>
@@ -1072,21 +1067,25 @@ export function App() {
                 </p>
                 <div className="onboarding-agent-list">
                   {onboardingState.agentCommands.map((command) => (
-                    <label className="onboarding-agent" key={command.id}>
-                      <input
+                    <div className="onboarding-agent" key={command.id}>
+                      <label className="onboarding-agent__enabled">
+                        <input
                         checked={command.enabled}
                         type="checkbox"
                         onChange={(event) => setOnboardingState((current) => current ? {
                           ...current,
                           agentCommands: current.agentCommands.map((entry) => entry.id === command.id ? { ...entry, enabled: event.target.checked } : entry),
                         } : current)}
-                      />
+                        />
+                        <span className="sr-only">Enable {command.label}</span>
+                      </label>
                       <span className="onboarding-agent__copy">
-                        <strong>{command.label}</strong>
+                        <strong>{command.label} <em>Recommended</em></strong>
                         <span>@{command.handle}</span>
-                        <input
+                        <textarea
                           aria-label={`${command.label} command`}
                           className="onboarding-agent__command"
+                          rows={2}
                           spellCheck={false}
                           value={command.command}
                           onChange={(event) => setOnboardingState((current) => current ? {
@@ -1095,7 +1094,7 @@ export function App() {
                           } : current)}
                         />
                       </span>
-                    </label>
+                    </div>
                   ))}
                 </div>
                 <div className="onboarding-section onboarding-section--summary">
@@ -1104,19 +1103,19 @@ export function App() {
                 </div>
               </div>
               <div className="onboarding-card__actions">
-                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "configure", errorMessage: null } : current)} type="button">Back</button>
-                <button className="toolbar-button toolbar-button--primary" onClick={() => setOnboardingState((current) => current ? { ...current, step: "mcp", errorMessage: null } : current)} type="button">Continue</button>
+                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "mcp", errorMessage: null } : current)} type="button">Back</button>
+                <button className="toolbar-button toolbar-button--primary" disabled={onboardingState.status === "saving"} onClick={() => void workspaceBootstrap.completeOnboarding()} type="button">{onboardingState.status === "saving" ? "Opening…" : "Open Exo"}</button>
               </div>
             </>
           ) : (
             <>
               <div className="onboarding-card__body" data-testid="onboarding-card-body">
-                <h1 className="onboarding-card__title">Connect an MCP server</h1>
+                <h1 className="onboarding-card__title">Give agents Exo context</h1>
                 <p className="onboarding-card__copy">
-                  Optional. Exo can add one server to Claude and Codex through their own native configuration. Exo does not store server credentials or run an MCP server.
+                  Optional. Install Exo’s read-only tools into the agents you use. They can check the active workspace, search your notes, and read matching notes without guessing paths or loading your whole wiki into context.
                 </p>
                 <div className="onboarding-section onboarding-section--primary">
-                  <div className="dialog-field__label">Add it to</div>
+                  <div className="dialog-field__label">Install Exo tools for</div>
                   <div className="onboarding-provider-picks">
                     {(["claude", "codex"] as const).map((provider) => (
                       <label className="dialog-check" key={provider}>
@@ -1129,53 +1128,29 @@ export function App() {
                       </label>
                     ))}
                   </div>
-                  <div className="onboarding-grid">
-                    <label className="dialog-field">
-                      <span className="dialog-field__label">Server name</span>
-                      <input className="dialog-card__input" placeholder="filesystem" value={onboardingMcp.name} onChange={(event) => setOnboardingMcp((current) => ({ ...current, name: event.target.value, status: "idle", errorMessage: null, results: [] }))} />
-                    </label>
-                    <label className="dialog-field">
-                      <span className="dialog-field__label">Connection</span>
-                      <select className="dialog-card__input" value={onboardingMcp.transport} onChange={(event) => setOnboardingMcp((current) => ({ ...current, transport: event.target.value as "stdio" | "http", status: "idle", errorMessage: null, results: [] }))}>
-                        <option value="stdio">Local command</option>
-                        <option value="http">HTTP URL</option>
-                      </select>
-                    </label>
-                    {onboardingMcp.transport === "stdio" ? <>
-                      <label className="dialog-field">
-                        <span className="dialog-field__label">Executable</span>
-                        <input className="dialog-card__input" placeholder="npx" value={onboardingMcp.command} onChange={(event) => setOnboardingMcp((current) => ({ ...current, command: event.target.value, status: "idle", errorMessage: null, results: [] }))} />
-                      </label>
-                      <label className="dialog-field">
-                        <span className="dialog-field__label">Arguments</span>
-                        <input className="dialog-card__input" placeholder="One argument per line" value={onboardingMcp.args} onChange={(event) => setOnboardingMcp((current) => ({ ...current, args: event.target.value, status: "idle", errorMessage: null, results: [] }))} />
-                      </label>
-                    </> : <label className="dialog-field onboarding-section--primary">
-                      <span className="dialog-field__label">Server URL</span>
-                      <input className="dialog-card__input" placeholder="https://mcp.example.com" value={onboardingMcp.url} onChange={(event) => setOnboardingMcp((current) => ({ ...current, url: event.target.value, status: "idle", errorMessage: null, results: [] }))} />
-                    </label>}
-                  </div>
+                  <ul className="onboarding-mcp-tools" aria-label="Exo tools">
+                    <li><strong>Workspace status</strong><span>Know the current wiki and retrieval health.</span></li>
+                    <li><strong>Search notes</strong><span>Find relevant local context before acting.</span></li>
+                    <li><strong>Read note</strong><span>Read only the notes returned by search.</span></li>
+                  </ul>
                   <div className="onboarding-card__actions onboarding-card__actions--inline">
                     <button className="toolbar-button" disabled={onboardingMcp.status === "saving"} onClick={() => void (async () => {
                       setOnboardingMcp((current) => ({ ...current, status: "saving", errorMessage: null, results: [] }));
                       try {
-                        const results = await window.exo.workspace.configureProviderMcp({
-                          providers: onboardingMcp.providers, name: onboardingMcp.name, transport: onboardingMcp.transport,
-                          command: onboardingMcp.command, args: onboardingMcp.args.split("\n").map((part) => part.trim()).filter(Boolean), url: onboardingMcp.url,
-                        });
+                        const results = await window.exo.workspace.configureProviderMcp({ providers: onboardingMcp.providers });
                         setOnboardingMcp((current) => ({ ...current, status: results.every((result) => result.ok) ? "done" : "error", results, errorMessage: results.some((result) => !result.ok) ? "One or more providers could not add this server." : null }));
                       } catch (error) {
                         setOnboardingMcp((current) => ({ ...current, status: "error", errorMessage: error instanceof Error ? error.message : String(error), results: [] }));
                       }
-                    })()} type="button">{onboardingMcp.status === "saving" ? "Adding…" : "Add MCP server"}</button>
+                    })()} type="button">{onboardingMcp.status === "saving" ? "Installing…" : "Install Exo tools"}</button>
                   </div>
                   {onboardingMcp.errorMessage ? <div className="dialog-card__status dialog-card__status--error">{onboardingMcp.errorMessage}</div> : null}
                   {onboardingMcp.results.map((result) => <div className={`dialog-card__status${result.ok ? "" : " dialog-card__status--error"}`} key={result.provider}>{result.detail}</div>)}
                 </div>
               </div>
               <div className="onboarding-card__actions">
-                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "agents", errorMessage: null } : current)} type="button">Back</button>
-                <button className="toolbar-button toolbar-button--primary" disabled={onboardingState.status === "saving"} onClick={() => void workspaceBootstrap.completeOnboarding()} type="button">{onboardingState.status === "saving" ? "Opening…" : "Open Exo"}</button>
+                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "configure", errorMessage: null } : current)} type="button">Back</button>
+                <button className="toolbar-button toolbar-button--primary" onClick={() => setOnboardingState((current) => current ? { ...current, step: "agents", errorMessage: null } : current)} type="button">Continue to agents</button>
               </div>
             </>
           )}

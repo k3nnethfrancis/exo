@@ -25,7 +25,7 @@ Folders provide the first custom-ontology substrate. A Folder path gives Notes a
 
 Codex agents are actively completing trust, containment, editor/invocation, and repository-distillation work. Do not add automatic Folder Index creation or graph-management Skills without `tasks.md` evidence.
 
-First-run can optionally hand one MCP server to the locally installed Claude and/or Codex CLI. This is provider-owned configuration, not an Exo MCP runtime or manager; see `provider-mcp-onboarding.md`.
+First-run can optionally install Exo's bounded, read-only MCP tools into the locally installed Claude and/or Codex CLI. It is not a generic MCP manager; see `provider-mcp-onboarding.md`.
 
 ## Durable decisions
 

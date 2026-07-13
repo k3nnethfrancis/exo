@@ -11,6 +11,7 @@ import {
   type WorkspaceModel,
 } from "@exo/core";
 import { AppClient, formatAppClientDiscoveryFailure } from "./app-client";
+import { runExoMcpServer } from "./mcp-server";
 
 interface AppClientLike {
   getStatus(): Promise<Record<string, unknown>>;
@@ -70,6 +71,11 @@ export async function runCli(argv: string[], options: {
 
   if (command === "start") {
     return startExoApp(env, stderr, launchApp);
+  }
+
+  if (command === "mcp" && subcommand === "serve") {
+    await runExoMcpServer({ env, input: process.stdin, output: process.stdout, error: process.stderr });
+    return 0;
   }
 
   if (command === "--help" || command === "-h" || command === "help") {
@@ -263,7 +269,7 @@ function positive(value: string | undefined): number | undefined { const parsed 
 async function print(value: Promise<unknown> | unknown, stdout: { write(text: string): void }): Promise<number> { stdout.write(`${JSON.stringify(await value, null, 2)}\n`); return 0; }
 function help(): string {
   return [
-    "Usage: exo [start] | status | show | search | read | index | open | preview | config get | spawn | terminals",
+    "Usage: exo [start] | status | show | search | read | index | open | preview | config get | spawn | terminals | mcp serve",
     "",
     "App-off: status, search, and read use the configured workspace's filesystem roots.",
     "App-backed: show, index changes, open, preview, spawn, and terminals require Exo to be running.",
