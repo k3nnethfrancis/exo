@@ -1,5 +1,5 @@
-import { Facet, Prec, StateEffect, StateField, type Extension } from "@codemirror/state";
-import { Decoration, EditorView, WidgetType, keymap } from "@codemirror/view";
+import { Facet, Prec, RangeSetBuilder, StateEffect, StateField, type EditorState, type Extension } from "@codemirror/state";
+import { Decoration, DecorationSet, EditorView, WidgetType, keymap } from "@codemirror/view";
 
 export interface InlineAgentDraft {
   handle: string;
@@ -63,6 +63,12 @@ const composerState = StateField.define<ComposerState | null>({
   }),
 });
 
+const persistedInvocationDecorations = StateField.define<DecorationSet>({
+  create(state) { return invocationDecorations(state); },
+  update(_value, transaction) { return transaction.docChanged ? invocationDecorations(transaction.state) : _value; },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
 let nextComposerId = 1;
 
 export function openInlineAgentComposer(view: EditorView, input: { from: number; to: number; handle: string }): void {
@@ -84,12 +90,29 @@ export function inlineAgentComposerExtension(options: {
 }): Extension {
   return [
     composerState,
+    persistedInvocationDecorations,
     composerCallbackFacet.of(options.onSend),
     Prec.highest(keymap.of([
       { key: "Shift-Enter", run: sendInlineAgentComposer },
       { key: "Escape", run: closeInlineAgentComposer },
     ])),
   ];
+}
+
+function invocationDecorations(state: EditorState): DecorationSet {
+  const text = state.doc.toString();
+  const builder = new RangeSetBuilder<Decoration>();
+  const pattern = /<exo-invocation agent="([a-z0-9_-]+)" status="sent">\n([\s\S]*?)\n<\/exo-invocation>/g;
+  for (const match of text.matchAll(pattern)) {
+    const from = match.index ?? 0;
+    const contentFrom = from + match[0].indexOf("\n") + 1;
+    const contentTo = contentFrom + match[2].length;
+    const to = from + match[0].length;
+    builder.add(from, contentFrom, Decoration.replace({}));
+    builder.add(contentFrom, contentTo, Decoration.mark({ class: `inline-agent-composer__mark inline-agent-composer__mark--${agentPresentation(match[1])}` }));
+    builder.add(contentTo, to, Decoration.replace({}));
+  }
+  return builder.finish();
 }
 
 const composerCallbackFacet = Facet.define<(draft: InlineAgentDraft) => void, (draft: InlineAgentDraft) => void>({
@@ -101,8 +124,17 @@ function sendInlineAgentComposer(view: EditorView): boolean {
   if (!composer) return false;
   const message = view.state.sliceDoc(composer.messageFrom, composer.to).trim();
   if (!message) return true;
+  const openingTag = `<exo-invocation agent="${composer.handle}" status="sent">\n`;
+  const closingTag = `\n</exo-invocation>`;
+  view.dispatch({
+    changes: [
+      { from: composer.from, to: composer.from, insert: openingTag },
+      { from: composer.to, to: composer.to, insert: closingTag },
+    ],
+    effects: closeComposer.of(null),
+    userEvent: "input.complete",
+  });
   view.state.facet(composerCallbackFacet)({ handle: composer.handle, message });
-  view.dispatch({ effects: closeComposer.of(null), userEvent: "input.complete" });
   return true;
 }
 
