@@ -109,6 +109,10 @@ function invocationDecorations(state: EditorState): DecorationSet {
     const contentTo = contentFrom + match[2].length;
     const to = from + match[0].length;
     builder.add(from, contentFrom, Decoration.replace({}));
+    const mention = `@${match[1]}`;
+    if (match[2].startsWith(mention)) {
+      builder.add(contentFrom, contentFrom + mention.length, Decoration.mark({ class: `inline-agent-composer__mention inline-agent-composer__mention--${agentPresentation(match[1])}` }));
+    }
     builder.add(contentFrom, contentTo, Decoration.mark({ class: `inline-agent-composer__mark inline-agent-composer__mark--${agentPresentation(match[1])}` }));
     builder.add(contentTo, to, Decoration.replace({}));
   }
