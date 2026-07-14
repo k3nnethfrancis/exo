@@ -479,9 +479,9 @@ async function launchLiveClaudeInvocationFixture(): Promise<Awaited<ReturnType<t
         projectRoots: [path.join(workspaceRoot, "projects/sample-project")],
         agentCommands: [{
           id: "claude",
-          label: "@claude",
+          label: "Claude",
           handle: "claude",
-          command: "claude -p --permission-mode acceptEdits",
+          command: 'claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep"',
           adapter: "claude-code",
           continuityPolicy: "continuous",
           cwdPolicy: "workspace_root",

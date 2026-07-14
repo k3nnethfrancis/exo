@@ -572,8 +572,8 @@ function normalizeWorkspaceCanvasLayout(input: unknown): WorkspaceCanvasLayoutSe
   if (!input || typeof input !== "object") {
     return null;
   }
-  const candidate = input as Partial<WorkspaceCanvasLayoutSettings>;
-  if (candidate.version !== 2) {
+  const candidate = input as Omit<Partial<WorkspaceCanvasLayoutSettings>, "version"> & { version?: unknown };
+  if (candidate.version !== 2 && candidate.version !== 3) {
     return null;
   }
   const canvas = normalizePaneNode(candidate.canvas, 0);
@@ -581,7 +581,7 @@ function normalizeWorkspaceCanvasLayout(input: unknown): WorkspaceCanvasLayoutSe
     return null;
   }
   return {
-    version: 2,
+    version: 3,
     canvas,
     sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
     sidebarWidth: normalizeSidebarWidth(candidate.sidebarWidth),

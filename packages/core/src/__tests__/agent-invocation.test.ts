@@ -81,11 +81,15 @@ describe("agent invocation model", () => {
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude",
       cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",
-    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", adapter: "claude-code", continuityPolicy: "continuous", promptDelivery: "stdin" });
+    })).toMatchObject({ command: createDefaultClaudeAgentCommand().command, adapter: "claude-code", continuityPolicy: "continuous", promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude -p",
       cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
-    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", adapter: "claude-code", continuityPolicy: "continuous", promptDelivery: "stdin" });
+    })).toMatchObject({ command: createDefaultClaudeAgentCommand().command, adapter: "claude-code", continuityPolicy: "continuous", promptDelivery: "stdin" });
+    expect(normalizeAgentCommand({
+      id: "claude", label: "Claude", handle: "claude", command: "claude -p --permission-mode acceptEdits",
+      adapter: "claude-code", continuityPolicy: "continuous", cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
+    })).toMatchObject({ command: createDefaultClaudeAgentCommand().command, adapter: "claude-code", continuityPolicy: "continuous", promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
       id: "custom", label: "My Claude", handle: "claude", command: "claude",
       cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",

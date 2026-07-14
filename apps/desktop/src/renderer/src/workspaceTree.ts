@@ -1,7 +1,5 @@
 import type { TreeNode } from "@exo/core";
 
-import { flattenFiles } from "./paneTreeSelectors";
-
 export function treeLoadKey(rootKind: "notes" | "projects", directoryPath: string): string {
   return `${rootKind}:${directoryPath}`;
 }
@@ -83,31 +81,6 @@ export function treeDirectoryHasChildren(nodes: TreeNode[], directoryPath: strin
   return false;
 }
 
-export function pickInitialNote(entries: Array<readonly [string, TreeNode[]]>): TreeNode | undefined {
-  const files = entries.flatMap((entry) => flattenFiles(entry[1]));
-  for (const [rootPath] of entries) {
-    const rootTasks = files.find((file) => file.path === joinPath(rootPath, "tasks.md"));
-    if (rootTasks) {
-      return rootTasks;
-    }
-  }
-
-  const exoTasks = files.find((file) => file.path.endsWith("/projects/exo/tasks.md"));
-  if (exoTasks) {
-    return exoTasks;
-  }
-
-  const preferred = ["tasks.md", "schedule.md", "goals.md", "CLAUDE.md"];
-  for (const name of preferred) {
-    const match = files.find((file) => file.path.endsWith(`/${name}`));
-    if (match) {
-      return match;
-    }
-  }
-
-  return files.find((file) => !file.path.includes("-looms/")) ?? files[0];
-}
-
 export function directoryOf(filePath: string): string {
   return filePath.split("/").slice(0, -1).join("/") || "/";
 }
@@ -118,8 +91,4 @@ export function pathLabel(filePath: string): string {
 
 export function uniquePaths(paths: string[]): string[] {
   return Array.from(new Set(paths));
-}
-
-function joinPath(parentPath: string, name: string): string {
-  return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
 }

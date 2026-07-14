@@ -62,7 +62,7 @@ describe("workspace settings registry", () => {
       await writeFile(resolveWorkspaceRegistryPath(env), JSON.stringify(registry), { mode: 0o600 });
 
       const loaded = await loadWorkspaceSettings(env);
-      expect(loaded).toMatchObject({ noteRoots: legacySettings.noteRoots, agentCommands: legacySettings.agentCommands, migrationMetadata: legacySettings.migrationMetadata, futureSetting: legacySettings.futureSetting, layout: legacySettings.layout });
+      expect(loaded).toMatchObject({ noteRoots: legacySettings.noteRoots, agentCommands: legacySettings.agentCommands, migrationMetadata: legacySettings.migrationMetadata, futureSetting: legacySettings.futureSetting, layout: { ...legacySettings.layout, version: 3 } });
       expect(loaded).not.toHaveProperty("projectRoots");
 
       const persisted = JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8"));
@@ -400,7 +400,7 @@ describe("workspace settings registry", () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-canvas-layout-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };
     const layout = {
-      version: 2 as const,
+      version: 3 as const,
       canvas: {
         kind: "leaf" as const,
         id: "editor-primary",

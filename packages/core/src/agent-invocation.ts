@@ -558,7 +558,12 @@ function migrateLegacyDefaultClaudeCommand(candidate: Partial<AgentCommand>, com
     (candidate.promptDelivery === "stdin" || candidate.promptDelivery === undefined) &&
     (candidate.cwdPolicy === "workspace_root" || candidate.cwdPolicy === undefined) &&
     (candidate.version === 1 || candidate.version === undefined);
-  return isBuiltInIdentity && (isOriginalInteractiveDefault || isPriorHeadlessDefault)
+  const isPriorEditDefault = command === "claude -p --permission-mode acceptEdits" &&
+    candidate.adapter === "claude-code" &&
+    (candidate.promptDelivery === "stdin" || candidate.promptDelivery === undefined) &&
+    (candidate.cwdPolicy === "workspace_root" || candidate.cwdPolicy === undefined) &&
+    (candidate.version === 1 || candidate.version === undefined);
+  return isBuiltInIdentity && (isOriginalInteractiveDefault || isPriorHeadlessDefault || isPriorEditDefault)
     ? createDefaultClaudeAgentCommand().command
     : command;
 }

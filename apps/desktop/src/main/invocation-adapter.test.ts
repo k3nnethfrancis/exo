@@ -21,9 +21,9 @@ describe("invocation adapter", () => {
   it("builds separate structured Claude fresh and resume commands", () => {
     const command = createDefaultClaudeAgentCommand();
     expect(commandForHeadlessInvocation(command))
-      .toBe("claude -p --permission-mode acceptEdits --output-format json");
+      .toBe('claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep" --output-format json');
     expect(commandForHeadlessInvocation(command, HEAD))
-      .toBe(`claude -p --permission-mode acceptEdits --output-format json --resume '${SESSION_ID}'`);
+      .toBe(`claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep" --output-format json --resume '${SESSION_ID}'`);
     expect(commandForHeadlessInvocation({ ...command, command: "claude -p --output-format stream-json" }, HEAD))
       .toBe(`claude -p --output-format stream-json --resume '${SESSION_ID}'`);
   });

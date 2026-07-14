@@ -31,7 +31,7 @@ import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
 import { useWorkspaceBootstrap } from "./hooks/useWorkspaceBootstrap";
 import { useWorkspaceCommandHandlers } from "./hooks/useWorkspaceCommandHandlers";
-import { useWorkspaceLayoutPersistence } from "./hooks/useWorkspaceLayoutPersistence";
+import { decodePersistedWorkspaceCanvas, useWorkspaceLayoutPersistence } from "./hooks/useWorkspaceLayoutPersistence";
 import { useWorkspaceMutations } from "./hooks/useWorkspaceMutations";
 import { useWorkspaceSettingsController } from "./hooks/useWorkspaceSettingsController";
 import { useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
@@ -309,15 +309,9 @@ export function App() {
     shellLayout.applyPersistedLayout(layout);
   }
 
-  async function restoreInitialDocuments(input: {
-    settings: WorkspaceSettings;
-    firstNotePath: string | null;
-  }) {
-    if (!input.firstNotePath) {
-      return;
-    }
-
-    const restoredPaths = collectOpenEditorPaths(canvasTree);
+  async function restoreInitialDocuments(settings: WorkspaceSettings) {
+    const restoredTree = decodePersistedWorkspaceCanvas(settings.layout)?.canvas ?? canvasTree;
+    const restoredPaths = collectOpenEditorPaths(restoredTree);
     if (restoredPaths.size > 0) {
       await Promise.all(
         Array.from(restoredPaths).map((filePath) =>
@@ -326,12 +320,9 @@ export function App() {
           }),
         ),
       );
-      const restoredActivePath = findActiveEditorPath(canvasTree);
-      setActiveDocumentPath(restoredActivePath ?? restoredPaths.values().next().value ?? input.firstNotePath);
-      return;
+      const restoredActivePath = findActiveEditorPath(restoredTree);
+      setActiveDocumentPath(restoredActivePath ?? restoredPaths.values().next().value ?? null);
     }
-
-    await openFile(input.firstNotePath, focusedPaneId);
   }
 
   function restoreTerminals(input: {

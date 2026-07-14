@@ -424,7 +424,7 @@ describe("InvocationRunner readiness parity", () => {
       { type: "result", session_id: sessionId, permission_denials: [] },
     ]))).toBe(sessionId);
     expect(commandForHeadlessInvocation(createDefaultClaudeAgentCommand()))
-      .toBe("claude -p --permission-mode acceptEdits --output-format json");
+      .toBe('claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep" --output-format json');
     expect(commandForHeadlessInvocation({ ...createDefaultClaudeAgentCommand(), command: "claude -p --permission-mode bypassPermissions" }))
       .toBe("claude -p --permission-mode bypassPermissions --output-format json");
   });

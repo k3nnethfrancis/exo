@@ -67,7 +67,7 @@ export interface LegacyWorkspaceLayoutSettings {
 
 /** The single-canvas layout written by the current renderer. */
 export interface WorkspaceCanvasLayoutSettings {
-  version: 2;
+  version: 3;
   canvas: WorkspacePaneNode;
   sidebarCollapsed: boolean;
   sidebarWidth: number;

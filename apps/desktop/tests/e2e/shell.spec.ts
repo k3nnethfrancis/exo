@@ -141,6 +141,48 @@ test("shows a visible BrowserWindow on startup", async () => {
   await cleanup();
 });
 
+test("starts with an empty editor when no saved layout chooses a note", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture({ initialNoteLabel: null });
+
+  try {
+    await expect(page.getByTestId("editor-empty")).toContainText("Open a note from the left sidebar to begin.");
+    await expect(page.getByTestId("editor-title")).toHaveCount(0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("restores a note chosen by the saved layout", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({ initialNoteLabel: null });
+
+  try {
+    const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
+    const savedLayout = await page.evaluate(async (filePath) => {
+      const snapshot = await window.exo.workspace.getSettings();
+      const saved = await window.exo.workspace.saveSettings({
+        settings: {
+          ...snapshot.settings,
+          layout: {
+            version: 3,
+            canvas: { kind: "leaf", id: "saved-editor", content: { kind: "editor", openPaths: [filePath], activePath: filePath } },
+            sidebarCollapsed: false,
+            sidebarWidth: 175,
+            utilityWidth: 430,
+          },
+        },
+        expectedRevision: snapshot.revision,
+      });
+      return saved.settings.layout ?? null;
+    }, notePath);
+    expect(savedLayout).not.toBeNull();
+    await page.reload();
+    await expect.poll(() => page.evaluate(async () => (await window.exo.workspace.getSettings()).settings.layout ?? null)).not.toBeNull();
+    await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
+  } finally {
+    await cleanup();
+  }
+});
+
 test("opens a browser preview in the utility destination", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
 

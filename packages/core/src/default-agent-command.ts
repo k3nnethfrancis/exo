@@ -6,7 +6,7 @@ export function createDefaultClaudeAgentCommand(): AgentCommand {
     id: "claude",
     label: "Claude",
     handle: "claude",
-    command: "claude -p --permission-mode acceptEdits",
+    command: 'claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep"',
     adapter: "claude-code",
     continuityPolicy: "continuous",
     cwdPolicy: "workspace_root",

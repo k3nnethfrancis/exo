@@ -5,7 +5,7 @@ import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from 
 import type { TerminalSessionInfo, WorkspaceRegistryEntry, WorkspaceSetupState } from "../../../shared/api";
 import type { PaneNode } from "./usePaneTree";
 import { loadInitialTrees, type UseWorkspaceTreesOptions } from "./useWorkspaceTrees";
-import { pathLabel, pickInitialNote } from "../workspaceTree";
+import { pathLabel } from "../workspaceTree";
 
 export interface OnboardingState {
   mode: "first-run" | "switch";
@@ -30,10 +30,7 @@ export interface UseWorkspaceBootstrapOptions extends UseWorkspaceTreesOptions {
     model: WorkspaceModel,
     nextNoteTrees: Record<string, TreeNode[]>,
   ) => void;
-  restoreInitialDocuments: (input: {
-    settings: WorkspaceSettings;
-    firstNotePath: string | null;
-  }) => Promise<void>;
+  restoreInitialDocuments: (settings: WorkspaceSettings) => Promise<void>;
   restoreTerminals: (input: {
     settings: WorkspaceSettings;
     sessions: TerminalSessionInfo[];
@@ -106,12 +103,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         return;
       }
 
-      const firstNote = pickInitialNote(Object.entries(nextNoteTrees));
-
-      await currentOptions.restoreInitialDocuments({
-        settings,
-        firstNotePath: firstNote?.path ?? null,
-      });
+      await currentOptions.restoreInitialDocuments(settings);
 
       if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
         return;
@@ -133,7 +125,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
             workspaceRoot: model.workspaceRoot,
             defaultTerminalCwd: model.defaultTerminalCwd,
             noteRoots: model.noteRoots.map((root) => root.path),
-            initialNotePath: firstNote?.path ?? null,
             sessionCount: sessions.length,
           });
         }
