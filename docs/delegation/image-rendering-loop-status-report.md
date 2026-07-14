@@ -53,3 +53,12 @@
 **Next:** Re-run the repository check after the final report edit, commit on `delegates/image-rendering-loop`, mark complete, and notify the orchestrator with commit/evidence.
 **Needs orchestrator:** none
 **Risk / scope note:** Packaged-app installation was not used because this is a source resolver change with full main/preload/renderer Electron coverage. The exact live-vault pair was exercised through a read-only resolver probe; no user file was changed.
+
+## 2026-07-13 — complete
+**State:** complete
+**Goal:** Finish the delegated image-rendering loop with a reviewable branch commit.
+**Done:** Committed the scoped implementation, tests, tracker entry, architecture note, changelog, and durable status evidence on `delegates/image-rendering-loop`.
+**Evidence:** Commit `e356e97` (`fix: resolve nested root-relative markdown images`) contains the completed slice; all ready-for-review gates above passed on that tree.
+**Next:** Orchestrator review/cherry-pick or merge into the active Exo branch, then rebuild/relaunch Exo for user verification on the original note.
+**Needs orchestrator:** integrate commit and rebuild the active app
+**Risk / scope note:** Remaining risk is limited to installed-app visual confirmation on the user's original note after integration; automated Electron and exact-path resolver evidence are green.
