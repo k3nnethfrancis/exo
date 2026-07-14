@@ -207,6 +207,8 @@ export class InvocationRunner extends EventEmitter {
             agentHandle: prepared.command.handle,
             frontmatter: prepared.request.documentFrontmatter,
             body: prepared.request.documentBody,
+            workspaceRoot: settings.workspaceRoot,
+            noteRoots: settings.noteRoots,
           })
         : formatCliInvocationPrompt({ task: prepared.request.task ?? prepared.request.message, workspaceRoot: settings.workspaceRoot });
       if (prepared.request.context === "note") {
