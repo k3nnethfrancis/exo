@@ -221,6 +221,9 @@ export function App() {
 
   useEffect(() => {
     return window.exo.workspace.onInvocationUpdated((record) => {
+      if (record.workspaceRoot && record.workspaceRoot !== workspaceModel?.workspaceRoot) {
+        return;
+      }
       if (record.taggedDocumentPath) {
         scheduleOpenDocumentRefresh(record.taggedDocumentPath);
       }
@@ -228,7 +231,7 @@ export function App() {
       setInvocationReview((current) => current?.record.id === record.id ? { record } : current);
       void loadInvocationReview(record);
     });
-  }, [scheduleOpenDocumentRefresh]);
+  }, [scheduleOpenDocumentRefresh, workspaceModel?.workspaceRoot]);
 
   useEffect(() => {
     terminalState.pruneHydration(activeTerminalId ? new Set([activeTerminalId]) : new Set());

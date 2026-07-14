@@ -4,8 +4,15 @@ import { commandEnvironment } from "./command-environment";
 
 export interface InvocationProcess {
   send(prompt: string): Promise<void>;
-  onExit(handler: (event: { exitCode: number | null; stdout: string }) => void): void;
+  onExit(handler: (event: InvocationProcessExit) => void): void;
   kill(): void;
+}
+
+export interface InvocationProcessExit {
+  exitCode: number | null;
+  stdout: string;
+  stderr: string;
+  spawnError?: string;
 }
 
 export interface InvocationProcessFactory {
@@ -22,7 +29,7 @@ export class DirectInvocationProcessFactory implements InvocationProcessFactory 
     const child = spawn("/bin/sh", ["-lc", input.command], {
       cwd: input.cwd,
       env: commandEnvironment(input.env),
-      stdio: ["pipe", "pipe", "ignore"],
+      stdio: ["pipe", "pipe", "pipe"],
     });
     return new DirectInvocationProcess(child);
   }
@@ -30,12 +37,20 @@ export class DirectInvocationProcessFactory implements InvocationProcessFactory 
 
 class DirectInvocationProcess implements InvocationProcess {
   private stdout = "";
+  private stderr = "";
+  private spawnError: string | undefined;
 
   constructor(private readonly child: ChildProcess) {
     // Output is retained only long enough to obtain structured provenance on
     // exit. It is deliberately not a chat/transcript surface.
     child.stdout?.on("data", (chunk: Buffer | string) => {
       this.stdout = appendBounded(this.stdout, String(chunk));
+    });
+    child.stderr?.on("data", (chunk: Buffer | string) => {
+      this.stderr = appendBounded(this.stderr, String(chunk));
+    });
+    child.once("error", (error) => {
+      this.spawnError = error.message;
     });
   }
 
@@ -55,10 +70,15 @@ class DirectInvocationProcess implements InvocationProcess {
     });
   }
 
-  onExit(handler: (event: { exitCode: number | null; stdout: string }) => void): void {
+  onExit(handler: (event: InvocationProcessExit) => void): void {
     // `close` fires only after stdio is drained; `exit` can race the final JSON
     // chunk and lose session/failure provenance.
-    this.child.once("close", (exitCode) => handler({ exitCode, stdout: this.stdout }));
+    this.child.once("close", (exitCode) => handler({
+      exitCode,
+      stdout: this.stdout,
+      stderr: this.stderr,
+      ...(this.spawnError ? { spawnError: this.spawnError } : {}),
+    }));
   }
 
   kill(): void {

@@ -22,4 +22,14 @@
 - Added an atomic, Workspace-local `.exo/invocation-continuity/v1` head store keyed by Workspace, Command, canonical cwd, and validated against adapter/fingerprint.
 - Core: 15 files / 99 tests passed. Desktop focused suite: 24 files / 181 tests passed. Core and desktop typechecks passed.
 
+## 2026-07-13 — Phase 3 complete: Claude continuity runtime
+
+- Added explicit adapter-owned Claude fresh/resume command building and structured session extraction; provider logic no longer keys off handles.
+- Automatic context continuation re-reads the head only after acquiring a per-lane lock. Same-lane overlap fails visibly; no queue or fork exists.
+- The exact Claude 2.1.208 pre-turn stale signature falls back fresh once and records `resume-failed-fresh`; every other failure remains fail-closed without retry or head advancement.
+- Process results now retain bounded stderr and spawn errors so recovery classification is evidence-based.
+- Invocation lookup/review/reject/resume use an origin-Workspace scope map, records carry immutable origin scope, and renderer updates from another Workspace are ignored.
+- Added fresh→resume, stale fallback, unknown failure, concurrency/release, adapter fixture, and cross-Workspace review/restore tests.
+- Desktop: 25 files / 189 tests passed. Core: 15 files / 99 tests passed. Typechecks passed.
+
 -- Exo | 2026-07-13

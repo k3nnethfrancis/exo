@@ -4,11 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createDefaultClaudeAgentCommand, formatDocumentAgentInvocation, type WorkspaceSettings } from "@exo/core";
+import { agentCommandExecutableFingerprint, createDefaultClaudeAgentCommand, formatDocumentAgentInvocation, InvocationContinuityStore, type WorkspaceSettings } from "@exo/core";
 
 import type { TerminalManager } from "./terminal-manager";
 import { commandForClaudeResume, commandForHeadlessInvocation, extractClaudeSessionId, InvocationRunner, InvocationRunnerError } from "./invocation-runner";
-import { DirectInvocationProcessFactory, type InvocationProcess, type InvocationProcessFactory } from "./invocation-process";
+import { DirectInvocationProcessFactory, type InvocationProcess, type InvocationProcessExit, type InvocationProcessFactory } from "./invocation-process";
 import type { WorkspaceWatcherService } from "./workspace-watchers";
 
 const temporaryRoots: string[] = [];
@@ -22,7 +22,7 @@ describe("InvocationRunner readiness parity", () => {
   it("uses the same facts and cwd as prepare", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);
-    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo" };
+    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     const runner = createRunner(settings(root, command));
 
     const facts = await runner.getCommandLaunchFacts(command.id);
@@ -36,7 +36,7 @@ describe("InvocationRunner readiness parity", () => {
   it("blocks prepare when the readiness facts block launch", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);
-    const command = { ...createDefaultClaudeAgentCommand(), id: "missing", handle: "missing", command: "definitely-not-an-executable" };
+    const command = { ...createDefaultClaudeAgentCommand(), id: "missing", handle: "missing", command: "definitely-not-an-executable", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     const runner = createRunner(settings(root, command));
 
     await expect(runner.getCommandLaunchFacts(command.id)).resolves.toMatchObject({
@@ -51,7 +51,7 @@ describe("InvocationRunner readiness parity", () => {
   it("rejects fingerprint drift before creating a terminal", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);
-    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo" };
+    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     const terminalManager = new FakeTerminalManager();
     const runner = createRunner(settings(root, command), terminalManager);
 
@@ -62,7 +62,7 @@ describe("InvocationRunner readiness parity", () => {
   it("creates a normal visible CLI invocation record after confirmed one-shot authorization", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);
-    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo" };
+    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     const terminalManager = new FakeTerminalManager();
     const runner = createRunner(settings(root, command), terminalManager);
     const facts = await runner.getCommandLaunchFacts(command.id);
@@ -83,7 +83,7 @@ describe("InvocationRunner readiness parity", () => {
   it("runs inline invocations headlessly and delivers the current note body and frontmatter once", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);
-    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo" };
+    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     const terminalManager = new FakeTerminalManager();
     const processFactory = new FakeInvocationProcessFactory();
     const runner = createRunner(settings(root, command), terminalManager, processFactory);
@@ -123,7 +123,7 @@ describe("InvocationRunner readiness parity", () => {
     const notePath = path.join(workspaceA, "note.md");
     const documentBody = protocolNoteBody("# Workspace A\n", "echo", "Update this note.");
     await writeFile(notePath, documentBody, "utf8");
-    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo" };
+    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     let activeSettings = settings(workspaceA, command);
     const processFactory = new FakeInvocationProcessFactory();
     const runner = new InvocationRunner({
@@ -147,13 +147,137 @@ describe("InvocationRunner readiness parity", () => {
 
     await runner.authorizeAndStart(prepared);
     activeSettings = settings(workspaceB, command);
+    await writeFile(notePath, "# Changed in Workspace A\n", "utf8");
     processFactory.process.exit(0, "done");
 
-    await expect(updated).resolves.toMatchObject({ status: "process-exited" });
+    const completed = await updated;
+    expect(completed).toMatchObject({ status: "process-exited", workspaceRoot: workspaceA, review: { status: "pending" } });
     await expect(readFile(path.join(workspaceA, ".exo", "invocations", prepared.id, "record.json"), "utf8"))
       .resolves.toContain('"status": "process-exited"');
     await expect(readFile(path.join(workspaceB, ".exo", "invocations", prepared.id, "record.json"), "utf8"))
       .rejects.toMatchObject({ code: "ENOENT" });
+    await expect(runner.getReview(prepared.id)).resolves.toMatchObject({
+      invocation: { workspaceRoot: workspaceA },
+      before: documentBody,
+      after: "# Changed in Workspace A\n",
+    });
+    await runner.rejectReview(prepared.id, completed.review?.afterSha256 ?? null);
+    await expect(readFile(notePath, "utf8")).resolves.toBe(documentBody);
+  });
+
+  it("continues a Claude conversation from the validated Workspace-local head", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-continuity-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
+    const documentBody = protocolNoteBody("# Context\n", command.handle, "Remember this.");
+    await writeFile(notePath, documentBody, "utf8");
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+
+    const firstUpdated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const firstPrepared = await runner.prepare(invocationRequest(notePath, documentBody));
+    await runner.authorizeAndStart(firstPrepared);
+    processFactory.process.exit(0, JSON.stringify({ session_id: "ce4b9e26-2574-4433-a054-1110cd403792" }));
+    const first = await firstUpdated;
+    expect(first.continuity).toEqual({ policy: "continuous", outcome: "fresh" });
+
+    const secondUpdated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const secondPrepared = await runner.prepare(invocationRequest(notePath, documentBody));
+    await runner.authorizeAndStart(secondPrepared);
+    expect(processFactory.inputs.at(-1)?.command).toContain("--resume 'ce4b9e26-2574-4433-a054-1110cd403792'");
+    processFactory.process.exit(0, JSON.stringify({ session_id: "ce4b9e26-2574-4433-a054-1110cd403792" }));
+    await expect(secondUpdated).resolves.toMatchObject({
+      continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: first.id },
+    });
+  });
+
+  it("falls back fresh once only for the proven pre-turn stale Claude signature", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-stale-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
+    const documentBody = protocolNoteBody("# Context\n", command.handle, "Continue this.");
+    await writeFile(notePath, documentBody, "utf8");
+    const staleId = "ce4b9e26-2574-4433-a054-1110cd403792";
+    const freshId = "de4b9e26-2574-4433-a054-1110cd403793";
+    const continuityStore = new InvocationContinuityStore(root);
+    await continuityStore.writeHead({
+      workspaceRoot: root,
+      commandId: command.id,
+      commandFingerprint: agentCommandExecutableFingerprint(command),
+      adapter: "claude-code",
+      cwd: root,
+    }, { providerSessionId: staleId, sourceInvocationId: "prior-invocation" });
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+
+    const prepared = await runner.prepare(invocationRequest(notePath, documentBody));
+    await runner.authorizeAndStart(prepared);
+    processFactory.process.exit(1, "", `No conversation found with session ID: ${staleId}\n`);
+    await expect.poll(() => processFactory.processes.length).toBe(2);
+    expect(processFactory.inputs.at(-1)?.command).not.toContain("--resume");
+    processFactory.process.exit(0, JSON.stringify({ session_id: freshId }));
+
+    await expect(updated).resolves.toMatchObject({
+      providerSessionId: freshId,
+      continuity: { policy: "continuous", outcome: "resume-failed-fresh", resumedFromInvocationId: "prior-invocation" },
+    });
+  });
+
+  it("does not retry or advance the head after an unknown resume failure", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-resume-failure-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
+    const documentBody = protocolNoteBody("# Context\n", command.handle, "Continue this.");
+    await writeFile(notePath, documentBody, "utf8");
+    const staleId = "ce4b9e26-2574-4433-a054-1110cd403792";
+    const lane = {
+      workspaceRoot: root,
+      commandId: command.id,
+      commandFingerprint: agentCommandExecutableFingerprint(command),
+      adapter: "claude-code" as const,
+      cwd: root,
+    };
+    const continuityStore = new InvocationContinuityStore(root);
+    await continuityStore.writeHead(lane, { providerSessionId: staleId, sourceInvocationId: "prior-invocation" });
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+
+    await runner.authorizeAndStart(await runner.prepare(invocationRequest(notePath, documentBody)));
+    processFactory.process.exit(1, "", "Authentication failed\n");
+
+    await expect(updated).resolves.toMatchObject({ status: "failed" });
+    expect(processFactory.processes).toHaveLength(1);
+    await expect(continuityStore.readHead(lane)).resolves.toMatchObject({
+      providerSessionId: staleId,
+      sourceInvocationId: "prior-invocation",
+    });
+  });
+
+  it("rejects concurrent work in one continuity lane and releases the lane after exit", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-busy-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
+    const documentBody = protocolNoteBody("# Context\n", command.handle, "Work.");
+    await writeFile(notePath, documentBody, "utf8");
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+    const first = await runner.prepare(invocationRequest(notePath, documentBody));
+    await runner.authorizeAndStart(first);
+
+    const second = await runner.prepare(invocationRequest(notePath, documentBody));
+    await expect(runner.authorizeAndStart(second)).rejects.toMatchObject({ code: "continuity-busy" });
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    processFactory.process.exit(0, JSON.stringify({ session_id: "ce4b9e26-2574-4433-a054-1110cd403792" }));
+    await updated;
+
+    const third = await runner.prepare(invocationRequest(notePath, documentBody));
+    await expect(runner.authorizeAndStart(third)).resolves.toMatchObject({ ok: true });
   });
 
   it("refuses to baseline an editor snapshot that is not the saved document", async () => {
@@ -161,7 +285,7 @@ describe("InvocationRunner readiness parity", () => {
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     await writeFile(notePath, "# Saved\n", "utf8");
-    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo" };
+    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     const runner = createRunner(settings(root, command));
 
     await expect(runner.prepare({
@@ -183,6 +307,7 @@ describe("InvocationRunner readiness parity", () => {
     await writeFile(notePath, documentBody, "utf8");
     const command = {
       ...createDefaultClaudeAgentCommand(), id: "fake-headless", handle: "fake-headless", label: "Fake headless",
+      adapter: "generic" as const, continuityPolicy: "fresh" as const,
       command: `/bin/sh -c 'cat > "${promptPath}"; printf "# After\\n" > "${notePath}"'`,
     };
     const terminalManager = new FakeTerminalManager();
@@ -208,6 +333,7 @@ describe("InvocationRunner readiness parity", () => {
     await writeFile(notePath, documentBody, "utf8");
     const command = {
       ...createDefaultClaudeAgentCommand(), id: "fails", handle: "fails", label: "Fails",
+      adapter: "generic" as const, continuityPolicy: "fresh" as const,
       command: "/bin/sh -c 'exit 17'",
     };
     const terminalManager = new FakeTerminalManager();
@@ -328,6 +454,19 @@ function protocolNoteBody(prefix: string, handle: string, message: string): stri
   })}\n`;
 }
 
+function invocationRequest(notePath: string, documentBody: string) {
+  return {
+    context: "note" as const,
+    handle: "claude",
+    documentPath: notePath,
+    mentionText: "@claude",
+    message: "Continue this.",
+    protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID,
+    documentBody,
+    allowUntrustedOneShot: true,
+  };
+}
+
 class FakeTerminalManager extends EventEmitter {
   created = 0;
   messages: string[] = [];
@@ -356,27 +495,37 @@ class FakeTerminalManager extends EventEmitter {
 }
 
 class FakeInvocationProcessFactory implements InvocationProcessFactory {
-  readonly process = new FakeInvocationProcess();
+  readonly processes: FakeInvocationProcess[] = [];
+  readonly inputs: Array<{ command: string; cwd: string; env: NodeJS.ProcessEnv }> = [];
 
-  launch(): InvocationProcess {
-    return this.process;
+  get process(): FakeInvocationProcess {
+    const process = this.processes.at(-1);
+    if (!process) throw new Error("No invocation process has launched.");
+    return process;
+  }
+
+  launch(input: { command: string; cwd: string; env: NodeJS.ProcessEnv }): InvocationProcess {
+    this.inputs.push(input);
+    const process = new FakeInvocationProcess();
+    this.processes.push(process);
+    return process;
   }
 }
 
 class FakeInvocationProcess implements InvocationProcess {
   prompts: string[] = [];
-  private exitHandler: ((event: { exitCode: number | null; stdout: string }) => void) | null = null;
+  private exitHandler: ((event: InvocationProcessExit) => void) | null = null;
 
   async send(prompt: string): Promise<void> {
     this.prompts.push(prompt);
   }
 
-  onExit(handler: (event: { exitCode: number | null; stdout: string }) => void): void {
+  onExit(handler: (event: InvocationProcessExit) => void): void {
     this.exitHandler = handler;
   }
 
-  exit(exitCode: number | null, stdout: string): void {
-    this.exitHandler?.({ exitCode, stdout });
+  exit(exitCode: number | null, stdout: string, stderr = ""): void {
+    this.exitHandler?.({ exitCode, stdout, stderr });
   }
 
   kill(): void {}

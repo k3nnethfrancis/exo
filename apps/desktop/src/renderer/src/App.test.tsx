@@ -157,7 +157,7 @@ describe("agent invocation review", () => {
 
     expect(presentation).toMatchObject({
       title: "@claude failed",
-      detail: "Claude could not edit the note.",
+      detail: "Claude could not edit the note. · Fresh context",
       tone: "danger",
       dismissible: true,
     });

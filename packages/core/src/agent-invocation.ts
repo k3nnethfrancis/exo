@@ -116,6 +116,8 @@ export interface InvocationContinuitySummary {
 
 export interface InvocationRecord {
   id: string;
+  /** Immutable origin for runtime scoping; older records may omit it. */
+  workspaceRoot?: string;
   status: InvocationStatus;
   context: InvocationContextKind;
   taggedDocumentPath?: string;
@@ -465,6 +467,7 @@ export function normalizeInvocationRecord(input: unknown): InvocationRecord | nu
   const status = normalizeInvocationStatus(candidate.status);
   return {
     id,
+    ...optionalStringField("workspaceRoot", candidate.workspaceRoot),
     status,
     context,
     ...(taggedDocumentPath ? { taggedDocumentPath } : {}),
@@ -503,7 +506,7 @@ function normalizeInvocationContinuity(value: unknown): InvocationContinuitySumm
   return {
     policy,
     outcome,
-    ...(outcome === "resumed" && resumedFromInvocationId ? { resumedFromInvocationId } : {}),
+    ...(outcome !== "fresh" && resumedFromInvocationId ? { resumedFromInvocationId } : {}),
   };
 }
 

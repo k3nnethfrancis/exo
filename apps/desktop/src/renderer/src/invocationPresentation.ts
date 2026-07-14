@@ -12,7 +12,7 @@ export interface InvocationPresentation {
 }
 
 export function presentInvocation(record: InvocationRecord, hasDirtyConflict = false): InvocationPresentation {
-  const resumeCommand = record.command.handle === "claude" && record.providerSessionId
+  const resumeCommand = record.command.adapter === "claude-code" && record.providerSessionId
     ? commandForClaudeResume(record.command, record.providerSessionId)
     : null;
 
@@ -37,7 +37,7 @@ export function presentInvocation(record: InvocationRecord, hasDirtyConflict = f
   if (record.status === "failed" || record.status === "orphaned") {
     return {
       title: `@${record.command.handle} failed`,
-      detail: record.failureReason ?? (record.status === "orphaned" ? "Exo closed before this invocation finished." : "The command did not complete."),
+      detail: `${record.failureReason ?? (record.status === "orphaned" ? "Exo closed before this invocation finished." : "The command did not complete.")} · ${continuityDetail(record)}`,
       tone: "danger",
       resumeCommand,
       dismissible: true,
@@ -46,7 +46,7 @@ export function presentInvocation(record: InvocationRecord, hasDirtyConflict = f
   if (record.review?.status === "pending") {
     return {
       title: `Review @${record.command.handle} changes`,
-      detail: changedFilesDetail(record),
+      detail: `${changedFilesDetail(record)} · ${continuityDetail(record)}`,
       tone: "neutral",
       resumeCommand,
       dismissible: false,
@@ -56,7 +56,7 @@ export function presentInvocation(record: InvocationRecord, hasDirtyConflict = f
     const kept = record.review.status === "kept";
     return {
       title: kept ? "Changes kept" : "Changes rejected",
-      detail: `@${record.command.handle} session complete.`,
+      detail: `@${record.command.handle} complete · ${continuityDetail(record)}`,
       tone: "success",
       resumeCommand,
       dismissible: true,
@@ -64,11 +64,17 @@ export function presentInvocation(record: InvocationRecord, hasDirtyConflict = f
   }
   return {
     title: `@${record.command.handle} finished`,
-    detail: record.changedFileRefs.length === 0 ? "No changes to this note." : changedFilesDetail(record),
+    detail: `${record.changedFileRefs.length === 0 ? "No changes to this note." : changedFilesDetail(record)} · ${continuityDetail(record)}`,
     tone: "success",
     resumeCommand,
     dismissible: true,
   };
+}
+
+function continuityDetail(record: InvocationRecord): string {
+  if (record.continuity.outcome === "resumed") return "Continued context";
+  if (record.continuity.outcome === "resume-failed-fresh") return "Context expired · started fresh";
+  return "Fresh context";
 }
 
 function changedFilesDetail(record: InvocationRecord): string {
