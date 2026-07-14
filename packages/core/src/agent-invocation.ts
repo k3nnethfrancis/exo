@@ -11,6 +11,7 @@ export const AGENT_COMMAND_PROMPT_DELIVERIES = ["terminalInputAfterLaunch", "std
 export const DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY: AgentCommandPromptDelivery = "stdin";
 export const AGENT_COMMAND_CWD_POLICIES = ["workspace_root", "note_dir", "fixed"] as const;
 export const AGENT_COMMAND_UNSUPPORTED_V1_FIELDS = ["env", "template", "promptTemplate"] as const;
+export const NOTE_INVOCATION_SNAPSHOT_MAX_CHARACTERS = 24_000;
 
 export type AgentCommandPromptDelivery = (typeof AGENT_COMMAND_PROMPT_DELIVERIES)[number];
 export type AgentCommandCwdPolicy = (typeof AGENT_COMMAND_CWD_POLICIES)[number];
@@ -260,6 +261,7 @@ export function deriveAgentCommandLaunch(
 
 export function formatNoteInvocationPrompt(input: {
   workspaceRoot?: string;
+  noteRoots?: string[];
   documentPath: string;
   mentionText: string;
   message: string;
@@ -268,10 +270,16 @@ export function formatNoteInvocationPrompt(input: {
   frontmatter?: Record<string, unknown>;
   body?: string;
 }): string {
+  const bodySnapshot = boundedNoteInvocationSnapshot({
+    body: input.body,
+    protocolInvocationId: input.protocolInvocationId,
+    mentionText: input.mentionText,
+  });
   return [
     "You are a configured Command explicitly invoked from an Exo note.",
     "An Exo Workspace is the user's explicit set of local-first Markdown Note Roots; do not assume the snapshot below is the whole workspace.",
     ...(input.workspaceRoot ? ["Workspace root:", input.workspaceRoot] : []),
+    ...(input.noteRoots?.length ? ["Configured Note Roots:", ...input.noteRoots.map((root) => `- ${root}`)] : []),
     "Exo observes and reviews note changes inside configured Note Roots. Do not treat every file under the Workspace root as an Exo note or as implicitly writable.",
     "Exo wikilinks may be durable and aliased ([[durable/path/to/note|Readable title]]) or legacy bare stems ([[note-name]]). Resolve referenced notes with native filesystem tools or Exo CLI/Search. When writing a link, prefer the durable path target with a readable alias.",
     "",
@@ -288,7 +296,7 @@ export function formatNoteInvocationPrompt(input: {
     "--- frontmatter ---",
     JSON.stringify(input.frontmatter ?? {}, null, 2),
     "--- body snapshot (may be truncated) ---",
-    input.body ?? "(The current body was not supplied; read the file from disk.)",
+    bodySnapshot,
     "--- end bounded snapshot; read the working note from disk when more context is needed ---",
     "",
     "Act on the request:",
@@ -301,6 +309,82 @@ export function formatNoteInvocationPrompt(input: {
     "",
     "When the work is complete, print only a concise completion summary for the terminal/session transcript.",
   ].join("\n");
+}
+
+function boundedNoteInvocationSnapshot(input: {
+  body?: string;
+  protocolInvocationId?: string;
+  mentionText: string;
+}): string {
+  const body = input.body;
+  if (body === undefined) {
+    return "(The current body was not supplied; read the file from disk.)";
+  }
+  if (body.length <= NOTE_INVOCATION_SNAPSHOT_MAX_CHARACTERS) {
+    return body;
+  }
+
+  const anchor = noteInvocationSnapshotAnchor(body, input.protocolInvocationId, input.mentionText);
+  let contentBudget = NOTE_INVOCATION_SNAPSHOT_MAX_CHARACTERS - 128;
+  let window = noteInvocationSnapshotWindow(body, anchor, contentBudget);
+  for (let pass = 0; pass < 4; pass += 1) {
+    const prefix = omittedSnapshotMarker("before", window.start);
+    const suffix = omittedSnapshotMarker("after", body.length - window.end);
+    contentBudget = Math.max(0, NOTE_INVOCATION_SNAPSHOT_MAX_CHARACTERS - prefix.length - suffix.length);
+    window = noteInvocationSnapshotWindow(body, anchor, contentBudget);
+  }
+
+  const prefix = omittedSnapshotMarker("before", window.start);
+  const suffix = omittedSnapshotMarker("after", body.length - window.end);
+  return `${prefix}${body.slice(window.start, window.end)}${suffix}`;
+}
+
+function noteInvocationSnapshotAnchor(
+  body: string,
+  protocolInvocationId: string | undefined,
+  mentionText: string,
+): { start: number; end: number } {
+  if (protocolInvocationId && isDocumentAgentProtocolId(protocolInvocationId)) {
+    const opening = `<exo-invocation id="${protocolInvocationId}"`;
+    const start = body.indexOf(opening);
+    if (start >= 0) {
+      const closing = "</exo-invocation>";
+      const closingStart = body.indexOf(closing, start + opening.length);
+      return { start, end: closingStart >= 0 ? closingStart + closing.length : start + opening.length };
+    }
+  }
+
+  const mentionStart = mentionText ? body.lastIndexOf(mentionText) : -1;
+  return mentionStart >= 0
+    ? { start: mentionStart, end: mentionStart + mentionText.length }
+    : { start: 0, end: 0 };
+}
+
+function noteInvocationSnapshotWindow(
+  body: string,
+  anchor: { start: number; end: number },
+  budget: number,
+): { start: number; end: number } {
+  const anchorLength = anchor.end - anchor.start;
+  const centeredStart = anchorLength >= budget
+    ? Math.floor((anchor.start + anchor.end - budget) / 2)
+    : anchor.start - Math.floor((budget - anchorLength) / 2);
+  let start = Math.max(0, Math.min(centeredStart, body.length - budget));
+  let end = Math.min(body.length, start + budget);
+
+  if (start > 0 && isLowSurrogate(body.charCodeAt(start))) start += 1;
+  if (end < body.length && isLowSurrogate(body.charCodeAt(end))) end -= 1;
+  return { start, end };
+}
+
+function omittedSnapshotMarker(side: "before" | "after", count: number): string {
+  if (count <= 0) return "";
+  const marker = `[... ${count} characters omitted ${side} snapshot; read the working note from disk for full content ...]`;
+  return side === "before" ? `${marker}\n` : `\n${marker}`;
+}
+
+function isLowSurrogate(code: number): boolean {
+  return code >= 0xdc00 && code <= 0xdfff;
 }
 
 function protocolInstructions(invocationId: string, agentHandle: string): string[] {

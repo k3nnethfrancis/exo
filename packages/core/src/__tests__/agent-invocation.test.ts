@@ -6,6 +6,7 @@ import {
   createDefaultCodexAgentCommand,
   deriveAgentCommandLaunch,
   formatNoteInvocationPrompt,
+  NOTE_INVOCATION_SNAPSHOT_MAX_CHARACTERS,
   normalizeAgentCommand,
   normalizeAgentCommands,
   normalizeAgentHandle,
@@ -165,6 +166,7 @@ describe("agent invocation model", () => {
     const protocolInvocationId = "11111111-1111-4111-8111-111111111111";
     const prompt = formatNoteInvocationPrompt({
       workspaceRoot: "/workspace",
+      noteRoots: ["/workspace/notes", "/workspace/research"],
       documentPath: "/workspace/notes/task.md",
       mentionText: "@claude",
       message: "Read [[research/self-improving-systems|the essay]] and tell me what you think.",
@@ -179,6 +181,7 @@ describe("agent invocation model", () => {
     expect(prompt).toContain("# Task");
     expect(prompt).toContain("Exo Workspace");
     expect(prompt).toContain("Workspace root:\n/workspace");
+    expect(prompt).toContain("Configured Note Roots:\n- /workspace/notes\n- /workspace/research");
     expect(prompt).toContain("configured Note Roots");
     expect(prompt).toContain("[[durable/path/to/note|Readable title]]");
     expect(prompt).toContain("[[note-name]]");
@@ -236,6 +239,56 @@ describe("agent invocation model", () => {
     expect(withBody).toContain("--- body snapshot (may be truncated) ---");
     expect(withBody).toContain("--- end bounded snapshot; read the working note from disk when more context is needed ---");
     expect(withoutBody).toContain("The current body was not supplied; read the file from disk.");
+  });
+
+  it("bounds a large snapshot around its matching protocol invocation with omission markers", () => {
+    const invocationId = "11111111-1111-4111-8111-111111111111";
+    const envelope = formatDocumentAgentInvocation({
+      id: invocationId,
+      agent: "claude",
+      message: "@claude inspect the nearby argument",
+    });
+    const body = [
+      `FAR_PREFIX_${"a".repeat(40_000)}`,
+      "NEAR_CONTEXT_BEFORE",
+      envelope,
+      "NEAR_CONTEXT_AFTER",
+      `${"b".repeat(40_000)}_FAR_SUFFIX`,
+    ].join("\n");
+    const prompt = formatNoteInvocationPrompt({
+      documentPath: "/workspace/notes/large.md",
+      mentionText: "@claude",
+      message: "Inspect the nearby argument.",
+      protocolInvocationId: invocationId,
+      agentHandle: "claude",
+      body,
+    });
+    const snapshot = bodySnapshotFromPrompt(prompt);
+
+    expect(snapshot.length).toBeLessThanOrEqual(NOTE_INVOCATION_SNAPSHOT_MAX_CHARACTERS);
+    expect(snapshot).toContain("NEAR_CONTEXT_BEFORE");
+    expect(snapshot).toContain(envelope);
+    expect(snapshot).toContain("NEAR_CONTEXT_AFTER");
+    expect(snapshot).not.toContain("FAR_PREFIX_");
+    expect(snapshot).not.toContain("_FAR_SUFFIX");
+    expect(snapshot).toMatch(/^\[\.\.\. \d+ characters omitted before snapshot; read the working note from disk for full content \.\.\.\]/);
+    expect(snapshot).toMatch(/\[\.\.\. \d+ characters omitted after snapshot; read the working note from disk for full content \.\.\.\]$/);
+  });
+
+  it("bounds a legacy no-protocol snapshot around the last matching mention", () => {
+    const body = `${"a".repeat(45_000)}\nLEGACY_NEAR @claude explain this\n${"b".repeat(45_000)}`;
+    const prompt = formatNoteInvocationPrompt({
+      documentPath: "/workspace/notes/legacy.md",
+      mentionText: "@claude",
+      message: "Explain this.",
+      body,
+    });
+    const snapshot = bodySnapshotFromPrompt(prompt);
+
+    expect(snapshot.length).toBeLessThanOrEqual(NOTE_INVOCATION_SNAPSHOT_MAX_CHARACTERS);
+    expect(snapshot).toContain("LEGACY_NEAR @claude explain this");
+    expect(snapshot).toContain("characters omitted before snapshot");
+    expect(snapshot).toContain("characters omitted after snapshot");
   });
 
   it("requires one linked, durable page-native response rather than a transient result", () => {
@@ -329,3 +382,13 @@ describe("agent invocation model", () => {
     });
   });
 });
+
+function bodySnapshotFromPrompt(prompt: string): string {
+  const startMarker = "--- body snapshot (may be truncated) ---\n";
+  const endMarker = "\n--- end bounded snapshot; read the working note from disk when more context is needed ---";
+  const start = prompt.indexOf(startMarker);
+  const end = prompt.indexOf(endMarker, start + startMarker.length);
+  expect(start).toBeGreaterThanOrEqual(0);
+  expect(end).toBeGreaterThan(start);
+  return prompt.slice(start + startMarker.length, end);
+}
