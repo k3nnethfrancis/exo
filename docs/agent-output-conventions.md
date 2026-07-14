@@ -6,7 +6,8 @@ status: shipped document-agent protocol; real-work response-block dogfood remain
 
 ## Problem
 
-Direct write + diff review only works if invoked agents understand that they should edit files when appropriate, not merely answer in the terminal.
+Document-native invocation works only if agents know when the response envelope
+is the answer and when the note itself should change.
 
 Exo should avoid deep harness integration, but it still owns the invocation prompt contract and command templates it presents to users.
 
@@ -26,13 +27,22 @@ Invocation:
 Message:
 <user-authored multiline request>
 
-Document snapshot at invocation:
-<frontmatter and exact saved body>
+Workspace root and configured Note Roots:
+<authorized local paths>
 
-Complete the request by editing the working document directly. Do not return a chat-only answer. Preserve the supplied `<exo-invocation>` envelope and append one linked `<exo-agent-response>` envelope containing the durable result or a concise receipt. Exo will observe the resulting file change and show the user a reviewable diff.
+Document snapshot at invocation:
+<frontmatter and a bounded window around the request>
+
+For an answer-shaped request, write the durable answer in the linked
+`<exo-agent-response>` envelope. For an edit-shaped request, edit the relevant
+Markdown and use the response as a concise receipt. Follow durable aliased or
+legacy wikilinks with native filesystem tools or Exo Search when the request
+needs referenced context. Exo observes Note-Root changes and shows them for
+review.
 ```
 
-V1 should test whether the final sentence materially improves real outputs. The original thin prompt omitted it; direct-write V1 likely needs it.
+The bounded snapshot is orientation, not a substitute for reading the working
+note or a referenced note from disk.
 
 ## Command Templates
 
@@ -68,13 +78,19 @@ Note invocations deliver one complete prompt over stdin to a headless process. C
 
 Default convention:
 
-- If asked to answer, critique, research, or plan, the agent writes the useful result into the working document.
-- The agent edits the source file directly; chat-only stdout is not the product result.
+- If asked to answer, critique, research, or plan, the agent writes the useful
+  result inside the linked response envelope. It does not rewrite unrelated
+  prose merely to create a diff.
+- If asked to change the document, the agent edits the source Markdown directly
+  and uses the linked response as a receipt.
+- Chat-only stdout is never the durable product result.
 - The agent writes one durable `<exo-agent-response invocation="…">` envelope
   immediately after the matching request envelope. It is portable Markdown
   source and renders as page-native prose in Exo, not a chat card.
 - If asked to create an artifact, the agent should create a nearby file or an `.exo` artifact only if instructed.
-- The user reviews changes through Exo's diff banner.
+- The user reviews ordinary edits inline against Exo's retained pre-invocation
+  snapshot. The colored response is the answer/receipt; other changes remain
+  observed edits until kept or rejected.
 
 V1 does not require agents to write inline comments or proposal batches. The
 linked response envelope is the one durable reply convention.
@@ -98,7 +114,9 @@ Before productizing templates:
 
 ### Claude Code
 
-Claude Code can edit files directly, but command flags and model choices change over time. Exo should not encode deep Claude lifecycle assumptions. Template docs can mention known command examples, but settings must remain user-owned.
+Claude Code can edit files directly. Exo's explicit adapter owns only the small
+provider seam needed for structured session provenance and safe resume; the
+user-owned command still controls model, permissions, and other launch flags.
 
 ### Codex
 
@@ -110,9 +128,12 @@ Local agents are just commands. Exo should not assume model provider, auth, or o
 
 ## Red Lines
 
-- No harness-specific parser for output in V1; the document-agent protocol is
-  provider-agnostic and its XML-like envelopes are inert source text.
-- No hidden prompt expansion beyond the visible template.
+- The document-agent protocol remains provider-agnostic and its XML-like
+  envelopes are inert source text. Provider session parsing stays behind an
+  explicit adapter and cannot key off a user-editable handle.
+- No vault injection. The prompt carries explicit paths, request data, and a
+  bounded note snapshot; agents read further context only when the request
+  needs it.
 - No claim that an agent will edit correctly without prototype evidence.
 - No skill install or provider config mutation as part of command setup.
 
