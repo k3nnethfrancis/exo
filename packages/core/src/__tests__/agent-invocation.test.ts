@@ -208,6 +208,10 @@ describe("agent invocation model", () => {
     expect(prompt).toContain("prefer the durable path target with a readable alias");
     expect(prompt).toContain("Exo document-agent protocol:");
     expect(prompt).toContain(`<exo-agent-response invocation="${protocolInvocationId}" agent="claude">`);
+    expect(prompt).toContain("Use a filesystem Edit or Write tool to modify the Working note path");
+    expect(prompt).toContain("Printing XML in stdout or assistant text does not write it to the note");
+    expect(prompt).toContain("Do not claim completion unless the filesystem tool reports success");
+    expect(prompt).toContain("Do not print the response envelope in your final summary");
   });
 
   it("keeps opinion and analysis requests response-only unless edits are useful", () => {

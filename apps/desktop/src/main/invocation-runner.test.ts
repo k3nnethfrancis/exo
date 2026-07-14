@@ -455,6 +455,29 @@ describe("InvocationRunner readiness parity", () => {
     });
   });
 
+  it("fails a protocol invocation when the command prints a response but never writes it into the note", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const documentBody = protocolNoteBody("# Before\n", "claude", "What do you think?");
+    await writeFile(notePath, documentBody, "utf8");
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, { ...createDefaultClaudeAgentCommand(), command: process.execPath }), new FakeTerminalManager(), processFactory);
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+
+    await runner.authorizeAndStart(await runner.prepare({
+      context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude",
+      message: "What do you think?", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody, allowUntrustedOneShot: true,
+    }));
+    processFactory.process.exit(0, `<exo-agent-response invocation="${TEST_PROTOCOL_INVOCATION_ID}" agent="claude">Chat only</exo-agent-response>`);
+
+    await expect(updated).resolves.toMatchObject({
+      status: "failed",
+      failureReason: "@claude finished without writing its linked response into the note.",
+      changedFileRefs: [],
+    });
+  });
+
   it("resumes with the configured Claude executable, not an assumed global binary", () => {
     const command = { ...createDefaultClaudeAgentCommand(), command: '"/Applications/Claude/bin/claude" -p --output-format json' };
     expect(commandForClaudeResume(command, "ce4b9e26-2574-4433-a054-1110cd403792"))

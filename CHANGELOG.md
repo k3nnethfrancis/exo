@@ -29,6 +29,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Distinguishes a headless Command's chat/stdout from the Exo note in the invocation prompt, requires a successful filesystem write for linked responses, and fails stdout-only protocol completions that never reach the document.
 - Starts with an empty editor when no saved layout chooses a note instead of hard-coding an Exo `tasks.md`; restores only user-selected tabs and migrates saved canvas layouts from v2 to the renderer's canonical v3 schema.
 - Gives the built-in headless Claude command explicit prompt-free access to the bounded read/edit tools it needs for inline responses, while leaving custom commands unchanged.
 - Keeps provider identity separate from editable `@` handles, prevents

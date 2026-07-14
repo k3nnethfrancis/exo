@@ -544,6 +544,17 @@ export class InvocationRunner extends EventEmitter {
       const after = await snapshotTextFile(observation.before.path);
       const store = new InvocationStore(observation.workspaceRoot);
       const changed = observation.before.sha256 !== after.sha256;
+      const missingDurableResponse = status === "process-exited" && !changed &&
+        isDocumentAgentProtocolId(observation.record.protocolInvocationId) &&
+        !findDocumentAgentEnvelopes(after.content).some((envelope) =>
+          envelope.kind === "response" &&
+          envelope.invocationId === observation.record.protocolInvocationId &&
+          envelope.agent === observation.record.command.handle,
+        );
+      const settledStatus = missingDurableResponse ? "failed" : status;
+      const settledFailureReason = missingDurableResponse
+        ? `@${observation.record.command.handle} finished without writing its linked response into the note.`
+        : failureReason;
       const changedFileRefs = [...observation.record.changedFileRefs];
       const diffRefs = [...observation.record.diffRefs];
       if (changed) {
@@ -560,7 +571,7 @@ export class InvocationRunner extends EventEmitter {
         diffRefs.push({ id: diffId, path: observation.before.path, format: "unified", ref: diffRef });
         changedFileRefs.push({ path: observation.before.path, kind: after.exists ? observation.before.exists ? "modified" : "created" : "deleted", observedAt: new Date().toISOString(), attribution: observation.overlapAtStart || !observation.observedPaths.has(path.resolve(observation.before.path)) ? "ambiguous" : "likely", diffRefId: diffId });
       }
-      const next = { ...observation.record, status, endedAt: new Date().toISOString(), ...(exitCode === undefined ? {} : { exitCode }), ...(status === "failed" ? { failureReason: failureReason ?? `Command exited with code ${exitCode ?? "unknown"}.` } : {}), changedFileRefs, diffRefs, ...(changed ? { review: { status: "pending" as const, beforeSha256: observation.before.sha256, afterSha256: after.sha256 } } : {}), attribution: changed ? { status: changedFileRefs.some((f) => f.attribution === "ambiguous") ? "ambiguous" as const : "likely" as const } : { status: "unattributed" as const, reason: status === "failed" ? failureReason ?? "The Command failed before changing the tagged document." : "No tagged document changes observed." } };
+      const next = { ...observation.record, status: settledStatus, endedAt: new Date().toISOString(), ...(exitCode === undefined ? {} : { exitCode }), ...(settledStatus === "failed" ? { failureReason: settledFailureReason ?? `Command exited with code ${exitCode ?? "unknown"}.` } : {}), changedFileRefs, diffRefs, ...(changed ? { review: { status: "pending" as const, beforeSha256: observation.before.sha256, afterSha256: after.sha256 } } : {}), attribution: changed ? { status: changedFileRefs.some((f) => f.attribution === "ambiguous") ? "ambiguous" as const : "likely" as const } : { status: "unattributed" as const, reason: settledStatus === "failed" ? settledFailureReason ?? "The Command failed before changing the tagged document." : "No tagged document changes observed." } };
       await store.writeRecord(next);
       this.emit("updated", next);
       return next;
