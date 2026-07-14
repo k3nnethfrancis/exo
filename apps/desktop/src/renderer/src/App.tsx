@@ -455,6 +455,9 @@ export function App() {
   }
 
   async function startInlineAgentInvocation(pending: PendingInvocationAuthorization, persistTrust: boolean) {
+    // Authorization is a decision surface, not invocation status. Close it as
+    // soon as the decision is made; failures belong to the document status UI.
+    setPendingInvocationAuthorization(null);
     try {
       await saveDocument(pending.document.filePath);
       const persisted = await window.exo.notes.read(pending.document.filePath);
@@ -478,7 +481,6 @@ export function App() {
       setKeptInvocationConflicts(new Set());
       setInvocationReview({ record: result.invocation });
       void loadInvocationReview(result.invocation);
-      setPendingInvocationAuthorization(null);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : String(error));
     }
@@ -535,6 +537,7 @@ export function App() {
     if (!invocationReview) return;
     try {
       await window.exo.workspace.resumeInvocationInTerminal(invocationReview.record.id);
+      setInvocationReview(null);
       dispatchUtility({ type: "select", destination: "terminal" });
     } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
   }
@@ -1398,6 +1401,7 @@ export function App() {
                       onKeepReview: () => void keepInvocationReview(),
                       onRejectReview: () => void rejectInvocationReview(),
                       onResumeInTerminal: invocationReview.record.providerSessionId ? () => void resumeInvocationInTerminal() : undefined,
+                      onDismiss: () => setInvocationReview(null),
                     }
                   : null
               }

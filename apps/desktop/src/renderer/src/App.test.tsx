@@ -87,6 +87,7 @@ import {
 import type { WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
 import type { TerminalSessionInfo } from "../../shared/api";
 import { hasInvocationDirtyConflict } from "./invocationReviewState";
+import { presentInvocation } from "./invocationPresentation";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -141,6 +142,41 @@ describe("agent invocation review", () => {
     expect(hasInvocationDirtyConflict(record, "/vault/current.md", { dirty: false }, new Set())).toBe(false);
     expect(hasInvocationDirtyConflict(record, "/vault/other.md", { dirty: true }, new Set())).toBe(false);
     expect(hasInvocationDirtyConflict(record, "/vault/current.md", { dirty: true }, new Set(["inv-1:/vault/current.md"]))).toBe(false);
+  });
+
+  it("presents failure recovery as the exact provider resume command", () => {
+    const presentation = presentInvocation(invocationRecord({
+      status: "failed",
+      failureReason: "Claude could not edit the note.",
+      providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
+      command: {
+        ...invocationRecord().command,
+        command: "claude -p --permission-mode acceptEdits --output-format json",
+      },
+    }));
+
+    expect(presentation).toMatchObject({
+      title: "@claude failed",
+      detail: "Claude could not edit the note.",
+      tone: "danger",
+      dismissible: true,
+    });
+    expect(presentation.resumeCommand).toBe("claude --permission-mode acceptEdits --resume 'ce4b9e26-2574-4433-a054-1110cd403792'");
+  });
+
+  it("keeps running and pending-review states intentionally persistent", () => {
+    expect(presentInvocation(invocationRecord({ status: "running" }))).toMatchObject({
+      title: "@claude running",
+      dismissible: false,
+      resumeCommand: null,
+    });
+    expect(presentInvocation(invocationRecord({
+      review: { status: "pending", beforeSha256: "before", afterSha256: "after" },
+      changedFileRefs: [{ path: "/vault/current.md", kind: "modified", attribution: "likely" }],
+    }))).toMatchObject({
+      title: "Review @claude changes",
+      dismissible: false,
+    });
   });
 });
 

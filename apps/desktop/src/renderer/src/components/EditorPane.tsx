@@ -193,4 +193,5 @@ export interface EditorInvocationReview {
   onKeepReview: () => void;
   onRejectReview: () => void;
   onResumeInTerminal?: () => void;
+  onDismiss: () => void;
 }

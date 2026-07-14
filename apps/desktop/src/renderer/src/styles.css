@@ -3147,7 +3147,7 @@ select.dialog-card__input {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   max-width: min(620px, calc(100% - 32px));
   padding: 8px 10px 8px 12px;
   border: 1px solid var(--surface-border-strong);
@@ -3166,8 +3166,34 @@ select.dialog-card__input {
   }
 }
 
+.invocation-review--danger {
+  border-color: var(--danger-border);
+}
+
+.invocation-review__status-icon {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.invocation-review--active .invocation-review__status-icon {
+  color: var(--accent);
+}
+
+.invocation-review--danger .invocation-review__status-icon {
+  color: var(--danger-strong);
+}
+
+.invocation-review__status-icon--spinning {
+  animation: invocation-status-spin 900ms linear infinite;
+}
+
+@keyframes invocation-status-spin {
+  to { transform: rotate(360deg); }
+}
+
 .invocation-review__summary {
   display: flex;
+  flex: 1 1 180px;
   min-width: 0;
   align-items: center;
   gap: 10px;
@@ -3188,7 +3214,56 @@ select.dialog-card__input {
 .invocation-review__actions {
   display: flex;
   flex: none;
+  align-items: center;
+  gap: 6px;
   justify-content: flex-start;
+}
+
+.invocation-review__resume {
+  display: inline-flex;
+  max-width: 330px;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px 4px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.invocation-review__resume:hover {
+  background: var(--surface-hover);
+}
+
+.invocation-review__resume > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.invocation-review__resume strong {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.invocation-review__resume code {
+  overflow: hidden;
+  color: var(--text-muted);
+  font: 10px/1.25 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invocation-review__resume > svg {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.invocation-review__dismiss {
+  flex: none;
 }
 
 .invocation-review__proposal {
@@ -3227,6 +3302,10 @@ select.dialog-card__input {
 @media (prefers-reduced-motion: reduce) {
   .invocation-review {
     transition: opacity 120ms ease;
+  }
+
+  .invocation-review__status-icon--spinning {
+    animation: none;
   }
 }
 

@@ -7,7 +7,7 @@ import { bracketMatching, foldGutter } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
-import { Code2, Plus, Save, SlidersHorizontal } from "lucide-react";
+import { ArrowUpRight, Check, CircleAlert, Code2, LoaderCircle, Plus, Save, SlidersHorizontal, X } from "lucide-react";
 import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 import type { InvocationReviewPayload } from "../../../shared/api";
@@ -18,6 +18,7 @@ import { AgentIcon } from "./AgentIcon";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
 import { inlineAgentComposerExtension, isPersistedInvocationPosition, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
+import { presentInvocation } from "../invocationPresentation";
 import {
   buildNoteGraphContext,
   graphReferencesForMarkdownMode,
@@ -703,6 +704,13 @@ export function NoteEditor(props: NoteEditorProps) {
     );
   }
 
+  const invocationPresentation = invocationReview
+    ? presentInvocation(invocationReview.record, invocationReview.hasDirtyConflict)
+    : null;
+  const InvocationStatusIcon = invocationPresentation?.tone === "active"
+    ? LoaderCircle
+    : invocationPresentation?.tone === "danger" ? CircleAlert : Check;
+
   return (
     <section
       className={`editor-panel ${compact ? "editor-panel--compact" : ""}`}
@@ -952,11 +960,12 @@ export function NoteEditor(props: NoteEditorProps) {
             ))}
           </div>
         ) : null}
-        {invocationReview ? (
-          <div className={`invocation-review invocation-review--${invocationReview.record.status}`} data-testid="invocation-review-banner" role="status">
+        {invocationReview && invocationPresentation ? (
+          <div className={`invocation-review invocation-review--${invocationPresentation.tone}`} data-testid="invocation-review-banner" role="status">
+            <InvocationStatusIcon aria-hidden="true" className={`invocation-review__status-icon ${invocationPresentation.tone === "active" ? "invocation-review__status-icon--spinning" : ""}`} size={15} strokeWidth={1.8} />
             <div className="invocation-review__summary">
-              <strong>{formatInvocationReviewTitle(invocationReview.record)}</strong>
-              <span>{formatInvocationReviewDetail(invocationReview.record, invocationReview.hasDirtyConflict)}</span>
+              <strong>{invocationPresentation.title}</strong>
+              <span>{invocationPresentation.detail}</span>
             </div>
             <div className="invocation-review__actions">
               {invocationReview.hasDirtyConflict ? (
@@ -975,8 +984,14 @@ export function NoteEditor(props: NoteEditorProps) {
                 </button>
               ) : null}
               {invocationReview.onResumeInTerminal ? (
-                <button className="toolbar-button" data-testid="invocation-resume-terminal" onClick={invocationReview.onResumeInTerminal} type="button">
-                  Resume in Shell
+                <button className="invocation-review__resume" data-testid="invocation-resume-terminal" onClick={invocationReview.onResumeInTerminal} title="Open this session in Terminal" type="button">
+                  <span><strong>Resume</strong><code>{invocationPresentation.resumeCommand}</code></span>
+                  <ArrowUpRight aria-hidden="true" size={14} strokeWidth={1.8} />
+                </button>
+              ) : null}
+              {invocationPresentation.dismissible ? (
+                <button aria-label="Dismiss invocation status" className="icon-button invocation-review__dismiss" data-testid="invocation-dismiss" onClick={invocationReview.onDismiss} title="Dismiss" type="button">
+                  <X aria-hidden="true" size={14} />
                 </button>
               ) : null}
             </div>
@@ -1012,33 +1027,7 @@ interface NoteInvocationReview {
   onKeepReview: () => void;
   onRejectReview: () => void;
   onResumeInTerminal?: () => void;
-}
-
-function formatInvocationReviewDetail(record: InvocationRecord, hasDirtyConflict = false): string {
-  if (hasDirtyConflict) {
-    return "Disk changed while this editor has unsaved edits.";
-  }
-  if (record.status === "running") {
-    return "Observation is active for this document.";
-  }
-  if (record.status === "failed") {
-    return record.failureReason ?? "The command did not complete.";
-  }
-  if (record.changedFileRefs.length === 0) {
-    return "No tagged document changes were observed.";
-  }
-  const ambiguous = record.changedFileRefs.some((file) => file.attribution === "ambiguous");
-  return `${record.changedFileRefs.length} changed file${record.changedFileRefs.length === 1 ? "" : "s"}${ambiguous ? " with ambiguous attribution" : ""}.`;
-}
-
-function formatInvocationReviewTitle(record: InvocationRecord): string {
-  if (record.status === "running") {
-    return `Running @${record.command.handle}`;
-  }
-  if (record.status === "failed") {
-    return `@${record.command.handle} failed`;
-  }
-  return `@${record.command.handle} finished`;
+  onDismiss: () => void;
 }
 
 function clampPosition(position: number, docLength: number): number {

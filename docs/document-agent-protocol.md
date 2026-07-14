@@ -55,6 +55,24 @@ linked response envelope directly after the request. For direct-edit work the
 response can be a short receipt; for analysis, research, and planning it holds
 the durable result. Terminal stdout remains only a concise session summary.
 
+## App lifecycle
+
+The document shows one invocation surface at a time. Authorization is a
+temporary decision modal and closes as soon as the user chooses Run or Cancel;
+it is not a progress surface.
+
+| State | Surface | Exit |
+| --- | --- | --- |
+| Running | Compact status; Exo is watching the note | End observation |
+| Review | Changed-file summary and Keep/Reject | Keep or Reject |
+| Completed | Brief result, dismissible | Dismiss or resume session |
+| Failed | Failure reason, dismissible; exact resume command when available | Dismiss or resume session |
+
+Provider resume is an explicit handoff. Exo shows the same command it will run,
+opens it in Terminal, and removes the document status only after Terminal
+accepts the handoff. Invocation history and document envelopes remain durable;
+the transient status surface does not.
+
 ## Deliberate limits
 
 - No automatic execution from document text.

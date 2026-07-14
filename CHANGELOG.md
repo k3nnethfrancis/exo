@@ -26,6 +26,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Unifies inline invocation feedback around running, review, completed, and failed states; failed Claude sessions show the exact resume command, successful terminal handoff dismisses the status surface, and the authorization modal no longer survives a settled launch decision.
 - Clarifies onboarding's separate MCP and CLI access paths, shows only the two read-only MCP tools, treats an existing provider registration as installed, gives an actionable missing-provider-CLI error, and keeps configured agent commands on one full-width line.
 - Reserves a scroll-safe lower edge in the Explorer so long file lists fade out above the floating workspace menu instead of disappearing behind it.
 - Makes the inline `@claude` path genuinely headless and writable: the visible, fingerprinted default now uses `acceptEdits`, real Claude event-array output supplies session provenance, structured permission denials fail explicitly, and process finalization waits for drained output.

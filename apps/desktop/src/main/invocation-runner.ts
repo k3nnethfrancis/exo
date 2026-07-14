@@ -22,6 +22,7 @@ import {
   type WorkspaceSettings,
   isDocumentAgentProtocolId,
 } from "@exo/core";
+import { commandForClaudeResume as buildClaudeResumeCommand } from "@exo/core/provider-session";
 
 import type { TerminalSessionInfo } from "../shared/api";
 import type { AgentCommandLaunchFacts } from "../shared/api";
@@ -469,8 +470,6 @@ async function readTextOrNull(filePath: string): Promise<string | null> {
   try { return await readFile(filePath, "utf8"); } catch { return null; }
 }
 
-function shellArgument(value: string): string { return `'${value.replace(/'/g, "'\\\"'\\\"'")}'`; }
-
 /** Claude's documented print JSON exposes its real session_id. Generic Commands
  * retain their configured command and simply have no resumable provenance. */
 export function commandForHeadlessInvocation(command: AgentCommand): string {
@@ -481,11 +480,5 @@ export function commandForHeadlessInvocation(command: AgentCommand): string {
 /** Reuse the configured Claude executable for the visible provider-native
  * handoff, removing only print-mode switches that conflict with --resume. */
 export function commandForClaudeResume(command: AgentCommand, sessionId: string): string {
-  const executable = command.command
-    .replace(/(?:^|\s)-p(?:\s|$)/g, " ")
-    .replace(/(?:^|\s)--print(?:\s|$)/g, " ")
-    .replace(/(?:^|\s)--output-format(?:\s+\S+|=\S+)?/g, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-  return `${executable} --resume ${shellArgument(sessionId)}`;
+  return buildClaudeResumeCommand(command, sessionId);
 }
