@@ -224,6 +224,17 @@ describe("workspace settings footer copy", () => {
             promptDelivery: "stdin",
             version: 1,
             enabled: true,
+          }, {
+            id: "codex",
+            label: "Codex",
+            handle: "codex",
+            command: "codex exec",
+            adapter: "codex-cli",
+            continuityPolicy: "fresh",
+            cwdPolicy: "workspace_root",
+            promptDelivery: "stdin",
+            version: 1,
+            enabled: true,
           }],
         })}
         setSettings={() => {}}
@@ -235,6 +246,8 @@ describe("workspace settings footer copy", () => {
     expect(html).toContain("@claude");
     expect(workspaceSettingsDialogIntroCopy("agents", false)).toBe("Configure the agents available from @ mentions.");
     expect(html).toContain("claude -p");
+    expect(html).toContain("Keep context");
+    expect(html).toContain("Unavailable");
   });
 
   it("explains pending embeddings after a failed sync instead of only saying pending", () => {
