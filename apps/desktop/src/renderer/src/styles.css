@@ -2826,32 +2826,109 @@ select.dialog-card__input {
   gap: 16px;
 }
 
+.onboarding-access {
+  display: grid;
+  gap: 10px;
+}
+
+.onboarding-access + .onboarding-access {
+  padding-top: 14px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.onboarding-access__header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.onboarding-access__header > svg {
+  color: var(--accent);
+}
+
+.onboarding-access__header > div {
+  display: grid;
+  gap: 1px;
+}
+
+.onboarding-access__header strong {
+  font-size: 13px;
+}
+
+.onboarding-access__header span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .onboarding-mcp-tools {
   display: grid;
-  gap: 2px;
-  margin: 2px 0 0;
+  gap: 4px;
+  margin: 4px 0 0;
   padding: 0;
   list-style: none;
 }
 
 .onboarding-mcp-tools li {
   display: grid;
-  gap: 2px;
-  padding: 9px 0;
-  border-top: 1px solid var(--surface-border);
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--surface-border);
+  border-radius: 9px;
+  background: var(--surface-1);
 }
 
-.onboarding-mcp-tools li:first-child {
-  border-top: 0;
+.onboarding-mcp-tools li > svg {
+  color: var(--muted);
 }
 
-.onboarding-mcp-tools strong {
-  font-size: 13px;
+.onboarding-mcp-tools__copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
 }
 
-.onboarding-mcp-tools span {
+.onboarding-mcp-tools__copy code {
+  color: var(--text);
+  font-family: var(--mono-font);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.onboarding-mcp-tools__copy > span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.onboarding-mcp-tools__access {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.onboarding-cli-context {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.onboarding-cli-context code {
+  padding: 4px 6px;
+  border: 1px solid var(--surface-border);
+  border-radius: 6px;
+  color: var(--text);
+  background: var(--surface-2);
+  font-family: var(--mono-font);
+  font-size: 11px;
+}
+
+.onboarding-cli-context .onboarding-mcp-tools__access {
+  margin-left: auto;
 }
 
 @media (prefers-reduced-motion: reduce) {

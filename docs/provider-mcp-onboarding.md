@@ -2,6 +2,16 @@
 
 Exo can install its own small, read-only MCP server into the locally installed Claude and/or Codex CLI during first-run setup.
 
+## MCP and CLI
+
+Exo supports both local access paths. MCP is for clients that can call tools;
+the Exo CLI is for shell-capable clients. MCP is optional and does not replace
+the CLI. The onboarding screen installs MCP explicitly, then configures local
+CLI Commands for inline invocation.
+
+Shell-capable clients can use `exo status` and `exo search` directly. MCP
+clients receive the two read-only discovery tools below.
+
 ## What agents receive
 
 The installed `exo` server gives an agent exactly two discovery tools:

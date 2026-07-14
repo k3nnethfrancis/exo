@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { Database, Search, ShieldCheck, SquareTerminal } from "lucide-react";
 import type {
   AgentCommand,
   FolderIndexStatus,
@@ -1054,7 +1055,7 @@ export function App() {
                   onClick={() => setOnboardingState((current) => current ? { ...current, step: "mcp", status: "idle", errorMessage: null } : current)}
                   type="button"
                 >
-                  Continue to Exo tools
+                  Continue to MCP
                 </button>
               </div>
             </>
@@ -1110,47 +1111,67 @@ export function App() {
           ) : (
             <>
               <div className="onboarding-card__body" data-testid="onboarding-card-body">
-                <h1 className="onboarding-card__title">Give agents Exo context</h1>
+                <h1 className="onboarding-card__title">Agent access</h1>
                 <p className="onboarding-card__copy">
-                  Optional. Install Exo’s read-only tools into the agents you use. They can check the active workspace, search your notes, and read matching notes without guessing paths or loading your whole wiki into context.
+                  MCP for tools. CLI for shells.
                 </p>
                 <div className="onboarding-section onboarding-section--primary">
-                  <div className="dialog-field__label">Install Exo tools for</div>
-                  <div className="onboarding-provider-picks">
-                    {(["claude", "codex"] as const).map((provider) => (
-                      <label className="dialog-check" key={provider}>
-                        <input checked={onboardingMcp.providers.includes(provider)} type="checkbox" onChange={(event) => setOnboardingMcp((current) => ({
-                          ...current,
-                          providers: event.target.checked ? [...current.providers, provider] : current.providers.filter((entry) => entry !== provider),
-                          status: "idle", errorMessage: null, results: [],
-                        }))} />
-                        <span>{provider === "claude" ? "Claude" : "Codex"}</span>
-                      </label>
-                    ))}
-                  </div>
-                  <ul className="onboarding-mcp-tools" aria-label="Exo tools">
-                    <li><strong>Workspace status</strong><span>Know the current wiki and retrieval health.</span></li>
-                    <li><strong>Search notes</strong><span>Find relevant local context before acting.</span></li>
-                    <li><strong>Read note</strong><span>Read only the notes returned by search.</span></li>
-                  </ul>
-                  <div className="onboarding-card__actions onboarding-card__actions--inline">
-                    <button className="toolbar-button" disabled={onboardingMcp.status === "saving"} onClick={() => void (async () => {
-                      setOnboardingMcp((current) => ({ ...current, status: "saving", errorMessage: null, results: [] }));
-                      try {
-                        const results = await window.exo.workspace.configureProviderMcp({ providers: onboardingMcp.providers });
-                        setOnboardingMcp((current) => ({ ...current, status: results.every((result) => result.ok) ? "done" : "error", results, errorMessage: results.some((result) => !result.ok) ? "One or more providers could not add this server." : null }));
-                      } catch (error) {
-                        setOnboardingMcp((current) => ({ ...current, status: "error", errorMessage: error instanceof Error ? error.message : String(error), results: [] }));
-                      }
-                    })()} type="button">{onboardingMcp.status === "saving" ? "Installing…" : "Install Exo tools"}</button>
-                  </div>
-                  {onboardingMcp.errorMessage ? <div className="dialog-card__status dialog-card__status--error">{onboardingMcp.errorMessage}</div> : null}
-                  {onboardingMcp.results.map((result) => <div className={`dialog-card__status${result.ok ? "" : " dialog-card__status--error"}`} key={result.provider}>{result.detail}</div>)}
+                  <section className="onboarding-access" aria-labelledby="onboarding-mcp-title">
+                    <div className="onboarding-access__header">
+                      <ShieldCheck aria-hidden="true" size={16} strokeWidth={1.8} />
+                      <div><strong id="onboarding-mcp-title">MCP</strong><span>Read-only context · 2 tools</span></div>
+                    </div>
+                    <div className="dialog-field__label">Add MCP to</div>
+                    <div className="onboarding-provider-picks">
+                      {(["claude", "codex"] as const).map((provider) => (
+                        <label className="dialog-check" key={provider}>
+                          <input checked={onboardingMcp.providers.includes(provider)} type="checkbox" onChange={(event) => setOnboardingMcp((current) => ({
+                            ...current,
+                            providers: event.target.checked ? [...current.providers, provider] : current.providers.filter((entry) => entry !== provider),
+                            status: "idle", errorMessage: null, results: [],
+                          }))} />
+                          <span>{provider === "claude" ? "Claude" : "Codex"}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <ul className="onboarding-mcp-tools" aria-label="Exo MCP tools">
+                      <li>
+                        <Database aria-hidden="true" size={16} strokeWidth={1.8} />
+                        <span className="onboarding-mcp-tools__copy"><code>workspace_status</code><span>Wiki and search health</span></span>
+                        <span className="onboarding-mcp-tools__access">Read</span>
+                      </li>
+                      <li>
+                        <Search aria-hidden="true" size={16} strokeWidth={1.8} />
+                        <span className="onboarding-mcp-tools__copy"><code>search_notes</code><span>Paths, titles, and snippets</span></span>
+                        <span className="onboarding-mcp-tools__access">Read</span>
+                      </li>
+                    </ul>
+                    <div className="onboarding-card__actions onboarding-card__actions--inline">
+                      <button className="toolbar-button" disabled={onboardingMcp.providers.length === 0 || onboardingMcp.status === "saving"} onClick={() => void (async () => {
+                        setOnboardingMcp((current) => ({ ...current, status: "saving", errorMessage: null, results: [] }));
+                        try {
+                          const results = await window.exo.workspace.configureProviderMcp({ providers: onboardingMcp.providers });
+                          setOnboardingMcp((current) => ({ ...current, status: results.every((result) => result.ok) ? "done" : "error", results, errorMessage: results.some((result) => !result.ok) ? "MCP setup needs attention." : null }));
+                        } catch (error) {
+                          setOnboardingMcp((current) => ({ ...current, status: "error", errorMessage: error instanceof Error ? error.message : String(error), results: [] }));
+                        }
+                      })()} type="button">{onboardingMcp.status === "saving" ? "Installing…" : "Install MCP"}</button>
+                    </div>
+                    {onboardingMcp.errorMessage ? <div className="dialog-card__status dialog-card__status--error">{onboardingMcp.errorMessage}</div> : null}
+                    {onboardingMcp.results.map((result) => <div className={`dialog-card__status${result.ok ? "" : " dialog-card__status--error"}`} key={result.provider}>{result.detail}</div>)}
+                  </section>
+                  <section className="onboarding-access onboarding-access--cli" aria-labelledby="onboarding-cli-title">
+                    <div className="onboarding-access__header">
+                      <SquareTerminal aria-hidden="true" size={16} strokeWidth={1.8} />
+                      <div><strong id="onboarding-cli-title">CLI</strong><span>For shell-capable clients</span></div>
+                    </div>
+                    <div className="onboarding-cli-context"><code>exo status</code><code>exo search</code><span className="onboarding-mcp-tools__access">Read</span></div>
+                  </section>
                 </div>
               </div>
               <div className="onboarding-card__actions">
                 <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "configure", errorMessage: null } : current)} type="button">Back</button>
-                <button className="toolbar-button toolbar-button--primary" onClick={() => setOnboardingState((current) => current ? { ...current, step: "agents", errorMessage: null } : current)} type="button">Continue to agents</button>
+                <button className="toolbar-button toolbar-button--primary" onClick={() => setOnboardingState((current) => current ? { ...current, step: "agents", errorMessage: null } : current)} type="button">Set up CLI agents</button>
               </div>
             </>
           )}

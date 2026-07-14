@@ -114,11 +114,12 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   roots, and app retrieval must not cross that resolved scope.
 - Completed proof: caller-cwd, singleton fallback, ambiguity refusal, and
   app-mismatch fallback tests. The adapter reports resolved Workspace identity
-  and roots and never consumes a running app outside that scope.
-- Remaining proof: bounded-output/protocol snapshots; provider setup
-  idempotency, missing-CLI, and removal documentation; and 10–20 real
-  Claude/Codex sessions measuring Exo discovery, search-before-read, and zero
-  out-of-root reads.
+  and roots and never consumes a running app outside that scope. Provider setup
+  also treats an existing registration as success and names a missing provider
+  CLI directly.
+- Remaining proof: bounded-output/protocol snapshots, provider-native removal
+  documentation, and 10–20 real Claude/Codex sessions measuring Exo discovery,
+  search-before-read, and zero out-of-root reads.
 
 ### EXO-ISSUE-104: Preview pane lifecycle evidence
 

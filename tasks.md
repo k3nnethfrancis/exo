@@ -100,7 +100,7 @@ Start only after the trust gates above pass.
 - [x] Restore a narrow Exo MCP discovery server for Claude/Codex installation: `workspace_status` and `search_notes` expose scope and ranked note metadata. It is not a general MCP manager, plugin runtime, arbitrary-server form, or note-reading/write surface.
 - [x] Reorder first-run as main wiki → optional Exo MCP install → editable local Claude/Codex invocation Commands. Commands have clear recommended defaults and a fully visible, editable command value.
 - [x] Implement the Exo MCP scope contract: freeze the two discovery tools (`workspace_status`, `search_notes`); resolve retrieval from caller cwd with only an unambiguous single-Workspace fallback; report resolved scope in status; refuse ambiguity; and prevent app retrieval from crossing Workspace scope.
-- [ ] Stabilize the Exo MCP public contract: add remaining containment/protocol/setup coverage, make onboarding/removal copy explicit, and dogfood 10–20 real Claude/Codex context-seeking sessions before treating ambient instruction templates as earned.
+- [ ] Stabilize the Exo MCP public contract: add bounded-output/protocol coverage, document provider-native removal, and dogfood 10–20 real Claude/Codex context-seeking sessions before treating ambient instruction templates as earned.
 
 ### Folder Overview and Folder Index
 
