@@ -173,7 +173,6 @@ function workspaceSettings(): WorkspaceSettings {
     explorerScale: 1,
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",
-    invocationContinuityPolicy: "continuous",
   };
 }
 

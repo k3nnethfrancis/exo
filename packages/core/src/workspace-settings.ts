@@ -364,7 +364,6 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     defaultTerminalCwd,
     noteRoots,
     agentCommands: normalizeAgentCommands(input.agentCommands),
-    invocationContinuityPolicy: input.invocationContinuityPolicy === "fresh" ? "fresh" : "continuous",
     indexedRoots,
     indexing,
     appearanceMode: input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system" ? input.appearanceMode : DEFAULT_APPEARANCE_MODE,

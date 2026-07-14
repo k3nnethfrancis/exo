@@ -105,6 +105,5 @@ function workspaceSettings(): WorkspaceSettings {
     explorerScale: 1,
     exploreIndexSearchOnEnter: true,
     indexUpdateStrategy: "on-save",
-    invocationContinuityPolicy: "continuous",
   };
 }

@@ -22,6 +22,7 @@ describe("agent invocation model", () => {
       handle: "codex",
       command: "codex exec --sandbox workspace-write -",
       adapter: "codex-cli",
+      continuityPolicy: "fresh",
       cwdPolicy: "workspace_root",
       promptDelivery: "stdin",
       enabled: true,
@@ -68,6 +69,7 @@ describe("agent invocation model", () => {
       handle: "claude",
       command: "claude",
       adapter: "generic",
+      continuityPolicy: "fresh",
       cwdPolicy: "workspace_root",
       promptDelivery: "stdin",
       version: 1,
@@ -79,30 +81,30 @@ describe("agent invocation model", () => {
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude",
       cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",
-    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", adapter: "claude-code", promptDelivery: "stdin" });
+    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", adapter: "claude-code", continuityPolicy: "continuous", promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude -p",
       cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
-    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", adapter: "claude-code", promptDelivery: "stdin" });
+    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", adapter: "claude-code", continuityPolicy: "continuous", promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
       id: "custom", label: "My Claude", handle: "claude", command: "claude",
       cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",
-    })).toMatchObject({ command: "claude", adapter: "generic", promptDelivery: "stdin" });
+    })).toMatchObject({ command: "claude", adapter: "generic", continuityPolicy: "fresh", promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude -p --model sonnet",
       cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
-    })).toMatchObject({ command: "claude -p --model sonnet", adapter: "generic" });
+    })).toMatchObject({ command: "claude -p --model sonnet", adapter: "generic", continuityPolicy: "fresh" });
   });
 
   it("never infers a provider adapter from an editable handle", () => {
     expect(normalizeAgentCommand({
       id: "custom", label: "Claude", handle: "claude", command: "/tmp/not-claude",
       cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
-    })).toMatchObject({ adapter: "generic" });
+    })).toMatchObject({ adapter: "generic", continuityPolicy: "fresh" });
     expect(normalizeAgentCommand({
       id: "custom", label: "Custom", handle: "helper", command: "/tmp/helper", adapter: "claude-code",
       cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
-    })).toMatchObject({ adapter: "claude-code" });
+    })).toMatchObject({ adapter: "claude-code", continuityPolicy: "fresh" });
   });
 
   it("rejects V1 command records with env or template execution fields", () => {

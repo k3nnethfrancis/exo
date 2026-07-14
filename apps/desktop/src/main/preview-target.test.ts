@@ -159,7 +159,6 @@ async function previewFixture(): Promise<{
       explorerScale: 1,
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "manual",
-      invocationContinuityPolicy: "continuous",
     },
   };
 }

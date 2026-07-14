@@ -26,6 +26,7 @@ export interface AgentCommand {
   handle: string;
   command: string;
   adapter: AgentCommandAdapter;
+  continuityPolicy: InvocationContinuityPolicy;
   cwdPolicy: AgentCommandCwdPolicy;
   fixedCwd?: string;
   promptDelivery: AgentCommandPromptDelivery;
@@ -65,6 +66,7 @@ export interface AgentCommandSnapshot {
   handle: string;
   command: string;
   adapter: AgentCommandAdapter;
+  continuityPolicy: InvocationContinuityPolicy;
   cwdPolicy: AgentCommandCwdPolicy;
   fixedCwd?: string;
   promptDelivery: AgentCommandPromptDelivery;
@@ -182,12 +184,14 @@ export function normalizeAgentCommand(input: unknown, fallbackId?: string): Agen
     return null;
   }
 
+  const adapter = normalizeAgentCommandAdapter(candidate.adapter, { ...candidate, command });
   return {
     id,
     label,
     handle,
     command,
-    adapter: normalizeAgentCommandAdapter(candidate.adapter, { ...candidate, command }),
+    adapter,
+    continuityPolicy: normalizeCommandContinuityPolicy(candidate.continuityPolicy, adapter, candidate, command),
     cwdPolicy,
     ...(fixedCwd ? { fixedCwd } : {}),
     promptDelivery,
@@ -223,6 +227,7 @@ export function agentCommandExecutableFingerprint(command: AgentCommand): string
   const payload = {
     command: command.command,
     adapter: command.adapter,
+    continuityPolicy: command.continuityPolicy,
     cwdPolicy: command.cwdPolicy,
     fixedCwd: command.fixedCwd ?? null,
     handle: command.handle,
@@ -570,6 +575,24 @@ function normalizeAgentCommandAdapter(
     return "codex-cli";
   }
   return "generic";
+}
+
+function normalizeCommandContinuityPolicy(
+  value: unknown,
+  adapter: AgentCommandAdapter,
+  candidate: Partial<AgentCommand>,
+  command: string,
+): InvocationContinuityPolicy {
+  if (adapter !== "claude-code") {
+    return "fresh";
+  }
+  if (value === "continuous" || value === "fresh") {
+    return value;
+  }
+  const exactBuiltIn = candidate.id === candidate.handle &&
+    candidate.label === capitalizeBuiltInLabel(candidate.handle) &&
+    command === createDefaultClaudeAgentCommand().command;
+  return exactBuiltIn ? "continuous" : "fresh";
 }
 
 function capitalizeBuiltInLabel(handle: unknown): string | null {

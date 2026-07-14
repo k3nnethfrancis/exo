@@ -17,7 +17,7 @@
 ## 2026-07-13 — Phase 2 complete: contracts and derived head store
 
 - Added explicit `generic` / `claude-code` / `codex-cli` Command adapters. Only exact known built-ins migrate to provider adapters; editable handles and custom commands remain generic.
-- Added Workspace `continuous` / `fresh` policy with `continuous` as the normalized default.
+- Added per-Command `continuous` / `fresh` policy. The exact built-in Claude Command defaults continuous; Codex and generic Commands normalize fresh until their continuity adapters are proven.
 - Added per-Invocation fresh/resumed/fallback provenance while keeping provider session IDs separate from Exo Invocation IDs.
 - Added an atomic, Workspace-local `.exo/invocation-continuity/v1` head store keyed by Workspace, Command, canonical cwd, and validated against adapter/fingerprint.
 - Core: 15 files / 99 tests passed. Desktop focused suite: 24 files / 181 tests passed. Core and desktop typechecks passed.
