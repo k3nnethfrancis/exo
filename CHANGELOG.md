@@ -26,6 +26,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Clarifies onboarding's separate MCP and CLI access paths, shows only the two read-only MCP tools, treats an existing provider registration as installed, and gives an actionable missing-provider-CLI error.
 - Reserves a scroll-safe lower edge in the Explorer so long file lists fade out above the floating workspace menu instead of disappearing behind it.
 - Makes the inline `@claude` path genuinely headless and writable: the visible, fingerprinted default now uses `acceptEdits`, real Claude event-array output supplies session provenance, structured permission denials fail explicitly, and process finalization waits for drained output.
 - Keeps sent invocation envelopes visible only in raw Markdown, retains the agent-colored mention in live preview, prevents re-wrapping an existing invocation, and saves/prompts/baselines the same document snapshot before observation.
