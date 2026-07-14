@@ -49,7 +49,7 @@ await writeFile(notePath, current.replace("# Agent Invocation", "# Agent Revisio
       changedFileRefs: [expect.objectContaining({ attribution: "likely" })],
     });
     expect(record).not.toHaveProperty("terminalSessionId");
-    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Document snapshot at invocation:");
+    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Working-note snapshot at invocation:");
     await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Exo document-agent protocol:");
     await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("# Agent Invocation");
     await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Review this document.");
