@@ -2775,6 +2775,7 @@ select.dialog-card__input {
 }
 
 .onboarding-agent__copy {
+  flex: 1 1 auto;
   display: grid;
   min-width: 0;
   gap: 3px;
@@ -2804,7 +2805,7 @@ select.dialog-card__input {
 .onboarding-agent__command {
   width: 100%;
   min-width: 0;
-  min-height: 2.7em;
+  height: 28px;
   padding: 3px 0;
   border: 0;
   background: transparent;
@@ -2814,7 +2815,6 @@ select.dialog-card__input {
   font-size: 12px;
   line-height: 1.35;
   outline: none;
-  resize: vertical;
 }
 
 .onboarding-agent__command:focus {

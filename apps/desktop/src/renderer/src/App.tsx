@@ -1083,11 +1083,11 @@ export function App() {
                       <span className="onboarding-agent__copy">
                         <strong>{command.label} <em>Recommended</em></strong>
                         <span>@{command.handle}</span>
-                        <textarea
+                        <input
                           aria-label={`${command.label} command`}
                           className="onboarding-agent__command"
-                          rows={2}
                           spellCheck={false}
+                          type="text"
                           value={command.command}
                           onChange={(event) => setOnboardingState((current) => current ? {
                             ...current,
