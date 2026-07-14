@@ -161,26 +161,97 @@ describe("agent invocation model", () => {
     ])).toEqual([createDefaultClaudeAgentCommand()]);
   });
 
-  it("formats an explicit invocation with its message and document snapshot", () => {
+  it("formats a note invocation with Exo workspace and referenced-note guidance", () => {
     const protocolInvocationId = "11111111-1111-4111-8111-111111111111";
     const prompt = formatNoteInvocationPrompt({
+      workspaceRoot: "/workspace",
       documentPath: "/workspace/notes/task.md",
       mentionText: "@claude",
-      message: "Find relevant context and link it.",
+      message: "Read [[research/self-improving-systems|the essay]] and tell me what you think.",
       protocolInvocationId,
       agentHandle: "claude",
       frontmatter: { tags: ["exo"] },
       body: "# Task\n\nCurrent draft",
     });
-    expect(prompt).toContain("Working document:\n/workspace/notes/task.md");
-    expect(prompt).toContain("Message:\nFind relevant context and link it.");
+    expect(prompt).toContain("Working note:\n/workspace/notes/task.md");
+    expect(prompt).toContain("Message:\nRead [[research/self-improving-systems|the essay]] and tell me what you think.");
     expect(prompt).toContain('"tags": [');
     expect(prompt).toContain("# Task");
-    expect(prompt).toContain("explicitly authorized Exo work run");
-    expect(prompt).toContain("Do not return a chat-only answer.");
-    expect(prompt).toContain("editing the working document directly");
+    expect(prompt).toContain("Exo Workspace");
+    expect(prompt).toContain("Workspace root:\n/workspace");
+    expect(prompt).toContain("configured Note Roots");
+    expect(prompt).toContain("[[durable/path/to/note|Readable title]]");
+    expect(prompt).toContain("[[note-name]]");
+    expect(prompt).toContain("native filesystem tools or Exo CLI/Search");
+    expect(prompt).toContain("prefer the durable path target with a readable alias");
     expect(prompt).toContain("Exo document-agent protocol:");
     expect(prompt).toContain(`<exo-agent-response invocation="${protocolInvocationId}" agent="claude">`);
+  });
+
+  it("keeps opinion and analysis requests response-only unless edits are useful", () => {
+    const prompt = formatNoteInvocationPrompt({
+      documentPath: "/workspace/notes/essay.md",
+      mentionText: "@claude",
+      message: "What do you think of this essay?",
+      protocolInvocationId: "11111111-1111-4111-8111-111111111111",
+      agentHandle: "claude",
+      body: "# Essay\n\nDraft",
+    });
+
+    expect(prompt).toContain("For an answer-shaped request");
+    expect(prompt).toContain("the linked Exo agent response is the deliverable");
+    expect(prompt).toContain("Make direct Markdown edits only when requested or genuinely useful.");
+    expect(prompt).not.toContain("Complete the user's request by editing the working document directly");
+    expect(prompt).not.toContain("write the useful result into the working document in the appropriate place");
+  });
+
+  it("directs requested document changes to ordinary reviewable Markdown", () => {
+    const prompt = formatNoteInvocationPrompt({
+      documentPath: "/workspace/notes/essay.md",
+      mentionText: "@claude",
+      message: "Rewrite the introduction and add two sources.",
+      protocolInvocationId: "11111111-1111-4111-8111-111111111111",
+      agentHandle: "claude",
+      body: "# Essay\n\nDraft",
+    });
+
+    expect(prompt).toContain("For an edit-shaped request, edit the relevant Markdown directly");
+    expect(prompt).toContain("use the linked Exo agent response as a concise receipt describing those edits");
+    expect(prompt).toContain("Direct edits remain ordinary Markdown and Exo presents them for review.");
+  });
+
+  it("marks the supplied note snapshot as bounded and directs full reads to disk", () => {
+    const withBody = formatNoteInvocationPrompt({
+      documentPath: "/workspace/notes/large.md",
+      mentionText: "@claude",
+      message: "Check the conclusion.",
+      body: "# Large note\n\nPartial snapshot",
+    });
+    const withoutBody = formatNoteInvocationPrompt({
+      documentPath: "/workspace/notes/large.md",
+      mentionText: "@claude",
+      message: "Check the conclusion.",
+    });
+
+    expect(withBody).toContain("--- body snapshot (may be truncated) ---");
+    expect(withBody).toContain("--- end bounded snapshot; read the working note from disk when more context is needed ---");
+    expect(withoutBody).toContain("The current body was not supplied; read the file from disk.");
+  });
+
+  it("requires one linked, durable page-native response rather than a transient result", () => {
+    const invocationId = "11111111-1111-4111-8111-111111111111";
+    const prompt = formatNoteInvocationPrompt({
+      documentPath: "/workspace/notes/essay.md",
+      mentionText: "@claude",
+      message: "Summarize the argument.",
+      protocolInvocationId: invocationId,
+      agentHandle: "claude",
+    });
+
+    expect(prompt).toContain(`exactly one <exo-agent-response> linked to invocation ${invocationId}`);
+    expect(prompt).toContain("Exo renders that envelope as the colored, page-native agent response");
+    expect(prompt).toContain("Never leave the useful answer only in stdout, chat, or another transient surface.");
+    expect(prompt.match(/<exo-agent-response invocation=/g)).toHaveLength(1);
   });
 
   it("round-trips the inert document-agent envelopes and ignores malformed source", () => {

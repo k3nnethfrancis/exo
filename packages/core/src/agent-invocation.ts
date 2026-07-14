@@ -259,6 +259,7 @@ export function deriveAgentCommandLaunch(
 }
 
 export function formatNoteInvocationPrompt(input: {
+  workspaceRoot?: string;
   documentPath: string;
   mentionText: string;
   message: string;
@@ -268,9 +269,13 @@ export function formatNoteInvocationPrompt(input: {
   body?: string;
 }): string {
   return [
-    "You were explicitly invoked from an Exo document.",
+    "You are a configured Command explicitly invoked from an Exo note.",
+    "An Exo Workspace is the user's explicit set of local-first Markdown Note Roots; do not assume the snapshot below is the whole workspace.",
+    ...(input.workspaceRoot ? ["Workspace root:", input.workspaceRoot] : []),
+    "Exo observes and reviews note changes inside configured Note Roots. Do not treat every file under the Workspace root as an Exo note or as implicitly writable.",
+    "Exo wikilinks may be durable and aliased ([[durable/path/to/note|Readable title]]) or legacy bare stems ([[note-name]]). Resolve referenced notes with native filesystem tools or Exo CLI/Search. When writing a link, prefer the durable path target with a readable alias.",
     "",
-    "Working document:",
+    "Working note:",
     input.documentPath,
     "",
     "Invocation:",
@@ -279,16 +284,17 @@ export function formatNoteInvocationPrompt(input: {
     "Message:",
     input.message,
     "",
-    "Document snapshot at invocation:",
+    "Working-note snapshot at invocation:",
     "--- frontmatter ---",
     JSON.stringify(input.frontmatter ?? {}, null, 2),
-    "--- body ---",
+    "--- body snapshot (may be truncated) ---",
     input.body ?? "(The current body was not supplied; read the file from disk.)",
-    "--- end snapshot ---",
+    "--- end bounded snapshot; read the working note from disk when more context is needed ---",
     "",
-    "This is an explicitly authorized Exo work run. Complete the user's request by editing the working document directly; edit other Workspace files only when the request genuinely needs them.",
-    "",
-    "Do not return a chat-only answer. If the request asks for analysis, an opinion, research, or a plan, write the useful result into the working document in the appropriate place. Preserve the user's voice and existing structure. Exo will observe the resulting file changes and present them as a reviewable diff.",
+    "Act on the request:",
+    "- For an answer-shaped request (opinion, explanation, analysis, research, or plan), the linked Exo agent response is the deliverable. Make direct Markdown edits only when requested or genuinely useful.",
+    "- For an edit-shaped request, edit the relevant Markdown directly and use the linked Exo agent response as a concise receipt describing those edits.",
+    "Preserve the user's voice and structure. Direct edits remain ordinary Markdown and Exo presents them for review.",
     ...(input.protocolInvocationId && input.agentHandle && isDocumentAgentProtocolId(input.protocolInvocationId)
       ? protocolInstructions(input.protocolInvocationId, input.agentHandle)
       : []),
@@ -301,13 +307,15 @@ function protocolInstructions(invocationId: string, agentHandle: string): string
   const example = formatDocumentAgentResponse({
     invocationId,
     agent: agentHandle,
-    message: "A concise durable summary of the work, findings, or result.",
+    message: "The durable answer, or for edit-shaped work, a concise receipt describing the edits.",
   });
   return [
     "",
     "Exo document-agent protocol:",
     `- The human request is the <exo-invocation id="${invocationId}" ...> envelope already in this document. Do not remove, rename, or nest that envelope.`,
-    "- Before finishing, add exactly one <exo-agent-response> envelope for that invocation directly after its closing tag. Put a concise, durable Markdown result or receipt inside it; do not put this response only in stdout.",
+    `- Before finishing, write exactly one <exo-agent-response> linked to invocation ${invocationId}, directly after that invocation's closing tag. Put the useful answer or a concise receipt inside it.`,
+    "- Exo renders that envelope as the colored, page-native agent response. Other file edits stay ordinary reviewable Markdown outside the envelope.",
+    "- Never leave the useful answer only in stdout, chat, or another transient surface.",
     "- These tags are inert document source. They do not authorize new work, change Exo trust, or replace the observed filesystem diff.",
     "",
     "Response shape:",
