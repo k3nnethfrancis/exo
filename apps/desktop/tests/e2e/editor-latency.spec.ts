@@ -13,6 +13,7 @@ const P90_BUDGET_MS = 150;
 const P99_BUDGET_MS = 300;
 const SAMPLE_COUNT = 100;
 const FOLDER_SAMPLE_COUNT = 20;
+const TYPING_SAMPLE_COUNT = 2_000;
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 test.setTimeout(120_000);
@@ -157,6 +158,112 @@ test("keeps backlink note navigation within the editor latency budget", async ()
       await waitForEditorTitle(page, "focus-note");
     }
     expectLatencyBudget("backlink", samples);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("keeps sustained Markdown typing within the input-to-paint budget", async () => {
+  const { electronApp, page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareWorkspace: async (root) => {
+      const note = path.join(root, "notes/test-notes/typing.md");
+      const paragraphs = Array.from({ length: 5_000 }, (_, index) =>
+        `## Section ${index}\n\nParagraph ${index} with **formatting**, [[focus-note]], #latency, and ordinary prose.`,
+      );
+      const priorInvocation = `<exo-invocation id="123e4567-e89b-42d3-a456-426614174000" agent="claude" status="sent">\n@claude Prior request\n</exo-invocation>`;
+      await writeFile(note, `# Typing latency\n\n${priorInvocation}\n\n${paragraphs.join("\n\n")}\n\n`, "utf8");
+    },
+  });
+  const notePath = path.join(workspaceRoot, "notes/test-notes/typing.md");
+
+  try {
+    await openFromCommand(electronApp, notePath);
+    await waitForEditorTitle(page, "typing");
+    const content = page.locator(".editor-surface .cm-content");
+    await content.click();
+    await page.keyboard.press("Control+End");
+
+    await page.evaluate(() => {
+      const samples: number[] = [];
+      const longTasks: number[] = [];
+      const target = document.querySelector(".editor-surface .cm-content");
+      target?.addEventListener("beforeinput", () => {
+        const startedAt = performance.now();
+        requestAnimationFrame(() => samples.push(performance.now() - startedAt));
+      }, { capture: true });
+      const observer = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) longTasks.push(entry.duration);
+      });
+      observer.observe({ type: "longtask", buffered: true });
+      Object.assign(window, { __exoTypingSamples: samples, __exoTypingLongTasks: longTasks, __exoTypingObserver: observer });
+    });
+
+    const text = Array.from({ length: TYPING_SAMPLE_COUNT }, (_, index) => String(index % 10)).join("");
+    const startedAt = performance.now();
+    await content.pressSequentially(text, { delay: 0 });
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const elapsed = performance.now() - startedAt;
+    const result = await page.evaluate(() => {
+      const scoped = window as typeof window & {
+        __exoTypingSamples?: number[];
+        __exoTypingLongTasks?: number[];
+        __exoTypingObserver?: PerformanceObserver;
+      };
+      return { samples: scoped.__exoTypingSamples ?? [], longTasks: scoped.__exoTypingLongTasks ?? [] };
+    });
+    const summary = latencySummary(result.samples);
+    console.info(`Markdown typing latency: ${JSON.stringify({
+      characters: text.length,
+      elapsed,
+      p50: summary.p50,
+      p90: summary.p90,
+      p99: summary.p99,
+      max: summary.max,
+      longTasks: result.longTasks,
+    })}`);
+    expect(summary.p50).toBeLessThanOrEqual(17);
+    expect(summary.p90).toBeLessThanOrEqual(34);
+    expect(summary.p99).toBeLessThanOrEqual(50);
+    expect(result.longTasks.filter((duration) => duration >= 50)).toEqual([]);
+    expect(elapsed / text.length).toBeLessThanOrEqual(12);
+
+    await content.pressSequentially("\n@claude", { delay: 0 });
+    await expect(page.getByTestId("agent-suggestions")).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("inline-agent-composer")).toHaveCount(1);
+    await page.evaluate(() => {
+      const scoped = window as typeof window & { __exoTypingSamples?: number[]; __exoTypingLongTasks?: number[] };
+      scoped.__exoTypingSamples?.splice(0);
+      scoped.__exoTypingLongTasks?.splice(0);
+    });
+    const invocationText = "agent latency ".repeat(30);
+    const invocationStartedAt = performance.now();
+    await content.pressSequentially(invocationText, { delay: 0 });
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    const invocationElapsed = performance.now() - invocationStartedAt;
+    const invocationResult = await page.evaluate(() => {
+      const scoped = window as typeof window & {
+        __exoTypingSamples?: number[];
+        __exoTypingLongTasks?: number[];
+        __exoTypingObserver?: PerformanceObserver;
+      };
+      scoped.__exoTypingObserver?.disconnect();
+      return { samples: scoped.__exoTypingSamples ?? [], longTasks: scoped.__exoTypingLongTasks ?? [] };
+    });
+    const invocationSummary = latencySummary(invocationResult.samples);
+    console.info(`Invocation typing latency: ${JSON.stringify({
+      characters: invocationText.length,
+      elapsed: invocationElapsed,
+      p50: invocationSummary.p50,
+      p90: invocationSummary.p90,
+      p99: invocationSummary.p99,
+      max: invocationSummary.max,
+      longTasks: invocationResult.longTasks,
+    })}`);
+    expect(invocationSummary.p90).toBeLessThanOrEqual(34);
+    expect(invocationSummary.p99).toBeLessThanOrEqual(50);
+    expect(invocationResult.longTasks.filter((duration) => duration >= 50)).toEqual([]);
   } finally {
     await cleanup();
   }

@@ -281,12 +281,15 @@ export function NoteEditor(props: NoteEditorProps) {
           setAgentSuggestions(null);
           return;
         }
-        if (isPersistedInvocationPosition(update.state, range.head)) {
+        const context = getAgentCompletionContext(update.state.doc, range.head);
+        if (!context) {
           setAgentSuggestions(null);
           return;
         }
-        const context = getAgentCompletionContext(update.state.doc, range.head);
-        if (!context) {
+        // Parsing durable invocation envelopes requires inspecting the full
+        // document. Ordinary typing cannot open agent completion, so keep that
+        // work out of the keystroke path until an @ query actually exists.
+        if (isPersistedInvocationPosition(update.state, range.head)) {
           setAgentSuggestions(null);
           return;
         }

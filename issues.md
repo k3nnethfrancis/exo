@@ -89,11 +89,28 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ## Monitoring
 
+### EXO-ISSUE-111: Node 26 cold startup breaks the CLI-open latency gate
+
+- Status: open; runtime investigation required
+- Severity: medium
+- Area: CLI startup, `exo open`, editor navigation measurement
+- Reproduction: after Homebrew upgraded the local runtime from Node 25 to Node
+  26.5.0, the compiled `bin/exo open` path measured roughly 103 ms p50 / 109 ms
+  p90 in the existing 100-sample Electron navigation gate. The same route had
+  measured roughly 64/67 ms on Node 25; direct compiled CLI commands now spend
+  about 100 ms in process startup before Exo-specific work.
+- Required:
+  - [ ] Confirm the regression across supported Node runtimes and the packaged
+    CLI distribution rather than weakening the 99 ms p50 navigation target.
+  - [ ] Keep the app command-server path lean; if Node startup remains the
+    floor, evaluate an earned native/single-executable launcher separately from
+    the editor renderer.
+
 ### EXO-ISSUE-110: Derived graph/search work can stall editor navigation
 
 - Status: foreground-path fix complete; process-isolation follow-up required
 - Severity: high
-- Area: editor latency, Folder Overview, Search, WorkspaceGraph, QMD
+- Area: editor input/navigation latency, Folder Overview, Search, WorkspaceGraph, QMD
 - Reproduction: on a 400-note workspace, opening an indexed Folder rebuilt a
   fresh whole-workspace graph and measured 401 ms p50 / 416 ms p90. Live
   filename search reparsed Markdown bodies twice per query and measured 377 ms
@@ -105,6 +122,10 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     cached and invalidated by workspace watcher events.
   - Note and external-file refresh paint document state before idle-scheduled
     graph enrichment.
+  - Sustained ordinary Markdown and active `@agent` typing are measured on a
+    roughly 500 KB note with existing invocation protocol markup. Ordinary
+    keystrokes map existing protocol decorations incrementally and do not scan
+    the whole document for an agent completion unless an `@` query is active.
   - The 400-note gates now measure roughly 55/60 ms for Folder Overview shell
     and contents and 11/20 ms for live filename results.
 - Remaining:
@@ -113,7 +134,8 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - [ ] Replace whole-graph invalidation with incremental or worker-owned graph
     updates if real-vault traces still show contention after caching and idle
     scheduling.
-  - [ ] Add editor input/selection latency under concurrent graph and QMD work.
+  - [ ] Run the editor input/selection latency gate concurrently with real QMD
+    update/embed/search work after QMD has an isolated worker boundary.
 
 
 ### EXO-ISSUE-109: Nested-site root-relative Markdown images show unavailable

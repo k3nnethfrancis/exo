@@ -1,4 +1,4 @@
-import { Facet, Prec, StateEffect, StateField, type EditorState, type Extension, type Range } from "@codemirror/state";
+import { Facet, Prec, StateEffect, StateField, type EditorState, type Extension, type Range, type Transaction } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, WidgetType, keymap } from "@codemirror/view";
 import { findDocumentAgentEnvelopes, formatDocumentAgentInvocation } from "@exo/core/document-agent-protocol";
 
@@ -68,9 +68,31 @@ const composerState = StateField.define<ComposerState | null>({
 
 const persistedInvocationDecorations = StateField.define<DecorationSet>({
   create(state) { return invocationDecorations(state); },
-  update(_value, transaction) { return transaction.docChanged ? invocationDecorations(transaction.state) : _value; },
+  update(value, transaction) {
+    if (!transaction.docChanged) return value;
+    // Most edits only move an existing envelope or change its payload. Mapping
+    // the ranges is incremental; reparsing the full Markdown document is only
+    // necessary when an envelope tag itself may have changed.
+    return invocationProtocolSyntaxChanged(transaction)
+      ? invocationDecorations(transaction.state)
+      : value.map(transaction.changes);
+  },
   provide: (field) => EditorView.decorations.from(field),
 });
+
+function invocationProtocolSyntaxChanged(transaction: Transaction): boolean {
+  let changed = false;
+  transaction.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+    if (changed) return;
+    const previousLine = transaction.startState.doc.lineAt(fromA).text;
+    const removed = transaction.startState.doc.sliceString(fromA, toA);
+    const added = inserted.toString();
+    changed = /<\/?exo-(?:invocation|agent-response)\b/.test(previousLine)
+      || /<\/?exo-(?:invocation|agent-response)\b/.test(removed)
+      || /<\/?exo-(?:invocation|agent-response)\b/.test(added);
+  });
+  return changed;
+}
 
 let nextComposerId = 1;
 
