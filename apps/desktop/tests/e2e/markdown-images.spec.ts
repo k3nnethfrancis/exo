@@ -54,6 +54,7 @@ test("loads a root-relative site image through the Electron notes resolver", asy
     await expect
       .poll(() => loadedWidth(imageWidget))
       .toBeGreaterThan(0);
+    await expect(imageWidget.locator("img")).toHaveCSS("border-radius", "8px");
     await expect(imageWidget).not.toHaveClass(/exo-md-image--missing/);
     await page.screenshot({ path: testInfo.outputPath("markdown-images-loaded.png"), fullPage: true });
   } finally {

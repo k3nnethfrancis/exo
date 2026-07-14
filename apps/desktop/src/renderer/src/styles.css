@@ -1114,6 +1114,7 @@ button svg,
   max-width: min(100%, 760px);
   height: auto;
   max-height: min(72vh, 720px);
+  border-radius: 8px;
   object-fit: contain;
   background: var(--surface-2);
 }

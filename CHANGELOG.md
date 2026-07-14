@@ -26,6 +26,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Applies the Markdown image radius directly to the rendered asset so all four corners remain symmetrical regardless of widget sizing.
 - Resolves root-relative Markdown images from the nearest matching source ancestor inside the Note Root, so nested site/content wikis render their local assets without weakening path containment.
 - Unifies inline invocation feedback around running, review, completed, and failed states; failed Claude sessions show the exact resume command, successful terminal handoff dismisses the status surface, and the authorization modal no longer survives a settled launch decision.
 - Clarifies onboarding's separate MCP and CLI access paths, shows only the two read-only MCP tools, treats an existing provider registration as installed, gives an actionable missing-provider-CLI error, and keeps configured agent commands on one full-width line.
