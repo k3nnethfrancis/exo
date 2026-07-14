@@ -10,14 +10,15 @@ import {
 test("runs a configured note invocation, refreshes the note, and highlights the changed note", async () => {
   const fixture = await launchInvocationFixture("append", {
     scriptBody: `
-import { appendFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 const notePath = process.argv[2];
 let prompt = "";
 process.stdin.setEncoding("utf8");
 for await (const chunk of process.stdin) prompt += chunk;
 await writeFile(notePath + ".prompt", prompt, "utf8");
 await new Promise((resolve) => setTimeout(resolve, 500));
-await appendFile(notePath, "\\nagent appended line\\n", "utf8");
+const current = await readFile(notePath, "utf8");
+await writeFile(notePath, current.replace("# Agent Invocation", "# Agent Revision") + "\\nagent appended line\\n", "utf8");
 `,
   });
 
@@ -26,10 +27,20 @@ await appendFile(notePath, "\\nagent appended line\\n", "utf8");
 
     await expect(fixture.page.getByTestId("invocation-review-banner")).toContainText("Review @append changes", { timeout: 10_000 });
     await expect(fixture.page.getByTestId("editor-panel")).toContainText("agent appended line", { timeout: 10_000 });
-    await expect(fixture.page.getByTestId("invocation-review-proposal")).toContainText("agent appended line");
+    await expect(fixture.page.getByTestId("invocation-review-proposal")).toContainText("Saved to disk.");
+    await expect(fixture.page.getByTestId("invocation-review-proposal")).toContainText("Review changes inline.");
+    await expect(fixture.page.locator(".editor-surface--invocation-review .cm-changedLine").first()).toBeVisible();
+    const deletedText = fixture.page.locator(".editor-surface--invocation-review .cm-deletedText").filter({ visible: true }).first();
+    await expect(deletedText).toContainText("Invocation");
+    await expect(fixture.page.getByTestId("invocation-review-proposal").locator("pre")).toHaveCount(0);
     await expect(fixture.page.getByTestId("invocation-keep-review")).toBeVisible();
     await expect(fixture.page.getByTestId("invocation-reject-review")).toBeVisible();
     await expect(fixture.page.locator('[data-testid^="terminal-tab-"]')).toHaveCount(0);
+
+    await fixture.page.getByTestId("toggle-markdown-mode").click();
+    await expect(fixture.page.locator(".editor-surface--invocation-review")).toHaveCount(0);
+    await expect(fixture.page.locator(".cm-deletedText")).toHaveCount(0);
+    await fixture.page.getByTestId("toggle-markdown-mode").click();
 
     const record = await latestInvocationRecord(fixture.workspaceRoot);
     expect(record).toMatchObject({
@@ -176,6 +187,9 @@ await appendFile(notePath, "\\nagent disk line\\n", "utf8");
     );
     await expect(fixture.page.getByTestId("invocation-keep-dirty-buffer")).toBeVisible();
     await expect(fixture.page.getByTestId("invocation-reload-disk")).toBeVisible();
+    await expect(fixture.page.getByTestId("invocation-review-proposal")).toContainText("Showing changes against your current buffer.");
+    await expect(fixture.page.getByTestId("invocation-keep-review")).toBeVisible();
+    await expect(fixture.page.getByTestId("invocation-reject-review")).toBeDisabled();
     await expect(fixture.page.locator(".cm-content")).toContainText("local unsaved line");
     await expect(fixture.page.locator(".cm-content")).not.toContainText("agent disk line");
 

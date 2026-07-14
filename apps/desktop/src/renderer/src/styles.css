@@ -3282,22 +3282,40 @@ select.dialog-card__input {
   color: var(--text-muted);
 }
 
+.invocation-review__proposal-header > span:first-child {
+  display: block;
+  min-width: 0;
+  line-height: 1.4;
+}
+
 .invocation-review__proposal-header span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-.invocation-review__proposal pre {
-  max-height: 220px;
-  margin: 8px 0 0;
-  overflow: auto;
-  padding: 8px;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--surface) 72%, #000 5%);
-  color: var(--text);
-  font: 11px/1.45 var(--font-mono);
-  white-space: pre-wrap;
+.editor-surface--invocation-review .cm-changedLine,
+.editor-surface--invocation-review .cm-inlineChangedLine {
+  background: color-mix(in srgb, #3a9b68 9%, transparent);
+}
+
+.editor-surface--invocation-review .cm-changedText {
+  background: color-mix(in srgb, #3a9b68 22%, transparent);
+  border-radius: 2px;
+}
+
+.editor-surface--invocation-review .cm-deletedChunk {
+  margin-block: 2px;
+  border-left: 2px solid color-mix(in srgb, var(--danger-strong) 64%, transparent);
+  background: color-mix(in srgb, var(--danger-strong) 8%, transparent);
+  color: color-mix(in srgb, var(--text-muted) 86%, var(--danger-strong));
+  opacity: 0.82;
+}
+
+.editor-surface--invocation-review .cm-deletedText {
+  background: color-mix(in srgb, var(--danger-strong) 16%, transparent);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--danger-strong) 62%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

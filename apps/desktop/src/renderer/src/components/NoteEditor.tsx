@@ -19,6 +19,7 @@ import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterVa
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
 import { inlineAgentComposerExtension, isPersistedInvocationPosition, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
 import { presentInvocation } from "../invocationPresentation";
+import { invocationInlineReviewExtension } from "../invocationInlineReview";
 import {
   buildNoteGraphContext,
   graphReferencesForMarkdownMode,
@@ -505,6 +506,14 @@ export function NoteEditor(props: NoteEditorProps) {
     }),
     [documentPath, graphReferences, suppressedGeneratedTitle],
   );
+  const invocationReviewExtensions = useMemo(
+    () => invocationInlineReviewExtension({
+      payload: invocationReview?.reviewPayload ?? null,
+      documentKind: document?.kind ?? "text",
+      rawMarkdownMode,
+    }),
+    [document?.kind, invocationReview?.reviewPayload, rawMarkdownMode],
+  );
   const editorExtensions = useMemo(
     () => useMarkdownEditing
       ? [
@@ -514,6 +523,7 @@ export function NoteEditor(props: NoteEditorProps) {
           selectionTracker,
           agentComposer,
           ...(!rawMarkdownMode ? markdownPreviewExtensions : []),
+          ...invocationReviewExtensions,
           cmTheme,
           syntaxTheme,
         ]
@@ -526,10 +536,11 @@ export function NoteEditor(props: NoteEditorProps) {
           selectionTracker,
           agentComposer,
           ...(codeLanguage?.extensions ?? []),
+          ...invocationReviewExtensions,
           cmTheme,
           syntaxTheme,
         ],
-    [agentComposer, cmTheme, codeLanguage?.extensions, markdownPreviewExtensions, rawMarkdownMode, saveKeymap, selectionTracker, syntaxTheme, useMarkdownEditing],
+    [agentComposer, cmTheme, codeLanguage?.extensions, invocationReviewExtensions, markdownPreviewExtensions, rawMarkdownMode, saveKeymap, selectionTracker, syntaxTheme, useMarkdownEditing],
   );
 
   useEffect(() => {
@@ -879,7 +890,7 @@ export function NoteEditor(props: NoteEditorProps) {
       ) : null}
 
       <div
-        className={`editor-surface ${useMarkdownEditing && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!useMarkdownEditing ? "editor-surface--code" : ""}`}
+        className={`editor-surface ${useMarkdownEditing && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!useMarkdownEditing ? "editor-surface--code" : ""} ${invocationReview?.reviewPayload?.invocation.review?.status === "pending" && !rawMarkdownMode ? "editor-surface--invocation-review" : ""}`}
         onKeyDownCapture={handleEditorSurfaceKeyDown}
         onMouseLeave={handleEditorSurfaceMouseLeave}
         onMouseMove={handleEditorSurfaceMouseMove}
@@ -998,18 +1009,33 @@ export function NoteEditor(props: NoteEditorProps) {
                 </button>
               ) : null}
             </div>
-            {invocationReview.reviewPayload?.patch ? (
+            {invocationReview.reviewPayload?.before !== null && invocationReview.reviewPayload?.before !== undefined && invocationReview.reviewPayload.after !== null ? (
               <div className="invocation-review__proposal" data-testid="invocation-review-proposal">
                 <div className="invocation-review__proposal-header">
-                  <strong>Proposed document change</strong>
+                  <span>
+                    <strong>Saved to disk.</strong>
+                    {invocationReview.hasDirtyConflict
+                      ? " Showing changes against your current buffer. Reject is unavailable until the buffer matches disk."
+                      : " Review changes inline. Reject restores the pre-invocation snapshot."}
+                  </span>
                   {invocationReview.reviewPayload.invocation.review?.status === "pending" ? (
                     <span>
                       <button className="toolbar-button" data-testid="invocation-keep-review" onClick={invocationReview.onKeepReview} type="button">Keep</button>
-                      {invocationReview.reviewPayload.canReject && !invocationReview.hasDirtyConflict ? <button className="toolbar-button" data-testid="invocation-reject-review" onClick={invocationReview.onRejectReview} type="button">Reject</button> : null}
+                      {invocationReview.reviewPayload.canReject ? (
+                        <button
+                          className="toolbar-button"
+                          data-testid="invocation-reject-review"
+                          disabled={invocationReview.hasDirtyConflict}
+                          onClick={invocationReview.onRejectReview}
+                          title={invocationReview.hasDirtyConflict ? "Resolve the editor/disk conflict before restoring the snapshot" : "Restore the pre-invocation snapshot"}
+                          type="button"
+                        >
+                          Reject
+                        </button>
+                      ) : null}
                     </span>
                   ) : <span>{invocationReview.reviewPayload.invocation.review?.status === "kept" ? "Kept" : "Rejected"}</span>}
                 </div>
-                <pre>{invocationReview.reviewPayload.patch}</pre>
               </div>
             ) : null}
           </div>
