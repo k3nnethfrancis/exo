@@ -24,7 +24,7 @@ await appendFile(notePath, "\\nagent appended line\\n", "utf8");
   try {
     await invokeConfiguredAgent(fixture.page, "append");
 
-    await expect(fixture.page.getByTestId("invocation-review-banner")).toContainText("@append finished", { timeout: 10_000 });
+    await expect(fixture.page.getByTestId("invocation-review-banner")).toContainText("Review @append changes", { timeout: 10_000 });
     await expect(fixture.page.getByTestId("editor-panel")).toContainText("agent appended line", { timeout: 10_000 });
     await expect(fixture.page.getByTestId("invocation-review-proposal")).toContainText("agent appended line");
     await expect(fixture.page.getByTestId("invocation-keep-review")).toBeVisible();
@@ -171,7 +171,7 @@ await appendFile(notePath, "\\nagent disk line\\n", "utf8");
     await appendEditorText(fixture.page, "\nlocal unsaved line");
 
     await expect(fixture.page.getByTestId("invocation-review-banner")).toContainText(
-      "Disk changed while this editor has unsaved edits.",
+      "Unsaved editor changes conflict with the agent's version.",
       { timeout: 10_000 },
     );
     await expect(fixture.page.getByTestId("invocation-keep-dirty-buffer")).toBeVisible();
@@ -180,8 +180,53 @@ await appendFile(notePath, "\\nagent disk line\\n", "utf8");
     await expect(fixture.page.locator(".cm-content")).not.toContainText("agent disk line");
 
     await fixture.page.getByTestId("invocation-keep-dirty-buffer").click();
-    await expect(fixture.page.getByTestId("invocation-review-banner")).not.toContainText("Disk changed while this editor has unsaved edits.");
+    await expect(fixture.page.getByTestId("invocation-review-banner")).not.toContainText("Unsaved editor changes conflict with the agent's version.");
     await expect(fixture.page.getByTestId("editor-panel")).toContainText("local unsaved line");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("hands a failed Claude session to Terminal and dismisses its document status", async () => {
+  const sessionId = "ce4b9e26-2574-4433-a054-1110cd403792";
+  const fixture = await launchInvocationFixture("claude", {
+    scriptBody: `
+const sessionId = ${JSON.stringify(sessionId)};
+const resumeIndex = process.argv.indexOf("--resume");
+if (resumeIndex >= 0) {
+  console.log("EXO_RESUME_OK " + process.argv[resumeIndex + 1]);
+  await new Promise((resolve) => setTimeout(resolve, 5_000));
+} else {
+  for await (const _chunk of process.stdin) { /* consume the prompt */ }
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  process.stdout.write(JSON.stringify([{
+    type: "result",
+    subtype: "success",
+    session_id: sessionId,
+    permission_denials: [{ tool_name: "Edit" }],
+  }]));
+}
+`,
+  });
+
+  try {
+    await invokeConfiguredAgent(fixture.page, "claude", "Update this note.");
+
+    const authorization = fixture.page.getByRole("dialog", { name: "Run @claude?" });
+    const banner = fixture.page.getByTestId("invocation-review-banner");
+    await expect(authorization).toHaveCount(0);
+    await expect(banner).toContainText("@claude failed", { timeout: 10_000 });
+    await expect(banner).toContainText("write permission was denied");
+    const resume = fixture.page.getByTestId("invocation-resume-terminal");
+    await expect(resume).toContainText(`--resume '${sessionId}'`);
+    await expect(fixture.page.locator('[data-testid^="terminal-tab-"]')).toHaveCount(0);
+
+    await resume.click();
+
+    await expect(banner).toHaveCount(0);
+    await expect(fixture.page.getByTestId("utility-pane-terminal")).toHaveAttribute("aria-pressed", "true");
+    await expect(fixture.page.getByTestId("terminal-tab-shell")).toHaveCount(1);
+    await expect(fixture.page.locator(".xterm-rows")).toContainText(`EXO_RESUME_OK ${sessionId}`, { timeout: 10_000 });
   } finally {
     await fixture.cleanup();
   }
@@ -445,7 +490,8 @@ async function invokeConfiguredAgent(
   const authorization = page.getByRole("dialog", { name: `Run @${handle}?` });
   await expect(authorization).toBeVisible();
   await authorization.getByRole("button", { name: `Run @${handle}` }).click();
-  await expect(page.getByTestId("invocation-review-banner")).toContainText(`Running @${handle}`);
+  await expect(authorization).toHaveCount(0);
+  await expect(page.getByTestId("invocation-review-banner")).toBeVisible();
 }
 
 async function appendEditorText(page: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["page"], text: string): Promise<void> {
