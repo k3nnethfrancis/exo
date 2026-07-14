@@ -25,29 +25,10 @@ describe("CommandServer operator contract", () => {
     }
   });
 
-  it("supports the direct-pty list/create/read/write/send/kill contract", async () => {
-    const { server, port, token } = await startServer({
-      onListTerminals: () => [{ id: "term-1", title: "Shell", cwd: "/workspace", kind: "shell", command: "zsh", status: "running" }],
-      onReadTerminalTail: () => "one\ntwo\n",
-    });
-    try {
-      await expect(fetchJson(token, port, "/terminals")).resolves.toEqual([
-        { id: "term-1", title: "Shell", cwd: "/workspace", kind: "shell", command: "zsh", status: "running" },
-      ]);
-      await expect(fetchJson(token, port, "/terminals/term-1/tail?lines=1")).resolves.toEqual({ tail: "one\ntwo\n" });
-      await expect(fetchJson(token, port, "/terminals", { method: "POST", body: JSON.stringify({ kind: "shell", cwd: "/workspace" }) })).resolves.toMatchObject({ id: "term-1" });
-      await expect(fetchJson(token, port, "/terminals/term-1/write", { method: "POST", body: JSON.stringify({ data: "echo hi" }) })).resolves.toEqual({ ok: true, delivery: "sent" });
-      await expect(fetchJson(token, port, "/terminals/term-1/message", { method: "POST", body: JSON.stringify({ message: "echo hi", submit: true }) })).resolves.toEqual({ ok: true, delivery: "sent" });
-      await expect(fetchJson(token, port, "/terminals/term-1", { method: "DELETE" })).resolves.toEqual({ ok: true });
-    } finally {
-      server.stop();
-    }
-  });
-
-  it("does not expose legacy diagnostic, transcript, or semantic-answer routes", async () => {
+  it("does not expose terminal remote-control routes", async () => {
     const { server, port, token } = await startServer();
     try {
-      for (const route of ["/terminals/diagnostics", "/terminals/term-1/transcript", "/terminals/term-1/semantic-answer"]) {
+      for (const route of ["/terminals", "/terminals/term-1/tail", "/terminals/term-1/write", "/terminals/term-1/message"]) {
         const response = await commandFetch(token, port, route);
         expect(response.status).toBe(404);
       }
@@ -78,9 +59,8 @@ async function fetchJson(token: string, port: number, route: string, init: Reque
 }
 
 function options(runtimeRoot: string): CommandServerOptions {
-  const settings = { workspaceRoot: "/workspace", defaultTerminalCwd: "/workspace", noteRoots: ["/workspace"], indexedRoots: [], indexing: { enabled: false, mode: "off", backend: "qmd" }, appearanceMode: "system", colorThemeId: "exo-neutral", editorFontSize: 15, terminalFontSize: 13, explorerScale: 1, exploreIndexSearchOnEnter: false, indexUpdateStrategy: "on-save" } satisfies WorkspaceSettings;
   const status = { available: false, backend: "qmd", roots: [], warnings: [] } as unknown as IndexStatus;
   return {
-    runtimeRoot, onShowWindow: () => {}, onOpenFile: () => {}, onOpenPreview: async (target) => ({ ok: true, url: target, source: "url" }), onFocusPreview: () => ({ ok: true }), onClosePreview: () => ({ ok: true }), onSearch: async () => ({ notes: [], tags: [] }), onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }), onReadDocument: async () => ({ target: "", filePath: "", title: "", body: "", source: "filesystem" }), onIndexStatus: async () => status, onIndexAddRoot: async () => settings, onIndexRemoveRoot: async () => settings, onIndexSync: async () => ({ status, phases: [], warnings: [] }), onListTerminals: () => [], onCreateTerminal: async () => ({ id: "term-1", title: "Shell", cwd: "/workspace", kind: "shell", command: "zsh", status: "running" }), onReadTerminalTail: () => "", onWriteTerminal: async () => ({ ok: true, delivery: "sent" }), onSendTerminalMessage: async () => ({ ok: true, delivery: "sent" }), onKillTerminal: async () => {}, onGetSettings: () => settings, onGetStatus: () => ({ ok: true }), onSpawnAgentCommand: async () => { throw new Error("not used"); },
+    runtimeRoot, onShowWindow: () => {}, onOpenFile: () => {}, onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }), onIndexStatus: async () => status, onIndexSync: async () => ({ status, phases: [], warnings: [] }), onGetStatus: () => ({ ok: true }), onSpawnAgentCommand: async () => { throw new Error("not used"); },
   };
 }

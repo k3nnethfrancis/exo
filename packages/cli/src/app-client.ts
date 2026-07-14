@@ -3,15 +3,9 @@ import path from "node:path";
 
 import { EXO_COMMAND_ROUTES, EXO_COMMAND_TOKEN_HEADER, type ExoCommandServerInfo } from "@exo/core";
 
-export interface AppClientWriteResult {
-  ok: boolean;
-  delivery: "sent" | "queued" | "not-found";
-}
-
 const defaultRequestTimeoutMs = 2_000;
 const defaultSearchRequestTimeoutMs = 30_000;
 const defaultMaintenanceRequestTimeoutMs = 30 * 60_000;
-const defaultTerminalCreateTimeoutMs = 60_000;
 
 export type AppClientDiscoveryFailureCode =
   | "runtime-root-missing"
@@ -57,7 +51,6 @@ export class AppClient {
     private readonly requestTimeoutMs = defaultRequestTimeoutMs,
     private readonly searchRequestTimeoutMs = defaultSearchRequestTimeoutMs,
     private readonly maintenanceRequestTimeoutMs = defaultMaintenanceRequestTimeoutMs,
-    private readonly terminalCreateTimeoutMs = defaultTerminalCreateTimeoutMs,
   ) {}
 
   /**
@@ -100,10 +93,8 @@ export class AppClient {
     const searchRequestTimeoutMs = parsePositiveInt(env.EXO_APP_CLIENT_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
     const maintenanceRequestTimeoutMs =
       parsePositiveInt(env.EXO_APP_CLIENT_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
-    const terminalCreateTimeoutMs =
-      parsePositiveInt(env.EXO_APP_CLIENT_TERMINAL_CREATE_TIMEOUT_MS) ?? defaultTerminalCreateTimeoutMs;
     const discovery = { runtimeRoot, serverJsonPath, port: info.port, pid: info.pid };
-    const client = new AppClient(baseUrl, discovery, info.token, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs, terminalCreateTimeoutMs);
+    const client = new AppClient(baseUrl, discovery, info.token, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
 
     const initialProcessCheck = checkProcessLiveness(info.pid);
     if (initialProcessCheck.status === "dead") {
@@ -147,34 +138,15 @@ export class AppClient {
     await this.post(EXO_COMMAND_ROUTES.open, { path: filePath });
   }
 
-  async openPreview(target: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.openPreview, { target });
-  }
-
-  async focusPreview(): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.focusPreview, {});
-  }
-
-  async closePreview(): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.closePreview, {});
-  }
-
   async showWindow(): Promise<void> {
     await this.post(EXO_COMMAND_ROUTES.show, {});
   }
 
-  async getConfig(): Promise<Record<string, unknown>> {
-    return this.get(EXO_COMMAND_ROUTES.config);
-  }
-
-  async search(query: string, options: { limit?: number } = {}): Promise<Record<string, unknown>> {
+  async search(query: string, options: { limit?: number; offset?: number } = {}): Promise<Record<string, unknown>> {
     const params = new URLSearchParams({ q: query });
     if (options.limit) params.set("limit", String(options.limit));
+    if (options.offset) params.set("offset", String(options.offset));
     return this.get(`${EXO_COMMAND_ROUTES.search}?${params.toString()}`, this.searchRequestTimeoutMs);
-  }
-
-  async readDocument(target: string, options: { fromLine?: number; maxLines?: number } = {}): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.read, { target, ...options });
   }
 
   async getIndexStatus(): Promise<Record<string, unknown>> {
@@ -185,42 +157,8 @@ export class AppClient {
     return this.post(EXO_COMMAND_ROUTES.indexSync, {}, this.maintenanceRequestTimeoutMs);
   }
 
-  async addIndexRoot(input: { path: string; name?: string; kind?: string; pattern?: string; force?: boolean }): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.indexRoots, input);
-  }
-
-  async removeIndexRoot(target: string): Promise<Record<string, unknown>> {
-    return this.delete(`${EXO_COMMAND_ROUTES.indexRoots}/${encodeURIComponent(target)}`);
-  }
-
-  async listTerminals(): Promise<unknown[]> {
-    return this.get(EXO_COMMAND_ROUTES.terminals);
-  }
-
-  async createTerminal(cwd?: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.terminals, { kind: "shell", cwd }, this.terminalCreateTimeoutMs);
-  }
-
   async spawnAgentCommand(handle: string, task: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.spawnAgentCommand, { handle, task }, this.terminalCreateTimeoutMs);
-  }
-
-  async readTerminal(id: string, options: { maxLines?: number } = {}): Promise<string> {
-    const result = await this.get(EXO_COMMAND_ROUTES.terminalTail(id, options.maxLines));
-    return String(result.tail ?? "");
-  }
-
-
-  async writeTerminal(id: string, data: string): Promise<AppClientWriteResult> {
-    return this.post(EXO_COMMAND_ROUTES.terminalWrite(id), { data });
-  }
-
-  async sendTerminalMessage(id: string, message: string, submit = true): Promise<AppClientWriteResult> {
-    return this.post(EXO_COMMAND_ROUTES.terminalMessage(id), { message, submit });
-  }
-
-  async killTerminal(id: string): Promise<void> {
-    await this.delete(EXO_COMMAND_ROUTES.terminal(id));
+    return this.post(EXO_COMMAND_ROUTES.spawnAgentCommand, { handle, task }, this.maintenanceRequestTimeoutMs);
   }
 
   private async get(path: string, timeoutMs = this.requestTimeoutMs): Promise<any> {

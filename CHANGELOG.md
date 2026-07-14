@@ -19,6 +19,12 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Changed
 
+- Narrows the CLI to orientation, paginated path-first search, explicit
+  configured-Command invocation, index status/sync, and desktop handoff;
+  removes CLI file reading and remote preview/terminal/configuration control.
+- Makes CLI and MCP search return the shared bounded `exo.search.v1` page with
+  paths, root-relative metadata, retrieval warnings, and an opaque cursor;
+  agents inspect returned paths with their own filesystem tools.
 - Sends inline agent invocations with Command+Return and presents the compact `⌘ ↵` shortcut glyph beside the active request.
 - Narrows the optional Exo MCP from status/search/read to workspace status and search only; agents use returned paths through their own native file permissions.
 - Resolves Exo MCP scope from the provider process's caller directory, refuses ambiguous Workspace matches, and falls back to scoped filesystem retrieval when a running app belongs elsewhere.

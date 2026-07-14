@@ -9,31 +9,20 @@ import {
   workspaceEnvOverrides,
   workspaceModelFromSettings,
   type WorkspaceModel,
+  type IndexSearchResponse,
 } from "@exo/core";
 import { AppClient, formatAppClientDiscoveryFailure } from "./app-client";
 import { runExoMcpServer } from "./mcp-server";
+import { agentSearchResponse, boundedSearchLimit, parseSearchCursor } from "./search-response";
 
 interface AppClientLike {
   getStatus(): Promise<Record<string, unknown>>;
   showWindow(): Promise<void>;
-  search(query: string, options?: { limit?: number }): Promise<Record<string, unknown>>;
-  readDocument(target: string, options?: { fromLine?: number; maxLines?: number }): Promise<Record<string, unknown>>;
+  search(query: string, options?: { limit?: number; offset?: number }): Promise<Record<string, unknown>>;
   getIndexStatus(): Promise<Record<string, unknown>>;
   syncIndex(): Promise<Record<string, unknown>>;
-  addIndexRoot(input: { path: string; name?: string; kind?: string; pattern?: string; force?: boolean }): Promise<Record<string, unknown>>;
-  removeIndexRoot(target: string): Promise<Record<string, unknown>>;
   openFile(filePath: string): Promise<void>;
-  openPreview(target: string): Promise<Record<string, unknown>>;
-  focusPreview(): Promise<Record<string, unknown>>;
-  closePreview(): Promise<Record<string, unknown>>;
-  getConfig(): Promise<Record<string, unknown>>;
   spawnAgentCommand(handle: string, task: string): Promise<Record<string, unknown>>;
-  listTerminals(): Promise<unknown[]>;
-  createTerminal(cwd?: string): Promise<Record<string, unknown>>;
-  readTerminal(id: string, options?: { maxLines?: number }): Promise<string>;
-  writeTerminal(id: string, data: string): Promise<unknown>;
-  sendTerminalMessage(id: string, message: string, submit?: boolean): Promise<unknown>;
-  killTerminal(id: string): Promise<void>;
 }
 
 type AppClientConnector = (runtimeRoot: string, env: NodeJS.ProcessEnv) => Promise<AppClientLike | null>;
@@ -89,75 +78,35 @@ export async function runCli(argv: string[], options: {
     if (!subcommand) throw new Error("Usage: exo search <query> [--limit n]");
     const { positionals, values } = parseOptions([subcommand, ...args]);
     const query = positionals.join(" ");
-    return print(client ? client.search(query, { limit: positive(values.limit) }) : appOffSearch(env, query, positive(values.limit)), stdout);
-  }
-  if (command === "read") {
-    if (!subcommand) throw new Error("Usage: exo read <path-or-docid> [--from n] [--lines n]");
-    const { values } = parseOptions(args);
-    const options = { fromLine: positive(values.from), maxLines: positive(values.lines) };
-    return print(client ? client.readDocument(subcommand, options) : appOffRead(env, subcommand, options), stdout);
+    const limit = boundedSearchLimit(values.limit);
+    const offset = parseSearchCursor(values.cursor, query);
+    const model = await resolveCliWorkspaceModel(env);
+    const response = client
+      ? await client.search(query, { limit, offset })
+      : await appOffSearch(env, query, { limit, offset });
+    return print(agentSearchResponse(model, response as IndexSearchResponse, { limit, offset }), stdout);
   }
   if (!client) {
     client = await connectOrFail(env, stderr, connect);
     if (!client) return 1;
   }
   if (command === "show") { await client.showWindow(); return 0; }
-  if (command === "index") return runIndex(client, subcommand, args, stdout);
+  if (command === "index") return runIndex(client, subcommand, stdout);
   if (command === "open") {
     if (!subcommand) throw new Error("Usage: exo open <path>");
     await client.openFile(subcommand); return 0;
   }
-  if (command === "preview") return runPreview(client, subcommand, args, stdout);
-  if (command === "config" && subcommand === "get") return print(client.getConfig(), stdout);
-  if (command === "spawn") {
-    if (!subcommand?.startsWith("@") || args.length === 0) throw new Error("Usage: exo spawn @handle <task>");
+  if (command === "invoke") {
+    if (!subcommand?.startsWith("@") || args.length === 0) throw new Error("Usage: exo invoke @handle <task>");
     return print(client.spawnAgentCommand(subcommand, args.join(" ")), stdout);
   }
-  if (command === "terminals") return runTerminals(client, subcommand, args, stdout);
   throw new Error(help());
 }
 
-async function runIndex(client: AppClientLike, subcommand: string | undefined, args: string[], stdout: { write(text: string): void }): Promise<number> {
+async function runIndex(client: AppClientLike, subcommand: string | undefined, stdout: { write(text: string): void }): Promise<number> {
   if (!subcommand || subcommand === "status") return print(client.getIndexStatus(), stdout);
   if (subcommand === "sync") return print(client.syncIndex(), stdout);
-  if (subcommand === "add") {
-    const [target, ...rest] = args;
-    if (!target) throw new Error("Usage: exo index add <path> [--name n] [--kind k] [--force]");
-    const { values } = parseOptions(rest);
-    return print(client.addIndexRoot({ path: target, name: values.name, kind: values.kind, pattern: values.pattern, force: values.force === "true" }), stdout);
-  }
-  if (subcommand === "remove") {
-    if (!args[0]) throw new Error("Usage: exo index remove <name-or-path>");
-    return print(client.removeIndexRoot(args[0]), stdout);
-  }
-  throw new Error("Usage: exo index [status | sync | add <path> | remove <name-or-path>]");
-}
-
-async function runPreview(client: AppClientLike, subcommand: string | undefined, args: string[], stdout: { write(text: string): void }): Promise<number> {
-  if (subcommand === "open" && args[0]) return print(client.openPreview(args[0]), stdout);
-  if (subcommand === "focus") return print(client.focusPreview(), stdout);
-  if (subcommand === "close") return print(client.closePreview(), stdout);
-  throw new Error("Usage: exo preview [open <url-or-html-path> | focus | close]");
-}
-
-async function runTerminals(client: AppClientLike, subcommand: string | undefined, args: string[], stdout: { write(text: string): void }): Promise<number> {
-  if (!subcommand || subcommand === "list") return print(client.listTerminals(), stdout);
-  if (subcommand === "create") return print(client.createTerminal(args[0]), stdout);
-  if (subcommand === "read") {
-    if (!args[0]) throw new Error("Usage: exo terminals read <id> [--lines n]");
-    const { values } = parseOptions(args.slice(1));
-    stdout.write(await client.readTerminal(args[0], { maxLines: positive(values.lines) }));
-    return 0;
-  }
-  if (subcommand === "write" || subcommand === "send") {
-    if (!args[0] || args.length < 2) throw new Error(`Usage: exo terminals ${subcommand} <id> <text>`);
-    return print(subcommand === "write" ? client.writeTerminal(args[0], args.slice(1).join(" ")) : client.sendTerminalMessage(args[0], args.slice(1).join(" ")), stdout);
-  }
-  if (subcommand === "kill") {
-    if (!args[0]) throw new Error("Usage: exo terminals kill <id>");
-    await client.killTerminal(args[0]); return 0;
-  }
-  throw new Error("Usage: exo terminals [list | create [cwd] | read <id> [--lines n] | write <id> <text> | send <id> <text> | kill <id>]");
+  throw new Error("Usage: exo index [status | sync]");
 }
 
 async function connectOrFail(env: NodeJS.ProcessEnv, stderr: { write(text: string): void }, connect: AppClientConnector): Promise<AppClientLike | null> {
@@ -215,18 +164,9 @@ async function appOffStatus(env: NodeJS.ProcessEnv): Promise<Record<string, unkn
   };
 }
 
-async function appOffSearch(env: NodeJS.ProcessEnv, query: string, limit?: number): Promise<Record<string, unknown>> {
+async function appOffSearch(env: NodeJS.ProcessEnv, query: string, options: { limit: number; offset: number }): Promise<IndexSearchResponse> {
   const { model, runtimeRoot } = await appOffContext(env);
-  return { ...await filesystemSearchProvider.search(model, runtimeRoot, query, { limit }) };
-}
-
-async function appOffRead(
-  env: NodeJS.ProcessEnv,
-  target: string,
-  options: { fromLine?: number; maxLines?: number },
-): Promise<Record<string, unknown>> {
-  const { model, runtimeRoot } = await appOffContext(env);
-  return { ...await filesystemSearchProvider.read(model, runtimeRoot, target, options) };
+  return filesystemSearchProvider.search(model, runtimeRoot, query, options);
 }
 
 async function startExoApp(
@@ -265,14 +205,13 @@ function parseOptions(args: string[]): { values: Record<string, string>; positio
   }
   return { values, positionals };
 }
-function positive(value: string | undefined): number | undefined { const parsed = Number(value); return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined; }
 async function print(value: Promise<unknown> | unknown, stdout: { write(text: string): void }): Promise<number> { stdout.write(`${JSON.stringify(await value, null, 2)}\n`); return 0; }
 function help(): string {
   return [
-    "Usage: exo [start] | status | show | search | read | index | open | preview | config get | spawn | terminals | mcp serve",
+    "Usage: exo [start] | show | status | search | index [status|sync] | open | invoke | mcp serve",
     "",
-    "App-off: status, search, and read use the configured workspace's filesystem roots.",
-    "App-backed: show, index changes, open, preview, spawn, and terminals require Exo to be running.",
+    "App-off: status and search use the configured workspace's filesystem roots.",
+    "App-backed: show, index maintenance, open, and invoke require Exo to be running.",
     "Developer source QA: pnpm dev:qa",
     "",
   ].join("\n");

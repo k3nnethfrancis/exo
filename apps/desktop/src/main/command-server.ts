@@ -6,51 +6,24 @@ import {
   EXO_COMMAND_ROUTES,
   EXO_COMMAND_TOKEN_HEADER,
   type ExoCommandServerInfo,
-  type ExoIndexRootRequest,
   type ExoCommandTerminalInfo,
-  type ExoCreateTerminalRequest,
-  type ExoReadDocumentRequest,
   type ExoOpenFileRequest,
-  type ExoOpenPreviewRequest,
-  type ExoOpenPreviewResponse,
-  type ExoPreviewCommandResponse,
-  type ExoSendTerminalMessageRequest,
   type ExoSpawnAgentCommandRequest,
   type ExoSpawnAgentCommandResponse,
-  type ExoWriteTerminalRequest,
-  type ExoWriteTerminalResponse,
-  type IndexReadResponse,
   type IndexSearchResponse,
   type IndexSyncResult,
   type IndexStatus,
-  type WorkspaceSearchResults,
-  type WorkspaceSettings,
 } from "@exo/core";
 
-import type { TerminalCreateOptions } from "../shared/api";
 import { InvocationRunnerError, type InvocationResult } from "./invocation-runner";
 
 export interface CommandServerOptions {
   runtimeRoot: string;
   onShowWindow: () => void;
   onOpenFile: (filePath: string) => void;
-  onOpenPreview: (target: string) => Promise<ExoOpenPreviewResponse>;
-  onFocusPreview: () => ExoPreviewCommandResponse;
-  onClosePreview: () => ExoPreviewCommandResponse;
-  onSearch: (query: string) => Promise<WorkspaceSearchResults>;
-  onIndexSearch: (query: string, options: { limit?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
-  onReadDocument: (target: string, options: { fromLine?: number; maxLines?: number }) => Promise<IndexReadResponse>;
+  onIndexSearch: (query: string, options: { limit?: number; offset?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
   onIndexStatus: () => Promise<IndexStatus>;
-  onIndexAddRoot: (input: ExoIndexRootRequest) => Promise<WorkspaceSettings>;
-  onIndexRemoveRoot: (target: string) => Promise<WorkspaceSettings>;
   onIndexSync: () => Promise<IndexSyncResult>;
-  onListTerminals: () => ExoCommandTerminalInfo[];
-  onCreateTerminal: (options: TerminalCreateOptions) => Promise<ExoCommandTerminalInfo>;
-  onReadTerminalTail: (id: string, options?: { maxLines?: number }) => string | null;
-  onWriteTerminal: (id: string, data: string) => Promise<ExoWriteTerminalResponse>;
-  onSendTerminalMessage: (id: string, message: string, submit: boolean) => Promise<ExoWriteTerminalResponse>;
-  onKillTerminal: (id: string) => Promise<void>;
-  onGetSettings: () => WorkspaceSettings;
   onGetStatus: () => object;
   onSpawnAgentCommand: (input: { handle: string; task: string }) => Promise<InvocationResult>;
 }
@@ -144,8 +117,10 @@ export class CommandServer {
           return;
         }
         const limit = parseOptionalNumber(url.searchParams.get("limit"));
+        const offset = parseOptionalNumber(url.searchParams.get("offset"));
         const results = await this.options.onIndexSearch(query, {
           limit,
+          offset,
           intent: url.searchParams.get("intent") ?? undefined,
           includeContent: url.searchParams.get("includeContent") === "1",
           maxLinesPerResult: parseOptionalNumber(url.searchParams.get("maxLinesPerResult")),
@@ -154,31 +129,8 @@ export class CommandServer {
         return;
       }
 
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.read) {
-        const body = await readBody(req);
-        const { target, fromLine, maxLines } = body as ExoReadDocumentRequest;
-        if (!target) {
-          json(res, { error: "Missing target in body" }, 400);
-          return;
-        }
-        json(res, await this.options.onReadDocument(target, { fromLine, maxLines }));
-        return;
-      }
-
       if (method === "GET" && pathname === EXO_COMMAND_ROUTES.indexStatus) {
         json(res, await this.options.onIndexStatus());
-        return;
-      }
-
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.indexRoots) {
-        const body = await readBody(req);
-        json(res, await this.options.onIndexAddRoot(body as ExoIndexRootRequest));
-        return;
-      }
-
-      const indexRootMatch = pathname.match(/^\/index\/roots\/(.+)$/);
-      if (method === "DELETE" && indexRootMatch) {
-        json(res, await this.options.onIndexRemoveRoot(decodeURIComponent(indexRootMatch[1])));
         return;
       }
 
@@ -196,32 +148,6 @@ export class CommandServer {
         }
         this.options.onOpenFile(filePath);
         json(res, { ok: true });
-        return;
-      }
-
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.openPreview) {
-        const body = await readBody(req);
-        const { target } = body as ExoOpenPreviewRequest;
-        if (!target) {
-          json(res, { error: "Missing target in body" }, 400);
-          return;
-        }
-        json(res, await this.options.onOpenPreview(target));
-        return;
-      }
-
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.focusPreview) {
-        json(res, this.options.onFocusPreview());
-        return;
-      }
-
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.closePreview) {
-        json(res, this.options.onClosePreview());
-        return;
-      }
-
-      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.config) {
-        json(res, this.options.onGetSettings());
         return;
       }
 
@@ -248,82 +174,6 @@ export class CommandServer {
         return;
       }
 
-      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.terminals) {
-        json(res, this.options.onListTerminals());
-        return;
-      }
-
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.terminals) {
-        const body = await readBody(req);
-        const { kind, cwd } = body as ExoCreateTerminalRequest;
-        if (kind && kind !== "shell") {
-          json(res, {
-            ok: false,
-            code: "unsupported-terminal-launch",
-            error: "Terminal creation only supports shell. Configure agents as AgentCommands and invoke them from notes.",
-          }, 400);
-          return;
-        }
-        try {
-          const terminal = await this.options.onCreateTerminal({
-            terminalKind: "shell",
-            cwd,
-          });
-          json(res, terminal);
-        } catch (error) {
-          json(res, {
-            ok: false,
-            code: "unsupported-terminal-launch",
-            error: error instanceof Error ? error.message : String(error),
-          }, 400);
-        }
-        return;
-      }
-
-      const terminalReadMatch = pathname.match(/^\/terminals\/([^/]+)\/tail$/);
-      if (method === "GET" && terminalReadMatch) {
-        const tail = this.options.onReadTerminalTail(decodeURIComponent(terminalReadMatch[1]), {
-          maxLines: parsePositiveNumber(url.searchParams.get("lines")),
-        });
-        if (tail === null) {
-          json(res, { error: "Terminal not found" }, 404);
-          return;
-        }
-        json(res, { tail });
-        return;
-      }
-
-      const terminalWriteMatch = pathname.match(/^\/terminals\/([^/]+)\/write$/);
-      if (method === "POST" && terminalWriteMatch) {
-        const body = await readBody(req);
-        const { data } = body as ExoWriteTerminalRequest;
-        if (typeof data !== "string") {
-          json(res, { error: "Missing string data in body" }, 400);
-          return;
-        }
-        json(res, await this.options.onWriteTerminal(decodeURIComponent(terminalWriteMatch[1]), data));
-        return;
-      }
-
-      const terminalMessageMatch = pathname.match(/^\/terminals\/([^/]+)\/message$/);
-      if (method === "POST" && terminalMessageMatch) {
-        const body = await readBody(req);
-        const { message, submit } = body as ExoSendTerminalMessageRequest;
-        if (typeof message !== "string") {
-          json(res, { error: "Missing string message in body" }, 400);
-          return;
-        }
-        json(res, await this.options.onSendTerminalMessage(decodeURIComponent(terminalMessageMatch[1]), message, submit !== false));
-        return;
-      }
-
-      const terminalKillMatch = pathname.match(/^\/terminals\/([^/]+)$/);
-      if (method === "DELETE" && terminalKillMatch) {
-        await this.options.onKillTerminal(decodeURIComponent(terminalKillMatch[1]));
-        json(res, { ok: true });
-        return;
-      }
-
       json(res, { error: "Not found" }, 404);
     } catch (error) {
       const status = error instanceof CommandServerHttpError ? error.status : 500;
@@ -344,14 +194,6 @@ export class CommandServer {
 
     return false;
   }
-}
-
-function parsePositiveNumber(value: string | null): number | undefined {
-  if (!value) {
-    return undefined;
-  }
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function parseOptionalNumber(value: string | null): number | undefined {

@@ -23,7 +23,6 @@ On approval, the only action is writing this ruling into the empty placeholder a
 exo [start] | show
 exo status
 exo search <query> [--limit n]
-exo read <path-or-docid> [--from n] [--lines n]
 exo index status | sync
 exo open <path>
 exo invoke @handle <task>
@@ -31,7 +30,7 @@ exo mcp serve
 ```
 
 `exo mcp serve` is installation transport, not an ordinary agent task.
-`status`, `search`, and `read` remain app-off primitives. The remainder are
+`status` and `search` remain app-off primitives. The remainder are
 explicit app handoff, index maintenance, or configured-Command invocation.
 
 Remove from the public CLI: `config get`, `preview`, `terminals`, and `index
@@ -47,9 +46,10 @@ do not restore terminal remote control.
 1. Rename `spawn` to **`invoke`**, with no alias. Invocation is the product's
    vocabulary everywhere else, and zero known external consumers makes this the
    inexpensive point to align. Internal route/method names may remain unchanged.
-2. Keep CLI `read` while MCP omits it. MCP reads through Exo authority; the CLI
-   runs with the caller's existing shell authority. CLI `read` adds bounded
-   document-id resolution and app-off parity without granting access.
+2. **User-approved amendment:** remove CLI `read`. Search returns canonical
+   absolute paths, and a shell-capable agent already has native filesystem
+   tools that are better suited to inspecting those paths. Exo search does not
+   become a second content transport.
 3. The CLI installer, not the packaged app, owns replacement. The app has no
    checkout to build from. Onboarding diagnoses the command and gives the exact
    next command; it must never mutate a bin directory as an MCP side effect.
@@ -83,5 +83,14 @@ Proceed as one wave with three independent gates:
 
 The source-backed CLI is a reason to do this now, not to wait for a standalone
 packaged CLI.
+
+### Search handoff amendment — user-approved 2026-07-14
+
+CLI and MCP share `exo.search.v1`: a bounded page with Workspace/Note Root
+scope, provider/mode/warnings, absolute and root-relative paths, title,
+snippet, score, and an opaque `next_cursor` when more results exist. It omits
+document bodies, inferred health labels, and a read tool. Its one instruction
+is to inspect returned paths with the caller's native filesystem tools, refine
+the query, or pass the cursor to continue.
 
 -- Fable | 2026-07-14

@@ -46,7 +46,7 @@ describe("WorkspaceIndex", () => {
     const adapters: WorkspaceIndexAdapters = { qmd: provider("qmd"), filesystem: provider("filesystem") };
     const index = new WorkspaceIndex({ context: { model, runtimeRoot: "/runtime" }, adapters });
 
-    await expect(index.search("hello")).resolves.toMatchObject({ provider: "filesystem", degraded: false, truncated: false });
+    await expect(index.search("hello")).resolves.toMatchObject({ provider: "filesystem" });
     await expect(index.status()).resolves.toMatchObject({ provider: "filesystem", degraded: false });
   });
 

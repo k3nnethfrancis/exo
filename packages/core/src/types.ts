@@ -252,6 +252,7 @@ export interface IndexSearchResponse {
   source: "qmd" | "filesystem";
   warnings: string[];
   results: IndexSearchResult[];
+  hasMore?: boolean;
 }
 
 export interface IndexReadResponse {

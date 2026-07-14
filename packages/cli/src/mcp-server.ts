@@ -8,10 +8,12 @@ import {
   resolveWorkspaceModel,
   workspaceEnvOverrides,
   workspaceModelFromSettings,
+  type IndexSearchResponse,
   type WorkspaceModel,
 } from "@exo/core";
 
 import { AppClient } from "./app-client";
+import { agentSearchResponse, boundedSearchLimit, parseSearchCursor } from "./search-response";
 
 const MCP_PROTOCOL_VERSION = "2025-06-18";
 const MAX_SEARCH_RESULTS = 20;
@@ -70,7 +72,7 @@ export async function runExoMcpServer(options: {
 
 interface ExoMcpOperations {
   status(): Promise<JsonRecord>;
-  search(query: string, limit: number): Promise<JsonRecord>;
+  search(query: string, input: { limit: number; cursor?: string }): Promise<object>;
 }
 
 async function createOperations(
@@ -92,14 +94,20 @@ async function createOperations(
   if (client && (await clientMatchesWorkspace(client, model))) {
     return {
       status: async () => workspaceStatus(scope, true, await client.getIndexStatus()),
-      search: (query, limit) => client.search(query, { limit }),
+      search: async (query, input) => {
+        const offset = parseSearchCursor(input.cursor, query);
+        const response = await client.search(query, { limit: input.limit, offset });
+        return agentSearchResponse(model, response as unknown as IndexSearchResponse, { limit: input.limit, offset });
+      },
     };
   }
   return {
     status: async () => workspaceStatus(scope, false, await filesystemSearchProvider.getStatus(model, runtimeRoot)),
-    search: async (query, limit) => ({
-      ...(await filesystemSearchProvider.search(model, runtimeRoot, query, { limit })),
-    }),
+    search: async (query, input) => {
+      const offset = parseSearchCursor(input.cursor, query);
+      const response = await filesystemSearchProvider.search(model, runtimeRoot, query, { limit: input.limit, offset });
+      return agentSearchResponse(model, response, { limit: input.limit, offset });
+    },
   };
 }
 
@@ -221,7 +229,7 @@ async function handleRequest(request: JsonRecord, operations: ExoMcpOperations):
       protocolVersion: MCP_PROTOCOL_VERSION,
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: "exo", version: "0.1.0-alpha.3" },
-      instructions: "Use Exo to orient within the current Markdown workspace. Search returns paths and metadata; use your native file tools only when your own permissions allow it. Exo MCP tools do not read or write notes.",
+      instructions: "Use Exo to orient within the current Markdown workspace. Search returns paths, metadata, and an optional next_cursor; use returned paths with your native file tools only when your own permissions allow it. Exo MCP tools do not read or write notes.",
     });
   }
   if (method === "ping") return jsonRpcResult(id, {});
@@ -239,10 +247,10 @@ function toolDefinitions(): JsonRecord[] {
     },
     {
       name: "search_notes",
-      description: "Search the current Exo workspace. Returns ranked note metadata including absolute file paths, title, snippet, score, and source. Uses configured retrieval when available, otherwise scoped filesystem search.",
+      description: "Search the current Exo workspace. Returns one bounded, ranked page of note metadata and an optional next_cursor. Read returned paths with native file tools when permitted; Exo does not read or write notes through MCP.",
       inputSchema: {
         type: "object", additionalProperties: false,
-        properties: { query: { type: "string", minLength: 1 }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS } },
+        properties: { query: { type: "string", minLength: 1 }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS }, cursor: { type: "string", minLength: 1 } },
         required: ["query"],
       },
     },
@@ -257,7 +265,10 @@ async function callTool(rawParams: unknown, operations: ExoMcpOperations): Promi
     if (name === "workspace_status") return toolResult(await operations.status());
     if (name === "search_notes") {
       const query = requiredString(args.query, "query");
-      return toolResult(await operations.search(query, boundedInteger(args.limit, 10, 1, MAX_SEARCH_RESULTS)));
+      return toolResult(await operations.search(query, {
+        limit: boundedSearchLimit(boundedInteger(args.limit, 10, 1, MAX_SEARCH_RESULTS)),
+        ...(typeof args.cursor === "string" ? { cursor: args.cursor } : {}),
+      }));
     }
     return toolError(`Unknown Exo tool: ${name || "(missing name)"}`);
   } catch (cause) {

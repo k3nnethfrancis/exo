@@ -70,7 +70,7 @@ describe("QMD index adapter", () => {
     const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
     expect(result.source).toBe("qmd");
-    expect(stores[0].searchLexCalls).toEqual([{ query: "focus", collection: "notes", limit: 10 }]);
+    expect(stores[0].searchLexCalls).toEqual([{ query: "focus", collection: "notes", limit: 11 }]);
     expect(result.results[0]).toMatchObject({ title: "Focus", source: "qmd" });
   });
 

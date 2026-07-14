@@ -247,6 +247,8 @@ async function searchIndex(
     store = await openQmdStore(model, runtimeRoot);
     const collections = selectedCollectionNames(model.indexedRoots, options.rootIds);
     const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
+    const offset = Math.max(0, options.offset ?? 0);
+    const providerLimit = offset + limit + 1;
     let rawResults: unknown[];
     const warnings: string[] = [];
 
@@ -264,20 +266,20 @@ async function searchIndex(
     }
 
     if (effectiveMode === "lexical") {
-      const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection })));
+      const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit: providerLimit, collection })));
       rawResults = lexical.flat();
     } else if (effectiveMode === "semantic") {
       try {
         const [lexical, vector] = await Promise.all([
-          Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection }))),
-          Promise.all(collections.map((collection) => store!.searchVector(trimmedQuery, { limit, collection }))),
+          Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit: providerLimit, collection }))),
+          Promise.all(collections.map((collection) => store!.searchVector(trimmedQuery, { limit: providerLimit, collection }))),
         ]);
         rawResults = [...lexical.flat(), ...vector.flat()];
       } catch (error) {
         // Preserve search as an orientation surface even when embeddings are stale or unavailable.
         // The warning keeps the degraded provider visible instead of silently pretending this was semantic.
         warnings.push(`Semantic search is not ready (${errorMessage(error)}); using lexical search.`);
-        const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection })));
+        const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit: providerLimit, collection })));
         rawResults = lexical.flat();
       }
     } else {
@@ -287,7 +289,7 @@ async function searchIndex(
             store!.search({
               query: trimmedQuery,
               collections: [collection],
-              limit,
+              limit: providerLimit,
               intent: options.intent,
               rerank: true,
             }),
@@ -298,16 +300,16 @@ async function searchIndex(
         // Hybrid depends on the same vector path as semantic search. Fall back to lexical results,
         // but keep a provider warning so index repair remains discoverable.
         warnings.push(`Hybrid search is not ready (${errorMessage(error)}); using lexical search.`);
-        const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit, collection })));
+        const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit: providerLimit, collection })));
         rawResults = lexical.flat();
       }
     }
 
-    let results = rawResults
+    const candidates = rawResults
       .map((result) => mapQmdResult(result, model.indexedRoots))
       .filter((result): result is IndexSearchResult => result !== null)
       .sort((left, right) => right.score - left.score)
-      .slice(0, limit);
+    let results = candidates.slice(offset, offset + limit);
 
     if (options.includeContent) {
       results = await Promise.all(
@@ -324,6 +326,7 @@ async function searchIndex(
       source: "qmd",
       warnings,
       results,
+      hasMore: candidates.length > offset + results.length,
     };
   } catch (error) {
     // If QMD cannot open at all, keep basic workspace search usable. This fallback is intentionally

@@ -22,9 +22,7 @@ import {
   saveWorkspaceDocument,
   workspaceModelFromSettings,
   WorkspaceIndex,
-  qmdSearchProvider,
   searchNotes,
-  searchWorkspace as searchWorkspaceContent,
   writeOnboardingStateStore,
   type OnboardingStateStore,
   type WorkspaceModel,
@@ -38,10 +36,6 @@ import { InvocationRunner } from "./invocation-runner";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
 import { CommandServerLifecycle } from "./command-server-lifecycle";
-import {
-  commandServerDocumentReadContext,
-  CommandServerDocumentReader,
-} from "./command-server-document-reader";
 import { IndexingService } from "./indexing-service";
 import { WorkspaceConfigStore, workspaceSettingsFromModel } from "./workspace-config-store";
 import { registerTerminalIpcHandlers } from "./terminal-ipc";
@@ -105,53 +99,15 @@ if (!singleInstanceLock) {
 
 function createCommandServer() {
   const runtimeRoot = resolveRuntimeRoot();
-  const documentReader = new CommandServerDocumentReader({
-    getContext: () => commandServerDocumentReadContext(workspaceModel),
-    readDocument: (context, target, options, authorizeResolvedPath) =>
-      qmdSearchProvider.readAuthorized(
-        context.model,
-        context.runtimeRoot,
-        target,
-        options,
-        authorizeResolvedPath,
-      ),
-  });
-
   return new CommandServer({
     runtimeRoot,
     onShowWindow: () => appLifecycle.showMainWindow(),
     onOpenFile: (filePath: string) => {
       sendToRenderer("command:open-file", filePath);
     },
-    onOpenPreview: async (target: string) => {
-      const result = await resolvePreviewTarget(target, currentSettings());
-      appLifecycle.showMainWindow();
-      sendToRenderer("command:open-preview", { url: result.url });
-      return result;
-    },
-    onFocusPreview: () => {
-      appLifecycle.showMainWindow();
-      sendToRenderer("command:focus-preview", undefined);
-      return { ok: true };
-    },
-    onClosePreview: () => {
-      sendToRenderer("command:close-preview", undefined);
-      return { ok: true };
-    },
-    onSearch: (query: string) => searchWorkspaceContent(workspaceModel, query),
     onIndexSearch: (query, options) => workspaceIndex().search(query, options),
-    onReadDocument: (target, options) => documentReader.read(target, options),
     onIndexStatus: () => indexingService.getMeasuredStatus(),
-    onIndexAddRoot: (input) => indexingService.addRoot(input),
-    onIndexRemoveRoot: (target) => indexingService.removeRoot(target),
     onIndexSync: () => indexingService.runSync("command"),
-    onListTerminals: () => terminalManager.list(),
-    onCreateTerminal: (options) => terminalManager.create(options),
-    onReadTerminalTail: (id: string, options?: { maxLines?: number }) => terminalManager.readTail(id, options),
-    onWriteTerminal: (id: string, data: string) => terminalManager.write(id, data),
-    onSendTerminalMessage: (id: string, message: string, submit: boolean) => terminalManager.sendMessage(id, message, submit),
-    onKillTerminal: (id: string) => terminalManager.kill(id),
-    onGetSettings: () => currentSettings(),
     onGetStatus: () => ({
       workspace: workspaceModel,
       terminals: terminalManager.list(),

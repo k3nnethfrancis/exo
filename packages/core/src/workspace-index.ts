@@ -22,10 +22,6 @@ export interface WorkspaceIndexOptions {
 
 export interface WorkspaceIndexSearchResponse extends IndexSearchResponse {
   readonly provider: "qmd" | "filesystem";
-  readonly degraded: boolean;
-  /** Number of result candidates observed by the provider when known. */
-  readonly visited: number | null;
-  readonly truncated: boolean;
 }
 
 export interface WorkspaceIndexStatus extends IndexStatus {
@@ -59,14 +55,9 @@ export class WorkspaceIndex {
   async search(query: string, searchOptions: IndexSearchOptions = {}): Promise<WorkspaceIndexSearchResponse> {
     const provider = this.selectProvider();
     const response = await provider.search(this.options.context.model, this.options.context.runtimeRoot, query, searchOptions);
-    const limit = searchOptions.limit;
-    const degraded = response.source !== provider.metadata.id || response.warnings.length > 0;
     return {
       ...response,
       provider: response.source,
-      degraded,
-      visited: response.results.length,
-      truncated: limit !== undefined && response.results.length >= limit,
     };
   }
 

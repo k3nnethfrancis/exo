@@ -47,6 +47,8 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: architect-review: 2026-07-08 MCP removal audit removed MCP from the capability/caller-surface vocabulary and retained the existing app/CLI command protocol routes.
 - sha256: `0b02ba339dedc94bab35e89812a0360f313c62ea986797f3f8266f50ffe17183`
 - review: user-approved-exception: 2026-07-11 User explicitly authorized Codex to settle the refactor contract without Fable; removes stale `/index/update` and `/index/embed` constants after a zero-caller audit. Explicit `index sync` remains the public maintenance action.
+- sha256: `71e90e83a781fa95e9816fd06ae5e8f8a8a95b38a27863ef01681c3832ad496c`
+- review: architect-review: 2026-07-14 `docs/reviews/2026-07-14-cli-contract-and-installation-response.md` approves the compact CLI route contract and removal of zero-caller read/config/preview/terminal/index-root routes. User-approved amendment removes CLI read and standardizes path-first paginated search.
 
 ### `apps/desktop/src/main/command-server.ts#route-table`
 
@@ -56,6 +58,8 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: architect-review: 2026-07-08 Fable Exograph completion review approved routing configured AgentCommand spawn through the authenticated local command server, with token auth already required on all routes and structured untrusted-command errors.
 - sha256: `438da0c99da1136f4074bc4d1c6b3057e091c5be9e299d0a50243742b119ec5b`
 - review: user-approved-exception: 2026-07-11 User explicitly authorized Codex to settle the refactor contract without Fable; removed zero-caller terminal diagnostics/transcript/semantic-answer and index update/embed routes. The retained authenticated loopback routes are the V1 operator contract.
+- sha256: `44e084ae74e27c3aacc226e5f617b71c36940196971f208f742320695d7ff359`
+- review: architect-review: 2026-07-14 `docs/reviews/2026-07-14-cli-contract-and-installation-response.md` approves the compact CLI route contract and removal of zero-caller read/config/preview/terminal/index-root routes. User-approved amendment removes CLI read and standardizes path-first paginated search.
 
 ### `packages/cli/src/index.ts#commands-and-flags`
 
@@ -80,6 +84,8 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: user-approved-exception: 2026-07-11 User explicitly authorized Codex to settle the refactor contract without Fable; restores `exo start` as the macOS packaged-app bootstrap and preserves app-off filesystem `status`, `search`, and `read`. Mutating/focus/terminal commands remain app-backed.
 - sha256: `df34fa9c662c551dd0655155ecccd93ca030447c9d522bf8f3788c248d1b4dcd`
 - review: user-approved-exception: 2026-07-13 User explicitly requested first-run installation of Exo MCP into Claude/Codex. Adds `exo mcp serve`, a stdio-only discovery adapter that exposes current Workspace status/search context and no note-reading, mutation, terminal, or agent-launch tools.
+- sha256: `711089277d5f420fbc35f53bc31cf5d6f563553432230a8d14faa223b9dac98d`
+- review: architect-review: 2026-07-14 `docs/reviews/2026-07-14-cli-contract-and-installation-response.md` approves `invoke`, the compact command set, and removal of broad UI remote control. User-approved amendment removes `read` and makes search the path-first paginated agent handoff.
 
 ### `packages/cli/src/app-client.ts#route-client-methods`
 
@@ -91,3 +97,5 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: architect-review: 2026-07-08 Fable Exograph completion review approved adding the CLI app-client method for authenticated AgentCommand spawn over the local command server.
 - sha256: `28f5d85fd44f3636bc2fc7c2910f812e89ada29d363cef89c0b96171ac2769ac`
 - review: user-approved-exception: 2026-07-11 User explicitly authorized Codex to settle the refactor contract without Fable; removed client methods for the same zero-caller diagnostic/transcript/index-maintenance routes removed from the command server.
+- sha256: `a4f62b404c5edf39359f75d9974210249372845d694e67d2cbad72bdb6550f83`
+- review: architect-review: 2026-07-14 `docs/reviews/2026-07-14-cli-contract-and-installation-response.md` approves the matching compact app-client contract and removal of zero-caller read/config/preview/terminal/index-root methods.

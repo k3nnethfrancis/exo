@@ -18,6 +18,7 @@ export interface SearchProviderMetadata {
 
 export interface IndexSearchOptions {
   limit?: number;
+  offset?: number;
   intent?: string;
   rootIds?: string[];
   includeContent?: boolean;

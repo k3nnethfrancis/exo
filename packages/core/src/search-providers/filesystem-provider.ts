@@ -93,8 +93,10 @@ export async function searchFilesystem(
 
   const workspaceResults = await searchWorkspace(model, trimmedQuery);
   const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
-  let results = [...workspaceResults.notes, ...workspaceResults.tags]
-    .slice(0, limit)
+  const offset = Math.max(0, options.offset ?? 0);
+  const candidates = [...workspaceResults.notes, ...workspaceResults.tags];
+  let results = candidates
+    .slice(offset, offset + limit)
     .map<IndexSearchResult>((result) => ({
       filePath: result.filePath,
       title: result.title,
@@ -118,6 +120,7 @@ export async function searchFilesystem(
     source: "filesystem",
     warnings: warning ? [warning] : [],
     results,
+    hasMore: candidates.length > offset + results.length,
   };
 }
 

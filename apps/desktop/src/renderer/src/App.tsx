@@ -1199,7 +1199,9 @@ export function App() {
                       <SquareTerminal aria-hidden="true" size={16} strokeWidth={1.8} />
                       <div><strong id="onboarding-cli-title">CLI</strong><span>For shell-capable clients</span></div>
                     </div>
-                    <div className="onboarding-cli-context"><code>exo status</code><code>exo search</code><span className="onboarding-mcp-tools__access">Read</span></div>
+                    <div className="onboarding-cli-context"><code>exo search</code><code>exo open</code><code>exo invoke</code></div>
+                    <p className="onboarding-section__hint">Search returns paths. Agents use their own filesystem tools to inspect them.</p>
+                    <p className="onboarding-section__hint">Install or update the local command with <code>./scripts/install-local</code>. MCP setup never changes it.</p>
                   </section>
                 </div>
               </div>

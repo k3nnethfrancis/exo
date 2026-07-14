@@ -181,12 +181,15 @@ CLI is the durable local integration surface.
 
 ## CLI
 
-The CLI is the operator/admin/debug surface. It intentionally includes setup, workspace configuration, index maintenance, search/read/status, and low-level runtime controls.
+The CLI is the compact shell-capable agent/operator surface: orient, search,
+hand off to the desktop, and explicitly invoke a configured Command. Search
+returns paths and metadata; callers use their own filesystem tools to inspect
+the returned files.
 
 Standalone workspace/runtime commands:
 
 ```bash
-./bin/exo workspace status
+./bin/exo status
 ./bin/exo search "query"
 ./bin/exo index status
 ./bin/exo index sync
@@ -198,16 +201,12 @@ Commands that drive a running Exo app:
 
 ```bash
 ./bin/exo open /path/to/file
-./bin/exo status
-./bin/exo config get
-./bin/exo terminals list
-./bin/exo terminals create shell
-./bin/exo terminals read term-4
-./bin/exo terminals send term-4 "message plus Enter"
-./bin/exo terminals kill term-4
+./bin/exo invoke @claude "review the workspace plan"
 ```
 
-`exo terminals` is the lower-level debug/raw terminal surface. Configured Commands are the provider-neutral agent/tool identity; legacy built-in agent lifecycle commands are being removed by the simplification plan.
+`exo invoke` is a workspace-level, visible-terminal task. It is deliberately
+distinct from note-native `@claude`, which carries document context and enters
+the document review flow.
 
 ## Workspace Model
 

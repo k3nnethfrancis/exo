@@ -127,10 +127,31 @@ if [ "$RUN_BUILD" -eq 1 ]; then
 fi
 
 if [ -e "$EXO_TARGET" ] || [ -L "$EXO_TARGET" ]; then
-  CURRENT_TARGET="$(readlink "$EXO_TARGET" 2>/dev/null || true)"
-  if [ "$CURRENT_TARGET" != "$EXO_SOURCE" ] && [ "$FORCE" -ne 1 ]; then
-    echo "Refusing to replace existing command: $EXO_TARGET" >&2
-    echo "Use --force to replace it." >&2
+  if [ -L "$EXO_TARGET" ]; then
+    CURRENT_TARGET="$(readlink "$EXO_TARGET" 2>/dev/null || true)"
+    CURRENT_PATH="$CURRENT_TARGET"
+    if [[ "$CURRENT_PATH" != /* ]]; then
+      CURRENT_PATH="$(dirname "$EXO_TARGET")/$CURRENT_PATH"
+    fi
+
+    if [ "$CURRENT_TARGET" = "$EXO_SOURCE" ]; then
+      log "existing Exo CLI shim already points at this checkout"
+    elif [ -f "$CURRENT_PATH" ] && grep -Fq 'packages/cli/dist/index.cjs' "$CURRENT_PATH"; then
+      log "replacing legacy Exo CLI shim"
+      log "old: $CURRENT_PATH"
+      log "new: $EXO_SOURCE"
+    elif [ ! -e "$EXO_TARGET" ] && [[ "$CURRENT_TARGET" == */bin/exo ]]; then
+      log "replacing dangling Exo CLI shim"
+      log "old: $CURRENT_TARGET"
+      log "new: $EXO_SOURCE"
+    elif [ "$FORCE" -ne 1 ]; then
+      echo "Refusing to replace non-Exo command: $EXO_TARGET -> $CURRENT_TARGET" >&2
+      echo "Use --force only if you intend to replace that command." >&2
+      exit 1
+    fi
+  elif [ "$FORCE" -ne 1 ]; then
+    echo "Refusing to replace non-Exo command: $EXO_TARGET" >&2
+    echo "Use --force only if you intend to replace that command." >&2
     exit 1
   fi
 fi

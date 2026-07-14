@@ -73,7 +73,7 @@ describe("Exo MCP server", () => {
     expect((responses[0].result as Record<string, unknown>)).toMatchObject({ protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } } });
     const tools = (responses[1].result as { tools: Array<{ name: string }> }).tools;
     expect(tools.map((tool) => tool.name)).toEqual(["workspace_status", "search_notes"]);
-    expect(toolText(responses[2]).results?.[0]).toMatchObject({ filePath: notePath, title: "Research", snippet: expect.any(String) });
+    expect(toolText(responses[2]).results?.[0]).toMatchObject({ path: notePath, title: "Research", snippet: expect.any(String) });
     expect(toolText(responses[3])).toMatchObject({
       app: { available: false },
       workspace: {
@@ -113,7 +113,7 @@ describe("Exo MCP server", () => {
         root: alpha,
       },
     });
-    expect(toolText(responses[1]).results?.[0]).toMatchObject({ filePath: path.join(alpha, "alpha.md") });
+    expect(toolText(responses[1]).results?.[0]).toMatchObject({ path: path.join(alpha, "alpha.md") });
   });
 
   it("uses a sole configured workspace when caller cwd is outside it", async () => {
@@ -133,7 +133,7 @@ describe("Exo MCP server", () => {
     expect(toolText(responses[0])).toMatchObject({
       workspace: { status: "resolved", resolution: "single-workspace-fallback", root },
     });
-    expect(toolText(responses[1]).results?.[0]).toMatchObject({ filePath: path.join(root, "only.md") });
+    expect(toolText(responses[1]).results?.[0]).toMatchObject({ path: path.join(root, "only.md") });
   });
 
   it("refuses search if caller cwd is covered by multiple workspaces", async () => {
@@ -198,12 +198,12 @@ describe("Exo MCP server", () => {
       connectApp: async () => ({
         getStatus: async () => ({ workspace: { root: otherRoot, noteRoots: [{ path: otherRoot }] } }),
         getIndexStatus: async () => ({ unreachable: "this must not be used" }),
-        search: async () => ({ results: [{ filePath: path.join(otherRoot, "wrong.md") }] }),
+        search: async () => ({ query: "Filesystem result", mode: "lexical", source: "filesystem", warnings: [], results: [{ filePath: path.join(otherRoot, "wrong.md"), title: "Wrong", snippet: "", score: 0, source: "filesystem" }] }),
       }),
     });
 
     expect(toolText(responses[0])).toMatchObject({ app: { available: false } });
-    expect(toolText(responses[1]).results?.[0]).toMatchObject({ filePath: notePath });
+    expect(toolText(responses[1]).results?.[0]).toMatchObject({ path: notePath });
   });
 
   it("uses app retrieval only when its Workspace exactly matches the resolved scope", async () => {
@@ -218,12 +218,12 @@ describe("Exo MCP server", () => {
       connectApp: async () => ({
         getStatus: async () => ({ workspace: { root, noteRoots: [{ path: root }] } }),
         getIndexStatus: async () => ({ provider: "app-backed" }),
-        search: async () => ({ results: [{ filePath: path.join(root, "app.md"), source: "app" }] }),
+        search: async () => ({ query: "from app", mode: "hybrid", source: "qmd", warnings: [], results: [{ filePath: path.join(root, "app.md"), title: "App", snippet: "", score: 1, source: "qmd" }] }),
       }),
     });
 
     expect(toolText(responses[0])).toMatchObject({ app: { available: true }, search: { provider: "app-backed" } });
-    expect(toolText(responses[1]).results?.[0]).toMatchObject({ source: "app" });
+    expect(toolText(responses[1]).results?.[0]).toMatchObject({ path: path.join(root, "app.md"), source: "qmd" });
   });
 
   it("returns tool errors as MCP tool results rather than crashing the protocol", async () => {

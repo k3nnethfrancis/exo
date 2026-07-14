@@ -2,9 +2,15 @@ import path from "node:path";
 import { stat } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import type { ExoOpenPreviewResponse, WorkspaceSettings } from "@exo/core";
+import type { WorkspaceSettings } from "@exo/core";
 
-export async function resolvePreviewTarget(target: string, settings: WorkspaceSettings): Promise<ExoOpenPreviewResponse> {
+export interface PreviewTargetResponse {
+  ok: true;
+  url: string;
+  source: "url" | "file";
+}
+
+export async function resolvePreviewTarget(target: string, settings: WorkspaceSettings): Promise<PreviewTargetResponse> {
   const trimmed = target.trim();
   if (!trimmed) {
     throw new Error("Preview target cannot be empty.");
@@ -40,7 +46,7 @@ function isTrustedLocalhost(hostname: string): boolean {
   return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1" || normalized === "[::1]";
 }
 
-async function resolveLocalPreviewPath(filePath: string, settings: WorkspaceSettings): Promise<ExoOpenPreviewResponse> {
+async function resolveLocalPreviewPath(filePath: string, settings: WorkspaceSettings): Promise<PreviewTargetResponse> {
   const resolvedPath = path.resolve(filePath);
   const allowedRoots = settings.noteRoots.map((rootPath) => path.resolve(rootPath));
 
