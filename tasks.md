@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-13
+Last updated: 2026-07-14
 
 This is Exo's active execution ledger. It records only current work. Completed implementation belongs in Git and `ledger.md`; reproducible bugs belong in `issues.md`; architecture rationale belongs in `docs/exograph-simplification-plan.md`.
 
@@ -119,6 +119,11 @@ Start only after the trust gates above pass.
 - [x] Reorder first-run as main wiki → optional Exo MCP install → editable local Claude/Codex invocation Commands. Commands have clear recommended defaults and a fully visible, editable command value.
 - [x] Implement the Exo MCP scope contract: freeze the two discovery tools (`workspace_status`, `search_notes`); resolve retrieval from caller cwd with only an unambiguous single-Workspace fallback; report resolved scope in status; refuse ambiguity; and prevent app retrieval from crossing Workspace scope.
 - [ ] Stabilize the Exo MCP public contract: add bounded-output/protocol coverage, document provider-native removal, and dogfood 10–20 real Claude/Codex context-seeking sessions before treating ambient instruction templates as earned.
+- [ ] Stabilize the CLI as the shell-capable agent/operator contract: retain
+  orient/retrieve/explicit-invoke/desktop-handoff commands, rename
+  `spawn` to `invoke`, remove shallow UI remote control, classify/update legacy
+  Exo shims only through the CLI installer, and make first-run MCP/CLI states
+  visibly independent. `docs/reviews/2026-07-14-cli-contract-and-installation-response.md`.
 
 ### Folder Overview and Folder Index
 
