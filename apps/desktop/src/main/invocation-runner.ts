@@ -50,6 +50,8 @@ export interface PreparedInvocation {
   request: InvocationRequest;
   command: AgentCommand;
   cwd: string;
+  workspaceRoot: string;
+  noteRoots: string[];
   before?: FileSnapshot;
   pending: InvocationRecord;
 }
@@ -85,6 +87,7 @@ export class InvocationRunnerError extends Error {
 interface ActiveObservation {
   record: InvocationRecord;
   before: FileSnapshot;
+  workspaceRoot: string;
   observedPaths: Set<string>;
   overlapAtStart: boolean;
   finalizing: boolean;
@@ -170,16 +173,24 @@ export class InvocationRunner extends EventEmitter {
       }
       before = verified;
     }
-    return { id, request, command, cwd, before, pending };
+    return {
+      id,
+      request,
+      command,
+      cwd,
+      workspaceRoot: settings.workspaceRoot,
+      noteRoots: [...settings.noteRoots],
+      before,
+      pending,
+    };
   }
 
   async authorizeAndStart(prepared: PreparedInvocation): Promise<InvocationStartResult> {
-    const settings = this.options.getWorkspaceSettings();
-    const store = new InvocationStore(settings.workspaceRoot);
+    const store = new InvocationStore(prepared.workspaceRoot);
     if (prepared.request.persistTrust) {
-      await new AgentCommandTrustStore(this.options.trustStateRoot, settings.workspaceRoot).trust(prepared.command);
+      await new AgentCommandTrustStore(this.options.trustStateRoot, prepared.workspaceRoot).trust(prepared.command);
     } else if (!prepared.request.allowUntrustedOneShot) {
-      const trust = await new AgentCommandTrustStore(this.options.trustStateRoot, settings.workspaceRoot).status(prepared.command);
+      const trust = await new AgentCommandTrustStore(this.options.trustStateRoot, prepared.workspaceRoot).status(prepared.command);
       if (!trust.trusted) throw new InvocationRunnerError("untrusted", `AgentCommand @${prepared.command.handle} must be trusted before launch.`, { handle: prepared.command.handle });
     }
     await store.writeRecord(prepared.pending);
@@ -207,10 +218,10 @@ export class InvocationRunner extends EventEmitter {
             agentHandle: prepared.command.handle,
             frontmatter: prepared.request.documentFrontmatter,
             body: prepared.request.documentBody,
-            workspaceRoot: settings.workspaceRoot,
-            noteRoots: settings.noteRoots,
+            workspaceRoot: prepared.workspaceRoot,
+            noteRoots: prepared.noteRoots,
           })
-        : formatCliInvocationPrompt({ task: prepared.request.task ?? prepared.request.message, workspaceRoot: settings.workspaceRoot });
+        : formatCliInvocationPrompt({ task: prepared.request.task ?? prepared.request.message, workspaceRoot: prepared.workspaceRoot });
       if (prepared.request.context === "note") {
         invocationProcess = (this.options.invocationProcessFactory ?? new DirectInvocationProcessFactory()).launch({
           command: commandForHeadlessInvocation(prepared.command),
@@ -242,7 +253,7 @@ export class InvocationRunner extends EventEmitter {
         ...(terminal ? { terminalSessionId: terminal.id } : {}),
       }, processStdout);
       await store.writeRecord(running);
-      if (prepared.before) this.observe(running, prepared.before);
+      if (prepared.before) this.observe(running, prepared.before, prepared.workspaceRoot);
       if (invocationProcess && prepared.before) {
         observationReady = true;
         if (processExited) settleHeadlessProcess();
@@ -371,10 +382,10 @@ export class InvocationRunner extends EventEmitter {
     }
   }
 
-  private observe(record: InvocationRecord, before: FileSnapshot): void {
+  private observe(record: InvocationRecord, before: FileSnapshot, workspaceRoot: string): void {
     if (!record.taggedDocumentPath) return;
     const overlapAtStart = [...this.active.values()].some((entry) => entry.record.taggedDocumentPath === record.taggedDocumentPath);
-    this.active.set(record.id, { record, before, observedPaths: new Set(), overlapAtStart, finalizing: false });
+    this.active.set(record.id, { record, before, workspaceRoot, observedPaths: new Set(), overlapAtStart, finalizing: false });
     if (record.terminalSessionId) this.byTerminal.set(record.terminalSessionId, record.id);
   }
 
@@ -386,7 +397,7 @@ export class InvocationRunner extends EventEmitter {
     const observation = this.active.get(id); if (!observation || observation.finalizing) return null;
     observation.finalizing = true;
     const after = await snapshotTextFile(observation.before.path);
-    const store = new InvocationStore(this.options.getWorkspaceSettings().workspaceRoot);
+    const store = new InvocationStore(observation.workspaceRoot);
     const changed = observation.before.sha256 !== after.sha256;
     const changedFileRefs = [...observation.record.changedFileRefs];
     const diffRefs = [...observation.record.diffRefs];

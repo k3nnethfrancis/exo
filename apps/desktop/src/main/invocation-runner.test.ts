@@ -116,6 +116,46 @@ describe("InvocationRunner readiness parity", () => {
     expect(processFactory.process.prompts[0]).toContain(`<exo-agent-response invocation="${TEST_PROTOCOL_INVOCATION_ID}" agent="echo">`);
   });
 
+  it("pins record settlement to the Workspace where the invocation was prepared", async () => {
+    const workspaceA = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-workspace-a-"));
+    const workspaceB = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-workspace-b-"));
+    temporaryRoots.push(workspaceA, workspaceB);
+    const notePath = path.join(workspaceA, "note.md");
+    const documentBody = protocolNoteBody("# Workspace A\n", "echo", "Update this note.");
+    await writeFile(notePath, documentBody, "utf8");
+    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo" };
+    let activeSettings = settings(workspaceA, command);
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = new InvocationRunner({
+      getWorkspaceSettings: () => activeSettings,
+      trustStateRoot: workspaceA,
+      terminalManager: new FakeTerminalManager() as unknown as TerminalManager,
+      invocationProcessFactory: processFactory,
+      workspaceWatcherService: { subscribe: () => () => undefined } as unknown as WorkspaceWatcherService,
+    });
+    const prepared = await runner.prepare({
+      context: "note",
+      handle: command.handle,
+      documentPath: notePath,
+      mentionText: "@echo",
+      message: "Update this note.",
+      protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID,
+      documentBody,
+      allowUntrustedOneShot: true,
+    });
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+
+    await runner.authorizeAndStart(prepared);
+    activeSettings = settings(workspaceB, command);
+    processFactory.process.exit(0, "done");
+
+    await expect(updated).resolves.toMatchObject({ status: "process-exited" });
+    await expect(readFile(path.join(workspaceA, ".exo", "invocations", prepared.id, "record.json"), "utf8"))
+      .resolves.toContain('"status": "process-exited"');
+    await expect(readFile(path.join(workspaceB, ".exo", "invocations", prepared.id, "record.json"), "utf8"))
+      .rejects.toMatchObject({ code: "ENOENT" });
+  });
+
   it("refuses to baseline an editor snapshot that is not the saved document", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);
