@@ -135,7 +135,7 @@ async function invokeConfiguredCommand(page: Page, handle: string): Promise<void
     const composer = page.getByTestId("inline-agent-composer");
     await expect(composer).toHaveCount(1);
     await page.keyboard.type("Confirm this command still launches.");
-    await page.keyboard.press("Shift+Enter");
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
     await expect(page.getByTestId("invocation-review-banner")).toContainText(`Running @${handle}`);
   } finally {
     page.off("dialog", onDialog);

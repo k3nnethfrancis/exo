@@ -71,7 +71,7 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 - Area: editor invocation, document context, changed-file review
 - Current guarantee:
   - `@` opens configured Command autocomplete; Enter creates a transient,
-    page-native multiline draft; only Shift+Enter invokes. Saving a note and
+    page-native multiline draft; only Command+Enter invokes. Saving a note and
     arbitrary Markdown mentions never invoke a Command.
   - The prompt includes the explicit message and exact saved document snapshot.
     Note invocations run headlessly; a real Claude session can be resumed in a

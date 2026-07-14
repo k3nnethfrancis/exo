@@ -101,8 +101,9 @@ test("renders a sent Claude invocation as highlighted prose without its source e
     await fixture.page.keyboard.type("@claude");
     await expect(fixture.page.getByTestId("agent-suggestion-claude")).toBeVisible();
     await fixture.page.keyboard.press("Enter");
+    await expect(fixture.page.getByTestId("inline-agent-composer")).toContainText("⌘ ↵");
     await fixture.page.keyboard.type("what task should I work on first?");
-    await fixture.page.keyboard.press("Shift+Enter");
+    await fixture.page.keyboard.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
 
     await expect(fixture.page.getByRole("dialog", { name: "Run @claude?" })).toBeVisible();
     const openingEnvelope = fixture.page.locator(".cm-line").filter({ hasText: '<exo-invocation id="' });
@@ -516,7 +517,7 @@ async function invokeConfiguredAgent(
   const composer = page.getByTestId("inline-agent-composer");
   await expect(composer).toHaveCount(1);
   await page.keyboard.type(message);
-  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
   const authorization = page.getByRole("dialog", { name: `Run @${handle}?` });
   await expect(authorization).toBeVisible();
   await authorization.getByRole("button", { name: `Run @${handle}` }).click();

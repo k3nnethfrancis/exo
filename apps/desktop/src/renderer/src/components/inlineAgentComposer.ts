@@ -119,7 +119,8 @@ export function inlineAgentComposerExtension(options: {
     ...(options.renderPersistedInvocations === false ? [] : [persistedInvocationDecorations]),
     composerCallbackFacet.of(options.onSend),
     Prec.highest(keymap.of([
-      { key: "Shift-Enter", run: sendInlineAgentComposer },
+      { key: "Cmd-Enter", run: sendInlineAgentComposer },
+      { key: "Ctrl-Enter", run: sendInlineAgentComposer },
       { key: "Escape", run: closeInlineAgentComposer },
     ])),
   ];
@@ -208,7 +209,9 @@ class InlineAgentAffordanceWidget extends WidgetType {
 
     const hint = document.createElement("span");
     hint.className = "inline-agent-composer__hint";
-    hint.textContent = "Shift + Return to send";
+    hint.textContent = "⌘ ↵";
+    hint.setAttribute("aria-label", "Command Return to send");
+    hint.title = "Command + Return to send";
 
     const button = document.createElement("button");
     button.className = "inline-agent-composer__send";

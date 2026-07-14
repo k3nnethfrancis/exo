@@ -175,7 +175,7 @@ Avoid `NODE_TLS_REJECT_UNAUTHORIZED=0` except as a temporary local diagnostic; i
 
 ## Agent Commands
 
-The active refactor makes agents note-native and command-based. Type `@` in a Markdown editor, select a configured Command such as `@claude`, then write the transient multiline request. Shift+Enter sends only after explicit confirmation; Exo launches the Command in a normal terminal and shows observed changes for review. Saving a note never invokes a Command.
+The active refactor makes agents note-native and command-based. Type `@` in a Markdown editor, select a configured Command such as `@claude`, then write the transient multiline request. Command+Enter sends only after explicit confirmation; Exo launches the Command headlessly and shows observed changes for review. Saving a note never invokes a Command.
 
 CLI is the durable local integration surface.
 
