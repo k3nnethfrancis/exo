@@ -29,6 +29,8 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Starts with an empty editor when no saved layout chooses a note instead of hard-coding an Exo `tasks.md`; restores only user-selected tabs and migrates saved canvas layouts from v2 to the renderer's canonical v3 schema.
+- Gives the built-in headless Claude command explicit prompt-free access to the bounded read/edit tools it needs for inline responses, while leaving custom commands unchanged.
 - Keeps provider identity separate from editable `@` handles, prevents
   continued sessions crossing Workspaces or overlapping in one lane, and
   retries only Claude's proven pre-turn stale-session failure.
