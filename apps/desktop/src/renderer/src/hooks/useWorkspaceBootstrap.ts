@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AgentCommand, IndexStatus, TreeNode, WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
 import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "@exo/core/default-agent-command";
+import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
 
 import type { TerminalSessionInfo, WorkspaceRegistryEntry, WorkspaceSetupState } from "../../../shared/api";
 import type { PaneNode } from "./usePaneTree";
@@ -18,6 +19,7 @@ export interface OnboardingState {
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
   agentCommands: AgentCommand[];
+  agentInvocationPrompt: string;
   status: "idle" | "saving" | "error";
   errorMessage: string | null;
 }
@@ -88,6 +90,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
           exploreIndexSearchOnEnter: false,
           indexUpdateStrategy: settings.indexUpdateStrategy,
           agentCommands: settings.agentCommands && settings.agentCommands.length > 0 ? settings.agentCommands : defaultOnboardingAgentCommands(),
+          agentInvocationPrompt: settings.agentInvocationPrompt ?? DEFAULT_AGENT_INVOCATION_PROMPT,
           status: "idle",
           errorMessage: null,
         });
@@ -206,6 +209,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       exploreIndexSearchOnEnter: current?.exploreIndexSearchOnEnter ?? false,
       indexUpdateStrategy: current?.indexUpdateStrategy ?? "on-save",
       agentCommands: current?.agentCommands ?? defaultOnboardingAgentCommands(),
+      agentInvocationPrompt: current?.agentInvocationPrompt ?? DEFAULT_AGENT_INVOCATION_PROMPT,
       status: "idle",
       errorMessage: null,
     });
@@ -224,6 +228,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
             exploreIndexSearchOnEnter: true,
             indexUpdateStrategy: "on-save",
             agentCommands: defaultOnboardingAgentCommands(),
+            agentInvocationPrompt: DEFAULT_AGENT_INVOCATION_PROMPT,
             status: "idle",
             errorMessage: null,
           }
@@ -298,6 +303,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         exploreIndexSearchOnEnter: indexMode !== "off" && current.exploreIndexSearchOnEnter,
         indexUpdateStrategy: current.indexUpdateStrategy,
         agentCommands: current.agentCommands,
+        agentInvocationPrompt: current.agentInvocationPrompt,
       };
       const saved = await window.exo.workspace.saveSettings({
         settings: nextSettings,

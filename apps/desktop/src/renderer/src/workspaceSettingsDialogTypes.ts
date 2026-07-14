@@ -24,6 +24,7 @@ export interface WorkspaceSettingsDialogState {
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
   agentCommands: AgentCommand[];
+  agentInvocationPrompt?: string;
   saveStatus: "idle" | "saving" | "saved" | "error";
   errorMessage: string | null;
   appliedWorkspaceKey: string;

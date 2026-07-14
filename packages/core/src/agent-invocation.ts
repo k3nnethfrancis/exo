@@ -3,6 +3,8 @@ import path from "node:path";
 
 import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
 import { formatDocumentAgentResponse, isDocumentAgentProtocolId } from "./document-agent-protocol";
+import { DEFAULT_AGENT_INVOCATION_PROMPT } from "./agent-invocation-prompt";
+export { DEFAULT_AGENT_INVOCATION_PROMPT } from "./agent-invocation-prompt";
 export { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
 
 // Legacy values remain in the type only so persisted workspaces can normalize
@@ -13,6 +15,7 @@ export const AGENT_COMMAND_CWD_POLICIES = ["workspace_root", "note_dir", "fixed"
 export const AGENT_COMMAND_ADAPTERS = ["generic", "claude-code", "codex-cli"] as const;
 export const AGENT_COMMAND_UNSUPPORTED_V1_FIELDS = ["env", "template", "promptTemplate"] as const;
 export const NOTE_INVOCATION_SNAPSHOT_MAX_CHARACTERS = 24_000;
+export const AGENT_INVOCATION_PROMPT_MAX_CHARACTERS = 40_000;
 
 export type AgentCommandPromptDelivery = (typeof AGENT_COMMAND_PROMPT_DELIVERIES)[number];
 export type AgentCommandCwdPolicy = (typeof AGENT_COMMAND_CWD_POLICIES)[number];
@@ -289,6 +292,7 @@ export function formatNoteInvocationPrompt(input: {
   message: string;
   protocolInvocationId?: string;
   agentHandle?: string;
+  promptTemplate?: string;
   frontmatter?: Record<string, unknown>;
   body?: string;
 }): string {
@@ -297,41 +301,40 @@ export function formatNoteInvocationPrompt(input: {
     protocolInvocationId: input.protocolInvocationId,
     mentionText: input.mentionText,
   });
-  return [
-    "You are a configured Command explicitly invoked from an Exo note.",
-    "You are running as a separate local process, not inside Exo's editor. The note snapshot below is context only; assistant text and stdout do not modify the note.",
-    "An Exo Workspace is the user's explicit set of local-first Markdown Note Roots; do not assume the snapshot below is the whole workspace.",
-    ...(input.workspaceRoot ? ["Workspace root:", input.workspaceRoot] : []),
-    ...(input.noteRoots?.length ? ["Configured Note Roots:", ...input.noteRoots.map((root) => `- ${root}`)] : []),
-    "Exo observes and reviews note changes inside configured Note Roots. Do not treat every file under the Workspace root as an Exo note or as implicitly writable.",
-    "Exo wikilinks may be durable and aliased ([[durable/path/to/note|Readable title]]) or legacy bare stems ([[note-name]]). Resolve referenced notes with native filesystem tools or Exo CLI/Search. When writing a link, prefer the durable path target with a readable alias.",
-    "",
-    "Working note:",
-    input.documentPath,
-    "",
-    "Invocation:",
-    input.mentionText,
-    "",
-    "Message:",
-    input.message,
-    "",
-    "Working-note snapshot at invocation:",
-    "--- frontmatter ---",
-    JSON.stringify(input.frontmatter ?? {}, null, 2),
-    "--- body snapshot (may be truncated) ---",
-    bodySnapshot,
-    "--- end bounded snapshot; read the working note from disk when more context is needed ---",
-    "",
-    "Act on the request:",
-    "- For an answer-shaped request (opinion, explanation, analysis, research, or plan), the linked Exo agent response is the deliverable. Make direct Markdown edits only when requested or genuinely useful.",
-    "- For an edit-shaped request, edit the relevant Markdown directly and use the linked Exo agent response as a concise receipt describing those edits.",
-    "Preserve the user's voice and structure. Direct edits remain ordinary Markdown and Exo presents them for review.",
-    ...(input.protocolInvocationId && input.agentHandle && isDocumentAgentProtocolId(input.protocolInvocationId)
-      ? protocolInstructions(input.protocolInvocationId, input.agentHandle)
-      : []),
-    "",
-    "When the work is complete, print only a concise completion summary for the terminal/session transcript.",
-  ].join("\n");
+  const protocol = input.protocolInvocationId && input.agentHandle && isDocumentAgentProtocolId(input.protocolInvocationId)
+    ? protocolInstructions(input.protocolInvocationId, input.agentHandle).join("\n")
+    : "";
+  const template = normalizeAgentInvocationPrompt(input.promptTemplate) ?? DEFAULT_AGENT_INVOCATION_PROMPT;
+  const rendered = renderAgentInvocationPrompt(template, {
+    "{{workspace_root}}": input.workspaceRoot ?? "",
+    "{{note_roots}}": input.noteRoots?.map((root) => `- ${root}`).join("\n") ?? "",
+    "{{working_note}}": input.documentPath,
+    "{{mention}}": input.mentionText,
+    "{{message}}": input.message,
+    "{{frontmatter}}": JSON.stringify(input.frontmatter ?? {}, null, 2),
+    "{{body_snapshot}}": bodySnapshot,
+    "{{protocol}}": protocol,
+  });
+
+  // Keep the minimum context and the protocol durable even if a user edits
+  // those tokens out of their template. The visible template remains fully
+  // editable; these are runtime guardrails, not hidden provider instructions.
+  const requiredSections: string[] = [];
+  if (!template.includes("{{working_note}}")) requiredSections.push(`Working note:\n${input.documentPath}`);
+  if (!template.includes("{{message}}")) requiredSections.push(`Message:\n${input.message}`);
+  if (protocol && !template.includes("{{protocol}}")) requiredSections.push(protocol);
+  return requiredSections.length > 0 ? `${rendered.trimEnd()}\n\n${requiredSections.join("\n\n")}` : rendered;
+}
+
+export function normalizeAgentInvocationPrompt(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, AGENT_INVOCATION_PROMPT_MAX_CHARACTERS);
+}
+
+function renderAgentInvocationPrompt(template: string, replacements: Record<string, string>): string {
+  return Object.entries(replacements).reduce((result, [token, value]) => result.split(token).join(value), template);
 }
 
 function boundedNoteInvocationSnapshot(input: {

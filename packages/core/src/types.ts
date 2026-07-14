@@ -26,6 +26,8 @@ export interface WorkspaceSettings {
   defaultTerminalCwd: string;
   noteRoots: string[];
   agentCommands?: AgentCommand[];
+  /** Editable provider-neutral prompt template used for note invocations. */
+  agentInvocationPrompt?: string;
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
   appearanceMode: "system" | "light" | "dark";

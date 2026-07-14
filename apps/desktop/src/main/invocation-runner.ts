@@ -62,6 +62,7 @@ export interface PreparedInvocation {
   cwd: string;
   workspaceRoot: string;
   noteRoots: string[];
+  promptTemplate?: string;
   continuityLane?: InvocationContinuityLane;
   before?: FileSnapshot;
   pending: InvocationRecord;
@@ -205,6 +206,7 @@ export class InvocationRunner extends EventEmitter {
       cwd,
       workspaceRoot: settings.workspaceRoot,
       noteRoots: [...settings.noteRoots],
+      ...(settings.agentInvocationPrompt ? { promptTemplate: settings.agentInvocationPrompt } : {}),
       ...(continuityLane ? { continuityLane } : {}),
       before,
       pending,
@@ -260,6 +262,7 @@ export class InvocationRunner extends EventEmitter {
             body: prepared.request.documentBody,
             workspaceRoot: prepared.workspaceRoot,
             noteRoots: prepared.noteRoots,
+            promptTemplate: prepared.promptTemplate,
           })
         : formatCliInvocationPrompt({ task: prepared.request.task ?? prepared.request.message, workspaceRoot: prepared.workspaceRoot });
       const handleHeadlessExit = async (

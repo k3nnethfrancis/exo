@@ -22,6 +22,7 @@ export function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDi
     exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settings.indexUpdateStrategy,
     agentCommands: settings.agentCommands,
+    agentInvocationPrompt: settings.agentInvocationPrompt,
   });
 }
 

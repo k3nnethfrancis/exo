@@ -214,6 +214,22 @@ describe("agent invocation model", () => {
     expect(prompt).toContain("Do not print the response envelope in your final summary");
   });
 
+  it("renders a saved prompt template while protecting required context and protocol", () => {
+    const invocationId = "11111111-1111-4111-8111-111111111111";
+    const prompt = formatNoteInvocationPrompt({
+      promptTemplate: "Be concise.\n{{message}}\n{{protocol}}",
+      documentPath: "/workspace/notes/task.md",
+      mentionText: "@claude",
+      message: "Review this.",
+      protocolInvocationId: invocationId,
+      agentHandle: "claude",
+    });
+
+    expect(prompt).toContain("Be concise.\nReview this.");
+    expect(prompt).toContain(`exactly one <exo-agent-response> linked to invocation ${invocationId}`);
+    expect(prompt).toContain("Working note:\n/workspace/notes/task.md");
+  });
+
   it("keeps opinion and analysis requests response-only unless edits are useful", () => {
     const prompt = formatNoteInvocationPrompt({
       documentPath: "/workspace/notes/essay.md",

@@ -24,6 +24,7 @@ import { PathList } from "./components/PathList";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
+import { AgentInvocationPromptEditor } from "./components/AgentInvocationPromptEditor";
 import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments, type OpenEditorDocument } from "./hooks/useOpenDocuments";
 import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
@@ -1063,6 +1064,11 @@ export function App() {
                 <p className="onboarding-card__copy">
                   Exo invokes agents through their installed local CLIs. These commands stay on this computer and can be edited later in Settings.
                 </p>
+                <AgentInvocationPromptEditor
+                  onSave={(agentInvocationPrompt) => setOnboardingState((current) => current ? { ...current, agentInvocationPrompt, status: "idle", errorMessage: null } : current)}
+                  testId="onboarding-invocation-prompt"
+                  value={onboardingState.agentInvocationPrompt}
+                />
                 <div className="onboarding-agent-list">
                   {onboardingState.agentCommands.map((command) => (
                     <div className="onboarding-agent" key={command.id}>

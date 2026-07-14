@@ -8,6 +8,7 @@ import type { ColorThemeId } from "../theme/types";
 import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "../workspaceSettingsDialogTypes";
 import { HelpTooltip } from "./HelpTooltip";
 import { PathList } from "./PathList";
+import { AgentInvocationPromptEditor } from "./AgentInvocationPromptEditor";
 
 interface WorkspaceSettingsDialogProps {
   indexBusy: IndexBusyState;
@@ -527,6 +528,16 @@ function AgentsSection({
 }: Pick<WorkspaceSettingsDialogProps, "settings" | "setSettings">) {
   return (
     <div className="agent-command-list" data-testid="workspace-settings-agents">
+      <AgentInvocationPromptEditor
+        onSave={(agentInvocationPrompt) => setSettings((current) => current ? {
+          ...current,
+          agentInvocationPrompt,
+          saveStatus: "idle",
+          errorMessage: null,
+        } : current)}
+        testId="workspace-settings-invocation-prompt"
+        value={settings.agentInvocationPrompt}
+      />
       {settings.agentCommands.map((command) => (
         <AgentCommandSection command={command} key={command.id} setSettings={setSettings} />
       ))}

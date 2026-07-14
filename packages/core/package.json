@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./agent-mention-parser": "./src/agent-mention-parser.ts",
     "./agent-invocation": "./src/agent-invocation.ts",
+    "./agent-invocation-prompt": "./src/agent-invocation-prompt.ts",
     "./provider-session": "./src/provider-session.ts",
     "./command-protocol": "./src/command-protocol.ts",
     "./default-agent-command": "./src/default-agent-command.ts",

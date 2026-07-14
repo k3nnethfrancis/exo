@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import type { IndexMode, LegacyWorkspaceLayoutSettings, WorkspaceCanvasLayoutSettings, WorkspaceLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
-import { normalizeAgentCommands } from "./agent-invocation";
+import { normalizeAgentCommands, normalizeAgentInvocationPrompt } from "./agent-invocation";
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
 
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
@@ -337,6 +337,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
   if (!workspaceRoot || !defaultTerminalCwd || noteRoots.length === 0) {
     return null;
   }
+  const agentInvocationPrompt = normalizeAgentInvocationPrompt(input.agentInvocationPrompt);
 
   // A newer Exo may own settings this build does not recognize yet. These
   // named keys are retired product surfaces and must not survive a rewrite.
@@ -364,6 +365,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     defaultTerminalCwd,
     noteRoots,
     agentCommands: normalizeAgentCommands(input.agentCommands),
+    ...(agentInvocationPrompt ? { agentInvocationPrompt } : {}),
     indexedRoots,
     indexing,
     appearanceMode: input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system" ? input.appearanceMode : DEFAULT_APPEARANCE_MODE,
