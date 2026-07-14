@@ -144,6 +144,7 @@ export class InvocationRunner extends EventEmitter {
       ...(request.context === "note" ? { taggedDocumentPath: request.documentPath, originalMentionText: request.mentionText, mentionProvenance: "human-authored" as const } : { mentionProvenance: "unknown" as const }),
       ...(request.protocolInvocationId ? { protocolInvocationId: request.protocolInvocationId } : {}),
       message: request.message,
+      continuity: { policy: settings.invocationContinuityPolicy, outcome: "fresh" },
       promptDelivery: command.promptDelivery,
       command: agentCommandSnapshot(command), cwd, createdAt: now,
       changedFileRefs: [], diffRefs: [], attribution: { status: "pending" },

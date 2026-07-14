@@ -210,6 +210,7 @@ describe("workspace settings footer copy", () => {
             label: "Claude",
             handle: "claude",
             command: "claude -p",
+            adapter: "claude-code",
             cwdPolicy: "workspace_root",
             promptDelivery: "stdin",
             version: 1,
@@ -1042,6 +1043,7 @@ function invocationRecord(overrides: Partial<InvocationRecord> = {}): Invocation
       label: "Claude",
       handle: "claude",
       command: "claude",
+      adapter: "claude-code",
       cwdPolicy: "workspace_root",
       promptDelivery: "terminalInputAfterLaunch",
       version: 1,
@@ -1055,6 +1057,7 @@ function invocationRecord(overrides: Partial<InvocationRecord> = {}): Invocation
     changedFileRefs: [],
     diffRefs: [],
     attribution: { status: "pending" },
+    continuity: { policy: "continuous", outcome: "fresh" },
     ...overrides,
   };
 }

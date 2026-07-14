@@ -26,6 +26,7 @@ function invocationRecord(id: string, createdAt: string): InvocationRecord {
     changedFileRefs: [],
     diffRefs: [],
     attribution: { status: "pending" },
+    continuity: { policy: "continuous", outcome: "fresh" },
   };
 }
 

@@ -398,5 +398,6 @@ function settings(workspaceRoot: string, command: ReturnType<typeof createDefaul
     explorerScale: 1,
     exploreIndexSearchOnEnter: true,
     indexUpdateStrategy: "manual",
+    invocationContinuityPolicy: "continuous",
   };
 }

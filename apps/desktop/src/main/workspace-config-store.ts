@@ -117,6 +117,7 @@ export function workspaceSettingsFromModel(model: WorkspaceModel): WorkspaceSett
       explorerScale: DEFAULT_EXPLORER_SCALE,
       exploreIndexSearchOnEnter: model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0,
       indexUpdateStrategy: "on-save",
+      invocationContinuityPolicy: "continuous",
   };
 
 }

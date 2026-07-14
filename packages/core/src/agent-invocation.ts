@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-import { createDefaultClaudeAgentCommand } from "./default-agent-command";
+import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
 import { formatDocumentAgentResponse, isDocumentAgentProtocolId } from "./document-agent-protocol";
 export { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
 
@@ -10,17 +10,22 @@ export { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from 
 export const AGENT_COMMAND_PROMPT_DELIVERIES = ["terminalInputAfterLaunch", "stdin", "argv"] as const;
 export const DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY: AgentCommandPromptDelivery = "stdin";
 export const AGENT_COMMAND_CWD_POLICIES = ["workspace_root", "note_dir", "fixed"] as const;
+export const AGENT_COMMAND_ADAPTERS = ["generic", "claude-code", "codex-cli"] as const;
 export const AGENT_COMMAND_UNSUPPORTED_V1_FIELDS = ["env", "template", "promptTemplate"] as const;
 export const NOTE_INVOCATION_SNAPSHOT_MAX_CHARACTERS = 24_000;
 
 export type AgentCommandPromptDelivery = (typeof AGENT_COMMAND_PROMPT_DELIVERIES)[number];
 export type AgentCommandCwdPolicy = (typeof AGENT_COMMAND_CWD_POLICIES)[number];
+export type AgentCommandAdapter = (typeof AGENT_COMMAND_ADAPTERS)[number];
+export type InvocationContinuityPolicy = "continuous" | "fresh";
+export type InvocationContinuityOutcome = "fresh" | "resumed" | "resume-failed-fresh";
 
 export interface AgentCommand {
   id: string;
   label: string;
   handle: string;
   command: string;
+  adapter: AgentCommandAdapter;
   cwdPolicy: AgentCommandCwdPolicy;
   fixedCwd?: string;
   promptDelivery: AgentCommandPromptDelivery;
@@ -59,6 +64,7 @@ export interface AgentCommandSnapshot {
   label: string;
   handle: string;
   command: string;
+  adapter: AgentCommandAdapter;
   cwdPolicy: AgentCommandCwdPolicy;
   fixedCwd?: string;
   promptDelivery: AgentCommandPromptDelivery;
@@ -100,6 +106,12 @@ export interface InvocationReviewSummary {
   reviewedAt?: string;
 }
 
+export interface InvocationContinuitySummary {
+  policy: InvocationContinuityPolicy;
+  outcome: InvocationContinuityOutcome;
+  resumedFromInvocationId?: string;
+}
+
 export interface InvocationRecord {
   id: string;
   status: InvocationStatus;
@@ -121,6 +133,7 @@ export interface InvocationRecord {
   terminalSessionId?: string;
   /** Provider-emitted provenance, never inferred from command output. */
   providerSessionId?: string;
+  continuity: InvocationContinuitySummary;
   changedFileRefs: InvocationChangedFileRef[];
   diffRefs: InvocationDiffRef[];
   attribution: InvocationAttributionSummary;
@@ -174,6 +187,7 @@ export function normalizeAgentCommand(input: unknown, fallbackId?: string): Agen
     label,
     handle,
     command,
+    adapter: normalizeAgentCommandAdapter(candidate.adapter, { ...candidate, command }),
     cwdPolicy,
     ...(fixedCwd ? { fixedCwd } : {}),
     promptDelivery,
@@ -208,6 +222,7 @@ export function agentCommandSnapshot(command: AgentCommand): AgentCommandSnapsho
 export function agentCommandExecutableFingerprint(command: AgentCommand): string {
   const payload = {
     command: command.command,
+    adapter: command.adapter,
     cwdPolicy: command.cwdPolicy,
     fixedCwd: command.fixedCwd ?? null,
     handle: command.handle,
@@ -462,10 +477,28 @@ export function normalizeInvocationRecord(input: unknown): InvocationRecord | nu
     ...optionalStringField("failureReason", candidate.failureReason),
     ...optionalStringField("terminalSessionId", candidate.terminalSessionId),
     ...optionalProviderSessionId(candidate.providerSessionId),
+    continuity: normalizeInvocationContinuity(candidate.continuity),
     changedFileRefs: normalizeChangedFileRefs(candidate.changedFileRefs),
     diffRefs: normalizeDiffRefs(candidate.diffRefs),
     attribution: normalizeAttributionSummary(candidate.attribution),
     ...optionalReviewSummary(candidate.review),
+  };
+}
+
+function normalizeInvocationContinuity(value: unknown): InvocationContinuitySummary {
+  if (!value || typeof value !== "object") {
+    return { policy: "fresh", outcome: "fresh" };
+  }
+  const candidate = value as Partial<InvocationContinuitySummary>;
+  const policy = candidate.policy === "continuous" ? "continuous" : "fresh";
+  const outcome = candidate.outcome === "resumed" || candidate.outcome === "resume-failed-fresh"
+    ? candidate.outcome
+    : "fresh";
+  const resumedFromInvocationId = normalizeRequiredString(candidate.resumedFromInvocationId);
+  return {
+    policy,
+    outcome,
+    ...(outcome === "resumed" && resumedFromInvocationId ? { resumedFromInvocationId } : {}),
   };
 }
 
@@ -520,6 +553,27 @@ function migrateLegacyDefaultClaudeCommand(candidate: Partial<AgentCommand>, com
   return isBuiltInIdentity && (isOriginalInteractiveDefault || isPriorHeadlessDefault)
     ? createDefaultClaudeAgentCommand().command
     : command;
+}
+
+function normalizeAgentCommandAdapter(
+  value: unknown,
+  candidate: Partial<AgentCommand> & { command: string },
+): AgentCommandAdapter {
+  if (value === "claude-code" || value === "codex-cli" || value === "generic") {
+    return value;
+  }
+  const builtInIdentity = candidate.id === candidate.handle && candidate.label === capitalizeBuiltInLabel(candidate.handle);
+  if (builtInIdentity && candidate.handle === "claude" && candidate.command === createDefaultClaudeAgentCommand().command) {
+    return "claude-code";
+  }
+  if (builtInIdentity && candidate.handle === "codex" && candidate.command === createDefaultCodexAgentCommand().command) {
+    return "codex-cli";
+  }
+  return "generic";
+}
+
+function capitalizeBuiltInLabel(handle: unknown): string | null {
+  return handle === "claude" ? "Claude" : handle === "codex" ? "Codex" : null;
 }
 
 function normalizeAgentCommandCwdPolicy(value: unknown): AgentCommandCwdPolicy {

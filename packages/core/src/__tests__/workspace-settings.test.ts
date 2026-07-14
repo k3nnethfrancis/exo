@@ -264,6 +264,7 @@ describe("workspace settings registry", () => {
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
+        invocationContinuityPolicy: "continuous",
       }, env);
 
       await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({
@@ -294,12 +295,14 @@ describe("workspace settings registry", () => {
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
+        invocationContinuityPolicy: "continuous",
         agentCommands: [
           {
             id: " Claude Code ",
             label: " Claude Code ",
             handle: " @Claude ",
             command: " claude ",
+            adapter: "generic",
             cwdPolicy: "workspace_root",
             promptDelivery: "auto" as never,
             version: 0,
@@ -342,6 +345,7 @@ describe("workspace settings registry", () => {
       explorerScale: 1,
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "on-save",
+      invocationContinuityPolicy: "continuous",
       agentCommands: [createDefaultClaudeAgentCommand()],
       layout: {
         editorTree: {
@@ -454,6 +458,7 @@ describe("workspace settings registry", () => {
     });
 
     expect(settings?.agentCommands).toEqual([]);
+    expect(settings?.invocationContinuityPolicy).toBe("continuous");
     expect(createDefaultClaudeAgentCommand()).toMatchObject({
       handle: "claude",
       promptDelivery: "stdin",
@@ -478,6 +483,7 @@ describe("workspace settings registry", () => {
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
+        invocationContinuityPolicy: "continuous",
         layout: {
           editorTree: {
             kind: "split",
@@ -546,6 +552,7 @@ describe("workspace settings registry", () => {
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
+        invocationContinuityPolicy: "continuous",
         layout: {
           editorTree: { kind: "leaf", id: "editor-a", content: { kind: "editor", openPaths: [], activePath: null } },
           terminalTree: { kind: "leaf", id: "terminal-a", content: { kind: "terminal", terminalIds: [], activeTerminalId: null } },
@@ -584,6 +591,7 @@ describe("workspace settings registry", () => {
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
+        invocationContinuityPolicy: "continuous",
       }, env);
 
       await expect(loadActiveWorkspaceSettings(env)).resolves.toMatchObject({

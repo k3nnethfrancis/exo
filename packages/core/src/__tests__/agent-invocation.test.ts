@@ -21,6 +21,7 @@ describe("agent invocation model", () => {
       id: "codex",
       handle: "codex",
       command: "codex exec --sandbox workspace-write -",
+      adapter: "codex-cli",
       cwdPolicy: "workspace_root",
       promptDelivery: "stdin",
       enabled: true,
@@ -66,6 +67,7 @@ describe("agent invocation model", () => {
       label: "Claude Code",
       handle: "claude",
       command: "claude",
+      adapter: "generic",
       cwdPolicy: "workspace_root",
       promptDelivery: "stdin",
       version: 1,
@@ -77,19 +79,30 @@ describe("agent invocation model", () => {
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude",
       cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",
-    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", promptDelivery: "stdin" });
+    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", adapter: "claude-code", promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude -p",
       cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
-    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", promptDelivery: "stdin" });
+    })).toMatchObject({ command: "claude -p --permission-mode acceptEdits", adapter: "claude-code", promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
       id: "custom", label: "My Claude", handle: "claude", command: "claude",
       cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",
-    })).toMatchObject({ command: "claude", promptDelivery: "stdin" });
+    })).toMatchObject({ command: "claude", adapter: "generic", promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude -p --model sonnet",
       cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
-    })).toMatchObject({ command: "claude -p --model sonnet" });
+    })).toMatchObject({ command: "claude -p --model sonnet", adapter: "generic" });
+  });
+
+  it("never infers a provider adapter from an editable handle", () => {
+    expect(normalizeAgentCommand({
+      id: "custom", label: "Claude", handle: "claude", command: "/tmp/not-claude",
+      cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
+    })).toMatchObject({ adapter: "generic" });
+    expect(normalizeAgentCommand({
+      id: "custom", label: "Custom", handle: "helper", command: "/tmp/helper", adapter: "claude-code",
+      cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
+    })).toMatchObject({ adapter: "claude-code" });
   });
 
   it("rejects V1 command records with env or template execution fields", () => {
@@ -338,6 +351,7 @@ describe("agent invocation model", () => {
       diffRefs: [{ id: "diff-1", path: "/tmp/note.md", format: "unified", ref: ".exo/invocations/inv-1/diff.patch" }],
       attribution: { status: "ambiguous", reason: "user and agent touched the file during the invocation window" },
       providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
+      continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: "inv-0" },
       review: { status: "pending", beforeSha256: "a".repeat(64), afterSha256: "b".repeat(64) },
     });
 
@@ -350,6 +364,7 @@ describe("agent invocation model", () => {
       changedFileRefs: [{ path: "/tmp/note.md", kind: "modified", attribution: "ambiguous", diffRefId: "diff-1" }],
       attribution: { status: "ambiguous" },
       providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
+      continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: "inv-0" },
       review: { status: "pending" },
     });
   });
@@ -362,6 +377,7 @@ describe("agent invocation model", () => {
     });
     expect(record?.providerSessionId).toBeUndefined();
     expect(record?.review).toBeUndefined();
+    expect(record?.continuity).toEqual({ policy: "fresh", outcome: "fresh" });
   });
 
   it("normalizes CLI invocation records without a tagged document", () => {

@@ -1,4 +1,4 @@
-import type { AgentCommand } from "./agent-invocation";
+import type { AgentCommand, InvocationContinuityPolicy } from "./agent-invocation";
 import type { WorkspaceGraphContext } from "./workspace-graph";
 
 export type DocumentKind = "markdown" | "text";
@@ -26,6 +26,7 @@ export interface WorkspaceSettings {
   defaultTerminalCwd: string;
   noteRoots: string[];
   agentCommands?: AgentCommand[];
+  invocationContinuityPolicy: InvocationContinuityPolicy;
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
   appearanceMode: "system" | "light" | "dark";
