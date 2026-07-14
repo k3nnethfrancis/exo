@@ -187,8 +187,7 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     await page.evaluate(() => {
       const samples: number[] = [];
       const longTasks: number[] = [];
-      const target = document.querySelector(".editor-surface .cm-content");
-      target?.addEventListener("beforeinput", () => {
+      document.addEventListener("beforeinput", () => {
         const startedAt = performance.now();
         requestAnimationFrame(() => samples.push(performance.now() - startedAt));
       }, { capture: true });
@@ -227,6 +226,44 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     expect(summary.p99).toBeLessThanOrEqual(50);
     expect(result.longTasks.filter((duration) => duration >= 50)).toEqual([]);
     expect(elapsed / text.length).toBeLessThanOrEqual(12);
+
+    const deletionResult = await page.evaluate(async () => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) throw new Error("CodeMirror view is unavailable.");
+      const deletionFixture = Array.from({ length: 24 }, (_, index) => `- rapid deletion line ${index}\n`).join("");
+      view.dispatch({
+        changes: { from: view.state.doc.length, insert: deletionFixture },
+        selection: { anchor: view.state.doc.length + deletionFixture.length },
+      });
+      const samples: number[] = [];
+      const startedAt = performance.now();
+      for (let index = 0; index < deletionFixture.length; index += 1) {
+        const operationStartedAt = performance.now();
+        const head = view.state.doc.length;
+        view.dispatch({
+          changes: { from: head - 1, to: head },
+          selection: { anchor: head - 1 },
+          userEvent: "delete.backward",
+        });
+        samples.push(performance.now() - operationStartedAt);
+      }
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      return { samples, elapsed: performance.now() - startedAt };
+    });
+    const deletionSummary = latencySummary(deletionResult.samples);
+    console.info(`Markdown backspace latency: ${JSON.stringify({
+      characters: deletionResult.samples.length,
+      elapsed: deletionResult.elapsed,
+      p50: deletionSummary.p50,
+      p90: deletionSummary.p90,
+      p99: deletionSummary.p99,
+      max: deletionSummary.max,
+    })}`);
+    expect(deletionSummary.p50).toBeLessThanOrEqual(17);
+    expect(deletionSummary.p90).toBeLessThanOrEqual(17);
+    expect(deletionSummary.p99).toBeLessThanOrEqual(17);
+    expect(deletionResult.elapsed / deletionResult.samples.length).toBeLessThanOrEqual(12);
 
     await content.pressSequentially("\n@claude", { delay: 0 });
     await expect(page.getByTestId("agent-suggestions")).toBeVisible();

@@ -32,6 +32,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
   continued sessions crossing Workspaces or overlapping in one lane, and
   retries only Claude's proven pre-turn stale-session failure.
 - Keeps fast typing within a one-frame paint budget on large Markdown notes by incrementally mapping persisted invocation decorations and avoiding whole-document protocol scans for ordinary keystrokes; covers both normal editing and active `@agent` composition.
+- Keeps rapid multiline backspacing within one frame by distinguishing list/table/fence structure changes from ordinary text deletion instead of rebuilding whole-note live-preview metadata on every Backspace.
 - Keeps editor navigation independent of derived workspace work: Folder Overview renders immediately and enriches progressively, WorkspaceGraph/folder/filename data are watcher-invalidated caches, graph refresh waits for editor idle time, and live filename results no longer parse every Markdown body per query.
 - Applies the Markdown image radius directly to the rendered asset so all four corners remain symmetrical regardless of widget sizing.
 - Resolves root-relative Markdown images from the nearest matching source ancestor inside the Note Root, so nested site/content wikis render their local assets without weakening path containment.

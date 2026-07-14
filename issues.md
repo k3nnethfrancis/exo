@@ -161,6 +161,10 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     roughly 500 KB note with existing invocation protocol markup. Ordinary
     keystrokes map existing protocol decorations incrementally and do not scan
     the whole document for an agent completion unless an `@` query is active.
+  - Rapid backspacing through multiline list content is measured on the same
+    large-note fixture. Live preview now rebuilds whole-note list/table/fence
+    metadata only when the edited line's structural signature changes; its
+    measured p99 fell from roughly 56 ms to roughly 12 ms.
   - The 400-note gates now measure roughly 55/60 ms for Folder Overview shell
     and contents and 11/20 ms for live filename results.
 - Remaining:

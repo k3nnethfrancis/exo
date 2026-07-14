@@ -616,16 +616,29 @@ function markdownStructureChanged(update: ViewUpdate, metadata: MarkdownPreviewM
     const before = update.startState.doc.sliceString(fromA, toA);
     const after = inserted.toString();
     const changedText = `${before}${after}`;
-    if (/\n|`|\|/.test(changedText) || /(?:^|\n)\s*(?:[-*+]|\d+[.)])\s/.test(changedText)) {
+    if (/\n|[`~]|\|/.test(changedText)) {
       changed = true;
       return;
     }
-    const previousLine = update.startState.doc.lineAt(fromA).number;
-    const nextLine = update.state.doc.lineAt(fromB).number;
-    changed = metadata.listContexts.has(previousLine) || metadata.tableContexts.has(previousLine) || metadata.codeFenceContexts.has(previousLine)
-      || metadata.listContexts.has(nextLine) || metadata.tableContexts.has(nextLine) || metadata.codeFenceContexts.has(nextLine);
+    const previousLine = update.startState.doc.lineAt(fromA);
+    const nextLine = update.state.doc.lineAt(fromB);
+    changed = listStructureSignature(previousLine.text) !== listStructureSignature(nextLine.text)
+      || openingFenceSignature(previousLine.text) !== openingFenceSignature(nextLine.text)
+      || metadata.tableContexts.has(previousLine.number)
+      || metadata.tableContexts.has(nextLine.number);
   });
   return changed;
+}
+
+function listStructureSignature(text: string): string {
+  const prefix = text.match(listPrefixPattern)?.[0] ?? "";
+  const indentation = text.match(leadingWhitespacePattern)?.[1] ?? "";
+  return `${text.trim().length === 0 ? "blank" : "text"}\u0000${indentation}\u0000${prefix}`;
+}
+
+function openingFenceSignature(text: string): string {
+  const fence = parseOpeningCodeFence(text);
+  return fence ? `${fence.markerChar}${fence.markerLength}:${fence.language}` : "";
 }
 
 export function visibleLineNumbers(

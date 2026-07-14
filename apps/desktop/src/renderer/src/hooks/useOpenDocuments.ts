@@ -196,12 +196,15 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     }
 
     const currentDocument = openDocumentsRef.current[filePath];
+    const title = currentDocument.kind === "markdown" && noteTitleSource(currentDocument.body) !== noteTitleSource(body)
+      ? noteTitle(filePath, currentDocument.frontmatter, body)
+      : currentDocument.title;
     const nextDocuments = {
       ...openDocumentsRef.current,
       [filePath]: {
         ...currentDocument,
         body,
-        title: currentDocument.kind === "markdown" ? noteTitle(filePath, currentDocument.frontmatter, body) : currentDocument.title,
+        title,
         dirty: true,
       },
     };
@@ -369,6 +372,14 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     deletePathsWithin,
     remapOpenPaths,
   };
+}
+
+function noteTitleSource(body: string): string {
+  let start = 0;
+  while (start < body.length && /\s/.test(body[start])) start += 1;
+  const newline = body.indexOf("\n", start);
+  const end = newline === -1 ? body.length : newline;
+  return body.slice(start, end).replace(/\r$/, "");
 }
 
 async function loadMarkdownContext(
