@@ -91,7 +91,7 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-115: Inline invocation needs context, legible review, and explicit session continuity
 
-- Status: Fable-approved implementation in progress
+- Status: resolved 2026-07-13
 - Severity: high
 - Area: document-agent protocol, InvocationRunner, CodeMirror review, Command settings/onboarding
 - Observed:
@@ -113,8 +113,16 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - Users can choose continued or fresh provider context per configured Command;
     continuity never crosses Workspaces and has defined concurrency/reset rules.
 - Acceptance and sequencing: `docs/reviews/2026-07-13-invocation-context-session-review-packet.md`.
-- Stop gate: shared Command/session contract, provider resume launch, proxy
-  execution, and review-boundary changes require the Fable ruling before ship.
+- Resolution:
+  - Prompts now include bounded Workspace, Note Root, wikilink, and
+    answer-versus-edit semantics.
+  - Review renders additions and deletions inline from retained snapshots;
+    Keep/Reject remains invocation-wide and drift-safe.
+  - Claude continuity is per Command and defaults on, with Workspace-local
+    heads, visible provenance, reset, exact stale fallback, and fail-visible
+    lane locking. Codex/generic remain truthfully fresh-only.
+  - `pnpm ci:check`, focused Electron review tests, and a live two-turn Claude
+    continuity gate pass. Verification: `docs/reviews/output/session-continuity-implementation-status.md`.
 
 ### EXO-ISSUE-111: Node 26 cold startup breaks the CLI-open latency gate
 

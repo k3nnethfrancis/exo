@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -315,7 +315,7 @@ await appendFile(notePath, "\\ndogfood pointer prompt run " + next + "\\n", "utf
   }
 });
 
-test("live Claude edits the tagged document and produces a resumable review", async () => {
+test("live Claude continues provider context across note invocations", async () => {
   test.skip(process.env.EXO_LIVE_CLAUDE_E2E !== "1", "Set EXO_LIVE_CLAUDE_E2E=1 to run the live Claude pointer-prompt gate.");
   const fixture = await launchLiveClaudeInvocationFixture();
 
@@ -323,26 +323,36 @@ test("live Claude edits the tagged document and produces a resumable review", as
     await invokeConfiguredAgent(
       fixture.page,
       "claude",
-      "Append a section named Claude Verification containing the exact text EXO_LIVE_CLAUDE_EDIT_OK.",
+      `Read ${fixture.secretPath}. Remember its exact contents for my next invocation, but do not write or repeat them anywhere yet.`,
     );
     await expect.poll(async () => latestInvocationRecord(fixture.workspaceRoot), { timeout: 120_000 }).toMatchObject({
       status: "process-exited",
       command: { handle: "claude" },
       review: { status: "pending" },
+      continuity: { policy: "continuous", outcome: "fresh" },
     });
-    const record = await latestInvocationRecord(fixture.workspaceRoot);
-    expect(record.providerSessionId).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(record.changedFileRefs).toEqual([expect.objectContaining({ path: fixture.notePath, kind: "modified" })]);
-    expect(record).not.toHaveProperty("terminalSessionId");
-    await expect.poll(async () => readFile(fixture.notePath, "utf8")).toContain("EXO_LIVE_CLAUDE_EDIT_OK");
-    const artifactRoot = path.join(fixture.workspaceRoot, ".exo/invocations", record.id);
-    const [before, after] = await Promise.all([
-      readFile(path.join(artifactRoot, "before.md"), "utf8"),
-      readFile(path.join(artifactRoot, "after.md"), "utf8"),
-    ]);
-    expect(before).toContain('<exo-invocation id="');
-    expect(before.match(/EXO_LIVE_CLAUDE_EDIT_OK/g)).toHaveLength(1);
-    expect(after.match(/EXO_LIVE_CLAUDE_EDIT_OK/g)).toHaveLength(2);
+    const first = await latestInvocationRecord(fixture.workspaceRoot);
+    expect(first.providerSessionId).toMatch(/^[0-9a-f-]{36}$/i);
+    expect(await readFile(fixture.notePath, "utf8")).not.toContain(fixture.secret);
+    await fixture.page.getByTestId("invocation-keep-review").click();
+    await rm(fixture.secretPath);
+
+    await invokeConfiguredAgent(
+      fixture.page,
+      "claude",
+      "Append a section named Continuity Verification containing the exact secret you remembered in our previous invocation.",
+    );
+    await expect.poll(async () => latestInvocationRecord(fixture.workspaceRoot), { timeout: 120_000 }).toMatchObject({
+      status: "process-exited",
+      command: { handle: "claude", adapter: "claude-code" },
+      review: { status: "pending" },
+      continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: first.id },
+    });
+    const second = await latestInvocationRecord(fixture.workspaceRoot);
+    expect(second.providerSessionId).toBe(first.providerSessionId);
+    expect(second.changedFileRefs).toEqual([expect.objectContaining({ path: fixture.notePath, kind: "modified" })]);
+    expect(second).not.toHaveProperty("terminalSessionId");
+    await expect.poll(async () => readFile(fixture.notePath, "utf8")).toContain(fixture.secret);
     await expect(fixture.page.locator('[data-testid^="terminal-tab-"]')).toHaveCount(0);
   } finally {
     await fixture.cleanup();
@@ -445,8 +455,10 @@ async function launchCommandInvocationFixture(
   return { ...fixture, notePath };
 }
 
-async function launchLiveClaudeInvocationFixture(): Promise<Awaited<ReturnType<typeof launchExoWorkspaceFixture>> & { notePath: string }> {
+async function launchLiveClaudeInvocationFixture(): Promise<Awaited<ReturnType<typeof launchExoWorkspaceFixture>> & { notePath: string; secretPath: string; secret: string }> {
   let notePath = "";
+  let secretPath = "";
+  const secret = "EXO_CONTINUITY_7F3A9C";
   const fixture = await launchExoWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
@@ -454,7 +466,9 @@ async function launchLiveClaudeInvocationFixture(): Promise<Awaited<ReturnType<t
     prepareWorkspace: async (workspaceRoot) => {
       const noteRoot = path.join(workspaceRoot, "notes/test-notes");
       notePath = path.join(noteRoot, "agent-invocation.md");
+      secretPath = path.join(workspaceRoot, ".continuity-secret");
       await writeFile(notePath, "# Live Claude Edit\n\nThis fixture proves Exo can authorize a real headless document edit.\n", "utf8");
+      await writeFile(secretPath, secret, "utf8");
     },
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       await writeFile(settingsPath, JSON.stringify({
@@ -467,6 +481,8 @@ async function launchLiveClaudeInvocationFixture(): Promise<Awaited<ReturnType<t
           label: "@claude",
           handle: "claude",
           command: "claude -p --permission-mode acceptEdits",
+          adapter: "claude-code",
+          continuityPolicy: "continuous",
           cwdPolicy: "workspace_root",
           promptDelivery: "stdin",
           version: 1,
@@ -486,7 +502,7 @@ async function launchLiveClaudeInvocationFixture(): Promise<Awaited<ReturnType<t
   });
   await fixture.page.getByRole("button", { name: "agent-invocation, file" }).first().click();
   await expect(fixture.page.getByTestId("editor-title")).toHaveText("agent-invocation");
-  return { ...fixture, notePath };
+  return { ...fixture, notePath, secretPath, secret };
 }
 
 async function invokeConfiguredAgent(

@@ -210,6 +210,25 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 - Proposed background product-quality loop: a scheduled Codex automation can poll GitHub issues labeled `codex-loop` and `ready-for-codex`, take at most one actionable issue per run, fix in an isolated worktree/branch, run focused tests and app QA, then open a draft PR instead of pushing directly to `main`.
 - Added terminal Monitor Mode for Exo-on-Exo coordination: a terminal-header grid toggle converts active terminal sessions into readable split panes, new terminals open as splits while monitoring, toggling off collapses sessions back to normal grouped tabs, and the monitor-mode state is persisted with workspace layout metadata.
 
+### Invocation context, inline review, and continuity — 2026-07-13
+
+- Shipped a bounded Exo-aware note prompt that names Workspace/Note Root scope,
+  explains durable and legacy wikilinks, and separates answer-shaped response
+  envelopes from edit-shaped Markdown changes.
+- Replaced the detached whole-file patch with CodeMirror inline additions and
+  deletions against the retained pre-invocation snapshot. Keep/Reject remains
+  invocation-wide; dirty-buffer drift disables Reject without hiding review.
+- Added explicit Command adapters and per-Command continuity policy. Claude
+  defaults to continued context; provider heads remain resettable derived state
+  under the originating Workspace `.exo` directory. Codex/generic Commands are
+  fresh-only until their resume contracts are proven.
+- Pinned invocation lifecycle/review to its originating Workspace, rejects
+  concurrent work in one continuity lane, falls back fresh only for Claude's
+  exact pre-turn stale-session signature, and shows truthful continuity state.
+- Verified with full `pnpm ci:check`, focused Electron review journeys, and a
+  live two-turn Claude test that recovered deleted external context through the
+  resumed provider session.
+
 ## Next Priorities
 
 1. Use installed Exo as the default environment for daily work and record every friction point as live bug-bash input.

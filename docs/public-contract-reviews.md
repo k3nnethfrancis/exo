@@ -29,7 +29,7 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 
 ## Invocation Contract Approval Notes
 
-- architect-review: 2026-07-13 `docs/reviews/2026-07-13-invocation-context-session-review-packet.md#fable-ruling--2026-07-13` approves a compact bounded Exo invocation prompt, response-envelope versus observed-edit semantics, snapshot-backed inline invocation-level review, and a future per-Command continuity policy. The protected Command change must add an explicit provider/adapter discriminator rather than infer provider behavior from editable handles; provider session heads remain Workspace-local derived state with visible continuity provenance, fresh fallback, fail-visible concurrency, reset, migration, and cross-Workspace isolation.
+- architect-review: 2026-07-13 `docs/reviews/2026-07-13-invocation-context-session-review-packet.md#fable-ruling--2026-07-13` approves the shipped compact bounded Exo invocation prompt, response-envelope versus observed-edit semantics, snapshot-backed inline invocation-level review, and per-Command continuity policy. The Command contract now has an explicit adapter discriminator; provider session heads are Workspace-local derived state with visible provenance, exact stale fallback, fail-visible concurrency, reset, conservative migration, and cross-Workspace isolation. Evidence: `docs/reviews/output/session-continuity-implementation-status.md`.
 
 ## Protected Surfaces
 

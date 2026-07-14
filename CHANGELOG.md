@@ -6,6 +6,8 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Added
 
+- Adds Exo-aware inline Command prompts, snapshot-backed inline editor diffs,
+  and per-Command Claude context continuity with visible provenance and reset.
 - Adds a focused first-run flow: choose one main wiki, optionally install Exo's Workspace status/search MCP tools into Claude and Codex, then persist editable local invocation commands.
 - Renders contained Markdown image attachments in the live editor while preserving raw source editing at the caret.
 - Adds reviewable inline Command outcomes: exact tagged-note patch, Keep/Reject with dirty-buffer and disk-drift protection, and Claude **Resume in Shell** when the command returned a real session id.
@@ -26,6 +28,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Keeps provider identity separate from editable `@` handles, prevents
+  continued sessions crossing Workspaces or overlapping in one lane, and
+  retries only Claude's proven pre-turn stale-session failure.
 - Keeps fast typing within a one-frame paint budget on large Markdown notes by incrementally mapping persisted invocation decorations and avoiding whole-document protocol scans for ordinary keystrokes; covers both normal editing and active `@agent` composition.
 - Keeps editor navigation independent of derived workspace work: Folder Overview renders immediately and enriches progressively, WorkspaceGraph/folder/filename data are watcher-invalidated caches, graph refresh waits for editor idle time, and live filename results no longer parse every Markdown body per query.
 - Applies the Markdown image radius directly to the rendered asset so all four corners remain symmetrical regardless of widget sizing.

@@ -43,7 +43,11 @@
 
 - Full repository checks passed with an isolated dry-run install prefix: repo checks, all package typechecks, 12 script tests, 101 core tests, 191 desktop tests, 29 CLI tests, desktop production build, CLI build, and install dry run.
 - The default install dry run correctly refused to replace the existing `~/.local/bin/exo` symlink from another checkout; rerunning against `/tmp/exo-ci-session-continuity` passed without mutating the installed command.
-- Electron Playwright app QA could not start because this worktree's installed Electron package is incomplete (`Electron Framework.framework` is absent). This is an environment/runtime fixture failure before Exo launches, not an assertion failure. Focused lifecycle, adapter, renderer presentation, status/reset, and store coverage remains green.
+- The integrated lead worktree passed focused Electron review/drift journeys and
+  a live two-turn Claude gate. Claude read a temporary secret on turn one, the
+  source file was deleted, and turn two recovered the exact value only through
+  the resumed provider session; the second Invocation recorded `resumed` with
+  `resumedFromInvocationId` and no visible Terminal.
 - Remaining product boundary: automatic continuity is intentionally Claude-only. Codex and generic Commands remain visibly fresh-only until a provider-specific adapter and evidence-backed stale-session contract exist.
 
 -- Exo | 2026-07-13

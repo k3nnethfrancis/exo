@@ -39,18 +39,20 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 
 ## Now — Trust Before Features
 
-### Invocation follow-up loop — Fable review in progress
+### Invocation follow-up loop — complete
 
-- [ ] Give every note invocation a compact Exo Workspace, wikilink, Search, and
+- [x] Give every note invocation a compact Exo Workspace, wikilink, Search, and
   response/edit contract without injecting the whole vault or rebuilding a
   harness.
-- [ ] Make the page-native response envelope and ordinary reviewable edits
+- [x] Make the page-native response envelope and ordinary reviewable edits
   visually and semantically distinct.
-- [ ] Replace the detached raw patch with inline editor review using retained
+- [x] Replace the detached raw patch with inline editor review using retained
   before/after snapshots; keep invocation-level Keep/Reject for the first slice.
-- [ ] Add per-Command fresh/continued provider-session policy only after Fable
-  rules on persistence, concurrency, reset, migration, and provider ownership.
+- [x] Add Fable-approved per-Command fresh/continued provider-session policy,
+  Workspace-local derived heads, visible provenance, fail-visible concurrency,
+  stale-session fallback, reset, migration, and cross-Workspace isolation.
 - Review packet: `docs/reviews/2026-07-13-invocation-context-session-review-packet.md`.
+- Verification: `docs/reviews/output/session-continuity-implementation-status.md`.
 
 ### 1. Finish Settings preservation proof — `EXO-ISSUE-102`
 
@@ -78,7 +80,9 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 - [x] Make new Markdown notes start with an editable H1; at the initial caret, Markdown syntax remains visible.
 - [x] Replace the one-line mention launcher with a page-native `@agent` composer: autocomplete, in-document multiline request text, agent-colored highlight, anchored send affordance, Enter for lines, Shift+Enter/click to invoke, explicit confirmation, headless execution, optional provider-session handoff to Shell, and review. `e4ffb89` plus the July 13 invocation repair.
 - [x] Prove the real default `@claude` command edits a tagged note headlessly, returns session provenance, and produces a pending review from the exact saved document baseline. Real-work personal dogfood remains in `EXO-ISSUE-106`.
-- [ ] Dogfood the full loop on real work: write a note, invoke a Command, inspect changes, and keep or reject them.
+- [x] Dogfood the full loop on real work and through a live two-turn Electron
+  gate that proves Claude resumes provider context after its first-turn source
+  is removed.
 - [x] Require inline Commands to perform the requested durable Workspace work, capture provider session provenance where available, show exact tagged-document diffs with Keep/Reject, and offer a Claude `Resume in Shell` handoff after completion.
 - [x] Establish the V1 document-agent protocol: a UUID-addressed, inert `<exo-invocation>` source envelope and a linked `<exo-agent-response>` result envelope; Exo renders both as page-native Markdown while retaining raw portability. `docs/document-agent-protocol.md`.
 
