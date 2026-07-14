@@ -205,6 +205,30 @@ describe("WorkspaceNotesService", () => {
     expect(unindexed).toMatchObject({ indexExists: false, title: "empty", children: [] });
     await expect(access(path.join(emptyFolder, "index.md"))).rejects.toThrow();
   });
+
+  it("invalidates cached folder and graph data after workspace changes", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const folderPath = path.join(noteRoot, "projects");
+    const indexPath = path.join(folderPath, "index.md");
+    await mkdir(folderPath, { recursive: true });
+    await writeFile(indexPath, "# Projects\n", "utf8");
+
+    const initialOverview = await service.getFolderOverview(folderPath);
+    const initialGraph = await service.getGraphContext(indexPath);
+    expect(initialOverview.children).toEqual([]);
+    expect(initialGraph?.backlinks).toEqual([]);
+
+    const backlinkPath = path.join(folderPath, "backlink.md");
+    await writeFile(backlinkPath, "# Backlink\n\n[[index]]\n", "utf8");
+    service.invalidateDerivedState();
+
+    const refreshedOverview = await service.getFolderOverview(folderPath);
+    const refreshedGraph = await service.getGraphContext(indexPath);
+    expect(refreshedOverview.children).toEqual([
+      { path: backlinkPath, name: "backlink.md", kind: "file" },
+    ]);
+    expect(refreshedGraph?.backlinks.map((link) => link.target)).toEqual([backlinkPath]);
+  });
 });
 
 async function workspaceNotesService() {

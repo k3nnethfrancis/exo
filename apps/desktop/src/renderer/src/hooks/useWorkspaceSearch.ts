@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 
 import type { WorkspaceSearchResults } from "@exo/core";
 
@@ -16,13 +16,12 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
   const [resultMode, setResultMode] = useState<WorkspaceSearchResultMode>("idle");
   const [resultQuery, setResultQuery] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const deferredQuery = useDeferredValue(submittedQuery);
   const runRef = useRef(0);
   const filenameResultsByQueryRef = useRef(new Map<string, WorkspaceSearchResults>());
 
   useEffect(() => {
     const runId = ++runRef.current;
-    if (!deferredQuery.trim()) {
+    if (!submittedQuery.trim()) {
       setResults(emptySearchResults);
       setResultMode("idle");
       setResultQuery("");
@@ -30,7 +29,7 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
       return;
     }
 
-    const normalizedQuery = deferredQuery.trim();
+    const normalizedQuery = submittedQuery.trim();
     const cachedResults = filenameResultsByQueryRef.current.get(normalizedQuery);
     if (cachedResults) {
       startTransition(() => {
@@ -41,12 +40,9 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
       });
     }
 
-    const timeout = window.setTimeout(async () => {
-      try {
-        const nextResults = await window.exo.workspace.searchWorkspace(deferredQuery);
-        if (runRef.current !== runId) {
-          return;
-        }
+    void window.exo.workspace.searchWorkspace(normalizedQuery).then(
+      (nextResults) => {
+        if (runRef.current !== runId) return;
         filenameResultsByQueryRef.current.set(normalizedQuery, nextResults);
         startTransition(() => {
           setResults(nextResults);
@@ -54,24 +50,19 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
           setResultQuery(normalizedQuery);
           setMessage(null);
         });
-      } catch (error) {
-        if (runRef.current !== runId) {
-          return;
-        }
+      },
+      (error) => {
+        if (runRef.current !== runId) return;
         console.warn("[exo] workspace search failed", error);
         startTransition(() => {
           setResults(emptySearchResults);
           setResultMode("error");
-          setResultQuery(deferredQuery.trim());
+          setResultQuery(normalizedQuery);
           setMessage("Filename search failed.");
         });
-      }
-    }, 120);
-
-    return () => {
-      window.clearTimeout(timeout);
-    };
-  }, [deferredQuery]);
+      },
+    );
+  }, [submittedQuery]);
 
   async function runIndexedSearch() {
     const trimmedQuery = query.trim();

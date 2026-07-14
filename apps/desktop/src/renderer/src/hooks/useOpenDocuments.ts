@@ -27,6 +27,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   const activeDocumentPathRef = useRef(activeDocumentPath);
   const optionsRef = useRef(options);
   const pendingRefreshesRef = useRef<Map<string, { timeoutId: number; diskVersion: FileStatInfo | null }>>(new Map());
+  const pendingContextRefreshesRef = useRef<Map<string, { timeoutId?: number; idleId?: number }>>(new Map());
   const scrollRestoreNonceRef = useRef(0);
 
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
@@ -56,6 +57,14 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => () => {
+    for (const pending of pendingContextRefreshesRef.current.values()) {
+      if (pending.timeoutId !== undefined) window.clearTimeout(pending.timeoutId);
+      if (pending.idleId !== undefined) window.cancelIdleCallback(pending.idleId);
+    }
+    pendingContextRefreshesRef.current.clear();
+  }, []);
+
   function pruneToOpenPaths(openPaths: Set<string>) {
     setOpenDocuments((current) => {
       const next = Object.fromEntries(
@@ -79,11 +88,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
         body: current[filePath]?.dirty ? current[filePath].body : document.body,
       },
     }));
-    void loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel).then((graphContext) => {
-      updateMarkdownContext(filePath, graphContext);
-    }).catch((error) => {
-      console.warn("[exo] failed to load graph context", { filePath, error });
-    });
+    scheduleMarkdownContextRefresh(document, filePath);
   }
 
   function scheduleRefresh(filePath: string, diskVersion?: FileStatInfo | null) {
@@ -115,8 +120,6 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       window.exo.notes.read(filePath),
       knownVersion === undefined ? window.exo.notes.stat(filePath) : Promise.resolve(knownVersion),
     ]);
-    const graphContext = await loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel);
-
     setOpenDocuments((current) => {
       const currentDocument = current[filePath];
       if (!currentDocument || currentDocument.dirty) {
@@ -145,7 +148,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
         },
       };
     });
-    updateMarkdownContext(filePath, graphContext);
+    scheduleMarkdownContextRefresh(document, filePath);
 
     if (scrollTop !== null) {
       scrollRestoreNonceRef.current += 1;
@@ -164,8 +167,6 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       window.exo.notes.read(filePath),
       window.exo.notes.stat(filePath),
     ]);
-    const graphContext = await loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel);
-
     setOpenDocuments((current) => {
       if (!current[filePath]) {
         return current;
@@ -179,7 +180,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
         },
       };
     });
-    updateMarkdownContext(filePath, graphContext);
+    scheduleMarkdownContextRefresh(document, filePath);
     setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
 
     if (scrollTop !== null) {
@@ -246,7 +247,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       const diskVersion = await window.exo.notes.stat(filePath);
       const remainsOpen = optionsRef.current.getOpenEditorPaths().has(filePath);
       if (document.kind === "markdown" && remainsOpen && isAttachedNote(filePath, optionsRef.current.workspaceModel)) {
-        updateMarkdownContext(filePath, await window.exo.notes.getGraphContext(filePath));
+        scheduleMarkdownContextRefresh(document, filePath);
       }
       setOpenDocuments((current) => {
         if (!current[filePath]) {
@@ -322,6 +323,31 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       ...current,
       ...(graphContext ? { [filePath]: graphContext } : {}),
     }));
+  }
+
+  function scheduleMarkdownContextRefresh(document: NoteDocument, filePath: string) {
+    const existing = pendingContextRefreshesRef.current.get(filePath);
+    if (existing?.timeoutId !== undefined) window.clearTimeout(existing.timeoutId);
+    if (existing?.idleId !== undefined) window.cancelIdleCallback(existing.idleId);
+
+    const pending: { timeoutId?: number; idleId?: number } = {};
+    pending.timeoutId = window.setTimeout(() => {
+      delete pending.timeoutId;
+      const run = () => {
+        pendingContextRefreshesRef.current.delete(filePath);
+        void loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel).then((graphContext) => {
+          updateMarkdownContext(filePath, graphContext);
+        }).catch((error) => {
+          console.warn("[exo] failed to load graph context", { filePath, error });
+        });
+      };
+      if (typeof window.requestIdleCallback === "function") {
+        pending.idleId = window.requestIdleCallback(run, { timeout: 1_500 });
+      } else {
+        run();
+      }
+    }, 250);
+    pendingContextRefreshesRef.current.set(filePath, pending);
   }
 
   return {

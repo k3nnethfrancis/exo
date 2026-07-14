@@ -26,6 +26,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Keeps editor navigation independent of derived workspace work: Folder Overview renders immediately and enriches progressively, WorkspaceGraph/folder/filename data are watcher-invalidated caches, graph refresh waits for editor idle time, and live filename results no longer parse every Markdown body per query.
 - Applies the Markdown image radius directly to the rendered asset so all four corners remain symmetrical regardless of widget sizing.
 - Resolves root-relative Markdown images from the nearest matching source ancestor inside the Note Root, so nested site/content wikis render their local assets without weakening path containment.
 - Unifies inline invocation feedback around running, review, completed, and failed states; failed Claude sessions show the exact resume command, successful terminal handoff dismisses the status surface, and the authorization modal no longer survives a settled launch decision.

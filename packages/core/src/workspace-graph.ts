@@ -48,6 +48,8 @@ interface GraphEntry {
 export class WorkspaceGraph {
   private snapshot: Map<string, GraphEntry> | null = null;
   private state: WorkspaceGraphStatus["state"] = "stale";
+  private generation = 0;
+  private buildInFlight: { generation: number; promise: Promise<Map<string, GraphEntry>> } | null = null;
 
   constructor(private readonly model: WorkspaceModel) {}
 
@@ -115,11 +117,26 @@ export class WorkspaceGraph {
     return this.status();
   }
 
-  invalidate(): void { this.snapshot = null; this.state = "stale"; }
+  invalidate(): void { this.snapshot = null; this.state = "stale"; this.generation += 1; }
 
   private async build(): Promise<Map<string, GraphEntry>> {
     if (this.snapshot) return this.snapshot;
+    const generation = this.generation;
+    if (this.buildInFlight?.generation === generation) return this.buildInFlight.promise;
     this.state = "building";
+    const promise = this.buildSnapshot(generation)
+      .catch((error) => {
+        if (generation === this.generation) this.state = "stale";
+        throw error;
+      })
+      .finally(() => {
+        if (this.buildInFlight?.generation === generation) this.buildInFlight = null;
+      });
+    this.buildInFlight = { generation, promise };
+    return promise;
+  }
+
+  private async buildSnapshot(generation: number): Promise<Map<string, GraphEntry>> {
     const roots = this.model.noteRoots.map((root) => ({ ...root, path: path.resolve(root.path) }));
     const files = (await listMarkdownFiles(roots.map((root) => root.path))).map((filePath) => path.resolve(filePath)).sort();
     const authorized = new WorkspaceFiles(roots.map((root) => root.path));
@@ -133,8 +150,10 @@ export class WorkspaceGraph {
       const note: WorkspaceGraphNote = { id: `note:${root.id}:${relativePath}` as NoteId, filePath, rootId: root.id, relativePath, title: document.title, tags: extractTags(document.body, document.frontmatter).map((tag) => tag.tag).sort(), frontmatter: document.frontmatter };
       graph.set(filePath, { note, document });
     }
-    this.snapshot = graph;
-    this.state = "ready";
+    if (generation === this.generation) {
+      this.snapshot = graph;
+      this.state = "ready";
+    }
     return graph;
   }
 

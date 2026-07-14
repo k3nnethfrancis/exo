@@ -24,7 +24,7 @@ import {
   WorkspaceIndex,
   qmdSearchProvider,
   searchNotes,
-  searchWorkspace,
+  searchWorkspace as searchWorkspaceContent,
   writeOnboardingStateStore,
   type OnboardingStateStore,
   type WorkspaceModel,
@@ -138,7 +138,7 @@ function createCommandServer() {
       sendToRenderer("command:close-preview", undefined);
       return { ok: true };
     },
-    onSearch: (query: string) => searchWorkspace(workspaceModel, query),
+    onSearch: (query: string) => searchWorkspaceContent(workspaceModel, query),
     onIndexSearch: (query, options) => workspaceIndex().search(query, options),
     onReadDocument: (target, options) => documentReader.read(target, options),
     onIndexStatus: () => indexingService.getMeasuredStatus(),
@@ -347,7 +347,7 @@ function registerIpcHandlers() {
     searchIndex: (query, options) => workspaceIndex().search(query, options),
     searchNotes: (query) => searchNotes(workspaceModel, query),
     searchTag: (tag) => workspaceNotesService.searchTag(tag),
-    searchWorkspace: (query) => searchWorkspace(workspaceModel, query),
+    searchWorkspace: (query) => workspaceNotesService.searchFilenames(query),
     statNote: async (filePath) => {
       try {
         const info = await stat(filePath);
@@ -427,6 +427,7 @@ async function saveSettings(request: WorkspaceSettingsSaveRequest): Promise<Work
     applyWorkspaceSettings(saved.settings);
     workspaceModel = workspaceModelFromSettings(saved.settings);
     await ensureNoteRoots(workspaceModel);
+    workspaceNotesService.invalidateDerivedState();
     workspaceWatcherService.start(workspaceModel);
     terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
     if (indexingService.shouldSyncAfterSettingsApply(previous, saved.settings)) {
@@ -443,6 +444,7 @@ async function switchWorkspace(workspaceId: string, expectedRevision: string | n
   workspaceSettings = saved.settings;
   workspaceSettingsRevision = saved.revision;
   workspaceModel = workspaceModelFromSettings(saved.settings);
+  workspaceNotesService.invalidateDerivedState();
   workspaceWatcherService.start(workspaceModel);
   terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
   return { ...saved, runtimeApply: { status: "applied" } };
@@ -459,6 +461,7 @@ function applyOnboardingRuntimeEnv() {
 app.whenReady().then(async () => {
   workspaceConfig = new WorkspaceConfigStore({ userDataPath: app.getPath("userData") });
   workspaceWatcherService = new WorkspaceWatcherService((event) => {
+    workspaceNotesService?.invalidateDerivedState();
     sendToRenderer("workspace:changed", event);
   });
 

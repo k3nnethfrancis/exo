@@ -89,6 +89,33 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ## Monitoring
 
+### EXO-ISSUE-110: Derived graph/search work can stall editor navigation
+
+- Status: foreground-path fix complete; process-isolation follow-up required
+- Severity: high
+- Area: editor latency, Folder Overview, Search, WorkspaceGraph, QMD
+- Reproduction: on a 400-note workspace, opening an indexed Folder rebuilt a
+  fresh whole-workspace graph and measured 401 ms p50 / 416 ms p90. Live
+  filename search reparsed Markdown bodies twice per query and measured 377 ms
+  p50 / 380 ms p90.
+- Current guarantee:
+  - Folder shells render from known path state immediately; index metadata,
+    children, and graph context enrich progressively.
+  - Folder metadata, filename catalogs, and one WorkspaceGraph snapshot are
+    cached and invalidated by workspace watcher events.
+  - Note and external-file refresh paint document state before idle-scheduled
+    graph enrichment.
+  - The 400-note gates now measure roughly 55/60 ms for Folder Overview shell
+    and contents and 11/20 ms for live filename results.
+- Remaining:
+  - [ ] Move QMD store/update/embed/search/status work behind an out-of-process
+    derived-data module so native/model work cannot block Electron main IPC.
+  - [ ] Replace whole-graph invalidation with incremental or worker-owned graph
+    updates if real-vault traces still show contention after caching and idle
+    scheduling.
+  - [ ] Add editor input/selection latency under concurrent graph and QMD work.
+
+
 ### EXO-ISSUE-109: Nested-site root-relative Markdown images show unavailable
 
 - Status: resolved on 2026-07-13

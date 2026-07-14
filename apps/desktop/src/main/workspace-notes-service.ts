@@ -9,6 +9,7 @@ import {
   readWorkspaceDocument,
   type SearchResult,
   type FolderOverview,
+  type WorkspaceSearchResults,
   WorkspaceFiles,
   WorkspaceGraph,
   type WorkspaceGraphContext,
@@ -20,7 +21,53 @@ export interface WorkspaceNotesServiceOptions {
 }
 
 export class WorkspaceNotesService {
+  private graph: WorkspaceGraph | null = null;
+  private graphModelKey: string | null = null;
+  private readonly folderOverviewCache = new Map<string, FolderOverview>();
+  private noteFileCache: string[] | null = null;
+
   constructor(private readonly options: WorkspaceNotesServiceOptions) {}
+
+  invalidateDerivedState(): void {
+    this.graph?.invalidate();
+    this.folderOverviewCache.clear();
+    this.noteFileCache = null;
+  }
+
+  async searchFilenames(query: string): Promise<WorkspaceSearchResults> {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return { notes: [], tags: [] };
+    }
+
+    const model = this.options.getWorkspaceModel();
+    const files = this.noteFileCache ?? await listMarkdownFiles(this.noteRootPaths());
+    this.noteFileCache = files;
+    const notes = files
+      .map((filePath) => {
+        const root = model.noteRoots.find((candidate) => isPathWithin(candidate.path, filePath));
+        const relativePath = root ? path.relative(root.path, filePath) : path.basename(filePath);
+        const title = path.basename(filePath, path.extname(filePath));
+        const normalizedTitle = title.toLowerCase();
+        const normalizedPath = relativePath.toLowerCase();
+        if (!normalizedTitle.includes(normalizedQuery) && !normalizedPath.includes(normalizedQuery)) {
+          return null;
+        }
+        return {
+          filePath,
+          title,
+          snippet: relativePath,
+          kind: "note" as const,
+          rank: normalizedTitle === normalizedQuery ? 0 : normalizedTitle.startsWith(normalizedQuery) ? 1 : 2,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
+      .sort((left, right) => left.rank - right.rank || left.snippet.localeCompare(right.snippet))
+      .slice(0, 30)
+      .map(({ rank: _rank, ...result }) => result);
+
+    return { notes, tags: [] };
+  }
 
   async searchTag(tag: string): Promise<SearchResult[]> {
     const normalized = tag.replace(/^#/, "");
@@ -157,12 +204,16 @@ export class WorkspaceNotesService {
 
   async getGraphContext(filePath: string): Promise<WorkspaceGraphContext | null> {
     const authorizedPath = await this.workspaceFiles().existing(filePath);
-    return new WorkspaceGraph(this.options.getWorkspaceModel()).contextForNote(authorizedPath);
+    return this.workspaceGraph().contextForNote(authorizedPath);
   }
 
   async getFolderOverview(directoryPath: string): Promise<FolderOverview> {
     const files = this.workspaceFiles();
     const authorizedDirectory = await files.existing(directoryPath);
+    const cached = this.folderOverviewCache.get(authorizedDirectory);
+    if (cached) {
+      return cached;
+    }
     const indexPath = path.join(authorizedDirectory, "index.md");
     const indexExists = await fileExists(indexPath);
     const indexDocument = indexExists ? await readWorkspaceDocument(indexPath) : null;
@@ -175,15 +226,32 @@ export class WorkspaceNotesService {
       })
       .map((entry) => ({ path: path.join(authorizedDirectory, entry.name), name: entry.name, kind: entry.isDirectory() ? "directory" as const : "file" as const }));
 
-    return {
+    const overview: FolderOverview = {
       directoryPath: authorizedDirectory,
       indexPath,
       title: indexDocument?.title || path.basename(authorizedDirectory),
       frontmatter: indexDocument?.frontmatter ?? {},
       indexExists,
       children,
-      graphContext: indexDocument ? await new WorkspaceGraph(this.options.getWorkspaceModel()).contextForNote(indexPath) : null,
+      graphContext: null,
     };
+    this.folderOverviewCache.set(authorizedDirectory, overview);
+    return overview;
+  }
+
+  private workspaceGraph(): WorkspaceGraph {
+    const model = this.options.getWorkspaceModel();
+    const modelKey = model.noteRoots
+      .map((root) => `${root.id}:${path.resolve(root.path)}`)
+      .sort()
+      .join("\n");
+    if (!this.graph || this.graphModelKey !== modelKey) {
+      this.graph = new WorkspaceGraph(model);
+      this.graphModelKey = modelKey;
+      this.folderOverviewCache.clear();
+      this.noteFileCache = null;
+    }
+    return this.graph;
   }
 
   private noteRootPaths(): string[] {
