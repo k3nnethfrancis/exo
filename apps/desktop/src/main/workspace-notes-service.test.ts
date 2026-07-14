@@ -75,12 +75,66 @@ describe("WorkspaceNotesService", () => {
     });
   });
 
+  it("resolves a site-root image from the nearest matching content ancestor", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const siteRoot = path.join(noteRoot, "kenneth-dot-computer", "garden");
+    const sourcePath = path.join(siteRoot, "blog", "self-improving-business-systems.md");
+    const imagePath = path.join(siteRoot, "images", "posts", "self-improving-business-systems", "loop-stack.png");
+    await mkdir(path.dirname(sourcePath), { recursive: true });
+    await mkdir(path.dirname(imagePath), { recursive: true });
+    await writeFile(sourcePath, "# Self-Improving Business Systems\n", "utf8");
+    await writeFile(imagePath, "not a real png", "utf8");
+
+    await expect(
+      service.resolveMarkdownImage(
+        sourcePath,
+        "/images/posts/self-improving-business-systems/loop-stack.png",
+      ),
+    ).resolves.toEqual({ url: pathToFileURL(await realpath(imagePath)).toString() });
+  });
+
+  it("prefers the nearest regular root-relative image and decodes its filename", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const siteRoot = path.join(noteRoot, "site");
+    const sourcePath = path.join(siteRoot, "blog", "source.md");
+    const siteImagePath = path.join(siteRoot, "images", "chart one.png");
+    const noteRootImagePath = path.join(noteRoot, "images", "chart one.png");
+    await mkdir(path.dirname(sourcePath), { recursive: true });
+    await mkdir(path.dirname(siteImagePath), { recursive: true });
+    await mkdir(path.dirname(noteRootImagePath), { recursive: true });
+    await writeFile(sourcePath, "# Source\n", "utf8");
+    await writeFile(siteImagePath, "nearest", "utf8");
+    await writeFile(noteRootImagePath, "fallback", "utf8");
+
+    await expect(service.resolveMarkdownImage(sourcePath, "/images/chart%20one.png")).resolves.toEqual({
+      url: pathToFileURL(await realpath(siteImagePath)).toString(),
+    });
+  });
+
+  it("skips a matching directory while searching for a root-relative regular file", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const siteRoot = path.join(noteRoot, "site");
+    const sourcePath = path.join(siteRoot, "blog", "source.md");
+    const directoryCandidate = path.join(siteRoot, "images", "diagram.png");
+    const fileCandidate = path.join(noteRoot, "images", "diagram.png");
+    await mkdir(path.dirname(sourcePath), { recursive: true });
+    await mkdir(directoryCandidate, { recursive: true });
+    await mkdir(path.dirname(fileCandidate), { recursive: true });
+    await writeFile(sourcePath, "# Source\n", "utf8");
+    await writeFile(fileCandidate, "fallback", "utf8");
+
+    await expect(service.resolveMarkdownImage(sourcePath, "/images/diagram.png")).resolves.toEqual({
+      url: pathToFileURL(await realpath(fileCandidate)).toString(),
+    });
+  });
+
   it("rejects escaped, remote, and missing Markdown image targets", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const sourcePath = path.join(noteRoot, "folder", "source.md");
     await writeFile(sourcePath, "# Source\n", "utf8");
 
     await expect(service.resolveMarkdownImage(sourcePath, "../../outside.png")).rejects.toThrow("outside configured note roots");
+    await expect(service.resolveMarkdownImage(sourcePath, "/../../outside.png")).rejects.toThrow("outside configured note roots");
     await expect(service.resolveMarkdownImage(sourcePath, "file:///outside.png")).rejects.toThrow("not enabled");
     await expect(service.resolveMarkdownImage(sourcePath, "https://example.com/image.png")).rejects.toThrow("not enabled");
     await expect(service.resolveMarkdownImage(sourcePath, "missing.png")).rejects.toThrow();
@@ -96,6 +150,7 @@ describe("WorkspaceNotesService", () => {
     await symlink(outsideDirectory, path.join(noteRoot, "folder", "attachments"));
 
     await expect(service.resolveMarkdownImage(sourcePath, "attachments/secret.png")).rejects.toThrow("outside configured note roots");
+    await expect(service.resolveMarkdownImage(sourcePath, "/folder/attachments/secret.png")).rejects.toThrow("outside configured note roots");
   });
 
   it("creates a missing absolute wiki target at its requested in-root path", async () => {

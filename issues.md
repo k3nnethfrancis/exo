@@ -89,6 +89,22 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ## Monitoring
 
+### EXO-ISSUE-109: Nested-site root-relative Markdown images show unavailable
+
+- Status: resolved on 2026-07-13
+- Severity: high
+- Area: Markdown live preview, Note Root containment
+- Reproduction: a Note under `kenneth-dot-computer/garden/blog/` references
+  `/images/...`, while the asset lives under the nested `garden/images/` site
+  root. The prior resolver checked only `<Note Root>/images/...`.
+- Resolution: root-relative local images now choose the nearest source ancestor
+  containing an existing regular file, stopping at the authorized Note Root.
+  Relative paths retain source-folder semantics; remote URLs, `file:` URLs,
+  traversal, missing files, and symlink escapes continue to fail closed.
+- Evidence: focused resolver coverage plus
+  `apps/desktop/tests/e2e/markdown-images.spec.ts`, which loads the exact syntax
+  through Electron and asserts `naturalWidth > 0` on the real `<img>`.
+
 ### EXO-ISSUE-107: Preferred Exo-managed Fable review path is unavailable
 
 - Status: resolved on 2026-07-13; affects architectural-review workflow, not end-user runtime

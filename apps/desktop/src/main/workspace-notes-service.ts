@@ -81,7 +81,7 @@ export class WorkspaceNotesService {
     const files = this.workspaceFiles();
     const sourcePath = await files.existing(sourceFilePath);
     const normalizedTarget = normalizeMarkdownImageTarget(target);
-    const imagePath = await files.existing(this.resolveMarkdownImagePath(sourcePath, normalizedTarget));
+    const imagePath = await this.resolveMarkdownImagePath(files, sourcePath, normalizedTarget);
     // Point the renderer at the canonical path that WorkspaceFiles authorized,
     // rather than leaving a later file: load to follow a mutable symlink.
     const canonicalImagePath = await realpath(imagePath);
@@ -194,13 +194,11 @@ export class WorkspaceNotesService {
     return new WorkspaceFiles(this.noteRootPaths());
   }
 
-  private resolveMarkdownImagePath(sourcePath: string, target: string): string {
+  private async resolveMarkdownImagePath(files: WorkspaceFiles, sourcePath: string, target: string): Promise<string> {
     if (!target.startsWith("/")) {
-      return path.resolve(path.dirname(sourcePath), target);
+      return files.existing(path.resolve(path.dirname(sourcePath), target));
     }
-    // Markdown authored for a site commonly uses `/images/...` to mean the
-    // site's content root. In Exo that means the source note's Note Root, not
-    // the machine root. The final candidate still passes canonical containment.
+
     const sourceRoot = this.options.getWorkspaceModel().noteRoots
       .map((root) => path.resolve(root.path))
       .filter((rootPath) => isPathWithin(rootPath, sourcePath))
@@ -208,7 +206,36 @@ export class WorkspaceNotesService {
     if (!sourceRoot) {
       throw new Error("Source note is outside configured note roots.");
     }
-    return path.resolve(sourceRoot, target.replace(/^\/+/, ""));
+
+    const relativeTarget = target.replace(/^\/+/, "");
+    const noteRootCandidate = path.resolve(sourceRoot, relativeTarget);
+    if (!isPathWithin(sourceRoot, noteRootCandidate)) {
+      throw new Error("Refusing to access a path outside configured note roots.");
+    }
+
+    // Site-authored Markdown often uses `/images/...` relative to a content
+    // tree nested inside the Note Root. Prefer the nearest source ancestor that
+    // contains the target, while retaining the Note Root as the final fallback.
+    let ancestorPath = path.dirname(sourcePath);
+    let missingError: unknown;
+    while (isPathWithin(sourceRoot, ancestorPath)) {
+      try {
+        const candidatePath = await files.existing(path.resolve(ancestorPath, relativeTarget));
+        if ((await stat(await realpath(candidatePath))).isFile()) {
+          return candidatePath;
+        }
+      } catch (error) {
+        if (!isMissingPathError(error)) {
+          throw error;
+        }
+        missingError = error;
+      }
+      if (ancestorPath === sourceRoot) {
+        break;
+      }
+      ancestorPath = path.dirname(ancestorPath);
+    }
+    throw missingError ?? new Error("Markdown image target does not exist.");
   }
 }
 
@@ -225,6 +252,10 @@ function normalizeMarkdownImageTarget(target: string): string {
   } catch {
     throw new Error("Markdown image target has invalid URL encoding.");
   }
+}
+
+function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR");
 }
 
 async function fileExists(targetPath: string): Promise<boolean> {

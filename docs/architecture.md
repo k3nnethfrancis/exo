@@ -9,6 +9,7 @@ Exo is a local, user-owned Markdown exocortex with modular, tunable search, inli
 ## Product substrate
 
 - Markdown and frontmatter under explicit Note Roots are canonical user data.
+- Local Markdown image targets stay inside their source Note Root. Relative targets resolve from the source Note's folder; root-relative targets use the nearest source ancestor containing an existing regular file, with the Note Root as the final fallback. Remote and `file:` targets remain disabled.
 - Note Roots are the sole Exo-authorized filesystem surface; explicit Command cwd choices do not create another root class.
 - `.exo/` contains derived indexes, invocation/review records, artifacts, caches, and provenance references—not canonical knowledge. When the Workspace root is in Git, it must be ignored; Exo warns rather than rewriting `.gitignore`.
 - One Workspace Canvas hosts Note, Terminal, Preview, Graph, and Diff panes.
