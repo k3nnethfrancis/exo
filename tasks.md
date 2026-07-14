@@ -137,6 +137,9 @@ Start only after the trust gates above pass.
 ## Dogfood Queue
 
 - [ ] Use Exo for non-Exo work and promote only repeatable friction into `issues.md`.
+- [ ] Investigate `EXO-ISSUE-116`: capture and reduce the non-reproducible
+  blank renderer seen while typing an inline `@agent` request; add a
+  renderer-liveness regression once a minimal sequence exists.
 - [ ] Monitor `EXO-ISSUE-104` preview/window lifecycle evidence; reopen only with a clean repro artifact.
 - [ ] Dogfood Folder Overview on a real vault: nested folders, explicit index creation, raw-index editing, and rename/delete continuity.
 

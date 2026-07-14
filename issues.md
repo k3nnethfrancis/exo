@@ -89,6 +89,28 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ## Monitoring
 
+### EXO-ISSUE-116: Inline agent composition can blank the renderer
+
+- Status: investigation required; non-reproducible dogfood report
+- Severity: critical until renderer liveness is understood
+- Area: CodeMirror inline composer, live preview, React renderer, invocation envelopes
+- Observed: after selecting `@claude` and typing an inline request, the Exo
+  editor surface went blank. A hard refresh recovered the app. The reporter
+  could not reproduce it immediately and no console/process artifact was
+  captured.
+- Guardrail: do not add a retry, error suppression, or protocol workaround
+  without a failure trace. The saved Markdown file remains canonical; this is
+  an editor-renderer liveness investigation, not evidence of a write failure.
+- Next evidence:
+  - [ ] Add a small renderer error boundary / diagnostic capture around the
+    editor and inline composer that records the active note path, mode,
+    selection, agent handle, and error without logging document content.
+  - [ ] On the next occurrence, preserve the renderer console error and main
+    process logs, then reduce the typing sequence to a fixture.
+  - [ ] Add a focused Electron regression that opens `@claude`, types the
+    reduced sequence, and asserts the editor remains mounted, visible, and
+    editable after each transaction.
+
 ### EXO-ISSUE-115: Inline invocation needs context, legible review, and explicit session continuity
 
 - Status: resolved 2026-07-13
