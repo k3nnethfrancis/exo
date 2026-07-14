@@ -11,7 +11,7 @@ import type {
   WorkspaceSettings,
 } from "@exo/core";
 
-import type { InvocationReviewPayload, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
+import type { CliInstallationStatus, InvocationReviewPayload, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
 import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
@@ -85,6 +85,7 @@ export function App() {
     results: [] as ProviderMcpSetupResult[],
     errorMessage: null as string | null,
   });
+  const [cliInstallation, setCliInstallation] = useState<CliInstallationStatus | null>(null);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
@@ -146,6 +147,14 @@ export function App() {
     workspaceSettingsRef,
     workspaceSettingsRevisionRef,
   } = workspaceBootstrap;
+  useEffect(() => {
+    if (onboardingState?.step !== "mcp") return;
+    let cancelled = false;
+    void window.exo.workspace.getCliInstallationStatus()
+      .then((status) => { if (!cancelled) setCliInstallation(status); })
+      .catch(() => { if (!cancelled) setCliInstallation({ state: "unavailable" }); });
+    return () => { cancelled = true; };
+  }, [onboardingState?.step]);
   const workspaceSettingsController = useWorkspaceSettingsController({
     workspaceSettingsRef,
     workspaceSettingsRevisionRef,
@@ -1201,7 +1210,14 @@ export function App() {
                     </div>
                     <div className="onboarding-cli-context"><code>exo search</code><code>exo open</code><code>exo invoke</code></div>
                     <p className="onboarding-section__hint">Search returns paths. Agents use their own filesystem tools to inspect them.</p>
-                    <p className="onboarding-section__hint">Install or update the local command with <code>./scripts/install-local</code>. MCP setup never changes it.</p>
+                    <div className={`onboarding-cli-installation onboarding-cli-installation--${cliInstallation?.state ?? "checking"}`} aria-live="polite">
+                      {cliInstallation?.state === "current" ? <Check aria-hidden="true" size={15} strokeWidth={2.2} /> : <SquareTerminal aria-hidden="true" size={15} strokeWidth={1.8} />}
+                      <span>
+                        <strong>{cliInstallation?.state === "current" ? "CLI ready" : cliInstallation?.state === "legacy-exo" ? "Update CLI" : cliInstallation?.state === "missing" ? "Install CLI" : cliInstallation?.state === "non-exo" ? "Existing command kept" : "CLI setup"}</strong>
+                        {cliInstallation?.state === "current" ? <small>Linked to this checkout</small> : cliInstallation?.installCommand ? <code>{cliInstallation.installCommand}</code> : <small>Run setup from an Exo checkout.</small>}
+                      </span>
+                    </div>
+                    <p className="onboarding-section__hint">MCP setup never changes the CLI.</p>
                   </section>
                 </div>
               </div>

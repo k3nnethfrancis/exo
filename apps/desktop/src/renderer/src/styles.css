@@ -3128,6 +3128,48 @@ select.dialog-card__input {
   margin-left: auto;
 }
 
+.onboarding-cli-installation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 9px;
+  border: 1px solid var(--surface-border);
+  border-radius: 8px;
+  background: var(--surface-1);
+}
+
+.onboarding-cli-installation > svg {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.onboarding-cli-installation--current > svg {
+  color: var(--accent);
+}
+
+.onboarding-cli-installation > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.onboarding-cli-installation strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.onboarding-cli-installation small,
+.onboarding-cli-installation code {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: var(--mono-font);
+  font-size: 10px;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .agent-invocation-prompt-disclosure {
   display: grid;
   gap: 8px;

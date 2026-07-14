@@ -170,6 +170,17 @@ export interface ProviderMcpSetupResult {
   detail: string;
 }
 
+/** A read-only diagnosis of the `exo` command the desktop app can see. */
+export interface CliInstallationStatus {
+  state: "current" | "legacy-exo" | "missing" | "non-exo" | "unavailable";
+  /** The command found on PATH, when one is present. */
+  commandPath?: string;
+  /** The checkout command it should point to, when this app can identify one. */
+  sourcePath?: string;
+  /** A command the user may run from a known checkout. Never run by the app. */
+  installCommand?: string;
+}
+
 export interface DesktopApi {
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
@@ -189,6 +200,7 @@ export interface DesktopApi {
     resetAgentCommandContinuity: (commandId: string) => Promise<{ cleared: number }>;
     testAgentCommand: (input: TestAgentCommandInput) => Promise<LaunchAgentInvocationResponse>;
     configureProviderMcp: (input: ProviderMcpSetupInput) => Promise<ProviderMcpSetupResult[]>;
+    getCliInstallationStatus: () => Promise<CliInstallationStatus>;
     endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;
     getInvocationReview: (invocationId: string) => Promise<InvocationReviewPayload | null>;
     keepInvocationReview: (invocationId: string) => Promise<InvocationRecord | null>;
