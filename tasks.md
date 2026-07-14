@@ -39,6 +39,19 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 
 ## Now — Trust Before Features
 
+### Invocation follow-up loop — Fable review in progress
+
+- [ ] Give every note invocation a compact Exo Workspace, wikilink, Search, and
+  response/edit contract without injecting the whole vault or rebuilding a
+  harness.
+- [ ] Make the page-native response envelope and ordinary reviewable edits
+  visually and semantically distinct.
+- [ ] Replace the detached raw patch with inline editor review using retained
+  before/after snapshots; keep invocation-level Keep/Reject for the first slice.
+- [ ] Add per-Command fresh/continued provider-session policy only after Fable
+  rules on persistence, concurrency, reset, migration, and provider ownership.
+- Review packet: `docs/reviews/2026-07-13-invocation-context-session-review-packet.md`.
+
 ### 1. Finish Settings preservation proof — `EXO-ISSUE-102`
 
 - [x] Prove opening, waiting, closing, and reopening Settings performs no write when unchanged.

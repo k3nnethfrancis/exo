@@ -89,6 +89,33 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ## Monitoring
 
+### EXO-ISSUE-115: Inline invocation needs context, legible review, and explicit session continuity
+
+- Status: Fable-approved implementation in progress
+- Severity: high
+- Area: document-agent protocol, InvocationRunner, CodeMirror review, Command settings/onboarding
+- Observed:
+  - A Command can receive the working note snapshot yet fail to follow a
+    referenced note because the prompt does not explain Workspace/wikilink/Search
+    behavior.
+  - The linked `<exo-agent-response>` is agent-colored, while other observed
+    Markdown edits are not; current UI does not explain that the former is the
+    durable answer/receipt and the latter are reviewable edits.
+  - Review uses an uncolored whole-file unified patch detached from the edited
+    prose.
+  - The Exo invocation UUID is distinct from provider session provenance, and
+    every invocation currently starts a fresh provider session.
+- Expected:
+  - Commands receive a compact, bounded Exo Workspace/document contract and can
+    resolve durable aliased wikilinks with native filesystem or Exo Search.
+  - Response markup and ordinary edit attribution have one documented meaning.
+  - Pending changes are legible in the editor with protected Keep/Reject.
+  - Users can choose continued or fresh provider context per configured Command;
+    continuity never crosses Workspaces and has defined concurrency/reset rules.
+- Acceptance and sequencing: `docs/reviews/2026-07-13-invocation-context-session-review-packet.md`.
+- Stop gate: shared Command/session contract, provider resume launch, proxy
+  execution, and review-boundary changes require the Fable ruling before ship.
+
 ### EXO-ISSUE-111: Node 26 cold startup breaks the CLI-open latency gate
 
 - Status: open; runtime investigation required

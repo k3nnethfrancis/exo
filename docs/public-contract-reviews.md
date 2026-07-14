@@ -27,6 +27,10 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - architect-review: 2026-07-13 `docs/reviews/2026-07-13-fable-mcp-agent-context-packet.md#fable-ruling--2026-07-13` approves the MCP as a frozen read-only transport—not a CLI replacement or host-instruction writer. Caller-cwd Workspace resolution, explicit status identity, ambiguity refusal, and exact app-scope parity are implemented and tested; the remaining public-alpha gate is protocol/setup coverage and dogfood.
 - user-approved-exception: 2026-07-13 user narrowed the short-term MCP to `workspace_status` and `search_notes`. `read_note` was deleted because search already returns a note's path and metadata; a provider's native file permissions, not Exo MCP, govern subsequent reads or writes.
 
+## Invocation Contract Approval Notes
+
+- architect-review: 2026-07-13 `docs/reviews/2026-07-13-invocation-context-session-review-packet.md#fable-ruling--2026-07-13` approves a compact bounded Exo invocation prompt, response-envelope versus observed-edit semantics, snapshot-backed inline invocation-level review, and a future per-Command continuity policy. The protected Command change must add an explicit provider/adapter discriminator rather than infer provider behavior from editable handles; provider session heads remain Workspace-local derived state with visible continuity provenance, fresh fallback, fail-visible concurrency, reset, migration, and cross-Workspace isolation.
+
 ## Protected Surfaces
 
 ### `packages/core/src/command-protocol.ts#routes-and-types`
