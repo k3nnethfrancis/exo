@@ -528,19 +528,22 @@ function AgentsSection({
 }: Pick<WorkspaceSettingsDialogProps, "settings" | "setSettings">) {
   return (
     <div className="agent-command-list" data-testid="workspace-settings-agents">
-      <AgentInvocationPromptEditor
-        onSave={(agentInvocationPrompt) => setSettings((current) => current ? {
-          ...current,
-          agentInvocationPrompt,
-          saveStatus: "idle",
-          errorMessage: null,
-        } : current)}
-        testId="workspace-settings-invocation-prompt"
-        value={settings.agentInvocationPrompt}
-      />
       {settings.agentCommands.map((command) => (
         <AgentCommandSection command={command} key={command.id} setSettings={setSettings} />
       ))}
+      <details className="agent-invocation-prompt-disclosure">
+        <summary>Advanced</summary>
+        <AgentInvocationPromptEditor
+          onSave={(agentInvocationPrompt) => setSettings((current) => current ? {
+            ...current,
+            agentInvocationPrompt,
+            saveStatus: "idle",
+            errorMessage: null,
+          } : current)}
+          testId="workspace-settings-invocation-prompt"
+          value={settings.agentInvocationPrompt}
+        />
+      </details>
     </div>
   );
 }

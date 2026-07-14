@@ -2950,11 +2950,6 @@ select.dialog-card__input {
   font-size: 11px;
 }
 
-.onboarding-provider-picks {
-  display: flex;
-  gap: 16px;
-}
-
 .onboarding-access {
   display: grid;
   gap: 10px;
@@ -2987,6 +2982,79 @@ select.dialog-card__input {
 .onboarding-access__header span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.onboarding-provider-menu {
+  display: grid;
+  gap: 2px;
+  overflow: hidden;
+  border: 1px solid var(--surface-border-strong);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--panel-strong) 96%, transparent);
+  box-shadow: 0 10px 26px color-mix(in srgb, #000 11%, transparent);
+  padding: 5px;
+}
+
+.onboarding-provider-menu__title {
+  padding: 4px 7px 6px;
+  border-bottom: 1px solid var(--surface-border);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 720;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.onboarding-provider-menu__item {
+  width: 100%;
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 6px 8px;
+  text-align: left;
+  transition: background-color 130ms ease, transform 100ms ease;
+}
+
+.onboarding-provider-menu__item:hover,
+.onboarding-provider-menu__item--active {
+  background: var(--surface-hover);
+}
+
+.onboarding-provider-menu__item:active {
+  transform: scale(0.985);
+}
+
+.onboarding-provider-menu__item .agent-icon--claude { color: #c45b2c; }
+.onboarding-provider-menu__item .agent-icon--codex { color: #4b6fd0; }
+.onboarding-provider-menu__item > svg:last-child { margin-left: auto; color: var(--accent); }
+
+.onboarding-provider-menu__copy {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.onboarding-provider-menu__copy > span {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.onboarding-provider-menu__copy small {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-family: var(--mono-font);
+  font-size: 10px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .onboarding-mcp-tools {
@@ -3059,6 +3127,31 @@ select.dialog-card__input {
 .onboarding-cli-context .onboarding-mcp-tools__access {
   margin-left: auto;
 }
+
+.agent-invocation-prompt-disclosure {
+  display: grid;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.agent-invocation-prompt-disclosure > summary {
+  width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  list-style: none;
+  user-select: none;
+}
+
+.agent-invocation-prompt-disclosure > summary::-webkit-details-marker { display: none; }
+.agent-invocation-prompt-disclosure > summary::before { content: "›"; font-size: 16px; font-weight: 400; line-height: 10px; transition: transform 130ms ease; }
+.agent-invocation-prompt-disclosure[open] > summary { color: var(--text); }
+.agent-invocation-prompt-disclosure[open] > summary::before { transform: rotate(90deg); }
 
 @media (prefers-reduced-motion: reduce) {
   .onboarding-card__body > * {

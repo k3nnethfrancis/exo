@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Database, Search, ShieldCheck, SquareTerminal } from "lucide-react";
+import { Check, Database, Search, ShieldCheck, SquareTerminal } from "lucide-react";
 import type {
   AgentCommand,
   FolderIndexStatus,
@@ -25,6 +25,7 @@ import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
 import { AgentInvocationPromptEditor } from "./components/AgentInvocationPromptEditor";
+import { AgentIcon } from "./components/AgentIcon";
 import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments, type OpenEditorDocument } from "./hooks/useOpenDocuments";
 import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
@@ -1064,11 +1065,6 @@ export function App() {
                 <p className="onboarding-card__copy">
                   Exo invokes agents through their installed local CLIs. These commands stay on this computer and can be edited later in Settings.
                 </p>
-                <AgentInvocationPromptEditor
-                  onSave={(agentInvocationPrompt) => setOnboardingState((current) => current ? { ...current, agentInvocationPrompt, status: "idle", errorMessage: null } : current)}
-                  testId="onboarding-invocation-prompt"
-                  value={onboardingState.agentInvocationPrompt}
-                />
                 <div className="onboarding-agent-list">
                   {onboardingState.agentCommands.map((command) => (
                     <div className="onboarding-agent" key={command.id}>
@@ -1122,6 +1118,14 @@ export function App() {
                   <div className="dialog-field__label">How invocations run</div>
                   <div className="onboarding-section__hint">Messages are sent headlessly from the main wiki. Exo shows any document changes for review; it never grants a provider broader file access itself.</div>
                 </div>
+                <details className="agent-invocation-prompt-disclosure">
+                  <summary>Advanced</summary>
+                  <AgentInvocationPromptEditor
+                    onSave={(agentInvocationPrompt) => setOnboardingState((current) => current ? { ...current, agentInvocationPrompt, status: "idle", errorMessage: null } : current)}
+                    testId="onboarding-invocation-prompt"
+                    value={onboardingState.agentInvocationPrompt}
+                  />
+                </details>
               </div>
               <div className="onboarding-card__actions">
                 <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "mcp", errorMessage: null } : current)} type="button">Back</button>
@@ -1141,17 +1145,27 @@ export function App() {
                       <ShieldCheck aria-hidden="true" size={16} strokeWidth={1.8} />
                       <div><strong id="onboarding-mcp-title">MCP</strong><span>Read-only context · 2 tools</span></div>
                     </div>
-                    <div className="dialog-field__label">Add MCP to</div>
-                    <div className="onboarding-provider-picks">
+                    <div className="onboarding-provider-menu" aria-label="Install Exo MCP in">
+                      <div className="onboarding-provider-menu__title">Install in</div>
                       {(["claude", "codex"] as const).map((provider) => (
-                        <label className="dialog-check" key={provider}>
-                          <input checked={onboardingMcp.providers.includes(provider)} type="checkbox" onChange={(event) => setOnboardingMcp((current) => ({
+                        <button
+                          aria-pressed={onboardingMcp.providers.includes(provider)}
+                          className={`onboarding-provider-menu__item ${onboardingMcp.providers.includes(provider) ? "onboarding-provider-menu__item--active" : ""}`}
+                          key={provider}
+                          onClick={() => setOnboardingMcp((current) => ({
                             ...current,
-                            providers: event.target.checked ? [...current.providers, provider] : current.providers.filter((entry) => entry !== provider),
+                            providers: current.providers.includes(provider) ? current.providers.filter((entry) => entry !== provider) : [...current.providers, provider],
                             status: "idle", errorMessage: null, results: [],
-                          }))} />
-                          <span>{provider === "claude" ? "Claude" : "Codex"}</span>
-                        </label>
+                          }))}
+                          type="button"
+                        >
+                          <AgentIcon kind={provider} size={16} />
+                          <span className="onboarding-provider-menu__copy">
+                            <span>{provider === "claude" ? "Claude" : "Codex"}</span>
+                            <small>{provider === "claude" ? "claude mcp add" : "codex mcp add"}</small>
+                          </span>
+                          {onboardingMcp.providers.includes(provider) ? <Check aria-label="Selected" size={15} strokeWidth={2.2} /> : null}
+                        </button>
                       ))}
                     </div>
                     <ul className="onboarding-mcp-tools" aria-label="Exo MCP tools">
