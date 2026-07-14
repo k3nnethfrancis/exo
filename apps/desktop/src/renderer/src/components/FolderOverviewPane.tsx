@@ -12,20 +12,23 @@ interface FolderOverviewPaneProps {
 export function FolderOverviewPane({ directoryPath, onOpenFolder, onOpenFile, onClose }: FolderOverviewPaneProps) {
   const [overview, setOverview] = useState<FolderOverview | null>(null);
   const [graphContext, setGraphContext] = useState<FolderOverview["graphContext"]>(null);
+  const [graphStatus, setGraphStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [error, setError] = useState<{ directoryPath: string; message: string } | null>(null);
 
   useEffect(() => {
     let disposed = false;
     setError(null);
     setGraphContext(null);
+    setGraphStatus("idle");
     void window.exo.workspace.getFolderOverview(directoryPath).then(
       (next) => {
         if (disposed) return;
         setOverview(next);
         if (next.indexExists) {
+          setGraphStatus("loading");
           void window.exo.notes.getGraphContext(next.indexPath).then(
-            (graph) => { if (!disposed) setGraphContext(graph); },
-            (cause) => { console.warn("[exo] failed to enrich folder overview", { directoryPath, cause }); },
+            (graph) => { if (!disposed) { setGraphContext(graph); setGraphStatus("ready"); } },
+            (cause) => { if (!disposed) setGraphStatus("error"); console.warn("[exo] failed to enrich folder overview", { directoryPath, cause }); },
           );
         }
       },
@@ -82,7 +85,15 @@ export function FolderOverviewPane({ directoryPath, onOpenFolder, onOpenFile, on
               <p><Link2 size={14} /> {graph.outgoing.length} links · {graph.backlinks.length} backlinks</p>
               {[...graph.outgoing, ...graph.backlinks].flatMap((entry) => entry.note ? [entry.note] : []).slice(0, 6).map((entry) => <button key={entry.filePath} onClick={() => onOpenFile(entry.filePath)} type="button">{entry.title}</button>)}
             </div>
-          ) : <p className="folder-overview__empty">Create an index to give this folder its own links and context.</p>}
+          ) : <p className="folder-overview__empty">{
+            !loadedOverview.indexExists
+              ? "Create an index to give this folder its own links and context."
+              : graphStatus === "error"
+                ? "Local context is unavailable."
+                : graphStatus === "ready"
+                  ? "No local links yet."
+                  : "Loading context…"
+          }</p>}
         </section>
       </div> : <p className="folder-overview__loading">Loading contents…</p>}
     </section>

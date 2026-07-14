@@ -116,6 +116,7 @@ test("keeps breadcrumb folder navigation within the editor latency budget", asyn
     await waitForEditorTitle(page, "child");
     await page.getByRole("button", { name: "nested", exact: true }).click();
     await waitForFolderOverview(page, "Nested");
+    await expect(page.getByTestId("folder-overview")).not.toContainText("Create an index");
 
     const samples: number[] = [];
     const loadedSamples: number[] = [];
