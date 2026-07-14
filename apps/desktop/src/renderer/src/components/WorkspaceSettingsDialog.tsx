@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Bot, FolderOpen, Palette, Search, TerminalSquare, X } from "lucide-react";
 import type { AgentCommand, IndexStatus, WorkspaceSettings } from "@exo/core";
 
@@ -538,6 +538,20 @@ function AgentCommandSection({
   command,
   setSettings,
 }: { command: AgentCommand; setSettings: WorkspaceSettingsDialogProps["setSettings"] }) {
+  const [hasContext, setHasContext] = useState(false);
+  const [contextBusy, setContextBusy] = useState(false);
+  const [contextError, setContextError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    void window.exo.workspace.getAgentCommandContinuity(command.id)
+      .then((status) => {
+        if (!active) return;
+        setHasContext(status.hasHead);
+        setContextBusy(status.active);
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [command.id]);
   const updateCommand = (patch: Partial<AgentCommand>) => {
     setSettings((current) =>
       current
@@ -583,6 +597,40 @@ function AgentCommandSection({
         </label>
       </div>
       <div className="dialog-form__grid agent-command__fields">
+        <div className="dialog-field agent-command__continuity">
+          <span className="dialog-field__label">Context</span>
+          {command.adapter === "claude-code" ? (
+            <div className="agent-command__continuity-controls">
+              <label className="dialog-check dialog-check--inline">
+                <input
+                  checked={command.continuityPolicy === "continuous"}
+                  data-testid={`workspace-settings-agent-continuity-${command.id}`}
+                  onChange={(event) => updateCommand({ continuityPolicy: event.target.checked ? "continuous" : "fresh" })}
+                  type="checkbox"
+                />
+                <span>Keep context</span>
+              </label>
+              {hasContext ? (
+                <button
+                  className="toolbar-button"
+                  disabled={contextBusy}
+                  onClick={() => {
+                    setContextBusy(true);
+                    setContextError(null);
+                    void window.exo.workspace.resetAgentCommandContinuity(command.id)
+                      .then(() => setHasContext(false))
+                      .catch((error) => setContextError(error instanceof Error ? error.message : String(error)))
+                      .finally(() => setContextBusy(false));
+                  }}
+                  type="button"
+                >
+                  Reset
+                </button>
+              ) : null}
+              {contextError ? <span className="dialog-field__error">{contextError}</span> : null}
+            </div>
+          ) : <span className="dialog-field__hint">Unavailable</span>}
+        </div>
         <label className="dialog-field">
           <span className="dialog-field__label">Name</span>
           <input

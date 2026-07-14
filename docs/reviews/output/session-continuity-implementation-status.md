@@ -32,4 +32,11 @@
 - Added fresh→resume, stale fallback, unknown failure, concurrency/release, adapter fixture, and cross-Workspace review/restore tests.
 - Desktop: 25 files / 189 tests passed. Core: 15 files / 99 tests passed. Typechecks passed.
 
+## 2026-07-13 — Phase 4 complete: policy and reset UI
+
+- Onboarding and Agent Settings now expose a per-Command `Keep context` control only for the Claude adapter. Codex and generic Commands show context as unavailable and remain fresh-only.
+- Agent Settings queries derived context status through a narrow active-Workspace IPC and offers `Reset` only when a stored head exists. Reset accepts only a Command ID, clears all cwd lanes for that Command in the current Workspace, and refuses while any matching lane is active.
+- Unknown resume failures now retain explicit `resume-failed` provenance and render as `Could not continue context`; they are no longer mislabeled as continued or fresh.
+- Focused desktop suite: 25 files / 191 tests passed. Core: 15 files / 101 tests passed. Core and desktop typechecks passed.
+
 -- Exo | 2026-07-13

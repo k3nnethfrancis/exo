@@ -1100,6 +1100,23 @@ export function App() {
                             agentCommands: current.agentCommands.map((entry) => entry.id === command.id ? { ...entry, command: event.target.value } : entry),
                           } : current)}
                         />
+                        {command.adapter === "claude-code" ? (
+                          <label className="dialog-check dialog-check--inline">
+                            <input
+                              checked={command.continuityPolicy === "continuous"}
+                              type="checkbox"
+                              onChange={(event) => setOnboardingState((current) => current ? {
+                                ...current,
+                                agentCommands: current.agentCommands.map((entry) => entry.id === command.id
+                                  ? { ...entry, continuityPolicy: event.target.checked ? "continuous" : "fresh" }
+                                  : entry),
+                              } : current)}
+                            />
+                            <span>Keep context</span>
+                          </label>
+                        ) : (
+                          <span className="onboarding-agent__continuity-unavailable">Context unavailable</span>
+                        )}
                       </span>
                     </div>
                   ))}

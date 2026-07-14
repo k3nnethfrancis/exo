@@ -164,6 +164,14 @@ describe("agent invocation review", () => {
     expect(presentation.resumeCommand).toBe("claude --permission-mode acceptEdits --resume 'ce4b9e26-2574-4433-a054-1110cd403792'");
   });
 
+  it("does not claim a failed resume continued context", () => {
+    expect(presentInvocation(invocationRecord({
+      status: "failed",
+      failureReason: "Authentication failed",
+      continuity: { policy: "continuous", outcome: "resume-failed", resumedFromInvocationId: "inv-0" },
+    })).detail).toBe("Authentication failed · Could not continue context");
+  });
+
   it("keeps running and pending-review states intentionally persistent", () => {
     expect(presentInvocation(invocationRecord({ status: "running" }))).toMatchObject({
       title: "@claude running",

@@ -60,6 +60,21 @@ describe("InvocationContinuityStore", () => {
     await expect(store.readHead(lane)).resolves.toBeNull();
     await expect(store.clearHead(lane)).resolves.toBe(false);
   });
+
+  it("finds and resets every cwd lane for one Command only", async () => {
+    const workspaceRoot = await temporaryWorkspace();
+    const command = createDefaultClaudeAgentCommand();
+    const store = new InvocationContinuityStore(workspaceRoot);
+    const lane = laneFor(workspaceRoot, command.id, agentCommandExecutableFingerprint(command));
+    await store.writeHead(lane, { providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792", sourceInvocationId: "inv-1" });
+    await store.writeHead({ ...lane, cwd: path.join(workspaceRoot, "notes") }, { providerSessionId: "de4b9e26-2574-4433-a054-1110cd403793", sourceInvocationId: "inv-2" });
+    await store.writeHead({ ...lane, commandId: "other" }, { providerSessionId: "ee4b9e26-2574-4433-a054-1110cd403794", sourceInvocationId: "inv-3" });
+
+    await expect(store.hasCommandHead(command.id)).resolves.toBe(true);
+    await expect(store.clearCommandHeads(command.id)).resolves.toBe(2);
+    await expect(store.hasCommandHead(command.id)).resolves.toBe(false);
+    await expect(store.hasCommandHead("other")).resolves.toBe(true);
+  });
 });
 
 function laneFor(workspaceRoot: string, commandId: string, commandFingerprint: string): InvocationContinuityLane {

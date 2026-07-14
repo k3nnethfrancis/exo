@@ -29,7 +29,7 @@ import {
 import { commandForClaudeResume as buildClaudeResumeCommand } from "@exo/core/provider-session";
 
 import type { TerminalSessionInfo } from "../shared/api";
-import type { AgentCommandLaunchFacts } from "../shared/api";
+import type { AgentCommandContinuityStatus, AgentCommandLaunchFacts } from "../shared/api";
 import { inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
 import { DirectInvocationProcessFactory, type InvocationProcess, type InvocationProcessFactory } from "./invocation-process";
 import {
@@ -118,7 +118,7 @@ const OBSERVATION_EXIT_GRACE_MS = 500;
 export class InvocationRunner extends EventEmitter {
   private readonly active = new Map<string, ActiveObservation>();
   private readonly byTerminal = new Map<string, string>();
-  private readonly continuityLocks = new Map<string, { invocationId: string; workspaceRoot: string }>();
+  private readonly continuityLocks = new Map<string, { invocationId: string; workspaceRoot: string; commandId: string }>();
   private readonly invocationScopes = new Map<string, { workspaceRoot: string; noteRoots: string[] }>();
 
   constructor(private readonly options: {
@@ -230,7 +230,7 @@ export class InvocationRunner extends EventEmitter {
       );
     }
     if (continuityLockKey) {
-      this.continuityLocks.set(continuityLockKey, { invocationId: prepared.id, workspaceRoot: prepared.workspaceRoot });
+      this.continuityLocks.set(continuityLockKey, { invocationId: prepared.id, workspaceRoot: prepared.workspaceRoot, commandId: prepared.command.id });
     }
     let terminal: TerminalSessionInfo | undefined;
     let invocationProcess: InvocationProcess | undefined;
@@ -284,7 +284,11 @@ export class InvocationRunner extends EventEmitter {
           }
         }
         if (observation) {
-          const outcome = fallback ? "resume-failed-fresh" : attemptedHead ? "resumed" : "fresh";
+          const outcome = fallback
+            ? "resume-failed-fresh"
+            : attemptedHead
+              ? result.failureReason ? "resume-failed" : "resumed"
+              : "fresh";
           observation.record = {
             ...observation.record,
             ...(result.providerSessionId ? { providerSessionId: result.providerSessionId } : {}),
@@ -366,6 +370,29 @@ export class InvocationRunner extends EventEmitter {
       throw new InvocationRunnerError("not-found", `No saved Command has id ${commandId}.`, { commandId });
     }
     return inspectAgentCommandLaunchFacts(command, { kind: "cli", workspaceRoot: settings.workspaceRoot });
+  }
+
+  async getCommandContinuityStatus(commandId: string): Promise<AgentCommandContinuityStatus> {
+    const settings = this.options.getWorkspaceSettings();
+    const command = settings.agentCommands?.find((entry) => entry.id === commandId);
+    if (!command) throw new InvocationRunnerError("not-found", `No saved Command has id ${commandId}.`, { commandId });
+    const supported = command.adapter === "claude-code";
+    const store = new InvocationContinuityStore(settings.workspaceRoot);
+    return {
+      commandId,
+      supported,
+      policy: supported ? command.continuityPolicy : "fresh",
+      hasHead: supported ? await store.hasCommandHead(commandId) : false,
+      active: [...this.continuityLocks.values()].some((lock) => lock.workspaceRoot === settings.workspaceRoot && lock.commandId === commandId),
+    };
+  }
+
+  async resetCommandContinuity(commandId: string): Promise<{ cleared: number }> {
+    const settings = this.options.getWorkspaceSettings();
+    const status = await this.getCommandContinuityStatus(commandId);
+    if (!status.supported) throw new InvocationRunnerError("continuity-unavailable", "Context is unavailable for this Command.", { commandId });
+    if (status.active) throw new InvocationRunnerError("continuity-busy", "This Command is still working.", { commandId });
+    return { cleared: await new InvocationContinuityStore(settings.workspaceRoot).clearCommandHeads(commandId) };
   }
 
   async testCommand(commandId: string, expectedFingerprint: string): Promise<InvocationResult> {

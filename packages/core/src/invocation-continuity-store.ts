@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { AgentCommandAdapter } from "./agent-invocation";
@@ -85,6 +85,16 @@ export class InvocationContinuityStore {
     }
   }
 
+  async hasCommandHead(commandId: string): Promise<boolean> {
+    return (await this.commandHeadPaths(commandId)).length > 0;
+  }
+
+  async clearCommandHeads(commandId: string): Promise<number> {
+    const targets = await this.commandHeadPaths(commandId);
+    await Promise.all(targets.map((target) => rm(target, { force: true })));
+    return targets.length;
+  }
+
   headPath(lane: InvocationContinuityLane): string {
     const normalizedLane = this.normalizeLane(lane);
     const key = createHash("sha256").update(JSON.stringify({
@@ -106,6 +116,25 @@ export class InvocationContinuityStore {
       throw new Error("Invocation continuity lane is incomplete.");
     }
     return { ...lane, workspaceRoot, commandId, commandFingerprint, cwd: path.resolve(lane.cwd) };
+  }
+
+  private async commandHeadPaths(commandIdInput: string): Promise<string[]> {
+    const commandId = normalizeRequiredString(commandIdInput);
+    if (!commandId) return [];
+    let entries: string[];
+    try {
+      entries = (await readdir(this.layout.continuityDir)).filter((entry) => entry.endsWith(".json"));
+    } catch (error) {
+      if (isNodeErrorCode(error, "ENOENT")) return [];
+      throw error;
+    }
+    const workspaceIdentity = workspaceFingerprint(this.layout.workspaceRoot);
+    const matches = await Promise.all(entries.map(async (entry) => {
+      const target = path.join(this.layout.continuityDir, entry);
+      const head = normalizeInvocationConversationHead(await readJsonOrNull(target));
+      return head?.workspaceFingerprint === workspaceIdentity && head.commandId === commandId ? target : null;
+    }));
+    return matches.filter((target): target is string => Boolean(target));
   }
 }
 

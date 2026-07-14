@@ -311,6 +311,8 @@ function registerIpcHandlers() {
     })),
     getAgentCommandTrust: (handle) => invocationRunner.getCommandTrust(handle),
     getAgentCommandLaunchFacts: (commandId) => invocationRunner.getCommandLaunchFacts(commandId),
+    getAgentCommandContinuity: (commandId) => invocationRunner.getCommandContinuityStatus(commandId),
+    resetAgentCommandContinuity: (commandId) => invocationRunner.resetCommandContinuity(commandId),
     testAgentCommand: (input) => invocationRunner.testCommand(input.commandId, input.expectedFingerprint),
     configureProviderMcp,
     endAgentInvocation: (invocationId) => invocationRunner.endObservation(invocationId),

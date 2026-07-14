@@ -73,6 +73,7 @@ export function presentInvocation(record: InvocationRecord, hasDirtyConflict = f
 
 function continuityDetail(record: InvocationRecord): string {
   if (record.continuity.outcome === "resumed") return "Continued context";
+  if (record.continuity.outcome === "resume-failed") return "Could not continue context";
   if (record.continuity.outcome === "resume-failed-fresh") return "Context expired · started fresh";
   return "Fresh context";
 }

@@ -20,6 +20,8 @@ export interface DesktopInvokeHandlers {
   "workspace:launch-agent-invocation": WorkspaceApi["launchAgentInvocation"];
   "workspace:get-agent-command-trust": WorkspaceApi["getAgentCommandTrust"];
   "workspace:get-agent-command-launch-facts": WorkspaceApi["getAgentCommandLaunchFacts"];
+  "workspace:get-agent-command-continuity": WorkspaceApi["getAgentCommandContinuity"];
+  "workspace:reset-agent-command-continuity": WorkspaceApi["resetAgentCommandContinuity"];
   "workspace:test-agent-command": WorkspaceApi["testAgentCommand"];
   "workspace:configure-provider-mcp": WorkspaceApi["configureProviderMcp"];
   "workspace:end-agent-invocation": WorkspaceApi["endAgentInvocation"];

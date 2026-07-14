@@ -151,6 +151,14 @@ export interface TestAgentCommandInput {
   expectedFingerprint: string;
 }
 
+export interface AgentCommandContinuityStatus {
+  commandId: string;
+  supported: boolean;
+  policy: "continuous" | "fresh";
+  hasHead: boolean;
+  active: boolean;
+}
+
 /** An explicit installation of Exo's read-only MCP server into provider-owned config. */
 export interface ProviderMcpSetupInput {
   providers: Array<"claude" | "codex">;
@@ -177,6 +185,8 @@ export interface DesktopApi {
     launchAgentInvocation: (input: LaunchAgentInvocationInput) => Promise<LaunchAgentInvocationResponse>;
     getAgentCommandTrust: (handle: string) => Promise<AgentCommandTrustStatus>;
     getAgentCommandLaunchFacts: (commandId: string) => Promise<AgentCommandLaunchFacts>;
+    getAgentCommandContinuity: (commandId: string) => Promise<AgentCommandContinuityStatus>;
+    resetAgentCommandContinuity: (commandId: string) => Promise<{ cleared: number }>;
     testAgentCommand: (input: TestAgentCommandInput) => Promise<LaunchAgentInvocationResponse>;
     configureProviderMcp: (input: ProviderMcpSetupInput) => Promise<ProviderMcpSetupResult[]>;
     endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;

@@ -18,7 +18,7 @@ export type AgentCommandPromptDelivery = (typeof AGENT_COMMAND_PROMPT_DELIVERIES
 export type AgentCommandCwdPolicy = (typeof AGENT_COMMAND_CWD_POLICIES)[number];
 export type AgentCommandAdapter = (typeof AGENT_COMMAND_ADAPTERS)[number];
 export type InvocationContinuityPolicy = "continuous" | "fresh";
-export type InvocationContinuityOutcome = "fresh" | "resumed" | "resume-failed-fresh";
+export type InvocationContinuityOutcome = "fresh" | "resumed" | "resume-failed" | "resume-failed-fresh";
 
 export interface AgentCommand {
   id: string;
@@ -499,7 +499,7 @@ function normalizeInvocationContinuity(value: unknown): InvocationContinuitySumm
   }
   const candidate = value as Partial<InvocationContinuitySummary>;
   const policy = candidate.policy === "continuous" ? "continuous" : "fresh";
-  const outcome = candidate.outcome === "resumed" || candidate.outcome === "resume-failed-fresh"
+  const outcome = candidate.outcome === "resumed" || candidate.outcome === "resume-failed" || candidate.outcome === "resume-failed-fresh"
     ? candidate.outcome
     : "fresh";
   const resumedFromInvocationId = normalizeRequiredString(candidate.resumedFromInvocationId);

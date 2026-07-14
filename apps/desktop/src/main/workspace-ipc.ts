@@ -22,6 +22,8 @@ export interface WorkspaceIpcHandlers {
   launchAgentInvocation: WorkspaceApi["launchAgentInvocation"];
   getAgentCommandTrust: WorkspaceApi["getAgentCommandTrust"];
   getAgentCommandLaunchFacts: WorkspaceApi["getAgentCommandLaunchFacts"];
+  getAgentCommandContinuity: WorkspaceApi["getAgentCommandContinuity"];
+  resetAgentCommandContinuity: WorkspaceApi["resetAgentCommandContinuity"];
   testAgentCommand: WorkspaceApi["testAgentCommand"];
   configureProviderMcp: WorkspaceApi["configureProviderMcp"];
   endAgentInvocation: WorkspaceApi["endAgentInvocation"];
@@ -78,6 +80,8 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:get-agent-command-launch-facts", async (_event, commandId) =>
     handlers.getAgentCommandLaunchFacts(commandId),
   );
+  handleDesktopInvoke("workspace:get-agent-command-continuity", async (_event, commandId) => handlers.getAgentCommandContinuity(commandId));
+  handleDesktopInvoke("workspace:reset-agent-command-continuity", async (_event, commandId) => handlers.resetAgentCommandContinuity(commandId));
   handleDesktopInvoke("workspace:test-agent-command", async (_event, input) => handlers.testAgentCommand(input));
   handleDesktopInvoke("workspace:configure-provider-mcp", async (_event, input) => handlers.configureProviderMcp(input));
   handleDesktopInvoke("workspace:end-agent-invocation", async (_event, invocationId) => handlers.endAgentInvocation(invocationId));

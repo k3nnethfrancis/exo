@@ -382,6 +382,15 @@ describe("agent invocation model", () => {
     expect(record?.continuity).toEqual({ policy: "fresh", outcome: "fresh" });
   });
 
+  it("preserves truthful failed-resume provenance", () => {
+    const record = normalizeInvocationRecord({
+      id: "inv-resume-failed", status: "failed", context: "cli", message: "task", promptDelivery: "stdin",
+      command: createDefaultClaudeAgentCommand(), cwd: "/tmp", createdAt: "2026-07-08T00:00:00.000Z",
+      continuity: { policy: "continuous", outcome: "resume-failed", resumedFromInvocationId: "inv-0" },
+    });
+    expect(record?.continuity).toEqual({ policy: "continuous", outcome: "resume-failed", resumedFromInvocationId: "inv-0" });
+  });
+
   it("normalizes CLI invocation records without a tagged document", () => {
     expect(normalizeInvocationRecord({
       id: "inv-cli",

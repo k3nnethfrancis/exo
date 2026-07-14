@@ -250,7 +250,10 @@ describe("InvocationRunner readiness parity", () => {
     await runner.authorizeAndStart(await runner.prepare(invocationRequest(notePath, documentBody)));
     processFactory.process.exit(1, "", "Authentication failed\n");
 
-    await expect(updated).resolves.toMatchObject({ status: "failed" });
+    await expect(updated).resolves.toMatchObject({
+      status: "failed",
+      continuity: { policy: "continuous", outcome: "resume-failed", resumedFromInvocationId: "prior-invocation" },
+    });
     expect(processFactory.processes).toHaveLength(1);
     await expect(continuityStore.readHead(lane)).resolves.toMatchObject({
       providerSessionId: staleId,
@@ -278,6 +281,34 @@ describe("InvocationRunner readiness parity", () => {
 
     const third = await runner.prepare(invocationRequest(notePath, documentBody));
     await expect(runner.authorizeAndStart(third)).resolves.toMatchObject({ ok: true });
+  });
+
+  it("reports and resets only the current Workspace Command context", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-reset-"));
+    temporaryRoots.push(root);
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
+    const lane = {
+      workspaceRoot: root,
+      commandId: command.id,
+      commandFingerprint: agentCommandExecutableFingerprint(command),
+      adapter: "claude-code" as const,
+      cwd: root,
+    };
+    await new InvocationContinuityStore(root).writeHead(lane, {
+      providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
+      sourceInvocationId: "prior-invocation",
+    });
+    const runner = createRunner(settings(root, command));
+
+    await expect(runner.getCommandContinuityStatus(command.id)).resolves.toMatchObject({
+      commandId: command.id,
+      supported: true,
+      policy: "continuous",
+      hasHead: true,
+      active: false,
+    });
+    await expect(runner.resetCommandContinuity(command.id)).resolves.toEqual({ cleared: 1 });
+    await expect(runner.getCommandContinuityStatus(command.id)).resolves.toMatchObject({ hasHead: false });
   });
 
   it("refuses to baseline an editor snapshot that is not the saved document", async () => {

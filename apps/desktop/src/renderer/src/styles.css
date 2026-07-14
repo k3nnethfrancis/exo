@@ -2382,6 +2382,27 @@ select.dialog-card__input {
   grid-column: 1 / -1;
 }
 
+.agent-command__continuity {
+  grid-column: 1 / -1;
+}
+
+.agent-command__continuity-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 30px;
+}
+
+.agent-command__continuity-controls .toolbar-button {
+  min-height: 26px;
+  padding: 3px 9px;
+}
+
+.agent-command__continuity-controls .dialog-field__error {
+  color: var(--danger);
+  font-size: 11px;
+}
+
 @media (max-width: 760px) {
   .dialog-overlay,
   .onboarding-shell {
@@ -2820,6 +2841,18 @@ select.dialog-card__input {
 
 .onboarding-agent__command:focus {
   color: var(--text);
+}
+
+.onboarding-agent__copy .dialog-check {
+  width: max-content;
+  margin-top: 3px;
+  font-family: var(--ui-font);
+}
+
+.onboarding-agent__copy .dialog-check span,
+.onboarding-agent__copy .onboarding-agent__continuity-unavailable {
+  font-family: var(--ui-font);
+  font-size: 11px;
 }
 
 .onboarding-provider-picks {
