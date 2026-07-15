@@ -134,6 +134,7 @@ Start only after the trust gates above pass.
 
 ### First graph-management Skill
 
+- [ ] Run an isolated graph-visualization interaction lab before choosing an Exo graph surface; validate neighborhood, path, and overview usefulness against synthetic and then real-vault snapshots without changing production renderer/data contracts.
 - [ ] Ship one provider-neutral, editable **Find and connect relevant context** skill through an existing trusted Command.
 - [ ] Combine Search with links, backlinks, tags, properties, and neighborhood evidence.
 - [ ] Require explanations and reviewable proposed Markdown/frontmatter changes; inferred similarity stays derived.
