@@ -46,6 +46,7 @@ import { inspectCliInstallation } from "./cli-installation";
 import { resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace-watchers";
+import { hasOperatorWorkspaceSetup } from "./workspace-setup-gate";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const sourceProjectRoot = resolveSourceProjectRoot();
@@ -430,7 +431,7 @@ app.whenReady().then(async () => {
     nativeTheme.themeSource = forcedTheme;
   }
 
-  operatorWorkspaceSetupComplete = Boolean(process.env.EXO_NOTE_ROOTS);
+  operatorWorkspaceSetupComplete = hasOperatorWorkspaceSetup();
   const loadedWorkspaceSettings = await workspaceConfig.load();
   workspaceSettings = loadedWorkspaceSettings?.settings ?? null;
   workspaceSettingsRevision = loadedWorkspaceSettings?.revision ?? null;
