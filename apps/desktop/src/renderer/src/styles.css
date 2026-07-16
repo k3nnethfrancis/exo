@@ -1296,7 +1296,7 @@ button svg,
   content: "";
   position: absolute;
   left: calc(var(--exo-list-base-indent, 30px) + var(--exo-list-depth, 0) * var(--exo-list-indent-step, 28px) - var(--exo-list-marker-lane-width, 18px) + 6px);
-  top: calc(0.8lh - 2px);
+  top: calc(0.5lh - 2px);
   width: 4px;
   height: 4px;
   border-radius: 999px;
