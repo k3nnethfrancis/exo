@@ -1,4 +1,4 @@
-import type { AgentCommand, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
+import type { AgentCommand, SearchEngine, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
 
 import type { AppearanceMode } from "./appearance";
 import type { ColorThemeId } from "./theme/types";
@@ -16,6 +16,7 @@ export interface WorkspaceSettingsDialogState {
   noteRoots: string[];
   indexedRoots: string[];
   indexMode: WorkspaceSettings["indexing"]["mode"];
+  searchEngine: SearchEngine;
   appearanceMode: AppearanceMode;
   colorThemeId: ColorThemeId;
   editorFontSize: string;

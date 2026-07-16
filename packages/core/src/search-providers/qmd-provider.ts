@@ -22,8 +22,8 @@ const QMD_DIRECTORY_NAME = "qmd";
 
 export const qmdSearchProviderMetadata: SearchProviderMetadata = {
   id: "qmd",
-  label: "QMD advanced search",
-  description: "Bundled advanced local Markdown search provider.",
+  label: "QMD search",
+  description: "Bundled local Markdown search provider.",
   lifecycle: "built-in",
   backend: "qmd",
   capabilities: ["lexical", "semantic", "hybrid", "read", "update", "embed", "sync"],
@@ -239,7 +239,7 @@ async function searchIndex(
   }
 
   if (!shouldUseQmd(model)) {
-    return searchFilesystem(model, trimmedQuery, options, "QMD advanced search provider is off or has no indexed roots; using core workspace search.");
+    return searchFilesystem(model, trimmedQuery, options, "QMD is unavailable; showing Simple search results.");
   }
 
   let store: QmdStore | null = null;
@@ -384,7 +384,7 @@ async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise
   return qmd.createStore({
     dbPath: getQmdDbPath(runtimeRoot),
     config: {
-      global_context: "Exo-managed QMD advanced search provider. Indexed roots are explicitly selected by the user.",
+      global_context: "Exo-managed QMD search provider. Indexed roots are explicitly selected by the user.",
       collections: Object.fromEntries(
         model.indexedRoots.map((root) => [
           collectionName(root),

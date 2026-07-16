@@ -77,7 +77,8 @@ export class WorkspaceIndex {
 
   private selectProvider(): SearchProvider {
     const { model } = this.options.context;
-    return model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0
+    const qmdIsSelected = model.searchEngine !== "filesystem";
+    return qmdIsSelected && model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0
       ? this.adapters.qmd
       : this.adapters.filesystem;
   }

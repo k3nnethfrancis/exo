@@ -32,8 +32,8 @@ describe("QMD index adapter", () => {
   it("exposes QMD search-provider metadata", () => {
     expect(qmdSearchProvider.metadata).toMatchObject({
       id: "qmd",
-      label: "QMD advanced search",
-      description: expect.stringContaining("Bundled advanced local Markdown search provider"),
+      label: "QMD search",
+      description: expect.stringContaining("Bundled local Markdown search provider"),
       lifecycle: "built-in",
       backend: "qmd",
     });
@@ -50,7 +50,7 @@ describe("QMD index adapter", () => {
     const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
     expect(result.source).toBe("filesystem");
-    expect(result.warnings[0]).toBe("QMD advanced search provider is off or has no indexed roots; using core workspace search.");
+    expect(result.warnings[0]).toBe("QMD is unavailable; showing Simple search results.");
     expect(result.results.some((entry) => entry.title === "Focus")).toBe(true);
   });
 

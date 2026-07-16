@@ -9,7 +9,7 @@ const emptySearchResults: WorkspaceSearchResults = {
   tags: [],
 };
 
-export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
+export function useWorkspaceSearch(options: { indexedOnEnter: boolean; qmdSelected: boolean }) {
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [results, setResults] = useState<WorkspaceSearchResults>(emptySearchResults);
@@ -69,10 +69,16 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
     if (!trimmedQuery) {
       return;
     }
+    if (!options.qmdSelected) {
+      setResultMode("index-unavailable");
+      setResultQuery(trimmedQuery);
+      setMessage("QMD is not selected. Showing Simple search results.");
+      return;
+    }
     if (!options.indexedOnEnter) {
       setResultMode("index-unavailable");
       setResultQuery(trimmedQuery);
-      setMessage("QMD advanced search is off. Showing core filename results.");
+      setMessage("QMD search on Enter is off. Showing Simple search results.");
       return;
     }
 
@@ -104,11 +110,11 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean }) {
       if (runRef.current !== runId) {
         return;
       }
-      console.warn("[exo] advanced workspace search failed", error);
+      console.warn("[exo] QMD workspace search failed", error);
       startTransition(() => {
         setResultMode("error");
         setResultQuery(trimmedQuery);
-        setMessage(error instanceof Error ? error.message : "Advanced search failed.");
+        setMessage(error instanceof Error ? error.message : "QMD search failed. Try Simple search in Settings.");
       });
     }
   }

@@ -110,6 +110,7 @@ export function workspaceSettingsFromModel(model: WorkspaceModel): WorkspaceSett
       noteRoots: model.noteRoots.map((root) => root.path),
       indexedRoots: model.indexedRoots,
       indexing: model.indexing,
+      searchEngine: model.searchEngine ?? "filesystem",
       appearanceMode: DEFAULT_APPEARANCE_MODE,
       colorThemeId: DEFAULT_COLOR_THEME_ID,
       editorFontSize: DEFAULT_EDITOR_FONT_SIZE,

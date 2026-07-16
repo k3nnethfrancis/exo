@@ -403,21 +403,21 @@ export function searchSummary({
   resultCount: number;
 }): string {
   if (!query) {
-    return "Type to search filenames. Press Enter for advanced search.";
+    return "Type to search filenames and paths.";
   }
   if (resultMode === "index-loading") {
-    return `Searching advanced provider for “${resultQuery}”…`;
+    return `Searching QMD for “${resultQuery}”…`;
   }
   if (resultMode === "index") {
-    return `Advanced search results for “${resultQuery}” · ${formatResultCount(resultCount)}`;
+    return `QMD results for “${resultQuery}” · ${formatResultCount(resultCount)}`;
   }
   if (resultMode === "index-unavailable") {
-    return message ?? `Advanced search unavailable. Showing ${formatResultCount(resultCount)}.`;
+    return message ?? `QMD unavailable. Showing Simple search results · ${formatResultCount(resultCount)}.`;
   }
   if (resultMode === "error") {
-    return message ?? "Search failed.";
+    return message ?? "Search failed. Try Simple search in Settings.";
   }
-  return `Filename results · ${formatResultCount(resultCount)}`;
+  return `Simple search results · ${formatResultCount(resultCount)}`;
 }
 
 function formatResultCount(resultCount: number): string {

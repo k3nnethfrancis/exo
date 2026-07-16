@@ -19,6 +19,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Changed
 
+- Makes Search settings explicitly choose recommended **QMD** or **Simple search**; QMD now starts new Workspaces in lexical mode, keeps its configuration while Simple search is active, and shows maintenance only when selected.
 - Narrows the CLI to orientation, paginated path-first search, explicit
   configured-Command invocation, index status/sync, and desktop handoff;
   removes CLI file reading and remote preview/terminal/configuration control.

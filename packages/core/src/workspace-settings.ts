@@ -294,6 +294,7 @@ export function workspaceModelFromSettings(settings: WorkspaceSettings): Workspa
     })),
     indexedRoots: settings.indexedRoots,
     indexing: settings.indexing,
+    searchEngine: settings.searchEngine,
   };
 }
 
@@ -333,6 +334,11 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     : indexedRoots.length > 0
       ? { enabled: true, mode: "lexical" as const, backend: "qmd" as const }
       : DEFAULT_INDEXING;
+  const searchEngine = input.searchEngine === "qmd" || input.searchEngine === "filesystem"
+    ? input.searchEngine
+    : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0
+      ? "qmd"
+      : "filesystem";
 
   if (!workspaceRoot || !defaultTerminalCwd || noteRoots.length === 0) {
     return null;
@@ -368,6 +374,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     ...(agentInvocationPrompt ? { agentInvocationPrompt } : {}),
     indexedRoots,
     indexing,
+    searchEngine,
     appearanceMode: input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system" ? input.appearanceMode : DEFAULT_APPEARANCE_MODE,
     colorThemeId: normalizeColorThemeId(input.colorThemeId),
     editorFontSize: clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24),

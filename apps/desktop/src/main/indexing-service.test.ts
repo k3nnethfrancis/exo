@@ -33,6 +33,8 @@ describe("IndexingService", () => {
       indexing: { enabled: false, mode: "off", backend: "qmd" },
       indexedRoots: [],
     })).toBe(false);
+    expect(service.shouldSyncAfterSettingsApply(settings, { ...settings, searchEngine: "filesystem" })).toBe(false);
+    expect(service.shouldSyncAfterSettingsApply({ ...settings, searchEngine: "filesystem" }, settings)).toBe(true);
   });
 
   it("saves specific indexed roots and refuses broad system roots by default", async () => {
@@ -69,6 +71,7 @@ function indexingService(
     noteRoots: settings.noteRoots.map((root, index) => ({ id: `note-${index + 1}`, label: `note-${index + 1}`, path: root })),
     indexedRoots: settings.indexedRoots,
     indexing: settings.indexing,
+    searchEngine: settings.searchEngine,
   };
   return new IndexingService({
     getWorkspaceModel: () => model,
@@ -98,6 +101,7 @@ function workspaceSettings(): WorkspaceSettings {
       },
     ],
     indexing: { enabled: true, mode: "lexical", backend: "qmd" },
+    searchEngine: "qmd",
     appearanceMode: "system",
     colorThemeId: "exo-neutral",
     editorFontSize: 15,

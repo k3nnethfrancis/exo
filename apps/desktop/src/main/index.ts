@@ -189,6 +189,7 @@ function createFirstRunWorkspaceModel(): WorkspaceModel {
       mode: "off",
       backend: "qmd",
     },
+    searchEngine: "filesystem",
   };
 }
 

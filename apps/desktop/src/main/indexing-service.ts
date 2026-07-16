@@ -44,7 +44,7 @@ export class IndexingService {
   }
 
   shouldUseIndex(model = this.options.getWorkspaceModel()): boolean {
-    return model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0;
+    return model.searchEngine !== "filesystem" && model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0;
   }
 
   async getMeasuredStatus(): Promise<IndexStatus> {
@@ -140,10 +140,11 @@ export class IndexingService {
   }
 
   shouldSyncAfterSettingsApply(previous: WorkspaceSettings, next: WorkspaceSettings): boolean {
-    if (!next.indexing.enabled || next.indexing.mode === "off" || next.indexedRoots.length === 0) {
+    if (next.searchEngine === "filesystem" || !next.indexing.enabled || next.indexing.mode === "off" || next.indexedRoots.length === 0) {
       return false;
     }
     return (
+      previous.searchEngine === "filesystem" ||
       !previous.indexing.enabled ||
       previous.indexing.mode !== next.indexing.mode ||
       JSON.stringify(previous.indexedRoots.map((root) => root.path).sort()) !== JSON.stringify(next.indexedRoots.map((root) => root.path).sort())

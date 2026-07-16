@@ -16,6 +16,7 @@ export interface OnboardingState {
   notesFolder: string;
   defaultTerminalCwd: string;
   indexMode: WorkspaceSettings["indexing"]["mode"];
+  searchEngine: "qmd" | "filesystem";
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
   agentCommands: AgentCommand[];
@@ -86,7 +87,8 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
           selectedWorkspaceId: workspaces[0]?.id ?? null,
           notesFolder: "",
           defaultTerminalCwd: "",
-          indexMode: "hybrid",
+          indexMode: "lexical",
+          searchEngine: "qmd",
           exploreIndexSearchOnEnter: false,
           indexUpdateStrategy: settings.indexUpdateStrategy,
           agentCommands: settings.agentCommands && settings.agentCommands.length > 0 ? settings.agentCommands : defaultOnboardingAgentCommands(),
@@ -206,6 +208,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       notesFolder: current?.noteRoots[0] ?? "",
       defaultTerminalCwd: current?.defaultTerminalCwd ?? current?.noteRoots[0] ?? "",
       indexMode: current?.indexing.mode ?? "off",
+      searchEngine: current?.searchEngine ?? (current?.indexing.enabled && current.indexing.mode !== "off" && current.indexedRoots.length > 0 ? "qmd" : "filesystem"),
       exploreIndexSearchOnEnter: current?.exploreIndexSearchOnEnter ?? false,
       indexUpdateStrategy: current?.indexUpdateStrategy ?? "on-save",
       agentCommands: current?.agentCommands ?? defaultOnboardingAgentCommands(),
@@ -224,7 +227,8 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
             selectedWorkspaceId: null,
             notesFolder: "",
             defaultTerminalCwd: "",
-            indexMode: "hybrid",
+            indexMode: "lexical",
+            searchEngine: "qmd",
             exploreIndexSearchOnEnter: true,
             indexUpdateStrategy: "on-save",
             agentCommands: defaultOnboardingAgentCommands(),
@@ -284,7 +288,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         : await window.exo.workspace.getSettings();
       const base = baseSnapshot.settings;
       const indexMode = current.indexMode;
-      const indexedRootPaths = indexMode === "off" ? [] : [notesFolder];
+      const indexedRootPaths = current.searchEngine === "qmd" ? [notesFolder] : [];
       const nextSettings: WorkspaceSettings = {
         ...base,
         workspaceRoot: notesFolder,
@@ -299,8 +303,9 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
           ignore: [],
           backend: "qmd",
         })),
-        indexing: { enabled: indexMode !== "off" && indexedRootPaths.length > 0, mode: indexMode, backend: "qmd" },
-        exploreIndexSearchOnEnter: indexMode !== "off" && current.exploreIndexSearchOnEnter,
+        indexing: { enabled: current.searchEngine === "qmd" && indexedRootPaths.length > 0, mode: current.searchEngine === "qmd" ? indexMode : "off", backend: "qmd" },
+        searchEngine: current.searchEngine,
+        exploreIndexSearchOnEnter: current.searchEngine === "qmd" && current.exploreIndexSearchOnEnter,
         indexUpdateStrategy: current.indexUpdateStrategy,
         agentCommands: current.agentCommands,
         agentInvocationPrompt: current.agentInvocationPrompt,

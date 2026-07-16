@@ -108,7 +108,7 @@ export function WorkspaceSettingsDialog({
         <div className="dialog-card__footer">
           {hasStructuralChanges ? (
             <div className="dialog-card__apply-row">
-              <div className="dialog-card__status">Workspace path and advanced search provider changes are ready to apply.</div>
+              <div className="dialog-card__status">Workspace path and search engine changes are ready to apply.</div>
               <button
                 className="toolbar-button"
                 data-testid="workspace-settings-apply"
@@ -154,7 +154,7 @@ export function workspaceSettingsSavedFooterCopy(hasStructuralChanges: boolean):
 export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSection, hasStructuralChanges: boolean): string {
   if (hasStructuralChanges) {
     return section === "index"
-      ? "Advanced search changes are ready to apply."
+      ? "Search engine changes are ready to apply."
       : "Workspace changes are ready to apply.";
   }
 
@@ -245,46 +245,79 @@ function IndexSection({
   setSettings,
 }: Pick<WorkspaceSettingsDialogProps, "indexBusy" | "indexStatus" | "onRunIndexUpdate" | "settings" | "setSettings">) {
   const statusCopy = indexSettingsStatusCopy(indexStatus, indexBusy);
+  const qmdSelected = settings.searchEngine === "qmd";
+
+  function selectSearchEngine(searchEngine: "qmd" | "filesystem") {
+    setSettings((current) => {
+      if (!current) {
+        return current;
+      }
+      const qmdNeedsSetup = searchEngine === "qmd" && (current.indexMode === "off" || current.indexedRoots.length === 0);
+      return {
+        ...current,
+        searchEngine,
+        ...(qmdNeedsSetup
+          ? {
+              indexMode: "lexical",
+              indexedRoots: current.noteRoots,
+            }
+          : {}),
+        applyStatus: "idle",
+        applyErrorMessage: null,
+      };
+    });
+  }
 
   return (
     <>
-      <div className="index-summary">
-        <div className="index-summary__header">
-          <span>
-            Core search is always available. Advanced search adds lexical and semantic retrieval.
-          </span>
-        </div>
-        <div className="index-summary__stats">
-          <span>core always on</span>
-          <span>{indexStatus?.mode ?? settings.indexMode}</span>
-          <span>
-            {indexStatus?.indexedRoots.length ?? settings.indexedRoots.length} root
-            {(indexStatus?.indexedRoots.length ?? settings.indexedRoots.length) === 1 ? "" : "s"}
-          </span>
-          <span>{indexStatus?.documentCount ?? 0} docs</span>
-          <span>{indexStatus?.pendingEmbeddings ?? 0} pending embeddings</span>
-        </div>
+      <div className="dialog-field dialog-field--section">
+        <div className="dialog-field__label">Search engine</div>
+        <label className="dialog-check">
+          <input checked={qmdSelected} data-testid="workspace-settings-search-engine-qmd" onChange={() => selectSearchEngine("qmd")} type="radio" name="workspace-search-engine" />
+          <span>QMD <small>Recommended · local indexed search</small></span>
+        </label>
+        <label className="dialog-check">
+          <input checked={!qmdSelected} data-testid="workspace-settings-search-engine-simple" onChange={() => selectSearchEngine("filesystem")} type="radio" name="workspace-search-engine" />
+          <span>Simple search <small>Immediate filename and path matches</small></span>
+        </label>
       </div>
-      {statusCopy ? (
-        <div className={`onboarding-section__hint ${statusCopy.tone === "error" ? "dialog-card__status--error" : ""}`} data-testid="workspace-settings-index-status-note">
-          {statusCopy.text}
+      {!qmdSelected ? (
+        <div className="onboarding-section__hint" data-testid="workspace-settings-simple-search-note">
+          Simple search is active. Switch to QMD to set up or resume a local index.
         </div>
       ) : null}
-      <label className="dialog-field dialog-field--section">
-        <span className="dialog-field__label">Advanced search mode</span>
+      {qmdSelected ? (
+        <>
+          <div className="index-summary">
+            <div className="index-summary__stats">
+              <span>QMD</span>
+              <span>{indexStatus?.mode ?? settings.indexMode}</span>
+              <span>
+                {indexStatus?.indexedRoots.length ?? settings.indexedRoots.length} root
+                {(indexStatus?.indexedRoots.length ?? settings.indexedRoots.length) === 1 ? "" : "s"}
+              </span>
+              <span>{indexStatus?.documentCount ?? 0} docs</span>
+              <span>{indexStatus?.pendingEmbeddings ?? 0} pending embeddings</span>
+            </div>
+          </div>
+          {statusCopy ? (
+            <div className={`onboarding-section__hint ${statusCopy.tone === "error" ? "dialog-card__status--error" : ""}`} data-testid="workspace-settings-index-status-note">
+              {statusCopy.text}
+            </div>
+          ) : null}
+          <label className="dialog-field dialog-field--section">
+            <span className="dialog-field__label">QMD retrieval</span>
         <select
           className="dialog-card__input"
           data-testid="workspace-settings-index-mode"
           value={settings.indexMode}
           onChange={(event) => {
-            const nextMode = event.target.value as WorkspaceSettings["indexing"]["mode"];
+            const nextMode = event.target.value as Exclude<WorkspaceSettings["indexing"]["mode"], "off">;
             setSettings((current) =>
               current
                 ? {
-                    ...current,
-                    indexMode: nextMode,
-                    indexedRoots: nextMode === "off" ? [] : current.noteRoots,
-                    exploreIndexSearchOnEnter: current.exploreIndexSearchOnEnter || (current.indexMode === "off" && nextMode !== "off"),
+                  ...current,
+                  indexMode: nextMode,
                     applyStatus: "idle",
                     applyErrorMessage: null,
                   }
@@ -292,30 +325,27 @@ function IndexSection({
             );
           }}
         >
-          <option value="off">Off</option>
           <option value="lexical">Lexical</option>
           <option value="semantic">Semantic</option>
           <option value="hybrid">Hybrid</option>
         </select>
-      </label>
+          </label>
       <label className="dialog-check">
         <input
           checked={settings.exploreIndexSearchOnEnter}
           data-testid="workspace-settings-explore-index-enter"
-          disabled={settings.indexMode === "off"}
           onChange={(event) =>
             setSettings((current) => (current ? { ...current, exploreIndexSearchOnEnter: event.target.checked, saveStatus: "idle", errorMessage: null } : current))
           }
           type="checkbox"
         />
-        <span>Search indexed notes when I press Enter in Explore.</span>
+        <span>Use QMD when I press Enter in Explore.</span>
       </label>
       <label className="dialog-field dialog-field--section">
         <span className="dialog-field__label">Search updates</span>
         <select
           className="dialog-card__input"
           data-testid="workspace-settings-index-update-strategy"
-          disabled={settings.indexMode === "off"}
           value={settings.indexUpdateStrategy}
           onChange={(event) =>
             setSettings((current) =>
@@ -346,7 +376,7 @@ function IndexSection({
       <details className="dialog-details dialog-details--section settings-maintenance">
         <summary>
           Search maintenance
-          <HelpTooltip label="Use these controls when advanced search is stale or embeddings are incomplete." />
+          <HelpTooltip label="Use these controls when QMD is stale or embeddings are incomplete." />
         </summary>
         {indexStatus?.recentJobs?.length ? (
           <div className="index-activity" data-testid="workspace-settings-index-activity">
@@ -382,6 +412,8 @@ function IndexSection({
           </button>
         </div>
       </details>
+        </>
+      ) : null}
     </>
   );
 }
@@ -394,16 +426,16 @@ export function indexSettingsStatusCopy(
     return { tone: "info", text: "Sync is refreshing documents and rebuilding embeddings. Status will refresh when it finishes." };
   }
   if (indexBusy === "updating") {
-    return { tone: "info", text: "Refreshing notes in the advanced search index. Embedding status will update when it finishes." };
+    return { tone: "info", text: "Refreshing QMD notes. Embedding status will update when it finishes." };
   }
   if (indexBusy === "embedding") {
-    return { tone: "info", text: "Building semantic embeddings for indexed notes. Status will update when it finishes." };
+    return { tone: "info", text: "Building QMD semantic embeddings. Status will update when it finishes." };
   }
   if (!indexStatus) {
     return null;
   }
   if (indexStatus.errors.length > 0) {
-    return { tone: "error", text: "Advanced search is unavailable. Core search still works." };
+    return { tone: "error", text: "QMD is unavailable. Simple search still works; switch engines or sync QMD to recover." };
   }
   if (!indexStatus.enabled || indexStatus.mode === "off" || indexStatus.indexedRoots.length === 0) {
     return null;

@@ -33,6 +33,7 @@ export function workspaceSettingsStructuralDraftKey(settings: WorkspaceSettingsD
     noteRoots: settings.noteRoots,
     indexedRoots: settings.indexedRoots,
     indexMode: settings.indexMode,
+    searchEngine: settings.searchEngine,
   });
 }
 
@@ -43,6 +44,7 @@ export function workspaceSettingsStructuralKeyFromSettings(settings: WorkspaceSe
     noteRoots: settings.noteRoots,
     indexedRoots: settings.indexedRoots.map((root) => root.path),
     indexMode: settings.indexing.mode,
+    searchEngine: settings.searchEngine ?? (settings.indexing.enabled && settings.indexing.mode !== "off" && settings.indexedRoots.length > 0 ? "qmd" : "filesystem"),
   });
 }
 

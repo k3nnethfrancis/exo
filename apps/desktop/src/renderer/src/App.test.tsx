@@ -277,14 +277,14 @@ describe("workspace settings footer copy", () => {
   it("shows in-progress index action status before a fresh status arrives", () => {
     expect(indexSettingsStatusCopy(null, "syncing")?.text).toContain("Status will refresh when it finishes");
     expect(indexSettingsStatusCopy(indexStatusFixture(), "updating")?.text).toContain("Embedding status will update");
-    expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).toContain("indexed notes");
-    expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).not.toContain("QMD");
+    expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).toContain("semantic embeddings");
+    expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).toContain("QMD");
   });
 
   it("keeps provider failures out of the settings surface", () => {
     const copy = indexSettingsStatusCopy(indexStatusFixture({ errors: ["ENOENT: mkdir '/.exo'"] }), null);
 
-    expect(copy?.text).toBe("Advanced search is unavailable. Core search still works.");
+    expect(copy?.text).toBe("QMD is unavailable. Simple search still works; switch engines or sync QMD to recover.");
     expect(copy?.text).not.toContain("ENOENT");
   });
 
@@ -318,9 +318,11 @@ describe("workspace settings footer copy", () => {
           section: "index",
           indexedRoots: ["/workspace/notes"],
           indexMode: "hybrid",
+          searchEngine: "qmd",
           appliedWorkspaceKey: workspaceSettingsStructuralDraftKey(workspaceSettingsDialogFixture({
             indexedRoots: ["/workspace/notes"],
             indexMode: "hybrid",
+            searchEngine: "qmd",
           })),
         })}
         setSettings={() => {}}
@@ -329,13 +331,33 @@ describe("workspace settings footer copy", () => {
     );
 
     expect(html).toContain("Sync now refreshes documents and embeddings");
-    expect(html).toContain("Core search is always available");
-    expect(html).toContain("Advanced search mode");
-    expect(html).toContain("Advanced search adds lexical and semantic retrieval");
+    expect(html).toContain("Search engine");
+    expect(html).toContain("QMD retrieval");
     expect(html).toContain("3 pending embeddings");
     expect(html).toContain("Search maintenance");
-    expect(html).not.toContain("QMD");
+    expect(html).toContain("QMD");
     expect(html).not.toContain("Press Apply");
+  });
+
+  it("keeps QMD maintenance out of Simple search settings", () => {
+    const html = renderToStaticMarkup(
+      <WorkspaceSettingsDialog
+        indexBusy={null}
+        indexStatus={indexStatusFixture()}
+        onChooseFolder={() => {}}
+        onClose={() => {}}
+        onOpenWorkspaceSwitcher={() => {}}
+        onRunIndexUpdate={() => {}}
+        onSave={() => {}}
+        settings={workspaceSettingsDialogFixture({ section: "index", searchEngine: "filesystem" })}
+        setSettings={() => {}}
+        structuralDraftKey={workspaceSettingsStructuralDraftKey}
+      />,
+    );
+
+    expect(html).toContain("Simple search is active");
+    expect(html).not.toContain("Search maintenance");
+    expect(html).not.toContain("Sync now");
   });
 });
 
@@ -378,6 +400,7 @@ function workspaceSettingsDialogFixture(
     noteRoots: ["/workspace/notes"],
     indexedRoots: [],
     indexMode: "off",
+    searchEngine: "filesystem",
     appearanceMode: "system",
     colorThemeId: "exo-neutral",
     editorFontSize: "15",
@@ -544,6 +567,7 @@ describe("workspace settings renderer model", () => {
       noteRoots: ["/workspace/notes"],
       indexedRoots: ["/workspace/notes"],
       indexMode: "lexical",
+      searchEngine: "qmd",
       appearanceMode: "system",
       colorThemeId: "exo-neutral",
       editorFontSize: "15",
@@ -570,6 +594,7 @@ describe("workspace settings renderer model", () => {
       projectRoots: [],
       indexedRoots: [],
       indexMode: "off" as const,
+      searchEngine: "filesystem" as const,
       appearanceMode: "system" as const,
       colorThemeId: "exo-neutral" as const,
       editorFontSize: "15",

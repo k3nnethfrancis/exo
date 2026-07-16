@@ -17,6 +17,8 @@ export interface WorkspaceModel {
   noteRoots: NoteRoot[];
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
+  /** The user's chosen search engine. Undefined preserves legacy model callers. */
+  searchEngine?: SearchEngine;
 }
 
 export interface WorkspaceSettings {
@@ -30,6 +32,8 @@ export interface WorkspaceSettings {
   agentInvocationPrompt?: string;
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
+  /** QMD configuration is retained when Simple search is selected. */
+  searchEngine?: SearchEngine;
   appearanceMode: "system" | "light" | "dark";
   colorThemeId: ColorThemeId;
   editorFontSize: number;
@@ -176,6 +180,7 @@ export interface SemanticSearchResult {
 export type IndexedRootKind = "notes" | "docs" | "code" | "mixed";
 export type IndexMode = "off" | "lexical" | "semantic" | "hybrid";
 export type IndexBackend = "filesystem" | "qmd";
+export type SearchEngine = "filesystem" | "qmd";
 export type IndexUpdateStrategy = "manual" | "on-save";
 
 export interface IndexedRoot {

@@ -17,6 +17,42 @@ import {
 } from "../workspace-settings";
 
 describe("workspace settings registry", () => {
+  it("migrates legacy active QMD settings and off settings to an explicit search engine", () => {
+    const base = {
+      workspaceRoot: "/tmp/exo-search-engine",
+      defaultTerminalCwd: "/tmp/exo-search-engine",
+      noteRoots: ["/tmp/exo-search-engine/notes"],
+    };
+
+    expect(normalizeWorkspaceSettings({
+      ...base,
+      indexedRoots: [{ id: "notes", label: "notes", path: "/tmp/exo-search-engine/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" }],
+      indexing: { enabled: true, mode: "lexical", backend: "qmd" },
+    })?.searchEngine).toBe("qmd");
+    expect(normalizeWorkspaceSettings({
+      ...base,
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+    })?.searchEngine).toBe("filesystem");
+  });
+
+  it("retains QMD configuration when Simple search is selected", () => {
+    const settings = normalizeWorkspaceSettings({
+      workspaceRoot: "/tmp/exo-search-engine",
+      defaultTerminalCwd: "/tmp/exo-search-engine",
+      noteRoots: ["/tmp/exo-search-engine/notes"],
+      indexedRoots: [{ id: "notes", label: "notes", path: "/tmp/exo-search-engine/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" }],
+      indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
+      searchEngine: "filesystem",
+    });
+
+    expect(settings).toMatchObject({
+      searchEngine: "filesystem",
+      indexing: { enabled: true, mode: "hybrid" },
+      indexedRoots: [{ path: "/tmp/exo-search-engine/notes" }],
+    });
+  });
+
   it("atomically strips retired project roots while preserving commands, layout, indexing, migration metadata, and unknown fields", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-note-root-migration-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };

@@ -30,9 +30,9 @@ describe("Explorer search presentation", () => {
 
   it("reports the actual search mode instead of implying indexed search", () => {
     expect(searchSummary({ query: "", resultMode: "idle", resultQuery: "", message: null, resultCount: 0 }))
-      .toBe("Type to search filenames. Press Enter for advanced search.");
+      .toBe("Type to search filenames and paths.");
     expect(searchSummary({ query: "graph", resultMode: "index-unavailable", resultQuery: "graph", message: null, resultCount: 2 }))
-      .toBe("Advanced search unavailable. Showing 2 results.");
+      .toBe("QMD unavailable. Showing Simple search results · 2 results.");
   });
 });
 

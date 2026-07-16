@@ -77,7 +77,8 @@ export function App() {
   const workspaceTrees = useWorkspaceTrees({ noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH });
   const { noteTrees } = workspaceTrees;
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
-  const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter });
+  const [qmdSearchSelected, setQmdSearchSelected] = useState(false);
+  const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter, qmdSelected: qmdSearchSelected });
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const [onboardingMcp, setOnboardingMcp] = useState({
     providers: ["claude", "codex"] as Array<"claude" | "codex">,
@@ -314,6 +315,7 @@ export function App() {
     setTerminalRuntimeReadTailChars(terminalPolicy.readTailChars);
     setExplorerScale(settings.explorerScale);
     setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
+    setQmdSearchSelected(settings.searchEngine === "qmd");
   }
 
   function applyPersistedLayout(layout: WorkspaceSettings["layout"] | undefined) {
@@ -1594,25 +1596,28 @@ function summarizeIndexStatus(status: IndexStatus | null, busy: IndexBusyState):
   busy: boolean;
 } {
   if (busy === "updating") {
-    return { label: "Updating search", tone: "info", title: "Updating the QMD advanced search provider.", busy: true };
+    return { label: "Updating search", tone: "info", title: "Updating QMD search.", busy: true };
   }
   if (busy === "syncing") {
-    return { label: "Syncing search", tone: "info", title: "Refreshing documents and embeddings for the QMD advanced search provider.", busy: true };
+    return { label: "Syncing search", tone: "info", title: "Refreshing QMD documents and embeddings.", busy: true };
   }
   if (busy === "embedding") {
-    return { label: "Embedding", tone: "info", title: "Building semantic embeddings for QMD advanced search.", busy: true };
+    return { label: "Embedding", tone: "info", title: "Building QMD semantic embeddings.", busy: true };
   }
   if (!status) {
-    return { label: "Search unknown", tone: "muted", title: "Advanced search provider status has not loaded yet.", busy: false };
+    return { label: "Search unknown", tone: "muted", title: "Search status has not loaded yet.", busy: false };
+  }
+  if (status.backend === "filesystem") {
+    return { label: "Simple search", tone: "muted", title: "Immediate filename and path search is active.", busy: false };
   }
   if (status.errors.length > 0) {
-    return { label: "Search provider error", tone: "error", title: status.errors.join("\n"), busy: false };
+    return { label: "QMD needs attention", tone: "error", title: "Simple search remains available. Open Search settings to sync QMD or choose Simple search.", busy: false };
   }
   if (!status.enabled || status.mode === "off" || status.indexedRoots.length === 0) {
-    return { label: "QMD off", tone: "muted", title: "QMD advanced search is off. Core filename, path, and text search remains available.", busy: false };
+    return { label: "QMD unavailable", tone: "muted", title: "Simple search remains available. Choose QMD in Search settings to set it up.", busy: false };
   }
   if (status.documentCount === 0) {
-    return { label: "Search provider empty", tone: "warn", title: "QMD advanced search is configured but has no documents yet.", busy: false };
+    return { label: "QMD empty", tone: "warn", title: "QMD is configured but has no documents yet. Sync now to build it.", busy: false };
   }
   if ((status.mode === "semantic" || status.mode === "hybrid") && (!status.hasVectorIndex || status.pendingEmbeddings > 0)) {
     return { label: "Embeddings needed", tone: "warn", title: formatIndexStatus(status), busy: false };

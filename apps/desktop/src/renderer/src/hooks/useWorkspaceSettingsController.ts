@@ -120,6 +120,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       noteRoots: settings.noteRoots,
       indexedRoots: settings.indexedRoots.map((root) => root.path),
       indexMode: settings.indexing.mode,
+      searchEngine: settings.searchEngine ?? (settings.indexing.enabled && settings.indexing.mode !== "off" && settings.indexedRoots.length > 0 ? "qmd" : "filesystem"),
       appearanceMode: settings.appearanceMode as AppearanceMode,
       colorThemeId: normalizeColorThemeId(settings.colorThemeId),
       editorFontSize: String(settings.editorFontSize),
@@ -302,6 +303,9 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       });
       if (saveOptions.includeStructural) {
         void optionsRef.current.refreshWorkspaceModel();
+        void window.exo.workspace.getIndexStatus().then(optionsRef.current.setIndexStatus).catch((error) => {
+          console.warn("[exo] failed to refresh search status", error);
+        });
       }
     } catch (error) {
       setDialog((current) =>
@@ -368,6 +372,7 @@ export function workspaceSettingsFromDialog(
       mode: settingsDialog.indexMode,
       backend: "qmd" as const,
     },
+    searchEngine: settingsDialog.searchEngine,
   };
   return {
     ...currentSettings,
@@ -382,6 +387,9 @@ export function workspaceSettingsFromDialog(
     indexing: options.includeStructural
       ? fallbackStructural.indexing
       : currentSettings?.indexing ?? fallbackStructural.indexing,
+    searchEngine: options.includeStructural
+      ? fallbackStructural.searchEngine
+      : currentSettings.searchEngine ?? fallbackStructural.searchEngine,
     appearanceMode: settingsDialog.appearanceMode,
     colorThemeId: normalizeColorThemeId(settingsDialog.colorThemeId),
     editorFontSize: clampNumber(Number(settingsDialog.editorFontSize), 11, 24),

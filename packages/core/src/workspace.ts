@@ -64,6 +64,7 @@ export function resolveWorkspaceModel(env: NodeJS.ProcessEnv = process.env): Wor
     ),
     indexedRoots,
     indexing,
+    searchEngine: indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0 ? "qmd" : "filesystem",
   };
 }
 

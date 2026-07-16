@@ -58,4 +58,18 @@ describe("WorkspaceIndex", () => {
     await expect(index.search("hello")).resolves.toMatchObject({ provider: "qmd" });
     await expect(index.rebuild()).resolves.toMatchObject({ status: { backend: "qmd" } });
   });
+
+  it("uses Simple search when selected without discarding an available QMD index", async () => {
+    const indexedModel = {
+      ...model,
+      searchEngine: "filesystem" as const,
+      indexedRoots: [{ id: "notes", label: "Notes", path: "/workspace/notes", kind: "notes" as const, pattern: "**/*.md", ignore: [], backend: "qmd" as const }],
+      indexing: { enabled: true, mode: "hybrid" as const, backend: "qmd" as const },
+    };
+    const adapters: WorkspaceIndexAdapters = { qmd: provider("qmd"), filesystem: provider("filesystem") };
+    const index = new WorkspaceIndex({ context: { model: indexedModel, runtimeRoot: "/runtime" }, adapters });
+
+    await expect(index.search("hello")).resolves.toMatchObject({ provider: "filesystem" });
+    await expect(index.status()).resolves.toMatchObject({ provider: "filesystem" });
+  });
 });
