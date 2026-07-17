@@ -140,7 +140,7 @@ async function handleRendererFailure(error, generation) {
   }
 }
 
-function startLayout() {
+function startLayout({ initialPositions = null, warmStartCount = 0 } = {}) {
   const worker = new Worker('./stellar-layout-worker.js', { type: 'module' });
   state.worker = worker;
   worker.addEventListener('message', ({ data }) => {
@@ -160,15 +160,19 @@ function startLayout() {
     invalidate();
   });
   worker.addEventListener('error', (event) => failBoot(event.error || new Error(event.message)));
-  worker.postMessage({
+  const message = {
     type: 'init',
     nodes: state.scene.nodes.map(({ id, group }) => ({ id, group })),
     edges: state.scene.edges.map(({ source, target }) => ({ source, target })),
-  });
+    initialPositions,
+    warmStartCount,
+  };
+  worker.postMessage(message, initialPositions ? [initialPositions.buffer] : []);
 }
 
 async function applyIncrementalTopology(fraction = 0.01) {
   const previous = state.scene;
+  const initialPositions = new Float32Array(previous.positions);
   const originalCount = previous.nodes.length;
   const addedCount = Math.max(1, Math.round(originalCount * clamp(Number(fraction) || 0.01, 0.001, 0.1)));
   const nodes = previous.nodes.map(({ id, label, title, path, group }) => ({ id, label, title, path, group }));
@@ -192,7 +196,7 @@ async function applyIncrementalTopology(fraction = 0.01) {
   state.ready = false;
   state.layoutChecksum = 'pending';
   await state.renderer.setScene(state.scene);
-  startLayout();
+  startLayout({ initialPositions, warmStartCount: originalCount });
   return { originalCount, addedNodes: addedCount, addedEdges: edges.length - previous.edges.length };
 }
 

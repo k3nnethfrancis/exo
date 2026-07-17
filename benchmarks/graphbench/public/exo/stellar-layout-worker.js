@@ -7,6 +7,8 @@ let forces = new Float32Array();
 let nodeSeeds = new Uint32Array();
 let groupAnchors = new Float32Array();
 let groupOfNode = new Uint32Array();
+let warmAnchors = new Float32Array();
+let warmAnchorCount = 0;
 
 // Pin state is dense because it is checked for every node on every tick. Keeping
 // it out of a Map removes a hash lookup and a temporary tuple from the hot path.
@@ -49,6 +51,7 @@ const MAX_SPEED = 7.5;
 const STEP_INTERVAL = 1000 / 60;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 const MAX_RECYCLED_FRAMES = 3;
+const WARM_ANCHOR_STRENGTH = 0.32;
 // Exactly one side of the 3x3x3 neighborhood. Cell pairs are visited once,
 // rather than looking up the same 27 cells separately for every node.
 const FORWARD_NEIGHBORS = new Int8Array([
@@ -81,11 +84,13 @@ function initialize(data) {
   forces = new Float32Array(nodeCount * 3);
   nodeSeeds = new Uint32Array(nodeCount);
   groupOfNode = new Uint32Array(nodeCount);
+  warmAnchors = new Float32Array(nodeCount * 3);
+  warmAnchorCount = Math.min(nodeCount, Math.max(0, Number(data.warmStartCount) || 0));
   pinnedMask = new Uint8Array(nodeCount);
   pinnedPositions = new Float32Array(nodeCount * 3);
   pinnedCount = 0;
   recycledFrames = [];
-  alpha = 1;
+  alpha = warmAnchorCount ? 0.38 : 1;
   epoch = 0;
   settled = nodeCount === 0;
 
@@ -130,6 +135,14 @@ function initialize(data) {
     positions[offset] = groupAnchors[anchor] + Math.cos(theta) * radial * radius;
     positions[offset + 1] = groupAnchors[anchor + 1] + z * radius;
     positions[offset + 2] = groupAnchors[anchor + 2] + Math.sin(theta) * radial * radius;
+  }
+
+  if (data.initialPositions instanceof Float32Array && data.initialPositions.length >= warmAnchorCount * 3) {
+    const warmLength = warmAnchorCount * 3;
+    positions.set(data.initialPositions.subarray(0, warmLength), 0);
+    warmAnchors.set(data.initialPositions.subarray(0, warmLength), 0);
+  } else {
+    warmAnchorCount = 0;
   }
 
   // Validate and flatten edges once. The simulation then walks contiguous memory
@@ -215,6 +228,11 @@ function step() {
     forces[offset] += ((groupAnchors[anchor] - positions[offset]) * 0.00145 - positions[offset] * 0.00008) * alpha;
     forces[offset + 1] += ((groupAnchors[anchor + 1] - positions[offset + 1]) * 0.00145 - positions[offset + 1] * 0.00008) * alpha;
     forces[offset + 2] += ((groupAnchors[anchor + 2] - positions[offset + 2]) * 0.00145 - positions[offset + 2] * 0.00008) * alpha;
+    if (index < warmAnchorCount) {
+      forces[offset] += (warmAnchors[offset] - positions[offset]) * WARM_ANCHOR_STRENGTH * alpha;
+      forces[offset + 1] += (warmAnchors[offset + 1] - positions[offset + 1]) * WARM_ANCHOR_STRENGTH * alpha;
+      forces[offset + 2] += (warmAnchors[offset + 2] - positions[offset + 2]) * WARM_ANCHOR_STRENGTH * alpha;
+    }
 
     for (let axis = 0; axis < 3; axis++) {
       const coordinate = offset + axis;

@@ -77,7 +77,7 @@ Every result records profile ID and parameter hash. Profiles may change radius, 
 2. **Done for Exo/Sigma:** normalized `benchmark-v2` node radius, edge width, label count, viewport, and DPR.
 3. Fix or explicitly quarantine the Sigma combined-run stall.
 4. **Done:** SuiteSparse fixtures with canonical source URL, archive SHA-256, and topology checksum.
-5. **Done:** deterministic 1% topology-update workload with Procrustes-aligned displacement.
+5. **Done:** deterministic 1% topology-update workload with Procrustes-aligned displacement and a `≤0.10` p95 unchanged-node gate. The 10K tracer measured `0.067` p95 after bounded warm-start anchoring.
 6. **Done:** mobile 390×844 product runs alongside 1440×960 desktop runs.
 7. **Partial:** injected WebGPU recovery, semantic Canvas parity, and zero-idle-work gates are done; pixel parity and browser-delivered device loss remain.
 8. **Contract done; corpus pending:** separate task-grounded knowledge-usefulness evaluator with counterfactual link/tag variants.

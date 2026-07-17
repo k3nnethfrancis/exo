@@ -25,6 +25,7 @@ if (!profile) throw new Error(`Unknown profile: ${profileName}. Choose ${Object.
 const repetitions = resolveRepetitions(readArgument('--repetitions'), profile.repetitions);
 const viewportId = readArgument('--viewport') || profile.viewport || 'desktop';
 const viewport = VIEWPORTS[viewportId];
+const MAX_INCREMENTAL_P95_DISPLACEMENT = 0.1;
 if (!viewport) throw new Error(`Unknown viewport: ${viewportId}. Choose ${Object.keys(VIEWPORTS).join(', ')}`);
 
 const runId = `${new Date().toISOString().replaceAll(':', '-').replace(/\.\d{3}Z$/, 'Z')}-${profileName}`;
@@ -291,10 +292,15 @@ async function measureIncremental(page, adapter) {
   const settledMs = performance.now() - beganAt;
   const after = await page.evaluate((contract) => globalThis[contract].actions.positions(), adapter.contract);
   const existingPositions = after.values.slice(0, before.values.length);
+  const displacement = procrustesDisplacement(Float32Array.from(before.values), Float32Array.from(existingPositions), before.dimensions);
+  if (displacement.normalized.p95 > MAX_INCREMENTAL_P95_DISPLACEMENT) {
+    throw new Error(`Incremental displacement exceeded p95 budget (${displacement.normalized.p95.toFixed(4)} > ${MAX_INCREMENTAL_P95_DISPLACEMENT})`);
+  }
   return {
     settledMs,
     mutation,
-    displacement: procrustesDisplacement(Float32Array.from(before.values), Float32Array.from(existingPositions), before.dimensions),
+    displacement,
+    displacementBudget: { metric: 'normalized-p95', maximum: MAX_INCREMENTAL_P95_DISPLACEMENT },
     memory: await measureMemory(page),
   };
 }

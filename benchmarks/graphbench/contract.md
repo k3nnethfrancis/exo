@@ -54,6 +54,8 @@ Real runs additionally record the canonical source URL and source checksum.
   uniform scale with a Procrustes alignment.
 - Report the displacement distribution and settle time separately. A global
   camera/layout transform is not counted as mental-map damage.
+- The current deterministic layout gate requires normalized p95 displacement
+  at or below `0.10` for unchanged nodes after a 1% update.
 
 ## Fairness invariants
 
