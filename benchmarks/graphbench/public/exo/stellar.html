@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f4f4ed">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%233f7d72'/%3E%3C/svg%3E">
+  <title>Exo spatial graph</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      background: #f4f4ed;
+      color: #242a26;
+      font-synthesis: none;
+      text-rendering: geometricPrecision;
+      --glass: rgba(247, 247, 240, .82);
+      --line: rgba(45, 61, 52, .14);
+      --ink-muted: rgba(39, 47, 42, .58);
+      --accent: #3f7d72;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: #f4f4ed;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .24;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Ccircle cx='1' cy='1' r='.38' fill='%23748178' fill-opacity='.34'/%3E%3Ccircle cx='5' cy='5' r='.28' fill='%23748178' fill-opacity='.2'/%3E%3C/svg%3E");
+    }
+
+    button, canvas { -webkit-tap-highlight-color: transparent; }
+
+    [hidden] { display: none !important; }
+
+    .stellar-shell {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      cursor: grab;
+      isolation: isolate;
+      outline: none;
+    }
+
+    .stellar-shell[data-gesture] { cursor: grabbing; }
+    .stellar-shell[data-hovering="node"] { cursor: pointer; }
+
+    .stellar-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      pointer-events: none;
+    }
+
+    #stellar-labels { z-index: 2; }
+    #stellar-gpu, #stellar-fallback { z-index: 1; }
+
+    .identity {
+      position: absolute;
+      z-index: 4;
+      top: max(18px, env(safe-area-inset-top));
+      left: max(18px, env(safe-area-inset-left));
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 38px;
+      padding: 0 14px 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 13px;
+      background: var(--glass);
+      box-shadow: 0 1px 0 rgba(255,255,255,.74) inset, 0 10px 32px rgba(34, 49, 40, .055);
+      backdrop-filter: blur(18px) saturate(.8);
+      -webkit-backdrop-filter: blur(18px) saturate(.8);
+      font-size: 13px;
+      font-weight: 650;
+      letter-spacing: -.01em;
+      pointer-events: none;
+    }
+
+    .identity-mark {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px rgba(63, 125, 114, .11);
+    }
+
+    .loading {
+      position: absolute;
+      z-index: 5;
+      left: 50%;
+      top: 50%;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      transform: translate(-50%, -50%);
+      color: var(--ink-muted);
+      font: 520 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      transition: opacity 180ms ease, visibility 180ms ease;
+      pointer-events: none;
+    }
+
+    .loading.is-hidden { opacity: 0; visibility: hidden; }
+
+    .loading-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: breathe 900ms ease-in-out infinite alternate;
+    }
+
+    .hint {
+      position: absolute;
+      z-index: 4;
+      left: 50%;
+      bottom: max(22px, calc(env(safe-area-inset-bottom) + 14px));
+      transform: translateX(-50%);
+      white-space: nowrap;
+      color: rgba(37, 44, 40, .54);
+      font: 500 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: -.01em;
+      transition: opacity 200ms ease, transform 200ms ease, visibility 200ms ease;
+      pointer-events: none;
+    }
+
+    .hint.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      transform: translate(-50%, 4px);
+    }
+
+    .detail {
+      position: absolute;
+      z-index: 4;
+      left: max(18px, env(safe-area-inset-left));
+      bottom: max(18px, env(safe-area-inset-bottom));
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-areas: "eyebrow meta" "title meta" "path meta";
+      align-items: center;
+      column-gap: 18px;
+      width: min(430px, calc(100vw - 36px));
+      min-height: 78px;
+      padding: 13px 16px 14px;
+      border: 1px solid var(--line);
+      border-radius: 17px;
+      background: var(--glass);
+      box-shadow: 0 1px 0 rgba(255,255,255,.8) inset, 0 18px 42px rgba(34, 49, 40, .075);
+      backdrop-filter: blur(20px) saturate(.82);
+      -webkit-backdrop-filter: blur(20px) saturate(.82);
+      opacity: 0;
+      transform: translateY(7px) scale(.985);
+      visibility: hidden;
+      transition: opacity 180ms ease, transform 180ms cubic-bezier(.2,.8,.2,1), visibility 180ms;
+      pointer-events: none;
+    }
+
+    .detail.is-visible {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      visibility: visible;
+    }
+
+    .detail-eyebrow {
+      grid-area: eyebrow;
+      margin-bottom: 4px;
+      color: var(--accent);
+      font: 680 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .detail-title {
+      grid-area: title;
+      overflow: hidden;
+      color: #232824;
+      font-size: 16px;
+      font-weight: 680;
+      letter-spacing: -.025em;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .detail-path {
+      grid-area: path;
+      overflow: hidden;
+      margin-top: 4px;
+      color: var(--ink-muted);
+      font: 500 10px/1.15 ui-monospace, SFMono-Regular, Menlo, monospace;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .detail-meta {
+      grid-area: meta;
+      color: var(--ink-muted);
+      font: 500 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: nowrap;
+    }
+
+    .telemetry {
+      position: absolute;
+      z-index: 4;
+      top: max(26px, env(safe-area-inset-top));
+      right: max(20px, env(safe-area-inset-right));
+      color: rgba(37, 44, 40, .47);
+      font: 500 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      pointer-events: none;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    @keyframes breathe { to { opacity: .28; transform: scale(.72); } }
+
+    @media (max-width: 600px) {
+      .identity {
+        top: max(13px, env(safe-area-inset-top));
+        left: max(13px, env(safe-area-inset-left));
+        min-height: 34px;
+        padding-inline: 10px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+      }
+
+      .detail {
+        left: max(12px, env(safe-area-inset-left));
+        bottom: max(12px, env(safe-area-inset-bottom));
+        width: calc(100vw - max(24px, env(safe-area-inset-left) + env(safe-area-inset-right)));
+        min-height: 68px;
+        padding: 11px 13px 12px;
+        border-radius: 15px;
+      }
+
+      .detail-title { font-size: 14px; }
+      .hint { bottom: max(18px, calc(env(safe-area-inset-bottom) + 10px)); font-size: 10px; }
+      .detail.is-visible ~ .hint { opacity: 0; visibility: hidden; }
+      .telemetry { display: none; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="stellar-shell" class="stellar-shell" tabindex="0" role="application" aria-label="Exo spatial graph. Drag to orbit, hold Shift while dragging to pan, and scroll or pinch to zoom.">
+    <canvas id="stellar-gpu" class="stellar-canvas" aria-hidden="true"></canvas>
+    <canvas id="stellar-fallback" class="stellar-canvas" aria-hidden="true" hidden></canvas>
+    <canvas id="stellar-labels" class="stellar-canvas" aria-hidden="true"></canvas>
+
+    <div class="identity" aria-hidden="true">
+      <span class="identity-mark"></span>
+      <span>Exo spatial graph</span>
+    </div>
+
+    <div id="stellar-loading" class="loading" role="status">
+      <span class="loading-dot"></span>
+      <span>Forming graph</span>
+    </div>
+
+    <aside id="stellar-detail" class="detail" aria-live="polite">
+      <span class="detail-eyebrow">Selected note</span>
+      <strong class="detail-title" data-title></strong>
+      <span class="detail-path" data-path></span>
+      <span class="detail-meta" data-meta></span>
+    </aside>
+
+    <p id="stellar-hint" class="hint">Drag to orbit · Shift-drag to move · pinch or scroll to zoom</p>
+    <output id="stellar-telemetry" class="telemetry" hidden></output>
+    <p id="stellar-live" class="sr-only" aria-live="polite"></p>
+  </main>
+
+  <script type="module" src="./stellar-app.js?v=smooth-topology-1"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "@exo/graphbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "node run.mjs --profile smoke",
+    "compare": "node run.mjs --profile compare",
+    "layout:smoke": "node run.mjs --profile layout-smoke",
+    "standard": "node run.mjs --profile standard",
+    "full": "node run.mjs --profile full",
+    "million": "node run.mjs --profile million",
+    "prepare:graphwagu": "node prepare-graphwagu.mjs",
+    "prepare:suitesparse": "node prepare-suitesparse.mjs --dataset fe_4elt2",
+    "compare:suitesparse": "node run.mjs --profile compare --fixture artifacts/suitesparse/fe_4elt2.json",
+    "test": "node test.mjs"
+  },
+  "dependencies": {
+    "graphology": "0.26.0",
+    "sigma": "3.0.3"
+  }
+}

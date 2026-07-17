@@ -1,5 +1,6 @@
 packages:
   - apps/*
+  - benchmarks/*
   - packages/*
 
 overrides:

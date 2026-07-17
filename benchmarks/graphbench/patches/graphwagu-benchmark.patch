@@ -1,0 +1,72 @@
+diff --git a/src/components/Page.tsx b/src/components/Page.tsx
+index 25a3026..d42fdbd 100644
+--- a/src/components/Page.tsx
++++ b/src/components/Page.tsx
+@@ -47,11 +47,53 @@ class Page extends React.Component<{}, PageState> {
+                 maxComputeWorkgroupStorageSize: adapter.limits.maxComputeWorkgroupStorageSize
+             }
+         });
+-        this.setState({
+-            renderer: new Renderer(
+-                device, this.state.canvasRef,
+-                this.state.iterRef)
+-        });
++        const renderer = new Renderer(device, this.state.canvasRef, this.state.iterRef);
++        this.setState({ renderer }, () => this.installBenchmarkBridge(renderer));
++    }
++
++    async installBenchmarkBridge(renderer: Renderer) {
++        const topology = new URLSearchParams(location.search).get('topology');
++        if (!topology) return;
++        const bridge: any = {
++            snapshot: () => ({ engine: 'graphwagu', renderer: 'webgpu', ready: false }),
++            actions: { render: () => renderer.frame!() }
++        };
++        (window as any).__graphBenchGraphWaGu = bridge;
++        try {
++            const response = await fetch(topology, { cache: 'no-store' });
++            if (!response.ok) throw new Error(`Fixture failed to load (${response.status})`);
++            const fixture = await response.json();
++            const xs = fixture.nodes.map((node: any) => Number(node.x));
++            const ys = fixture.nodes.map((node: any) => Number(node.y));
++            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
++            for (let index = 0; index < xs.length; index++) {
++                minX = Math.min(minX, xs[index]); maxX = Math.max(maxX, xs[index]);
++                minY = Math.min(minY, ys[index]); maxY = Math.max(maxY, ys[index]);
++            }
++            const scaleX = maxX === minX ? 1 : maxX - minX;
++            const scaleY = maxY === minY ? 1 : maxY - minY;
++            const nodeData: Array<number> = [];
++            for (let index = 0; index < fixture.nodes.length; index++) {
++                nodeData.push(0, (xs[index] - minX) / scaleX, (ys[index] - minY) / scaleY, 1);
++            }
++            const edgeData = fixture.edges.flatMap((edge: any) => [edge.source, edge.target]);
++            const sourceEdges = [...fixture.edges]
++                .sort((a: any, b: any) => a.source - b.source)
++                .flatMap((edge: any) => [edge.source, edge.target]);
++            const targetEdges = [...fixture.edges]
++                .sort((a: any, b: any) => a.target - b.target)
++                .flatMap((edge: any) => [edge.source, edge.target]);
++            renderer.setNodeEdgeData(nodeData, edgeData, sourceEdges, targetEdges);
++            await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
++            bridge.snapshot = () => ({
++                engine: 'graphwagu', renderer: 'webgpu', ready: true,
++                nodeCount: fixture.nodes.length, edgeCount: fixture.edges.length,
++                layout: { supported: false }
++            });
++        } catch (error) {
++            bridge.snapshot = () => ({ engine: 'graphwagu', renderer: 'webgpu', ready: false, error: (error as Error).message });
++            console.error(error);
++        }
+     }
+-
++
+     setNodeEdgeData(nodeData: Array<number>, edgeData: Array<number>, sourceEdges: Array<number>, targetEdges: Array<number>) {
+@@ -137,4 +179,4 @@ class Page extends React.Component<{}, PageState> {
+     }
+ }
+-
++
+-export default Page;
+\ No newline at end of file
++export default Page;

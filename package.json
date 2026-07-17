@@ -25,6 +25,9 @@
     "test": "node --test scripts/pack-mac.test.mjs scripts/stable-smoke.test.mjs && pnpm --dir packages/core test && pnpm --dir apps/desktop test && pnpm --dir packages/cli test",
     "test:e2e": "pnpm --filter @exo/desktop build && playwright test -c apps/desktop/playwright.config.ts",
     "test:visual": "pnpm --filter @exo/desktop build && playwright test -c apps/desktop/playwright.visual.config.ts",
+    "graphbench:test": "pnpm --filter @exo/graphbench test",
+    "graphbench:smoke": "pnpm --filter @exo/graphbench smoke",
+    "graphbench:full": "pnpm --filter @exo/graphbench full",
     "rebuild:native": "pnpm --filter @exo/desktop rebuild:native",
     "postinstall": "pnpm --filter @exo/desktop setup:runtime && pnpm rebuild:native"
   },
