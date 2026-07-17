@@ -80,7 +80,7 @@ Every result records profile ID and parameter hash. Profiles may change radius, 
 5. **Done:** deterministic 1% topology-update workload with Procrustes-aligned displacement.
 6. **Done:** mobile 390×844 product runs alongside 1440×960 desktop runs.
 7. **Partial:** injected WebGPU recovery, semantic Canvas parity, and zero-idle-work gates are done; pixel parity and browser-delivered device loss remain.
-8. Define the separate knowledge-usefulness task schema before adding any overall knowledge-graph assessment.
+8. **Contract done; corpus pending:** separate task-grounded knowledge-usefulness evaluator with counterfactual link/tag variants.
 
 ## Publication rule
 

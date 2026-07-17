@@ -13,6 +13,8 @@ that public claims often conflate:
 See [roadmap.md](./roadmap.md) for the full renderer, interaction, scale, and
 future knowledge-usefulness suite. The latter is intentionally separate: a fast
 layout benchmark cannot prove that a graph helps an agent answer questions.
+The task-grounded evaluation contract lives in
+[knowledge-usefulness.md](./knowledge-usefulness.md).
 
 The checked-in runner never downloads private data. Generated fixtures and
 benchmark results live under `artifacts/`, which is safe to replace and should

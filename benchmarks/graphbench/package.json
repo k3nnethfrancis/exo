@@ -19,7 +19,7 @@
     "prepare:suitesparse": "node prepare-suitesparse.mjs --dataset fe_4elt2",
     "compare:suitesparse": "node run.mjs --profile compare --fixture artifacts/suitesparse/fe_4elt2.json",
     "normalized:suitesparse": "node run.mjs --profile normalized --fixture artifacts/suitesparse/fe_4elt2.json",
-    "test": "node test.mjs && node incremental-quality.test.mjs"
+    "test": "node test.mjs && node incremental-quality.test.mjs && node knowledge-usefulness.test.mjs"
   },
   "dependencies": {
     "graphology": "0.26.0",
