@@ -13,6 +13,8 @@
     "million": "node run.mjs --profile million",
     "mobile": "node run.mjs --profile mobile",
     "resilience": "node run.mjs --profile resilience",
+    "incremental:smoke": "node run.mjs --profile incremental-smoke",
+    "incremental": "node run.mjs --profile incremental",
     "prepare:graphwagu": "node prepare-graphwagu.mjs",
     "prepare:suitesparse": "node prepare-suitesparse.mjs --dataset fe_4elt2",
     "compare:suitesparse": "node run.mjs --profile compare --fixture artifacts/suitesparse/fe_4elt2.json",

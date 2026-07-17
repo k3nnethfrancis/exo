@@ -46,6 +46,15 @@ Real runs additionally record the canonical source URL and source checksum.
 - This is a deterministic recovery-path test, not a claim that the browser
   delivered a physical GPU device-loss event.
 
+### Incremental layout
+
+- Settle the original deterministic topology, add exactly 1% new nodes with
+  deterministic attachment edges, and settle again.
+- Compare unchanged nodes after removing global translation, rotation, and
+  uniform scale with a Procrustes alignment.
+- Report the displacement distribution and settle time separately. A global
+  camera/layout transform is not counted as mental-map damage.
+
 ## Fairness invariants
 
 - Same fixture bytes, viewport, DPR, browser binary, and hardware per comparison.

@@ -67,6 +67,11 @@ const resilienceAggregate = aggregateResults([
 ])[0];
 assert.equal(resilienceAggregate.primaryMetric, 'recovery-ms');
 assert.equal(resilienceAggregate.distribution.p50, 15);
+const incrementalAggregate = aggregateResults([
+  { engine: 'exo', engineVersion: '1', track: 'incremental', fixture: { checksum: 'i' }, status: 'measured', measurements: { settledMs: 24 } },
+])[0];
+assert.equal(incrementalAggregate.primaryMetric, 'incremental-settled-ms');
+assert.equal(incrementalAggregate.distribution.p50, 24);
 
 assert.equal(resolvePresentationProfile('missing').id, 'explore-v1');
 assert.equal(presentationProfileHash('benchmark-v1'), presentationProfileHash(resolvePresentationProfile('benchmark-v1')));

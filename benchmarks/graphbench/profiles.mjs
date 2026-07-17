@@ -72,6 +72,20 @@ export const PROFILES = Object.freeze({
     repetitions: 3,
     viewport: 'desktop',
   }),
+  'incremental-smoke': Object.freeze({
+    cases: [{ nodes: 2_500, edgeRatio: 2 }],
+    engines: ['exo'],
+    tracks: ['incremental'],
+    repetitions: 1,
+    viewport: 'desktop',
+  }),
+  incremental: Object.freeze({
+    cases: [{ nodes: 10_000, edgeRatio: 2 }],
+    engines: ['exo'],
+    tracks: ['incremental'],
+    repetitions: 3,
+    viewport: 'desktop',
+  }),
 });
 
 export const VIEWPORTS = Object.freeze({

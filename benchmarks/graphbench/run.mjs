@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ADAPTERS } from './adapters/index.mjs';
 import { aggregateResults, resolveRepetitions } from './lib/aggregate.mjs';
+import { procrustesDisplacement } from './lib/incremental-quality.mjs';
 import { createFixture } from './lib/fixture.mjs';
 import { writeFixture } from './lib/fixture-io.mjs';
 import { hardwareStamp } from './lib/hardware.mjs';
@@ -140,6 +141,7 @@ async function runCase({ context, server, adapter, track, fixture, trial, presen
     if (track === 'render') measurements = await measureRender(page, adapter);
     else if (track === 'product') measurements = await measureProduct(page, adapter);
     else if (track === 'resilience') measurements = await measureResilience(page, adapter, readySnapshot);
+    else if (track === 'incremental') measurements = await measureIncremental(page, adapter);
     else measurements = await measureLayout(page, adapter, fixture);
     const snapshot = await page.evaluate((contract) => globalThis[contract].snapshot(), adapter.contract);
     const browserFailures = [...diagnostics.consoleErrors, ...diagnostics.pageErrors, ...diagnostics.requestFailures];
@@ -273,6 +275,26 @@ async function measureResilience(page, adapter, before) {
     failuresInjected: recovered.rendererFailures - before.rendererFailures,
     continuity,
     idle: { durationMs: 350, frames: idleEnd - idleStart },
+    memory: await measureMemory(page),
+  };
+}
+
+async function measureIncremental(page, adapter) {
+  await page.waitForFunction((contract) => globalThis[contract].snapshot().layout?.settled === true, adapter.contract, { timeout: 120_000 });
+  const before = await page.evaluate((contract) => globalThis[contract].actions.positions(), adapter.contract);
+  const beganAt = performance.now();
+  const mutation = await page.evaluate((contract) => globalThis[contract].actions.incrementalUpdate(0.01), adapter.contract);
+  await page.waitForFunction(({ contract, expected }) => {
+    const snapshot = globalThis[contract].snapshot();
+    return snapshot.nodeCount === expected && snapshot.layout?.settled === true;
+  }, { contract: adapter.contract, expected: mutation.originalCount + mutation.addedNodes }, { timeout: 120_000 });
+  const settledMs = performance.now() - beganAt;
+  const after = await page.evaluate((contract) => globalThis[contract].actions.positions(), adapter.contract);
+  const existingPositions = after.values.slice(0, before.values.length);
+  return {
+    settledMs,
+    mutation,
+    displacement: procrustesDisplacement(Float32Array.from(before.values), Float32Array.from(existingPositions), before.dimensions),
     memory: await measureMemory(page),
   };
 }

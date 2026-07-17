@@ -167,6 +167,35 @@ function startLayout() {
   });
 }
 
+async function applyIncrementalTopology(fraction = 0.01) {
+  const previous = state.scene;
+  const originalCount = previous.nodes.length;
+  const addedCount = Math.max(1, Math.round(originalCount * clamp(Number(fraction) || 0.01, 0.001, 0.1)));
+  const nodes = previous.nodes.map(({ id, label, title, path, group }) => ({ id, label, title, path, group }));
+  const edges = previous.edges.map(({ source, target, kind }) => ({
+    source: previous.nodes[source].id,
+    target: previous.nodes[target].id,
+    kind,
+  }));
+  for (let index = 0; index < addedCount; index += 1) {
+    const id = `incremental:${originalCount}:${index}`;
+    nodes.push({ id, label: `Incremental ${index + 1}`, group: previous.groups[index % Math.max(1, previous.groups.length)] || 'notes' });
+    const first = (index * 7919 + 17) % originalCount;
+    const second = (index * 1543 + Math.floor(originalCount / 3) + 1) % originalCount;
+    edges.push({ source: id, target: previous.nodes[first].id, kind: 'incremental' });
+    if (second !== first) edges.push({ source: id, target: previous.nodes[second].id, kind: 'incremental' });
+  }
+  state.worker?.terminate();
+  state.worker = null;
+  state.scene = new StellarScene({ nodes, edges }, { presentationProfile: previous.presentation.id });
+  state.firstLayout = true;
+  state.ready = false;
+  state.layoutChecksum = 'pending';
+  await state.renderer.setScene(state.scene);
+  startLayout();
+  return { originalCount, addedNodes: addedCount, addedEdges: edges.length - previous.edges.length };
+}
+
 function observeSize() {
   new ResizeObserver(resize).observe(shell);
   addEventListener('resize', resize, { passive: true });
@@ -643,6 +672,7 @@ function exposeBenchmarkContract() {
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
         return state.renderer?.kind || null;
       },
+      incrementalUpdate: (fraction) => applyIncrementalTopology(fraction),
       positions: () => ({ dimensions: 3, values: Array.from(state.scene?.positions || []) }),
       clear: () => {
         state.scene.clearSelection();

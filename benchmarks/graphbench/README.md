@@ -31,6 +31,8 @@ not contain a real Exo workspace projection.
 | `million` | 500k, 1M | 2 | Exo | opt-in scale ceiling, not part of normal CI |
 | `mobile` | 10k | 2 | Exo | 390×844 at DPR 2 product-interaction run |
 | `resilience` | 10k | 2 | Exo | injected renderer recovery, Canvas continuity, and idle quiescence |
+| `incremental-smoke` | 2.5k | 2 | Exo | one 1% topology update and aligned displacement |
+| `incremental` | 10k | 2 | Exo | repeated 1% topology updates and aligned displacement |
 
 Run from the Exo repository:
 
@@ -40,6 +42,7 @@ pnpm graphbench:test
 pnpm graphbench:smoke
 pnpm graphbench:mobile
 pnpm graphbench:resilience
+pnpm --filter @exo/graphbench incremental:smoke
 pnpm --filter @exo/graphbench prepare:suitesparse
 pnpm --filter @exo/graphbench normalized:suitesparse
 ```

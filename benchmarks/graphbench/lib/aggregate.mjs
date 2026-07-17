@@ -36,7 +36,7 @@ export function aggregateResults(results) {
       attempted: group.trials.length,
       measured: measured.length,
       failed: group.trials.length - measured.length,
-      primaryMetric: group.track === 'render' ? 'frame-p95-ms' : group.track === 'product' ? 'input-to-frame-p95-ms' : group.track === 'resilience' ? 'recovery-ms' : 'settled-ms',
+      primaryMetric: group.track === 'render' ? 'frame-p95-ms' : group.track === 'product' ? 'input-to-frame-p95-ms' : group.track === 'resilience' ? 'recovery-ms' : group.track === 'incremental' ? 'incremental-settled-ms' : 'settled-ms',
       distribution: summarize(primaryValues),
     };
   });
@@ -46,5 +46,6 @@ function primaryMetric(result) {
   if (result.track === 'render') return result.measurements?.frame?.p95;
   if (result.track === 'product') return result.measurements?.inputToFrame?.p95;
   if (result.track === 'resilience') return result.measurements?.recoveryMs;
+  if (result.track === 'incremental') return result.measurements?.settledMs;
   return result.measurements?.settledMs;
 }

@@ -30,6 +30,7 @@
     "graphbench:normalized": "pnpm --filter @exo/graphbench normalized",
     "graphbench:mobile": "pnpm --filter @exo/graphbench mobile",
     "graphbench:resilience": "pnpm --filter @exo/graphbench resilience",
+    "graphbench:incremental": "pnpm --filter @exo/graphbench incremental",
     "graphbench:full": "pnpm --filter @exo/graphbench full",
     "rebuild:native": "pnpm --filter @exo/desktop rebuild:native",
     "postinstall": "pnpm --filter @exo/desktop setup:runtime && pnpm rebuild:native"
