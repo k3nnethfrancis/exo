@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-15
+Last updated: 2026-07-17
 
 This is Exo's active execution ledger. It records only current work. Completed implementation belongs in Git and `ledger.md`; reproducible bugs belong in `issues.md`; architecture rationale belongs in `docs/exograph-simplification-plan.md`.
 
@@ -220,6 +220,10 @@ Start only after the trust gates above pass.
   - [x] Prove the pane and IPC boundary with a Canvas tracer in Connections and
     the Workspace Canvas; real development-Electron selection and path dogfood
     passed. This does not complete the Stellar/WebGPU acceptance gate.
+  - [ ] Close `EXO-ISSUE-121`: tune node legibility and trackpad/pinch zoom;
+    add an editor Graph action focused on the current Note; unify single-select,
+    double-click-open, repeated-node-focus, and explicit frame-all semantics;
+    and rebuild Connections/Properties around one inspected Concept.
 - [ ] Phase 6: ship **Find and connect relevant context** through the existing
   configured-Command review loop and measure proposal acceptance, edit burden,
   retrieval lift, and irrelevant-context cost before adding another Skill.

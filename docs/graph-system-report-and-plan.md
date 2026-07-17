@@ -432,11 +432,23 @@ selection, path, labels, and relation explanations.
 1. Add Graph as a normal Workspace Canvas Pane using the renderer-neutral scene.
 2. Stream topology/layout epochs from isolated derived work; never block Note
    navigation or typing.
-3. Support desktop and mobile spatial gestures from `stellar-contract.md`.
-4. Provide a focused Concept detail surface with properties, authored/derived
+3. Support desktop and mobile spatial gestures from `stellar-contract.md`, then
+   tune node legibility and adaptive trackpad/pinch dolly against real devices.
+4. Add an icon beside editor Properties that opens the Graph Pane selected and
+   framed on the current Note. Use one interaction contract across renderers:
+   click selects; double-click opens; double-click of an already open Note
+   focuses/zooms; frame-all remains explicit.
+5. Rebuild Connections around the same inspected Concept and projection:
+   Outline owns headings; Links owns backlinks plus internal/external outgoing
+   links; Graph is a compact local spatial neighborhood; Activity is hidden
+   until a real provenance/change stream exists.
+6. Keep editable canonical frontmatter in the editor Properties surface and use
+   graph/Connections detail to explain Concept properties, visual mappings,
+   Relation authority, Evidence, and profile findings.
+7. Provide a focused Concept detail surface with properties, authored/derived
    relationship distinction, Evidence, and profile violations.
-5. Make semantic overlays and suggestions opt-in and visibly derived.
-6. Persist only derived layout state under `.exo/`; never write canonical Notes
+8. Make semantic overlays and suggestions opt-in and visibly derived.
+9. Persist only derived layout state under `.exo/`; never write canonical Notes
    from graph navigation.
 
 Gate: packaged-app E2E passes interaction, accessibility, device-loss fallback,
@@ -481,6 +493,8 @@ initializer.
 This report is the canonical detailed plan. The surrounding documents carry
 only their appropriate slice:
 
+- `graph-product-checkpoint.md` — plain-English progress, remaining work, and
+  the accepted navigation/Connections/Properties direction.
 - `../CONTEXT.md` — canonical product language.
 - `adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` — durable decision.
 - `architecture.md` — production boundaries and current/planned ownership.

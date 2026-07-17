@@ -377,4 +377,47 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     real accelerated-typing journey.
   - [ ] Fix or explicitly isolate each regression before publishing `dev`.
 
--- Shoshin | 2026-07-12
+### EXO-ISSUE-121: Graph navigation and Connections do not yet form one system
+
+- Status: open; blocks production Graph Pane acceptance, not the experimental
+  renderer or benchmark work
+- Severity: high before Graph becomes canonical product navigation
+- Area: Stellar interaction, Graph Pane, editor chrome, Connections rail,
+  Properties, graph selection/provenance
+- Observed:
+  - GraphBench now separates normalized four-pixel benchmark nodes from
+    zoom-aware exploration/capture profiles, but the public preview and
+    integrated tracer do not yet share that system. Ordinary nodes remain hard
+    to read at useful overview distances and legibility is not a product gate.
+  - Trackpad/pinch zoom is too insensitive and requires repeated gestures; the
+    lab and integrated Canvas tracer use separate fixed exponential factors.
+  - Stellar double-click focuses a node and resets to overview on empty space,
+    while the integrated tracer double-clicks a node open. The behaviors are not
+    one contract and empty-space reset is surprising.
+  - The editor has no adjacent Graph action that opens the current Note's node.
+  - Connections puts backlinks/internal links under Outline, leaves Links as
+    external-only, represents Graph as a button list, and exposes Activity even
+    though the current app wiring supplies no invocation history.
+  - Editor, Connections, and graph-detail Properties do not share an explicit
+    inspected-Concept owner, so focus changes can produce empty or wrong context.
+- Required:
+  - [ ] Define and test one interaction contract across Canvas and Stellar:
+    click selects; double-click opens the Note; double-click of an already open
+    Note focuses/zooms; frame-all is explicit; no accidental empty-space reset.
+  - [ ] Tune adaptive wheel/pinch dolly and node visual/hit radii on real desktop
+    trackpads and mobile, with overview/mid/focus legibility screenshots and
+    gesture-count evidence.
+  - [ ] Add an icon-only Graph action beside editor Properties that opens the
+    Graph Pane with the current Note selected and framed.
+  - [ ] Give Outline only headings; give Links backlinks, internal outgoing, and
+    external links; make Graph a local spatial neighborhood derived from the
+    same projection and selection as the full graph.
+  - [ ] Keep editor Properties editable and graph/Connections properties
+    explanatory; share one inspected Concept and show Relation authority,
+    Evidence, profile interpretation, and the visual mappings a property drives.
+  - [ ] Hide Activity until it has a real invocation/change/provenance stream,
+    then define its empty and populated states.
+  - [ ] Add a packaged-app E2E covering editor → focused graph → Note open →
+    repeated-node focus → Properties/Links/Outline consistency → back navigation.
+
+-- Shoshin | 2026-07-17
