@@ -230,6 +230,23 @@ Start only after the trust gates above pass.
 - [ ] Phase 7: prototype ontology onboarding only after the graph model and
   utility evals can show a meaningful, reversible before/after result.
 
+### Dev → main promotion checkpoint — Fable reviewed 2026-07-17
+
+- [x] Fast-forward and push `dev` to the exact reviewed graph checkpoint
+  `5cf870a`; keep `main` unchanged.
+- [x] Run exact-tree evidence: `ci:check`, 9/9 stable smoke, GraphBench, and
+  unsigned macOS packaging passed. Seven of eight latency scenarios passed;
+  only the tracked Node 26 CLI process-start floor missed p50.
+- [x] Obtain Fable ruling: **approve after listed fixes**. Review artifacts:
+  `docs/reviews/2026-07-17-dev-to-main-promotion-fable-{packet,response}.md`.
+- [ ] Fix Fable F1–F3: backlink-source neighborhoods, typed focused Graph
+  expansion, and unchanged-snapshot layout refresh stability.
+- [ ] Add the packaged graph interaction journey and split CLI startup-floor
+  measurement from Exo-side navigation work without weakening in-app budgets.
+- [ ] Re-run `ci:check`, `stable:smoke`, full `test:e2e`, latency gates, and
+  `pack:mac` on the exact fixed tree; merge that SHA to `main`, then return to
+  `dev` for the explicitly deferred graph/profile roadmap.
+
 - [ ] Ship one provider-neutral, editable **Find and connect relevant context** skill through an existing trusted Command.
 - [ ] Combine Search with links, backlinks, tags, properties, and neighborhood evidence.
 - [ ] Require explanations and reviewable proposed Markdown/frontmatter changes; inferred similarity stays derived.

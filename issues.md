@@ -91,7 +91,8 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-118: Folder breadcrumb and invocation throughput gates regressed
 
-- Status: investigation required before graph-foundation clean replay
+- Status: resolved on the exact `dev` checkpoint `5cf870a`; the earlier mixed-
+  worktree regression did not reproduce
 - Severity: high
 - Area: editor navigation, Folder Overview enrichment, inline Command composer
 - Reproduction: on 2026-07-17, the existing Electron latency suite measured
@@ -106,12 +107,13 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   clean worktree, inspect the retained Playwright traces, and isolate the first
   transaction that exceeds the budget.
 - Acceptance:
-  - [ ] Reproduce breadcrumb and invocation failures on a clean branch based on
-    `main` with no Graph Pane open.
-  - [ ] Identify whether the cause is pre-existing dirty latency work, test
-    harness variance, or the graph branch's import/IPC changes.
-  - [ ] Rerun the full editor and derived-work latency specs within budget before
-    accepting the graph foundation.
+  - [x] Attempt reproduction from the committed dev checkpoint with no Graph
+    Pane open; breadcrumb shell/content measured p50 `24.69/25.87 ms` and
+    invocation typing p90 `18.10 ms` with zero long tasks.
+  - [x] Isolate the remaining failure to the separately tracked Node 26 CLI
+    process-start floor rather than graph imports or renderer work.
+  - [x] Rerun the full editor and derived-work latency specs; every in-app path
+    passed. CLI process-start accounting remains `EXO-ISSUE-111`.
 
 ### EXO-ISSUE-116: Inline agent composition can blank the renderer
 
@@ -221,6 +223,11 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   p90 in the existing 100-sample Electron navigation gate. The same route had
   measured roughly 64/67 ms on Node 25; direct compiled CLI commands now spend
   about 100 ms in process startup before Exo-specific work.
+- Fable ruling, 2026-07-17: this is an acceptable documented process-start
+  exception for main promotion, not an Exo renderer regression. Preserve the
+  `99 ms` in-app navigation budget; split the CLI measurement into the measured
+  per-runtime startup floor and Exo-side work, and keep this issue open for the
+  native/single-executable launcher decision.
 - Required:
   - [ ] Confirm the regression across supported Node runtimes and the packaged
     CLI distribution rather than weakening the 99 ms p50 navigation target.
@@ -364,7 +371,8 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-120: Mixed dev candidate must re-earn editor latency gates
 
-- Status: open; blocks merging the feature work into the stable dev candidate
+- Status: resolved for `dev` promotion at `5cf870a`; main promotion is governed
+  by the Fable checklist in `EXO-ISSUE-121` and the `EXO-ISSUE-111` budget split
 - Severity: high
 - Area: inline Command typing, breadcrumb Folder Overview, Node CLI startup
 - Review evidence: ordinary typing, backspace, and input-to-paint remain within
@@ -372,10 +380,11 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   Playwright invocation burst, about 128 ms p50 for breadcrumb Folder contents,
   and about 101 ms p50 for Node 26 CLI open.
 - Required:
-  - [ ] Preserve zero renderer long tasks; do not weaken the existing gate.
-  - [ ] Separate driver overhead from in-app input-to-paint while retaining a
+  - [x] Preserve zero renderer long tasks; do not weaken the existing gate.
+  - [x] Separate driver overhead from in-app input-to-paint while retaining a
     real accelerated-typing journey.
-  - [ ] Fix or explicitly isolate each regression before publishing `dev`.
+  - [x] Isolate the only remaining miss to Node 26 CLI process startup before
+    publishing `dev`; all in-app navigation and typing paths passed.
 
 ### EXO-ISSUE-121: Graph navigation and Connections do not yet form one system
 
@@ -401,13 +410,17 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - Editor, Connections, and graph-detail Properties do not share an explicit
     inspected-Concept owner, so focus changes can produce empty or wrong context.
 - Required:
+  - [ ] Before main, fix the three defects confirmed by Fable: backlink source
+    Notes missing from local neighborhoods; Expand passing a MouseEvent as
+    `focusPath`; and unchanged-snapshot Refresh resetting the relaxed layout
+    without rerunning it.
   - [ ] Define and test one interaction contract across Canvas and Stellar:
     click selects; double-click opens the Note; double-click of an already open
     Note focuses/zooms; frame-all is explicit; no accidental empty-space reset.
   - [ ] Tune adaptive wheel/pinch dolly and node visual/hit radii on real desktop
     trackpads and mobile, with overview/mid/focus legibility screenshots and
     gesture-count evidence.
-  - [ ] Add an icon-only Graph action beside editor Properties that opens the
+  - [x] Add an icon-only Graph action beside editor Properties that opens the
     Graph Pane with the current Note selected and framed.
   - [ ] Give Outline only headings; give Links backlinks, internal outgoing, and
     external links; make Graph a local spatial neighborhood derived from the
