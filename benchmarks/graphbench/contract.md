@@ -50,5 +50,10 @@ Real runs additionally record the canonical source URL and source checksum.
 - Publication profiles run at least three independent page trials per case and
   report the distribution across trials. A single lucky frame window is not a
   public benchmark result.
-- Every renderer records a frozen visual-profile identifier. Presentation
-  experiments never silently change the workload of an existing profile.
+- Every renderer records a frozen visual-profile identifier and parameter hash.
+  Presentation experiments never silently change the workload of an existing
+  profile.
+- Desktop and mobile viewport results are separate cohorts. A narrow viewport
+  run is never pooled with desktop or presented as equivalent hardware.
+- GPU measurements come only from renderer timing facilities such as WebGPU
+  timestamp queries. CPU submission time is never relabeled as GPU time.

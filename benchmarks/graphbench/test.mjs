@@ -6,6 +6,7 @@ import { frameReport, summarize } from './lib/metrics.mjs';
 import {
   STELLAR_PRESENTATION_PROFILES,
   StellarScene,
+  presentationProfileHash,
   resolveNodeBaseRadius,
   resolveNodeScreenRadius,
   resolvePresentationProfile,
@@ -61,6 +62,8 @@ assert.equal(aggregates[0].failed, 1);
 assert.equal(aggregates[0].distribution.p50, 3);
 
 assert.equal(resolvePresentationProfile('missing').id, 'explore-v1');
+assert.equal(presentationProfileHash('benchmark-v1'), presentationProfileHash(resolvePresentationProfile('benchmark-v1')));
+assert.notEqual(presentationProfileHash('benchmark-v1'), presentationProfileHash('explore-v1'));
 assert(Object.isFrozen(STELLAR_PRESENTATION_PROFILES));
 assert(Object.isFrozen(resolvePresentationProfile('capture-v1')));
 assert.equal(resolveNodeBaseRadius(0, 'benchmark-v1'), 4.08);

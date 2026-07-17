@@ -12,11 +12,12 @@ This directory contains public project context for humans and coding agents.
 6. `architecture.md` — current package/domain architecture and retained feature/data-model index.
 7. `../roadmap.md` — next-slice and longer-term direction.
 8. `graph-system-report-and-plan.md` — graph-lab results, production knowledge model, quality framework, and gated integration plan.
-9. `exograph-simplification-plan.md` — historical refactor/planning corpus; consult only with `tasks.md` for current status.
-10. `extension-architecture.md` — Markdown/config/Command-first extension ladder.
-11. `public-contract-reviews.md` — review ledger for protected CLI, command-server, and shared-protocol contracts.
-12. `usability-readiness.md` — installed-app readiness requirements.
-13. `harness.md` — development and validation workflow.
+9. `semantic-and-model-space-projections.md` — renderer-neutral embedding-index and open-model-internals projection contract.
+10. `exograph-simplification-plan.md` — historical refactor/planning corpus; consult only with `tasks.md` for current status.
+11. `extension-architecture.md` — Markdown/config/Command-first extension ladder.
+12. `public-contract-reviews.md` — review ledger for protected CLI, command-server, and shared-protocol contracts.
+13. `usability-readiness.md` — installed-app readiness requirements.
+14. `harness.md` — development and validation workflow.
 
 ## Current product direction
 

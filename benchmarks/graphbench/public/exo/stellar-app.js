@@ -1,4 +1,4 @@
-import { StellarScene } from './stellar-scene.js?v=smooth-topology-1';
+import { presentationProfileHash, StellarScene } from './stellar-scene.js?v=smooth-topology-1';
 import {
   add3,
   cameraBasis,
@@ -597,6 +597,7 @@ function exposeBenchmarkContract() {
       return {
         renderer: state.renderer?.kind || 'initializing',
         profile: state.scene?.presentation.id || presentationProfileId,
+        profileHash: presentationProfileHash(state.scene?.presentation || presentationProfileId),
         ready: state.ready,
         camera: {
           yaw: state.camera.yaw,
@@ -609,6 +610,12 @@ function exposeBenchmarkContract() {
         selected: state.scene?.selected >= 0 ? state.scene.selected : null,
         pathLength: state.scene?.pathLength || 0,
         frameStats: frameStats(),
+        gpuTiming: state.renderer?.gpuTimingSnapshot?.() || {
+          supported: false,
+          reason: `${state.renderer?.kind || 'initializing'} does not expose WebGPU timestamp queries.`,
+          samples: [],
+          stats: { count: 0, p50: null, p95: null, max: null },
+        },
         layout: {
           epoch: state.scene?.layoutEpoch || 0,
           energy: Number.isFinite(state.scene?.layoutEnergy) ? state.scene.layoutEnergy : 0,

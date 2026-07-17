@@ -3,16 +3,21 @@ const EDGE_STRIDE = 16;
 const EDGE_SEGMENTS = 8;
 const FRAME_BYTE_SIZE = 112;
 const MAX_DEVICE_PIXEL_RATIO = 2;
+const TIMESTAMP_RING_SIZE = 3;
+const MAX_GPU_FRAME_SAMPLES = 240;
 
 export class StellarWebGPURenderer {
   static async create(canvas, onFailure) {
     if (!navigator.gpu) throw new Error('WebGPU is unavailable');
     const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
     if (!adapter) throw new Error('No WebGPU adapter');
-    const device = await adapter.requestDevice();
+    const timestampQuerySupported = adapter.features.has('timestamp-query');
+    const device = await adapter.requestDevice(timestampQuerySupported
+      ? { requiredFeatures: ['timestamp-query'] }
+      : undefined);
     let renderer = null;
     try {
-      renderer = new StellarWebGPURenderer(canvas, adapter, device, onFailure);
+      renderer = new StellarWebGPURenderer(canvas, adapter, device, onFailure, timestampQuerySupported);
       await renderer.ready;
       return renderer;
     } catch (error) {
@@ -22,7 +27,7 @@ export class StellarWebGPURenderer {
     }
   }
 
-  constructor(canvas, adapter, device, onFailure) {
+  constructor(canvas, adapter, device, onFailure, timestampQuerySupported = false) {
     this.kind = 'webgpu';
     this.canvas = canvas;
     this.adapter = adapter;
@@ -51,6 +56,13 @@ export class StellarWebGPURenderer {
     this.destroyed = false;
     this.failed = false;
     this.failureReported = false;
+    this.gpuFrameSamples = [];
+    this.timestampCursor = 0;
+    this.timestampTiming = {
+      supported: timestampQuerySupported,
+      reason: timestampQuerySupported ? null : 'The WebGPU adapter does not expose timestamp-query.',
+      slots: timestampQuerySupported ? createTimestampRing(device) : [],
+    };
     this.ready = this.initializePipelines();
     this.device.lost.then((information) => {
       if (this.destroyed || information.reason === 'destroyed') return;
@@ -223,9 +235,10 @@ export class StellarWebGPURenderer {
     this.frameData[26] = this.scene?.presentation.aura.selectedAlpha || 0;
     this.frameData[27] = this.scene?.presentation.aura.hoveredAlpha || 0;
     this.device.queue.writeBuffer(this.frameBuffer, 0, this.frameData);
+    const timestampSlot = this.acquireTimestampSlot();
     try {
       const encoder = this.device.createCommandEncoder({ label: 'stellar frame' });
-      const pass = encoder.beginRenderPass({
+      const passDescriptor = {
         label: 'stellar pass',
         colorAttachments: [{
           view: this.context.getCurrentTexture().createView(),
@@ -237,7 +250,15 @@ export class StellarWebGPURenderer {
           depthClearValue: 1,
           depthLoadOp: 'clear', depthStoreOp: 'store',
         },
-      });
+      };
+      if (timestampSlot) {
+        passDescriptor.timestampWrites = {
+          querySet: timestampSlot.querySet,
+          beginningOfPassWriteIndex: 0,
+          endOfPassWriteIndex: 1,
+        };
+      }
+      const pass = encoder.beginRenderPass(passDescriptor);
       pass.setBindGroup(0, this.bindGroup);
       if (this.edgeCount) {
         pass.setPipeline(this.edgePipeline);
@@ -248,8 +269,15 @@ export class StellarWebGPURenderer {
         pass.draw(6, this.nodeCount);
       }
       pass.end();
+      if (timestampSlot) {
+        encoder.resolveQuerySet(timestampSlot.querySet, 0, 2, timestampSlot.resolveBuffer, 0);
+        encoder.copyBufferToBuffer(timestampSlot.resolveBuffer, 0, timestampSlot.readbackBuffer, 0, 16);
+        timestampSlot.state = 'pending';
+      }
       this.device.queue.submit([encoder.finish()]);
+      if (timestampSlot) this.collectTimestampSlot(timestampSlot);
     } catch (error) {
+      if (timestampSlot) timestampSlot.state = 'idle';
       this.reportFailure(error);
     }
     return { cpuMilliseconds: performance.now() - started };
@@ -262,6 +290,61 @@ export class StellarWebGPURenderer {
     this.onFailure?.(error instanceof Error ? error : new Error(String(error)));
   }
 
+  acquireTimestampSlot() {
+    if (!this.timestampTiming.supported || this.destroyed || this.failed) return null;
+    for (let offset = 0; offset < this.timestampTiming.slots.length; offset += 1) {
+      const index = (this.timestampCursor + offset) % this.timestampTiming.slots.length;
+      const slot = this.timestampTiming.slots[index];
+      if (slot.state !== 'idle') continue;
+      this.timestampCursor = (index + 1) % this.timestampTiming.slots.length;
+      slot.state = 'encoding';
+      return slot;
+    }
+    return null;
+  }
+
+  collectTimestampSlot(slot) {
+    this.device.queue.onSubmittedWorkDone()
+      .then(() => slot.readbackBuffer.mapAsync(GPUMapMode.READ))
+      .then(() => {
+        if (this.destroyed || !this.timestampTiming.supported) return;
+        const values = new BigUint64Array(slot.readbackBuffer.getMappedRange());
+        const elapsedNanoseconds = values[1] >= values[0] ? values[1] - values[0] : 0n;
+        const milliseconds = Number(elapsedNanoseconds) / 1_000_000;
+        if (Number.isFinite(milliseconds) && milliseconds >= 0) {
+          this.gpuFrameSamples.push(milliseconds);
+          if (this.gpuFrameSamples.length > MAX_GPU_FRAME_SAMPLES) this.gpuFrameSamples.shift();
+        }
+      })
+      .catch((error) => this.disableTimestampTiming(error))
+      .finally(() => {
+        if (slot.readbackBuffer.mapState === 'mapped') slot.readbackBuffer.unmap();
+        slot.state = 'idle';
+      });
+  }
+
+  disableTimestampTiming(error) {
+    if (!this.timestampTiming.supported) return;
+    this.timestampTiming.supported = false;
+    this.timestampTiming.reason = `Timestamp queries failed: ${error instanceof Error ? error.message : String(error)}`;
+  }
+
+  gpuTimingSnapshot() {
+    const samples = [...this.gpuFrameSamples];
+    const sorted = [...samples].sort((left, right) => left - right);
+    return {
+      supported: this.timestampTiming.supported,
+      reason: this.timestampTiming.reason,
+      samples,
+      stats: sorted.length ? {
+        count: sorted.length,
+        p50: percentile(sorted, 0.5),
+        p95: percentile(sorted, 0.95),
+        max: sorted.at(-1),
+      } : { count: 0, p50: null, p95: null, max: null },
+    };
+  }
+
   destroy() {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -271,6 +354,12 @@ export class StellarWebGPURenderer {
     this.nodeBuffer?.destroy();
     this.edgeBuffer?.destroy();
     this.frameBuffer?.destroy();
+    for (const slot of this.timestampTiming.slots) {
+      if (slot.readbackBuffer.mapState === 'mapped') slot.readbackBuffer.unmap();
+      slot.querySet.destroy();
+      slot.resolveBuffer.destroy();
+      slot.readbackBuffer.destroy();
+    }
     this.context.unconfigure?.();
     this.device.destroy();
   }
@@ -442,3 +531,29 @@ async function assertShaderCompiles(module, label) {
 }
 
 function align(value, alignment) { return Math.ceil(value / alignment) * alignment; }
+
+function createTimestampRing(device) {
+  return Array.from({ length: TIMESTAMP_RING_SIZE }, (_, index) => ({
+    state: 'idle',
+    querySet: device.createQuerySet({ label: `stellar timestamps ${index}`, type: 'timestamp', count: 2 }),
+    resolveBuffer: device.createBuffer({
+      label: `stellar timestamp resolve ${index}`,
+      size: 16,
+      usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
+    }),
+    readbackBuffer: device.createBuffer({
+      label: `stellar timestamp readback ${index}`,
+      size: 16,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    }),
+  }));
+}
+
+function percentile(sorted, fraction) {
+  if (!sorted.length) return null;
+  const position = (sorted.length - 1) * fraction;
+  const lower = Math.floor(position);
+  const upper = Math.ceil(position);
+  if (lower === upper) return sorted[lower];
+  return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+}

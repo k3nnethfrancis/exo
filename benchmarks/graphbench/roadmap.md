@@ -73,12 +73,12 @@ Every result records profile ID and parameter hash. Profiles may change radius, 
 
 ## Remaining implementation gates
 
-1. Add WebGPU timestamp-query instrumentation with explicit unsupported reporting.
+1. **Done:** WebGPU timestamp-query instrumentation with explicit unsupported reporting.
 2. Normalize `benchmark-v2` node radius, edge width, label count, and DPR across adapters.
 3. Fix or explicitly quarantine the Sigma combined-run stall.
 4. Add SuiteSparse fixtures with canonical source URL and checksum.
-5. Add incremental-update stability and Procrustes-aligned displacement metrics.
-6. Add mobile 390×844 product runs alongside 1440×960 desktop runs.
+5. **Metric done; workload pending:** Procrustes-aligned incremental displacement.
+6. **Done:** mobile 390×844 product runs alongside 1440×960 desktop runs.
 7. Add WebGPU/Canvas parity, device-loss recovery, and zero-idle-work gates.
 8. Define the separate knowledge-usefulness task schema before adding any overall knowledge-graph assessment.
 

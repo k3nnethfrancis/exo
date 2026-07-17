@@ -28,6 +28,7 @@ not contain a real Exo workspace projection.
 | `standard` | 10k, 50k | 2, 5, 10 | Exo, Sigma | normal comparison |
 | `full` | 10k, 50k, 100k, 200k | 2, 5, 10, 20 | Exo, Sigma, GraphWaGu when prepared | publication run |
 | `million` | 500k, 1M | 2 | Exo | opt-in scale ceiling, not part of normal CI |
+| `mobile` | 10k | 2 | Exo | 390×844 at DPR 2 product-interaction run |
 
 Run from the Exo repository:
 
@@ -35,6 +36,7 @@ Run from the Exo repository:
 pnpm install
 pnpm graphbench:test
 pnpm graphbench:smoke
+pnpm graphbench:mobile
 ```
 
 Publication profiles repeat each case three times. Override deliberately with
@@ -49,6 +51,11 @@ silently converted into a zero.
 Every result records the fixture checksum, browser and OS, CPU/RAM, viewport,
 device pixel ratio, renderer identity, capability gaps, and exact metric
 definitions. Optional metrics are reported as unavailable, never synthesized.
+
+Exo render trials report browser frame cadence and WebGPU pass time separately.
+GPU time comes only from `timestamp-query`; unsupported adapters remain visibly
+unsupported. Every Exo snapshot records the frozen presentation profile and its
+parameter hash.
 
 ## Public comparison basis
 

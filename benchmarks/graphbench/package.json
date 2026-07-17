@@ -10,10 +10,11 @@
     "standard": "node run.mjs --profile standard",
     "full": "node run.mjs --profile full",
     "million": "node run.mjs --profile million",
+    "mobile": "node run.mjs --profile mobile",
     "prepare:graphwagu": "node prepare-graphwagu.mjs",
     "prepare:suitesparse": "node prepare-suitesparse.mjs --dataset fe_4elt2",
     "compare:suitesparse": "node run.mjs --profile compare --fixture artifacts/suitesparse/fe_4elt2.json",
-    "test": "node test.mjs"
+    "test": "node test.mjs && node incremental-quality.test.mjs"
   },
   "dependencies": {
     "graphology": "0.26.0",

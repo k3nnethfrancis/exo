@@ -32,6 +32,11 @@ export function resolvePresentationProfile(id) {
   return STELLAR_PRESENTATION_PROFILES[id] || STELLAR_PRESENTATION_PROFILES['explore-v1'];
 }
 
+export function presentationProfileHash(profileOrId = 'explore-v1') {
+  const profile = typeof profileOrId === 'string' ? resolvePresentationProfile(profileOrId) : profileOrId;
+  return hashString(stableStringify(profile));
+}
+
 export function resolveNodeBaseRadius(degree, profileOrId = 'explore-v1') {
   const profile = typeof profileOrId === 'string' ? resolvePresentationProfile(profileOrId) : profileOrId;
   const safeDegree = Math.max(0, Number(degree) || 0);
@@ -403,3 +408,20 @@ function gridCellKey(x, y) { return (x + 32) * 65536 + (y + 32); }
 function overlaps(a, b) { return a.left < b.right + 6 && a.right + 6 > b.left && a.top < b.bottom + 5 && a.bottom + 5 > b.top; }
 function edgeKey(a, b) { return a < b ? `${a}:${b}` : `${b}:${a}`; }
 function leaf(path) { return path?.split('/').at(-1)?.replace(/\.md$/i, '') || ''; }
+
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function hashString(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}

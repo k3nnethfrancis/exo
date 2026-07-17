@@ -9,7 +9,7 @@ import { hardwareStamp } from './lib/hardware.mjs';
 import { frameReport, roundDeep, summarize } from './lib/metrics.mjs';
 import { computeLayoutQuality } from './lib/quality.mjs';
 import { startServer } from './lib/server.mjs';
-import { PROFILES, SEED, VIEWPORT } from './profiles.mjs';
+import { PROFILES, SEED, VIEWPORTS } from './profiles.mjs';
 
 const graphbenchRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(graphbenchRoot, '../..');
@@ -21,6 +21,9 @@ const profile = PROFILES[profileName];
 const suppliedFixturePath = readArgument('--fixture');
 if (!profile) throw new Error(`Unknown profile: ${profileName}. Choose ${Object.keys(PROFILES).join(', ')}`);
 const repetitions = resolveRepetitions(readArgument('--repetitions'), profile.repetitions);
+const viewportId = readArgument('--viewport') || profile.viewport || 'desktop';
+const viewport = VIEWPORTS[viewportId];
+if (!viewport) throw new Error(`Unknown viewport: ${viewportId}. Choose ${Object.keys(VIEWPORTS).join(', ')}`);
 
 const runId = `${new Date().toISOString().replaceAll(':', '-').replace(/\.\d{3}Z$/, 'Z')}-${profileName}`;
 const runDirectory = path.join(graphbenchRoot, 'artifacts', runId);
@@ -32,7 +35,7 @@ const browser = await chromium.launch({
   headless: true,
   args: ['--enable-precise-memory-info', '--enable-unsafe-webgpu'],
 });
-const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: VIEWPORT.deviceScaleFactor });
+const context = await browser.newContext({ viewport, deviceScaleFactor: viewport.deviceScaleFactor });
 const server = await startServer({ root: repositoryRoot, graphbenchRoot });
 const results = [];
 let hardware = null;
@@ -76,7 +79,7 @@ const report = roundDeep({
   repetitions,
   runId,
   seed: SEED,
-  viewport: VIEWPORT,
+  viewport: { id: viewportId, ...viewport },
   hardware,
   results,
   aggregates: aggregateResults(results),
@@ -159,10 +162,32 @@ async function measureRender(page, adapter) {
     }
     return intervals;
   }, { contract: adapter.contract, warmupFrames: 30, measuredFrames: 180 });
+  const gpuTiming = await readGpuTiming(page, adapter.contract);
   return {
     frame: frameReport(frameIntervals),
     memory: await measureMemory(page),
-    gpuTiming: { status: 'unsupported', reason: 'Adapter does not yet expose timestamp queries.' },
+    gpuTiming,
+  };
+}
+
+async function readGpuTiming(page, contract) {
+  const initial = await page.evaluate((name) => globalThis[name].snapshot().gpuTiming || null, contract);
+  if (!initial) return { status: 'unsupported', reason: 'Adapter does not expose GPU timing.' };
+  if (!initial.supported) return { status: 'unsupported', reason: initial.reason || 'GPU timestamp queries are unavailable.' };
+  if (!initial.stats?.count) {
+    await page.waitForFunction((name) => {
+      const timing = globalThis[name]?.snapshot?.().gpuTiming;
+      return !timing?.supported || timing.stats?.count > 0;
+    }, contract, { timeout: 2_000 }).catch(() => {});
+  }
+  const timing = await page.evaluate((name) => globalThis[name].snapshot().gpuTiming, contract);
+  if (!timing.supported) return { status: 'unsupported', reason: timing.reason || 'GPU timestamp queries became unavailable.' };
+  if (!timing.stats?.count) return { status: 'unavailable', reason: 'No GPU timestamp samples completed before the benchmark deadline.' };
+  return {
+    status: 'measured',
+    source: 'webgpu-timestamp-query',
+    samples: timing.samples,
+    stats: timing.stats,
   };
 }
 
