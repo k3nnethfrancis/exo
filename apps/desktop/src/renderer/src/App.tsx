@@ -82,6 +82,7 @@ export function App() {
   const [qmdSearchSelected, setQmdSearchSelected] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter, qmdSelected: qmdSearchSelected });
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
+  const [graphFocusPath, setGraphFocusPath] = useState<string | null>(null);
   const [onboardingMcp, setOnboardingMcp] = useState({
     providers: ["claude", "codex"] as Array<"claude" | "codex">,
     status: "idle" as "idle" | "saving" | "done" | "error",
@@ -786,7 +787,8 @@ export function App() {
     selectUtilitySurface("connections");
   }
 
-  function openGraphCanvas() {
+  function openGraphCanvas(focusPath?: string) {
+    setGraphFocusPath(focusPath ?? null);
     const existing = collectLeaves(canvasTree).find((leaf) => leaf.content.kind === "graph");
     if (existing) {
       canvasActions.focusLeaf(existing.id);
@@ -1361,7 +1363,7 @@ export function App() {
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "graph") {
-          return <GraphPane onClose={() => canvasActions.removeLeaf(leaf.id)} onOpenTarget={(target) => void openKnowledgeTarget(target)} />;
+          return <GraphPane focusPath={graphFocusPath} activePath={activeDocumentPath} onClose={() => canvasActions.removeLeaf(leaf.id)} onOpenTarget={(target) => void openKnowledgeTarget(target)} />;
         }
         if (leaf.content.kind === "terminal") {
           const terminalId = leaf.content.terminalId;
@@ -1449,6 +1451,7 @@ export function App() {
               onClosePane={collectLeaves(canvasTree).length > 1 ? () => canvasActions.removeLeaf(leaf.id) : null}
               dragManager={dragManager}
               onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
+              onOpenGraph={() => openGraphCanvas(pane.activePath ?? undefined)}
               onUpdateFrontmatter={updateFrontmatter}
               onBodyChange={updateBody}
               onSave={() => void (leaf.content.kind === "editor" && leaf.content.activePath ? saveDocument(leaf.content.activePath) : Promise.resolve())}

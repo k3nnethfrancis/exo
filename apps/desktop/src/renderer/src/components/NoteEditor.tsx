@@ -7,7 +7,7 @@ import { bracketMatching, foldGutter } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
-import { ArrowUpRight, Check, CircleAlert, Code2, LoaderCircle, Plus, Save, SlidersHorizontal, X } from "lucide-react";
+import { ArrowUpRight, Check, CircleAlert, Code2, LoaderCircle, Network, Plus, Save, SlidersHorizontal, X } from "lucide-react";
 import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 import type { InvocationReviewPayload } from "../../../shared/api";
@@ -67,6 +67,7 @@ interface NoteEditorProps {
   saveStatus: "idle" | "saving" | "saved" | "error";
   propertiesCollapsed: boolean;
   onToggleProperties: () => void;
+  onOpenGraph: () => void;
   onUpdateFrontmatter: (key: string, value: unknown) => void;
   onBodyChange: (body: string) => void;
   onSave: () => void | Promise<void>;
@@ -96,6 +97,7 @@ export function NoteEditor(props: NoteEditorProps) {
     saveStatus,
     propertiesCollapsed,
     onToggleProperties,
+    onOpenGraph,
     onUpdateFrontmatter,
     onBodyChange,
     onSave,
@@ -748,6 +750,18 @@ export function NoteEditor(props: NoteEditorProps) {
                 type="button"
               >
                 <SlidersHorizontal size={14} />
+              </button>
+            ) : null}
+            {showNoteMetadata ? (
+              <button
+                aria-label="Open graph for note"
+                className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
+                data-testid="open-note-graph"
+                onClick={onOpenGraph}
+                title="Open graph for note"
+                type="button"
+              >
+                <Network size={14} />
               </button>
             ) : null}
             <div className="editor-panel__title" data-testid="editor-title" title={document.filePath}>

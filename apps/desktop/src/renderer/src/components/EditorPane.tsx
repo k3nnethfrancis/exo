@@ -38,6 +38,7 @@ interface EditorPaneProps {
   onClosePane: (() => void) | null;
   dragManager: DragManager;
   onToggleProperties: () => void;
+  onOpenGraph: () => void;
   onUpdateFrontmatter: (key: string, value: unknown) => void;
   onBodyChange: (body: string) => void;
   onSave: () => void;
@@ -74,6 +75,7 @@ export function EditorPane(props: EditorPaneProps) {
     onClosePane,
     dragManager,
     onToggleProperties,
+    onOpenGraph,
     onUpdateFrontmatter,
     onBodyChange,
     onSave,
@@ -160,6 +162,7 @@ export function EditorPane(props: EditorPaneProps) {
         saveStatus={pane.activePath ? saveStatuses[pane.activePath] ?? "idle" : "idle"}
         propertiesCollapsed={propertiesCollapsed}
         onToggleProperties={onToggleProperties}
+        onOpenGraph={onOpenGraph}
         onUpdateFrontmatter={onUpdateFrontmatter}
         onBodyChange={onBodyChange}
         onSave={onSave}

@@ -107,7 +107,7 @@ export function buildNoteGraphContext(
   });
   const outgoingLinks = graph.outgoing.map(toLink);
   const backlinks = graph.backlinks.map((link) => ({ label: link.label, target: link.target }));
-  const neighborhoodNodes = graph.neighborhood.map((item) => ({ id: item.id, label: item.title, kind: "note" as const, target: item.filePath }));
+  const neighborhoodNodes = [graph.note, ...graph.neighborhood.filter((item) => item.id !== graph.note.id)].map((item) => ({ id: item.id, label: item.title, kind: "note" as const, target: item.filePath }));
   const edgeForLink = (link: WorkspaceGraphContext["outgoing"][number], index: number, source: string) => ({
     id: `${source}:${index}:${link.target}`,
     label: link.label,
@@ -115,7 +115,14 @@ export function buildNoteGraphContext(
     target: link.note?.id ?? `${link.resolution}:${link.target}`,
     kind: link.target.startsWith("http") ? "markdownLink" as const : "wikilink" as const,
   });
-  const neighborhoodEdges = graph.outgoing.map((link, index) => edgeForLink(link, index, note.id));
+  const outgoingEdges = graph.outgoing.map((link, index) => edgeForLink(link, index, note.id));
+  const backlinkEdges = graph.backlinks.map((link, index) => ({
+    id: `back:${index}:${link.source}`,
+    label: link.label,
+    source: link.source,
+    target: note.id,
+    kind: "wikilink" as const,
+  }));
 
   return {
     note,
@@ -127,7 +134,7 @@ export function buildNoteGraphContext(
     externalLinks: outgoingLinks.filter((item) => item.resolution === "external"),
     neighborhood: {
       nodes: neighborhoodNodes,
-      edges: neighborhoodEdges,
+      edges: [...outgoingEdges, ...backlinkEdges],
     },
   };
 }

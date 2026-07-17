@@ -3,6 +3,7 @@ import type { GraphViewProjection } from "@exo/core";
 
 import {
   frameGraphCamera,
+  focusGraphNodeCamera,
   graphNeighbors,
   projectGraphPositions,
   seededGraphPositions,
@@ -55,5 +56,12 @@ describe("graph scene", () => {
     expect(projected).toHaveLength(3);
     expect(projected.every((node) => Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.depth))).toBe(true);
     expect(projection.edges).toHaveLength(2);
+  });
+
+  it("focuses a requested concept without changing the graph topology", () => {
+    const positions = seededGraphPositions(projection);
+    const camera = focusGraphNodeCamera(positions, 1);
+    expect(camera.distance).toBe(300);
+    expect(camera.target).toEqual([positions[3], positions[4], positions[5]]);
   });
 });

@@ -1555,6 +1555,34 @@ button svg,
   gap: 8px;
 }
 
+.graph-neighborhood__map {
+  overflow: hidden;
+  border: 1px solid var(--divider);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--editor-bg) 92%, var(--accent-soft));
+}
+
+.graph-neighborhood__map svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 128px;
+}
+
+.graph-neighborhood__edge {
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-opacity: .32;
+}
+
+.graph-neighborhood__point circle {
+  fill: var(--accent);
+  fill-opacity: .78;
+}
+
+.graph-neighborhood__point:first-of-type circle { fill: var(--text); fill-opacity: .96; }
+.graph-neighborhood__point text { fill: var(--muted); font: 9px var(--mono); }
+
 .graph-neighborhood__nodes {
   display: flex;
   flex-wrap: wrap;

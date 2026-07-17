@@ -160,6 +160,17 @@ export function frameGraphCamera(positions: Float32Array): GraphCamera {
   };
 }
 
+/** Frame a single concept without losing the shared camera contract. */
+export function focusGraphNodeCamera(positions: Float32Array, index: number, distance = 300): GraphCamera {
+  const offset = index * 3;
+  if (index < 0 || offset + 2 >= positions.length) return frameGraphCamera(positions);
+  return {
+    ...DEFAULT_GRAPH_CAMERA,
+    distance,
+    target: [positions[offset] ?? 0, positions[offset + 1] ?? 0, positions[offset + 2] ?? 0],
+  };
+}
+
 export function hash32(value: string): number {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {

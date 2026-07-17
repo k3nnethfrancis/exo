@@ -5,6 +5,7 @@ import type { GraphConceptDetail, GraphViewBundle, GraphViewProjection } from "@
 import {
   DEFAULT_GRAPH_CAMERA,
   frameGraphCamera,
+  focusGraphNodeCamera,
   graphNeighbors,
   pickGraphNode,
   projectGraphPositions,
@@ -16,6 +17,8 @@ import {
 
 interface SpatialGraphViewProps {
   refreshKey?: string;
+  focusPath?: string | null;
+  activePath?: string | null;
   onOpenTarget: (target: string) => void;
   onOpenCanvas?: () => void;
 }
@@ -33,7 +36,7 @@ interface PointerGesture {
 
 const PALETTE = ["#3f7d72", "#bf6840", "#78699c", "#8a7b4e", "#52779c", "#9b5f6c", "#65825b", "#8d684c"];
 
-export function SpatialGraphView({ refreshKey, onOpenTarget, onOpenCanvas }: SpatialGraphViewProps) {
+export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarget, onOpenCanvas }: SpatialGraphViewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gestureRef = useRef<PointerGesture | null>(null);
   const profileId = "generic-markdown" as const;
@@ -47,6 +50,7 @@ export function SpatialGraphView({ refreshKey, onOpenTarget, onOpenCanvas }: Spa
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const projection = bundle?.projection ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +87,15 @@ export function SpatialGraphView({ refreshKey, onOpenTarget, onOpenCanvas }: Spa
   }, [bundle?.projection.sourceSnapshotId]);
 
   useEffect(() => {
+    if (!focusPath || !projection || positions.length === 0) return;
+    const index = projection.nodes.findIndex((node) => node.path === focusPath);
+    if (index < 0) return;
+    setSelected(index);
+    setPathTarget(-1);
+    setCamera(focusGraphNodeCamera(positions, index));
+  }, [focusPath, positions, projection]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const observer = new ResizeObserver(([entry]) => {
@@ -94,7 +107,6 @@ export function SpatialGraphView({ refreshKey, onOpenTarget, onOpenCanvas }: Spa
     return () => observer.disconnect();
   }, []);
 
-  const projection = bundle?.projection ?? null;
   const path = useMemo(
     () => projection
       ? shortestGraphPath(projection, selected, pathTarget)
@@ -188,13 +200,19 @@ export function SpatialGraphView({ refreshKey, onOpenTarget, onOpenCanvas }: Spa
     const rect = event.currentTarget.getBoundingClientRect();
     const picked = pickGraphNode(projected, event.clientX - rect.left, event.clientY - rect.top);
     const target = picked >= 0 ? projection?.nodes[picked]?.path : null;
-    if (target) onOpenTarget(target);
-    else setCamera(frameGraphCamera(positions));
+    if (target && target === activePath) {
+      setSelected(picked);
+      setPathTarget(-1);
+      setCamera(focusGraphNodeCamera(positions, picked, 220));
+    } else if (target) onOpenTarget(target);
+    // Empty-space double click is intentionally inert. Resetting the camera
+    // here made a navigation gesture destructive and diverged from the canvas.
   }
 
   function onWheel(event: WheelEvent<HTMLCanvasElement>) {
     event.preventDefault();
-    setCamera((current) => ({ ...current, distance: Math.max(80, Math.min(8_000, current.distance * Math.exp(event.deltaY * 0.0012))) }));
+    const delta = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaY;
+    setCamera((current) => ({ ...current, distance: Math.max(48, Math.min(8_000, current.distance * Math.exp(delta * 0.0024))) }));
   }
 
   return (
@@ -309,7 +327,7 @@ function drawGraph(
   for (const node of ordered) {
     const source = projection.nodes[node.index];
     const focused = node.index === selected || node.index === pathTarget || pathNodes.has(node.index) || neighbors.has(node.index);
-    const radius = Math.max(1.8, Math.min(5.4, (2 + Math.sqrt(Math.max(1, source.degree)) * 0.32) * Math.max(0.72, node.scale)));
+    const radius = Math.max(2.4, Math.min(8.2, (2.7 + Math.sqrt(Math.max(1, source.degree)) * 0.48) * Math.max(0.78, node.scale)));
     context.beginPath();
     context.arc(node.x, node.y, radius, 0, Math.PI * 2);
     context.fillStyle = node.index === selected || node.index === pathTarget ? accent : PALETTE[groupColor(source.group)];

@@ -63,11 +63,11 @@ not yet share it, and the real graph still looks too faint at useful overview
 distances. We have not accepted legibility targets at overview, middle, and
 focus distances against the real graph.
 
-Zoom sensitivity is not addressed. Stellar and the integrated Canvas tracer use
-separate conservative exponential wheel factors, so a Mac trackpad can require
-many pinch/expand motions. This needs one adaptive dolly rule tested on a real
-trackpad and touch device, with a simple outcome measure: how many gestures and
-how much time it takes to move from overview to one Note and back.
+The integrated Canvas tracer now uses a normalized, higher-gain wheel rule and
+supports line-mode wheel deltas; its node floor/radius is also larger at normal
+zoom. Stellar still needs to consume the same rule, and both surfaces need a
+real-trackpad/touch measurement of gestures and time from overview to one Note
+and back.
 
 The intended navigation contract is:
 
@@ -102,3 +102,14 @@ Connections, local graph, and full graph must share one explicit inspected
 Concept so changing Pane focus cannot produce unrelated “No properties” states.
 
 The executable backlog is tracked in `issues.md#exo-issue-121-graph-navigation-and-connections-do-not-yet-form-one-system`.
+
+## Implemented in the first integration slice
+
+- The editor Properties chrome now exposes a Graph action that opens the full
+  graph focused on the active Note.
+- Canvas graph double-click no longer resets the camera on empty space; an
+  already-open Note double-clicks into a focused zoom, while another Note opens
+  normally.
+- Connections Outline is headings-only; Links owns backlinks, internal links,
+  external links, and tags; Graph now shows a compact connected neighborhood
+  using the same local relation contract.

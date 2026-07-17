@@ -50,6 +50,7 @@ export function InspectorDock(props: InspectorDockProps) {
   const referenceLinks = isMarkdown ? graphContext?.outgoingLinks.filter((item) => item.resolution !== "external") ?? [] : [];
   const externalLinks = isMarkdown ? graphContext?.externalLinks ?? [] : [];
   const tags = isMarkdown ? graphContext?.tags ?? [] : [];
+  const outline = isMarkdown ? extractOutline(document?.body ?? "") : [];
   const propertyEntries = Object.entries(document?.frontmatter ?? {}).filter(([key]) => !key.startsWith("branch_"));
   const meaningfulActivity = invocationHistory.filter(hasMeaningfulInvocationActivity);
 
@@ -111,9 +112,9 @@ export function InspectorDock(props: InspectorDockProps) {
           tabIndex={0}
         >
           {activeTab === "outline" ? (
-            <OutlineTab isMarkdown={isMarkdown} backlinks={backlinks} references={referenceLinks} tags={tags} activeTag={activeTag} tagResults={tagResults} onOpenTarget={onOpenTarget} onOpenTag={onOpenTag} />
+            <OutlineTab isMarkdown={isMarkdown} headings={outline} />
           ) : activeTab === "links" ? (
-            <LinksTab isMarkdown={isMarkdown} links={externalLinks} onOpenExternal={onOpenExternal} />
+            <LinksTab isMarkdown={isMarkdown} backlinks={backlinks} references={referenceLinks} externalLinks={externalLinks} tags={tags} activeTag={activeTag} tagResults={tagResults} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
           ) : activeTab === "graph" ? (
             <GraphNeighborhoodView neighborhood={graphContext?.neighborhood ?? null} onOpenCanvas={onOpenGraphCanvas} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
           ) : meaningfulActivity.length ? (
@@ -130,31 +131,40 @@ export function InspectorDock(props: InspectorDockProps) {
 
 function OutlineTab(props: {
   isMarkdown: boolean;
+  headings: Array<{ level: number; text: string }>;
+}) {
+  if (!props.isMarkdown) return <div className="footer-empty">No note selected</div>;
+  return (
+    <section className="connections-panel__section" data-testid="outline-panel">
+      <div className="connections-panel__section-title">Headings</div>
+      {props.headings.length ? <ol className="connections-outline">{props.headings.map((heading, index) => <li key={`${heading.level}:${index}`} style={{ paddingInlineStart: `${Math.max(0, heading.level - 1) * 12}px` }}>{heading.text}</li>)}</ol> : <div className="footer-empty">No headings</div>}
+    </section>
+  );
+}
+
+function LinksTab(props: {
+  isMarkdown: boolean;
   backlinks: Array<{ label: string; target: string }>;
   references: Array<{ label: string; target: string }>;
+  externalLinks: Array<{ label: string; target: string }>;
   tags: string[];
   activeTag: string | null;
   tagResults: SearchResult[];
   onOpenTarget: (target: string) => void;
+  onOpenExternal: (target: string) => void;
   onOpenTag: (tag: string) => void;
 }) {
   if (!props.isMarkdown) return <div className="footer-empty">No note selected</div>;
-  return (
-    <>
-      <ConnectionList title="Linked from" items={props.backlinks} onOpen={props.onOpenTarget} empty="No backlinks" />
-      <ConnectionList title="Links to" items={props.references} onOpen={props.onOpenTarget} empty="No note links" />
-      <section className="connections-panel__section" data-testid="tags-panel">
-        <div className="connections-panel__section-title">Tags</div>
-        {props.tags.length ? <div className="tag-list">{props.tags.map((tag) => <button key={tag} className="tag-pill" onClick={() => props.onOpenTag(tag)} type="button">#{tag}</button>)}</div> : <div className="footer-empty">No tags</div>}
-        {props.activeTag ? <div className="tag-results"><div className="footer-panel__subtitle">Results for #{props.activeTag}</div>{props.tagResults.map((result) => <button key={result.filePath} className="footer-item" onClick={() => props.onOpenTarget(result.filePath)} type="button">{result.title}</button>)}</div> : null}
-      </section>
-    </>
-  );
-}
-
-function LinksTab(props: { isMarkdown: boolean; links: Array<{ label: string; target: string }>; onOpenExternal: (target: string) => void }) {
-  if (!props.isMarkdown) return <div className="footer-empty">No note selected</div>;
-  return <ConnectionList title="External links" items={props.links} onOpen={props.onOpenExternal} empty="No external links" external />;
+  return <>
+    <ConnectionList title="Linked from" items={props.backlinks} onOpen={props.onOpenTarget} empty="No backlinks" />
+    <ConnectionList title="Links to" items={props.references} onOpen={props.onOpenTarget} empty="No note links" />
+    <ConnectionList title="External" items={props.externalLinks} onOpen={props.onOpenExternal} empty="No external links" external />
+    <section className="connections-panel__section" data-testid="tags-panel">
+      <div className="connections-panel__section-title">Tags</div>
+      {props.tags.length ? <div className="tag-list">{props.tags.map((tag) => <button key={tag} className="tag-pill" onClick={() => props.onOpenTag(tag)} type="button">#{tag}</button>)}</div> : <div className="footer-empty">No tags</div>}
+      {props.activeTag ? <div className="tag-results"><div className="footer-panel__subtitle">Results for #{props.activeTag}</div>{props.tagResults.map((result) => <button key={result.filePath} className="footer-item" onClick={() => props.onOpenTarget(result.filePath)} type="button">{result.title}</button>)}</div> : null}
+    </section>
+  </>;
 }
 
 function ConnectionList(props: { title: string; items: Array<{ label: string; target: string }>; onOpen: (target: string) => void; empty: string; external?: boolean }) {
@@ -181,4 +191,11 @@ function formatPropertyValue(value: unknown): string {
   if (Array.isArray(value)) return value.map(String).join(", ");
   if (value === null || value === undefined) return "";
   return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
+function extractOutline(body: string): Array<{ level: number; text: string }> {
+  return body.split(/\r?\n/u).flatMap((line) => {
+    const match = /^(#{1,6})\s+(.+?)\s*#*$/u.exec(line);
+    return match ? [{ level: match[1].length, text: match[2].trim() }] : [];
+  });
 }

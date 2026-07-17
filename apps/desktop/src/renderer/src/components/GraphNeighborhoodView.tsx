@@ -19,7 +19,30 @@ export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
   }
 
   return (
-    <div className="graph-neighborhood" data-testid="graph-neighborhood">
+    <section className="graph-neighborhood" data-testid="graph-neighborhood-panel">
+      <div className="connections-panel__section-title">Neighborhood</div>
+      <div className="graph-neighborhood__map" aria-label="Local graph neighborhood">
+        <svg viewBox="0 0 240 156" role="img">
+          {neighborhood.edges.map((edge) => {
+            const source = nodes.slice(0, 8).findIndex((node) => node.id === edge.source);
+            const target = nodes.slice(0, 8).findIndex((node) => node.id === edge.target);
+            if (source < 0 || target < 0) return null;
+            const sourcePoint = localPoint(source, nodes.slice(0, 8).length);
+            const targetPoint = localPoint(target, nodes.slice(0, 8).length);
+            return <line key={edge.id} x1={sourcePoint.x} y1={sourcePoint.y} x2={targetPoint.x} y2={targetPoint.y} className="graph-neighborhood__edge" />;
+          })}
+          {nodes.slice(0, 8).map((node, index) => {
+            const point = localPoint(index, Math.min(8, nodes.length));
+            return (
+              <g key={node.id} className="graph-neighborhood__point" transform={`translate(${point.x} ${point.y})`}>
+                <circle r={index === 0 ? 6 : 4} />
+                <text x={index === 0 ? 10 : 8} y="3">{truncateLabel(node.label)}</text>
+                <title>{node.label}</title>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
       <div className="graph-neighborhood__nodes">
         {nodes.slice(0, 8).map((node) => (
           <button
@@ -29,7 +52,6 @@ export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
             title={node.label}
             type="button"
           >
-            <span className="graph-neighborhood__kind">{node.kind}</span>
             <span className="graph-neighborhood__label">{node.label}</span>
           </button>
         ))}
@@ -42,6 +64,16 @@ export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
           </button>
         ) : null}
       </div>
-    </div>
+    </section>
   );
+}
+
+function localPoint(index: number, count: number): { x: number; y: number } {
+  if (index === 0) return { x: 120, y: 78 };
+  const angle = ((index - 1) / Math.max(1, count - 1)) * Math.PI * 2 - Math.PI / 2;
+  return { x: 120 + Math.cos(angle) * 54, y: 78 + Math.sin(angle) * 48 };
+}
+
+function truncateLabel(label: string): string {
+  return label.length > 18 ? `${label.slice(0, 16)}…` : label;
 }

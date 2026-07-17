@@ -9,7 +9,7 @@ const note: NoteDocument = {
   title: "Alpha",
   kind: "markdown",
   frontmatter: { status: "draft", tags: ["exo"] },
-  body: "[[Beta]]",
+  body: "# Heading\n\n[[Beta]]",
 };
 
 describe("Connections", () => {
@@ -33,6 +33,8 @@ describe("Connections", () => {
     expect(html).toContain('role="tablist"');
     expect(html).toContain("connections-tab-outline");
     expect(html).toContain("connections-tab-activity");
+    expect(html).toContain("Heading");
+    expect(html).toContain("outline-panel");
     expect(html).not.toContain("No activity yet");
   });
 
