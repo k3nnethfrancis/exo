@@ -15,6 +15,7 @@
     "prepare:graphwagu": "node prepare-graphwagu.mjs",
     "prepare:suitesparse": "node prepare-suitesparse.mjs --dataset fe_4elt2",
     "compare:suitesparse": "node run.mjs --profile compare --fixture artifacts/suitesparse/fe_4elt2.json",
+    "normalized:suitesparse": "node run.mjs --profile normalized --fixture artifacts/suitesparse/fe_4elt2.json",
     "test": "node test.mjs && node incremental-quality.test.mjs"
   },
   "dependencies": {

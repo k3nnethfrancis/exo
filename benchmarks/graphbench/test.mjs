@@ -3,6 +3,7 @@ import { aggregateResults, resolveRepetitions } from './lib/aggregate.mjs';
 import { createFixture } from './lib/fixture.mjs';
 import { computeLayoutQuality } from './lib/quality.mjs';
 import { frameReport, summarize } from './lib/metrics.mjs';
+import { parseMatrixMarketLines } from './lib/suitesparse.mjs';
 import {
   STELLAR_PRESENTATION_PROFILES,
   StellarScene,
@@ -93,5 +94,22 @@ presentationScene.setPresentationZoom(8);
 presentationScene.setPresentationProfile('capture-v1');
 assert.equal(presentationScene.presentation.id, 'capture-v1');
 assert.deepEqual([...presentationScene.positions], originalPositions, 'presentation must not mutate topology positions');
+
+const matrixFixture = await parseMatrixMarketLines([
+  '%%MatrixMarket matrix coordinate pattern symmetric',
+  '% fixture',
+  '4 4 7',
+  '1 1',
+  '1 2',
+  '2 1',
+  '2 3',
+  '3 4',
+  '4 3',
+  '9 2',
+], { requested: 'fixture', sourceUrl: 'https://example.test/fixture', sourceSha256: 'abc123' });
+assert.equal(matrixFixture.nodeCount, 4);
+assert.equal(matrixFixture.edgeCount, 3);
+assert.equal(matrixFixture.sourceSha256, 'abc123');
+assert.deepEqual(matrixFixture.edges, [{ source: 0, target: 1 }, { source: 1, target: 2 }, { source: 2, target: 3 }]);
 
 console.log(JSON.stringify({ status: 'passed', fixture: fixture.checksum, quality }, null, 2));

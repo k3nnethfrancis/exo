@@ -38,6 +38,8 @@ pnpm install
 pnpm graphbench:test
 pnpm graphbench:smoke
 pnpm graphbench:mobile
+pnpm --filter @exo/graphbench prepare:suitesparse
+pnpm --filter @exo/graphbench normalized:suitesparse
 ```
 
 Publication profiles repeat each case three times. Override deliberately with
