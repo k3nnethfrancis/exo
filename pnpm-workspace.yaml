@@ -19,3 +19,6 @@ allowBuilds:
   tree-sitter-typescript: true
 
 preferSymlinkedExecutables: true
+
+patchedDependencies:
+  '@tobilu/qmd@2.5.3': patches/@tobilu__qmd@2.5.3.patch

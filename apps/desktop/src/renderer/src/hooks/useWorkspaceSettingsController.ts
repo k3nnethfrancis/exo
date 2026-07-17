@@ -4,6 +4,7 @@ import type {
   WorkspaceSettings,
   WorkspaceSettingsRevision,
 } from "@exo/core";
+import type { IndexSyncStateEvent } from "../../../shared/api";
 import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
 import type { AppearanceMode } from "../appearance";
@@ -43,7 +44,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
   useEffect(() => {
     return window.exo.workspace.onIndexSyncState((event) => {
       if (event.state === "running") {
-        setIndexBusy("syncing");
+        setIndexBusy((current) => indexBusyStateForEvent(event, current));
         return;
       }
       setIndexBusy(null);
@@ -338,6 +339,23 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     runIndexUpdate,
     saveDialog,
   };
+}
+
+export function indexBusyStateForEvent(
+  event: Pick<IndexSyncStateEvent, "state" | "reason">,
+  current: IndexBusyState = null,
+): IndexBusyState {
+  if (event.state !== "running") {
+    return null;
+  }
+  const reason = event.reason.toLowerCase();
+  if (reason.includes("embed") || reason.includes("embedding") || reason.includes("catch-up")) {
+    return "embedding";
+  }
+  if (reason.includes("update") || reason.includes("refresh") || reason.includes("note-save")) {
+    return "updating";
+  }
+  return current ?? "syncing";
 }
 
 export function workspaceSettingsFromDialog(

@@ -29,6 +29,10 @@ _Avoid_: arbitrary filesystem root
 **Note**
 A Markdown document under a Note Root. Its body and frontmatter are canonical user data.
 
+**Concept**
+A knowledge identity projected from a Note by the active format or Knowledge Profile. Generic Markdown and OKF normally project one Concept per Note; the Note remains canonical.
+_Avoid_: graph node as source of truth, database entity
+
 **Indexed Root**
 A selected retrieval location. It can be searched but does not grant Exo edit authority, Command trust, or a second Explorer filesystem domain.
 _Avoid_: record, database row
@@ -50,12 +54,36 @@ The Folder-based classification implied by a Note's path. It supplies a default 
 _Avoid_: exclusive type, enforced taxonomy
 
 **Ontology**
-The user-defined vocabulary and organization implied by Folder structure, Folder Indexes, properties, tags, links, and typed relationships. Exo may interpret and help maintain it but does not require a separate ontology database or one global schema.
-_Avoid_: mandatory profile, app-owned schema
+The user-defined vocabulary and organization expressed by Folder structure, Folder Indexes, properties, tags, links, typed relationships, and optional Knowledge Profiles. Exo may interpret and help maintain it but does not require a separate ontology database or one global schema.
+_Avoid_: fixed taxonomy, app-owned schema
 
 **Properties**
-Typed document facts projected from a Note's raw frontmatter. Editing Properties edits the Markdown source.
+Losslessly preserved document facts projected from a Note's raw frontmatter. A Knowledge Profile may interpret their value shapes or relationships; editing Properties edits the Markdown source.
 _Avoid_: app metadata, inspector fields
+
+**Relation**
+A directed connection between Concepts with a family, optional user-defined predicate, authority, resolution, and Evidence. A Relation may be authored, profile-declared, or derived; those states are never interchangeable.
+_Avoid_: unexplained edge, visual line as truth
+
+**Evidence**
+The inspectable source of a graph fact: a Markdown span, property, path, profile rule, or versioned model observation.
+_Avoid_: opaque confidence score
+
+**Knowledge Profile**
+Optional user-owned interpretation of Concept types, property shapes, reference-valued properties, expected Relations, and validation rules. Generic Markdown requires none; a profile preserves unknown data and never becomes canonical knowledge.
+_Avoid_: mandatory schema, ontology database, plugin runtime
+
+**Graph View**
+A derived projection that maps selected Concepts, Relations, Properties, and Derived Signals into layout weights, visual encodings, labels, and interaction. It changes presentation, not knowledge.
+_Avoid_: canonical graph, ontology
+
+**Eval Profile**
+A declared set of conformance rules and human or agent tasks used to assess an exograph for a particular purpose.
+_Avoid_: universal graph score
+
+**Derived Signal**
+A versioned machine observation such as semantic similarity, inferred type, or proposed Relation. It may support a suggestion but is not durable knowledge until the user accepts a Markdown change.
+_Avoid_: automatic edge, inferred fact
 
 **Connection**
 A relationship exposed for the focused Note through Outline, Links, Graph, or earned Activity. Connections are derived from user-owned documents and reviewed invocation evidence.

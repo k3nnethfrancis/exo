@@ -9,32 +9,49 @@ interface FolderOverviewPaneProps {
   onClose: () => void;
 }
 
+const folderOverviewCache = new Map<string, FolderOverview>();
+
 export function FolderOverviewPane({ directoryPath, onOpenFolder, onOpenFile, onClose }: FolderOverviewPaneProps) {
-  const [overview, setOverview] = useState<FolderOverview | null>(null);
+  const [overview, setOverview] = useState<FolderOverview | null>(() => folderOverviewCache.get(directoryPath) ?? null);
   const [graphContext, setGraphContext] = useState<FolderOverview["graphContext"]>(null);
   const [graphStatus, setGraphStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [error, setError] = useState<{ directoryPath: string; message: string } | null>(null);
 
   useEffect(() => {
     let disposed = false;
+    let graphIdleId: number | undefined;
+    let graphTimeoutId: number | undefined;
     setError(null);
+    setOverview(folderOverviewCache.get(directoryPath) ?? null);
     setGraphContext(null);
     setGraphStatus("idle");
     void window.exo.workspace.getFolderOverview(directoryPath).then(
       (next) => {
         if (disposed) return;
+        folderOverviewCache.set(directoryPath, next);
         setOverview(next);
         if (next.indexExists) {
           setGraphStatus("loading");
-          void window.exo.notes.getGraphContext(next.indexPath).then(
-            (graph) => { if (!disposed) { setGraphContext(graph); setGraphStatus("ready"); } },
-            (cause) => { if (!disposed) setGraphStatus("error"); console.warn("[exo] failed to enrich folder overview", { directoryPath, cause }); },
-          );
+          const loadGraphContext = () => {
+            void window.exo.notes.getGraphContext(next.indexPath).then(
+              (graph) => { if (!disposed) { setGraphContext(graph); setGraphStatus("ready"); } },
+              (cause) => { if (!disposed) setGraphStatus("error"); console.warn("[exo] failed to enrich folder overview", { directoryPath, cause }); },
+            );
+          };
+          if (typeof window.requestIdleCallback === "function") {
+            graphIdleId = window.requestIdleCallback(loadGraphContext, { timeout: 500 });
+          } else {
+            graphTimeoutId = window.setTimeout(loadGraphContext, 100);
+          }
         }
       },
       (cause) => { if (!disposed) setError({ directoryPath, message: cause instanceof Error ? cause.message : String(cause) }); },
     );
-    return () => { disposed = true; };
+    return () => {
+      disposed = true;
+      if (graphIdleId !== undefined) window.cancelIdleCallback(graphIdleId);
+      if (graphTimeoutId !== undefined) window.clearTimeout(graphTimeoutId);
+    };
   }, [directoryPath]);
 
   if (error?.directoryPath === directoryPath) return <section className="folder-overview folder-overview--error"><p>{error.message}</p></section>;

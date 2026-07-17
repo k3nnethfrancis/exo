@@ -22,6 +22,12 @@ Agents help maintain the exocortex without becoming the product spine. A user ex
 
 Folders are meaningful graph structure. Double-click a Folder to open its Overview: optional user-owned `index.md` metadata, direct children, and local graph context. Viewing never creates an index; creation is explicit. The raw `index.md` remains ordinary Markdown and is hidden only as a duplicate Explorer row. Paths provide a primary home while tags and relationships preserve multiple membership.
 
+Exo's accepted graph direction is schema-agnostic. Markdown remains canonical;
+optional user-owned Knowledge Profiles interpret open concept types, properties,
+and relationships; Graph Views remain derived projections. Generic Markdown
+requires no profile, and OKF 0.1 is the first planned interoperability profile.
+Rendering/layout performance and knowledge utility are evaluated separately.
+
 Plugins are a later distribution concern, not the launch architecture. Skills author behavior, Commands/providers execute capabilities, and a future Plugin may package proven combinations for installation, versioning, updates, and sharing.
 
 ## What Exo Is
@@ -63,13 +69,19 @@ Exo is early. The current branch is a heavy-handed Exograph refactor. Near-term 
 
 - Finish the trustworthy Markdown workspace and packaged-app proof.
 - Make filesystem/QMD Search reliable, fast, and explicit about provider health.
-- Turn Connections into actionable context through links, tags, properties, neighborhoods, and explained suggestions.
+- Consolidate the graph model around open Concepts, Properties, Relations, and
+  Evidence; prove Generic Markdown and OKF fixtures in GraphUtilityBench.
+- Integrate the tested spatial Graph View only after renderer-neutral projection,
+  packaged-app, and editor-latency-under-load gates pass.
+- Turn Connections into actionable context through links, tags, properties,
+  neighborhoods, and explained suggestions.
 - Ship one **Find and connect relevant context** graph/wiki skill through configured Command invocation and diff review.
 - Continue removing retired architecture that does not serve this loop.
 
 See `roadmap.md` and `tasks.md` for the active plan.
 
-The canonical refactor plan is `docs/exograph-simplification-plan.md`.
+The current graph-system plan is `docs/graph-system-report-and-plan.md`.
+`docs/exograph-simplification-plan.md` is the historical refactor record.
 
 ## Current Status
 
@@ -210,12 +222,40 @@ the document review flow.
 
 ## Workspace Model
 
-Exo settings are stored in one JSON file:
+Exo stores the active Workspace settings and its Workspace registry in its
+Electron user-data directory:
 
 - macOS default: `$HOME/Library/Application Support/@exo/desktop/workspace-settings.json`
 - override: `EXO_SETTINGS_PATH`
 
 First-run setup requires the user to choose a Workspace and its Note Roots. Exo does not silently persist a notes root or default Command cwd.
+
+### Re-run first-run onboarding
+
+Quit Exo completely first (including its menu-bar process), then clear the
+onboarding **and** Workspace persistence files. Deleting only
+`onboarding-state.json` is not enough: any valid `workspace-settings.json`
+causes Exo to open the existing Workspace instead of onboarding. The registry
+and pending transaction must go too, otherwise a saved registry or interrupted
+write can restore the Workspace settings at the next launch.
+
+For the installed macOS app:
+
+```bash
+EXO_USER_DATA_PATH="$HOME/Library/Application Support/@exo/desktop"
+rm -f "$EXO_USER_DATA_PATH/onboarding-state.json"
+rm -f "$EXO_USER_DATA_PATH/workspace-settings.json"
+rm -f "$EXO_USER_DATA_PATH/workspace-registry.json"
+rm -f "$EXO_USER_DATA_PATH/workspace-settings-transaction.json"
+```
+
+Then launch Exo normally. This preserves your Markdown notes and the
+Workspace's `.exo/` derived data; it only removes the app's configured
+Workspace/onboarding state. To reset the isolated developer QA profile instead,
+use `EXO_USER_DATA_PATH="$PWD/.exo-dev/user-data"` from the repository root
+before running the same four removal commands. Do not use a process launched
+with `EXO_TEST=1` and `EXO_NOTE_ROOTS`: that explicit test fixture bypasses
+onboarding.
 
 Runtime files live under `.exo/` inside the workspace root:
 
@@ -325,14 +365,15 @@ ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
 
 1. `AGENTS.md` - contributor invariants and active Codex execution context
 2. `CONTEXT.md` - canonical Exo vocabulary and domain boundaries
-3. `docs/exograph-simplification-plan.md` - active execution plan and ship gates
-4. `tasks.md` - active work and sequencing
-5. `issues.md` - bugs, QA findings, and release blockers
+3. `tasks.md` - active work and sequencing
+4. `issues.md` - bugs, QA findings, and release blockers
+5. `docs/graph-system-report-and-plan.md` - graph evidence, knowledge model, quality framework, and integration gates
 6. `README.md` - product overview and onboarding
 7. `roadmap.md` - short-term direction and long-term Ashby ladder
-8. `docs/architecture.md` - current architecture and Folder Index ontology model
+8. `docs/architecture.md` - current architecture and retained data-model boundaries
 9. `docs/extension-architecture.md` - current extension ladder
 10. `docs/README.md` - current/historical documentation map
 11. `docs/harness.md` - contribution harness and validation gates
 12. `docs/usability-readiness.md` - installed-app readiness standard
 13. `ledger.md` - completed implementation history
+14. `docs/exograph-simplification-plan.md` - historical refactor rationale and prior audits

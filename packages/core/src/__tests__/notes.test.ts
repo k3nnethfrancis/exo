@@ -45,10 +45,19 @@ describe("notes", () => {
   it("extracts tags from body and frontmatter", () => {
     const tags = extractTags("Testing #ux and #research", { tags: ["editor", "research"] });
     expect(tags.map((item) => item.tag)).toEqual(["editor", "research", "ux"]);
+    expect(tags.find((item) => item.tag === "research")?.occurrences.map((item) => item.source)).toEqual(["frontmatter", "body"]);
   });
 
   it("extracts wikilinks and markdown links", () => {
     expect(extractWikilinks("[[agent-memory]]").map((item) => item.target)).toEqual(["agent-memory"]);
     expect(extractMarkdownLinks("[related](related-note.md)").map((item) => item.target)).toEqual(["related-note.md"]);
+  });
+
+  it("reports body-relative UTF-16 end-exclusive source ranges", () => {
+    const body = "🧠 before [[agent-memory]] and [related](related-note.md)";
+    const wiki = extractWikilinks(body)[0];
+    const markdown = extractMarkdownLinks(body)[0];
+    expect(body.slice(wiki.sourceRange.from, wiki.sourceRange.to)).toBe("[[agent-memory]]");
+    expect(body.slice(markdown.sourceRange.from, markdown.sourceRange.to)).toBe("[related](related-note.md)");
   });
 });

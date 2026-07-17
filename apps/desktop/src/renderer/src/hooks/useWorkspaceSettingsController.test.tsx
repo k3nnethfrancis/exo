@@ -6,7 +6,7 @@ import type {
 } from "@exo/core";
 
 import type { WorkspaceSettingsSaveOutcome } from "../../../shared/api";
-import { useWorkspaceSettingsController } from "./useWorkspaceSettingsController";
+import { indexBusyStateForEvent, useWorkspaceSettingsController } from "./useWorkspaceSettingsController";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -145,6 +145,15 @@ describe("workspace settings patch persistence", () => {
     ]);
     expect(settingsRef.current.terminalFontSize).toBe(15);
     expect(revisionRef.current).toBe("revision-2");
+  });
+});
+
+describe("index activity presentation", () => {
+  it("maps identifiable automatic embedding work to the embedding state", () => {
+    expect(indexBusyStateForEvent({ state: "running", reason: "automatic-embedding-catch-up" })).toBe("embedding");
+    expect(indexBusyStateForEvent({ state: "running", reason: "note-save" })).toBe("updating");
+    expect(indexBusyStateForEvent({ state: "running", reason: "settings" }, "embedding")).toBe("embedding");
+    expect(indexBusyStateForEvent({ state: "idle", reason: "automatic-embedding-catch-up" }, "embedding")).toBeNull();
   });
 });
 

@@ -18,7 +18,14 @@ export default defineConfig({
     build: {
       outDir: "dist/main",
       rollupOptions: {
+        input: {
+          index: path.resolve(currentDirectory, "src/main/index.ts"),
+          "derived-index-worker": path.resolve(currentDirectory, "src/main/derived-index-worker.ts"),
+        },
         external: qmdExternalDependencies,
+        output: {
+          entryFileNames: "[name].js",
+        },
       },
     },
     plugins: [externalizeDepsPlugin({ exclude: ["@exo/core"] })],

@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-14
+Last updated: 2026-07-15
 
 This is Exo's active execution ledger. It records only current work. Completed implementation belongs in Git and `ledger.md`; reproducible bugs belong in `issues.md`; architecture rationale belongs in `docs/exograph-simplification-plan.md`.
 
@@ -38,6 +38,28 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 - Keep P3 deliberate: no save-triggered or arbitrary-mention invocation; real-work dogfood closes the loop.
 
 ## Now — Trust Before Features
+
+### Embedding sync strategy — research complete
+
+- [x] Compare automatic indexing/embedding behavior and user controls in current code editors and knowledge tools using primary product documentation.
+- [x] Audit QMD internals and upstream for incremental embedding, batching, scheduling, cancellation, and fork-level optimization opportunities.
+- [x] Recommend an Exo sync policy with freshness targets, idle/resource gates, recovery semantics, observability, and a reversible rollout plan. See `notes/shoshin-codex/exo-embedding-sync-strategy.md`.
+
+### Automatic embedding catch-up — implemented (`EXO-ISSUE-117`)
+
+- [x] Attempt and record Fable review; after CLI authentication failed, proceed under Kenneth's explicit 2026-07-15 exception without claiming a ruling.
+- [x] Implement the deterministic scheduler, dual-worker runtime boundary, bounded retry/backoff, and truthful pending/paused/failed status behavior.
+- [x] Carry the narrow QMD 2.5.3 patch for bounded embedding calls and atomic metadata/vector publication; align desktop, core, and CLI on the patched package.
+- [x] Run focused and full automated gates plus the real Electron 1,200-note concurrent update/typing/navigation latency scenario.
+- [ ] Add a deterministic packaged-app gate using the real embedding model that proves automatic post-idle convergence while Terminal, graph context, and hybrid search remain usable.
+
+### Latency stabilization — complete
+
+- [x] Move QMD status/search/update/embed/sync behind an out-of-process derived-data boundary and stop hybrid on-save indexing from rebuilding embeddings.
+- [x] Replace save-triggered whole-workspace graph invalidation/rebuild with bounded incremental refresh behavior.
+- [x] Keep the inline agent composer widget stable while typing and suppress stale rapid-navigation completions.
+- [x] Add concurrent editor/navigation latency coverage using the real hybrid/on-save configuration and multiple active surfaces.
+- [x] Re-run focused Electron latency gates on a realistic Workspace, then close or re-scope `EXO-ISSUE-110` from measured evidence.
 
 ### Invocation follow-up loop — complete
 
@@ -134,7 +156,76 @@ Start only after the trust gates above pass.
 
 ### First graph-management Skill
 
-- [ ] Run an isolated graph-visualization interaction lab before choosing an Exo graph surface; validate neighborhood, path, and overview usefulness against synthetic and then real-vault snapshots without changing production renderer/data contracts.
+- [x] Run an isolated graph-visualization interaction lab before choosing an Exo graph surface; validate neighborhood, path, and overview usefulness against synthetic and then real-vault snapshots without changing production renderer/data contracts.
+  - [x] Record Fable's 2026-07-16 lab ruling: keep a flat `z = 0` scene with Canvas as the reference renderer; reserve `x,y,z`/pitch without turning screen roll into fake depth; no WebGPU path until a synthetic high-density gesture gate shows Canvas p95 frame time above 8 ms. `docs/reviews/2026-07-16-fable-spatial-graph-lab-response.md`.
+  - [x] Build a separate flagship true-3D spatial graph under Kenneth's explicit 2026-07-16 product override: deterministic self-suspending worker layout, WebGPU-instanced nodes/links, renderer-independent scene/picking/labels, direct orbit/pan/dolly gestures, paths, device-loss recovery, and Canvas fallback. The stable 2D kinetic prototype remains untouched; Stellar stays outside production Exo until real-graph dogfood proves it. `../exo-graph-viz-lab/stellar-contract.md`.
+  - [x] Prototype a separate kinetic graph surface with worker-owned layout, stable clustered positions, semantic zoom, direct manipulation, focus/path lenses, and explicit frame-latency instrumentation; preserve the original graph-lab prototype for comparison.
+  - [x] Use seeded synthetic 20 / 250 / 2,500 / 10,000-node fixtures to prove deterministic settle, picking, label collision, p95 frame time, gesture latency, memory stability, mental-map continuity, and low/high-density behavior. Private snapshots remain local-only.
+  - [ ] Build Exo GraphBench as a public, hardware-stamped comparison harness: seeded 10k / 50k / 100k / 200k fixtures at edge ratios 2 / 5 / 10 / 20; representative SuiteSparse graphs; common Exo/Sigma/GraphWaGu adapters; actual frame cadence, CPU, optional GPU timestamps, input latency, memory, initialization, convergence, and layout-quality metrics.
+    - [x] Land the v1 harness contract, deterministic fixtures, Exo/Sigma adapters, pinned upstream GraphWaGu preparation/adapter, canonical SuiteSparse ingestion, hardware stamps, frame/input/memory/convergence/quality metrics, count validation, and reproducible JSON/Markdown reports under `../exo-graph-viz-lab/graphbench/`.
+    - [x] Record the first M2 Max synthetic, `fe_4elt2`, product, and layout baselines in `../exo-graph-viz-lab/graphbench/reports/2026-07-16-m2-max-baseline.md`; preserve the weak layout-quality result as a product finding.
+    - [ ] Add cross-adapter GPU timestamp queries, run the opt-in 100k/200k publication matrix on at least two hardware classes, and publish the versioned result bundle.
+  - [x] Supersede the conditional WebGPU deferral under Kenneth's explicit product override while retaining the sound boundary: CPU scene/picking/labels, WebGPU pixels, and a tested Canvas fallback. The separate 10,000-node WebGPU gate is reproducible in `../exo-graph-viz-lab/stellar-density-benchmark.cjs`.
+  - [x] Replace graph-lab control chrome with conventional spatial navigation: primary drag or touch drag to pan; pinch or modifier-wheel to dolly; two-finger/modifier drag to pan; tap to select; second selection to explain a path; double-tap empty space for overview; Alt+drag to move a node. No visible Map/Focus/Path/physics/angle modes.
+
+### Production graph-system integration — accepted 2026-07-17
+
+- [x] Create `feat/graph-system-foundation` from `main` and write the branch-
+  executable plan in `docs/graph-system-implementation-plan.md`. This branch
+  stops at the canonical knowledge model, Generic/OKF profiles, utility tracer,
+  and renderer-neutral projection contract; production Stellar integration is a
+  separate merge decision.
+- [x] Distill the visualization work, benchmark evidence, quality findings,
+  domain model, and production gates in
+  `docs/graph-system-report-and-plan.md`.
+- [x] Record the durable schema-agnostic graph / optional Knowledge Profile
+  decision in `docs/adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` and
+  align `CONTEXT.md`, architecture, roadmap, insight, and research logs.
+- [x] Add the repo-owned `graph-system-stability` engineering skill and expose it
+  to Claude/Codex contributors; formally retire the fixed-taxonomy, scheduled-
+  mutation `graph-evolve` vault skill. Defer `evaluate-exograph`,
+  `find-connect-context`, and `propose-knowledge-profile` until their underlying
+  contracts exist.
+- [ ] Phase 0: pin one public Google OKF bundle and one OpenWiki wiki fixture,
+  define deterministic corruptions, and freeze 20 integrity/retrieval/traversal
+  tasks with expected answers.
+- [ ] Phase 1: consolidate `GraphSnapshot` and `WorkspaceGraph` behind snapshot
+  0.2 with open Concept types, lossless Properties, Relation predicates,
+  authority, resolution, and Evidence; preserve current Connections, Folder
+  Overview, and search behavior through compatibility tests.
+  - [x] Land the snapshot 0.2 tracer behind `WorkspaceGraph`: open Concept types,
+    recursive Properties, Relation authority/resolution/Evidence, deterministic
+    identity, and compatibility coverage. Duplicate legacy APIs still need the
+    protected caller/deletion pass.
+- [ ] Phase 2: add Generic Markdown and permissive OKF 0.1 Knowledge Profiles,
+  then earn the smallest user-owned profile contract from the fixtures.
+  - [x] Add built-in Generic Markdown and permissive OKF 0.1 interpretation;
+    missing OKF type is a finding and unknown fields survive. User-owned profile
+    configuration remains unearned.
+- [ ] Phase 3: build GraphUtilityBench and compare lexical, semantic, authored-
+  link, property-aware, hybrid, corrupted, and reviewed-enriched conditions.
+  - [x] Add the non-aggregate mechanical utility tracer for identity,
+    resolution, Evidence coverage, and profile conformance.
+- [ ] Phase 4: compile renderer-neutral dense topology and stable layout epochs
+  from the consolidated graph; keep ontology strings and semantics out of hot
+  renderer paths.
+  - [x] Add deterministic projection, a finite worker layout, and scene-level
+    picking/path/camera tests.
+  - [ ] Replace object IPC with compact typed topology plus epoch-qualified,
+    bounded detail reads before claiming 10K production scale. Stable persisted
+    layout epochs and scale corpus gates remain (`EXO-ISSUE-119`).
+- [ ] Phase 5: integrate Stellar as a normal Graph Pane only after packaged-app
+  interaction, fallback, accessibility, quiescence, continuity, and editor-
+  latency-under-load gates pass on a private real-Workspace copy.
+  - [x] Prove the pane and IPC boundary with a Canvas tracer in Connections and
+    the Workspace Canvas; real development-Electron selection and path dogfood
+    passed. This does not complete the Stellar/WebGPU acceptance gate.
+- [ ] Phase 6: ship **Find and connect relevant context** through the existing
+  configured-Command review loop and measure proposal acceptance, edit burden,
+  retrieval lift, and irrelevant-context cost before adding another Skill.
+- [ ] Phase 7: prototype ontology onboarding only after the graph model and
+  utility evals can show a meaningful, reversible before/after result.
+
 - [ ] Ship one provider-neutral, editable **Find and connect relevant context** skill through an existing trusted Command.
 - [ ] Combine Search with links, backlinks, tags, properties, and neighborhood evidence.
 - [ ] Require explanations and reviewable proposed Markdown/frontmatter changes; inferred similarity stays derived.
@@ -143,6 +234,12 @@ Start only after the trust gates above pass.
 ## Dogfood Queue
 
 - [ ] Use Exo for non-Exo work and promote only repeatable friction into `issues.md`.
+- [ ] Publish the reviewed `dev` candidate only after the full stable smoke,
+  installed-app durability, and editor latency suite are green. Keep `main`
+  unchanged until then (`EXO-ISSUE-120`).
+- [ ] Resolve `EXO-ISSUE-118`: reproduce the breadcrumb Folder-contents and
+  active-invocation throughput regressions in a clean worktree before accepting
+  the graph foundation; do not weaken the existing latency budgets.
 - [ ] Investigate `EXO-ISSUE-116`: capture and reduce the non-reproducible
   blank renderer seen while typing an inline `@agent` request; add a
   renderer-liveness regression once a minimal sequence exists.

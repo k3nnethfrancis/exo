@@ -23,7 +23,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@tobilu/qmd": "2.1.0",
+    "@tobilu/qmd": "2.5.3",
     "gray-matter": "4.0.3",
     "yaml": "2.8.3"
   }

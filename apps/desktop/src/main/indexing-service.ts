@@ -3,15 +3,46 @@ import path from "node:path";
 
 import {
   createIndexedRoot,
-  qmdSearchProvider,
-  WorkspaceIndex,
   type IndexedRoot,
   type IndexJobMetric,
+  type IndexSearchOptions,
   type IndexStatus,
   type IndexSyncResult,
+  type WorkspaceIndexSearchResponse,
   type WorkspaceModel,
   type WorkspaceSettings,
 } from "@exo/core";
+
+import { UtilityDerivedIndexClient, type DerivedIndexClient } from "./derived-index-process";
+import {
+  createAutoEmbeddingSchedulerState,
+  decideAutoEmbedding,
+  disposeAutoEmbeddingScheduler,
+  recordAutoEmbeddingActivity,
+  recordAutoEmbeddingFailure,
+  recordAutoEmbeddingSave,
+  recordAutoEmbeddingSuccess,
+  type AutoEmbeddingPolicy,
+  type AutoEmbeddingSchedulerState,
+} from "./indexing-auto-scheduler";
+
+const DEFAULT_AUTO_EMBEDDING_POLICY: AutoEmbeddingPolicy = {
+  quietPeriodMs: 45_000,
+  idlePeriodMs: 10_000,
+  maxPendingEmbeddings: 4,
+  retryBaseDelayMs: 5_000,
+  retryMaxDelayMs: 60_000,
+  maxRetryAttempts: 3,
+};
+
+const AUTO_EMBED_OPTIONS = {
+  maxDocuments: 4,
+  maxDocsPerBatch: 1,
+  maxDurationMs: 15_000,
+} as const;
+
+const MAINTENANCE_SEARCH_WARNING = "Index maintenance is running; showing Simple search results until it completes.";
+const MAINTENANCE_STATUS_WARNING = "Index maintenance is running; showing the last available index status until it finishes.";
 
 export interface IndexingServiceOptions {
   getWorkspaceModel: () => WorkspaceModel;
@@ -20,27 +51,45 @@ export interface IndexingServiceOptions {
   saveWorkspaceSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings>;
   sendState: (event: { state: "running" | "idle" | "error"; reason: string; result?: IndexSyncResult; error?: string }) => void;
   errorMessage: (error: unknown) => string;
+  foregroundDerivedIndex?: DerivedIndexClient;
+  maintenanceDerivedIndex?: DerivedIndexClient;
+  now?: () => number;
+  getSystemIdleTimeMs?: () => number;
+  autoEmbeddingPolicy?: AutoEmbeddingPolicy;
 }
 
 export class IndexingService {
-  private indexSyncTimer: NodeJS.Timeout | null = null;
   private indexSyncPromise: Promise<IndexSyncResult> | null = null;
   private indexSyncQueued = false;
   private indexRefreshTimer: NodeJS.Timeout | null = null;
   private indexRefreshPromise: Promise<IndexSyncResult> | null = null;
+  private indexRefreshDue = false;
+  private indexRefreshReason = "scheduled-refresh";
   private readonly pendingIndexRefreshRootIds = new Set<string>();
+  private autoEmbeddingTimer: NodeJS.Timeout | null = null;
+  private autoEmbeddingPromise: Promise<void> | null = null;
+  private autoEmbeddingState: AutoEmbeddingSchedulerState = createAutoEmbeddingSchedulerState();
+  private pendingEmbeddings = 0;
+  private lastKnownStatus: IndexStatus | null = null;
+  private lastKnownStatusWorkspaceRoot: string | null = null;
+  private maintenanceWorkCount = 0;
+  private foregroundWorkCount = 0;
+  private readonly foregroundIdleWaiters = new Set<() => void>();
+  private disposed = false;
   private indexJobSequence = 0;
   private readonly indexJobMetrics: IndexJobMetric[] = [];
+  private readonly foregroundDerivedIndex: DerivedIndexClient;
+  private readonly maintenanceDerivedIndex: DerivedIndexClient;
+  private readonly now: () => number;
+  private readonly getSystemIdleTimeMs: () => number;
+  private readonly autoEmbeddingPolicy: AutoEmbeddingPolicy;
 
-  constructor(private readonly options: IndexingServiceOptions) {}
-
-  private index(): WorkspaceIndex {
-    return new WorkspaceIndex({
-      context: {
-        model: this.options.getWorkspaceModel(),
-        runtimeRoot: this.options.getRuntimeRoot(),
-      },
-    });
+  constructor(private readonly options: IndexingServiceOptions) {
+    this.foregroundDerivedIndex = options.foregroundDerivedIndex ?? new UtilityDerivedIndexClient();
+    this.maintenanceDerivedIndex = options.maintenanceDerivedIndex ?? new UtilityDerivedIndexClient();
+    this.now = options.now ?? Date.now;
+    this.getSystemIdleTimeMs = options.getSystemIdleTimeMs ?? (() => 0);
+    this.autoEmbeddingPolicy = options.autoEmbeddingPolicy ?? DEFAULT_AUTO_EMBEDDING_POLICY;
   }
 
   shouldUseIndex(model = this.options.getWorkspaceModel()): boolean {
@@ -48,8 +97,40 @@ export class IndexingService {
   }
 
   async getMeasuredStatus(): Promise<IndexStatus> {
-    const status = await this.index().status();
-    return this.attachIndexJobMetrics(status);
+    const model = this.options.getWorkspaceModel();
+    if (this.maintenanceWorkCount > 0) {
+      const cached = this.lastKnownStatusWorkspaceRoot === model.workspaceRoot ? this.lastKnownStatus : null;
+      const status = cached ?? this.emptyMaintenanceStatus(model);
+      return this.attachIndexJobMetrics({
+        ...status,
+        warnings: [...status.warnings, MAINTENANCE_STATUS_WARNING],
+      });
+    }
+    this.foregroundWorkCount += 1;
+    try {
+      const status = await this.foregroundDerivedIndex.status(model, this.options.getRuntimeRoot());
+      this.cacheStatus(status, model.workspaceRoot);
+      return this.attachIndexJobMetrics(status);
+    } finally {
+      this.finishForegroundWork();
+    }
+  }
+
+  async search(query: string, options: IndexSearchOptions = {}): Promise<WorkspaceIndexSearchResponse> {
+    const maintenanceActive = this.maintenanceWorkCount > 0;
+    const model = this.options.getWorkspaceModel();
+    const searchModel = maintenanceActive
+      ? { ...model, searchEngine: "filesystem" as const }
+      : model;
+    this.foregroundWorkCount += 1;
+    try {
+      const response = await this.foregroundDerivedIndex.search(searchModel, this.options.getRuntimeRoot(), query, options);
+      return maintenanceActive
+        ? { ...response, warnings: [...response.warnings, MAINTENANCE_SEARCH_WARNING] }
+        : response;
+    } finally {
+      this.finishForegroundWork();
+    }
   }
 
   async addRoot(input: { path?: string; name?: string; kind?: string; pattern?: string; ignore?: string[]; force?: boolean }): Promise<WorkspaceSettings> {
@@ -99,7 +180,7 @@ export class IndexingService {
     reason: string,
     run: () => Promise<IndexStatus>,
   ): Promise<IndexStatus> {
-    const startedAtMs = Date.now();
+    const startedAtMs = this.now();
     try {
       const status = await run();
       this.recordIndexJob(kind, reason, startedAtMs, "completed", status);
@@ -111,11 +192,22 @@ export class IndexingService {
   }
 
   update(reason: string): Promise<IndexStatus> {
-    return this.runMeasuredStatusJob("update", reason, () => qmdSearchProvider.update(this.options.getWorkspaceModel(), this.options.getRuntimeRoot()));
+    return this.runMeasuredStatusJob("update", reason, () => this.runMaintenance(() => (
+      this.maintenanceDerivedIndex.update(this.options.getWorkspaceModel(), this.options.getRuntimeRoot())
+    ))).then((status) => {
+      this.observePendingEmbeddings(status);
+      return status;
+    });
   }
 
   embed(reason: string): Promise<IndexStatus> {
-    return this.runMeasuredStatusJob("embed", reason, () => qmdSearchProvider.embed(this.options.getWorkspaceModel(), this.options.getRuntimeRoot()));
+    return this.runMeasuredStatusJob("embed", reason, () => this.runMaintenance(() => (
+      this.maintenanceDerivedIndex.embed(this.options.getWorkspaceModel(), this.options.getRuntimeRoot())
+    ))).then((status) => {
+      this.autoEmbeddingState = recordAutoEmbeddingSuccess(this.autoEmbeddingState);
+      this.observePendingEmbeddings(status);
+      return status;
+    });
   }
 
   scheduleForFile(filePath: string, reason: string) {
@@ -131,36 +223,42 @@ export class IndexingService {
       return;
     }
 
-    if (model.indexing.mode === "lexical") {
-      this.scheduleRefresh(reason, matchingRootIds);
-      return;
-    }
-
-    this.scheduleSync(reason);
+    this.autoEmbeddingState = recordAutoEmbeddingSave(this.autoEmbeddingState, this.now());
+    this.scheduleRefresh(reason, matchingRootIds);
   }
 
-  shouldSyncAfterSettingsApply(previous: WorkspaceSettings, next: WorkspaceSettings): boolean {
+  scheduleReconciliation(reason: string, delayMs = 0): void {
+    if (!this.shouldAutomaticallyMaintainIndex()) {
+      this.applyCurrentAutomaticPolicy();
+      return;
+    }
+    this.clearAutomaticEmbeddingTimer();
+    this.scheduleRefresh(reason, this.options.getWorkspaceModel().indexedRoots.map((root) => root.id), delayMs);
+  }
+
+  applyCurrentAutomaticPolicy(): void {
+    if (this.shouldAutomaticallyMaintainIndex()) {
+      this.scheduleAutomaticEmbeddingCheck();
+      return;
+    }
+    if (this.indexRefreshTimer) clearTimeout(this.indexRefreshTimer);
+    this.indexRefreshTimer = null;
+    this.indexRefreshDue = false;
+    this.pendingIndexRefreshRootIds.clear();
+    this.clearAutomaticEmbeddingTimer();
+  }
+
+  shouldReconcileAfterSettingsApply(previous: WorkspaceSettings, next: WorkspaceSettings): boolean {
     if (next.searchEngine === "filesystem" || !next.indexing.enabled || next.indexing.mode === "off" || next.indexedRoots.length === 0) {
       return false;
     }
     return (
       previous.searchEngine === "filesystem" ||
       !previous.indexing.enabled ||
+      (previous.indexUpdateStrategy !== "on-save" && next.indexUpdateStrategy === "on-save") ||
       previous.indexing.mode !== next.indexing.mode ||
       JSON.stringify(previous.indexedRoots.map((root) => root.path).sort()) !== JSON.stringify(next.indexedRoots.map((root) => root.path).sort())
     );
-  }
-
-  scheduleSync(reason: string, delayMs = 15_000) {
-    if (this.indexSyncTimer) {
-      clearTimeout(this.indexSyncTimer);
-    }
-    this.indexSyncTimer = setTimeout(() => {
-      this.indexSyncTimer = null;
-      this.runSync(reason).catch((error) => {
-        console.warn("[exo] index sync failed", error);
-      });
-    }, delayMs);
   }
 
   async runSync(reason: string): Promise<IndexSyncResult> {
@@ -172,10 +270,14 @@ export class IndexingService {
       return this.indexSyncPromise;
     }
 
-    const startedAtMs = Date.now();
+    const startedAtMs = this.now();
     this.options.sendState({ state: "running", reason });
-    this.indexSyncPromise = this.index().rebuild()
+    this.indexSyncPromise = this.runMaintenance(() => (
+      this.maintenanceDerivedIndex.sync(this.options.getWorkspaceModel(), this.options.getRuntimeRoot())
+    ))
       .then((result) => {
+        this.autoEmbeddingState = recordAutoEmbeddingSuccess(this.autoEmbeddingState);
+        this.observePendingEmbeddings(result.status);
         this.recordIndexJob("sync", reason, startedAtMs, "completed", result.status, result.warnings);
         const measuredResult = { ...result, status: this.attachIndexJobMetrics(result.status) };
         this.options.sendState({ state: "idle", reason, result: measuredResult });
@@ -197,6 +299,8 @@ export class IndexingService {
           this.runSync("queued").catch((error) => {
             console.warn("[exo] queued index sync failed", error);
           });
+        } else {
+          this.drainScheduledRefresh();
         }
       });
 
@@ -204,38 +308,61 @@ export class IndexingService {
   }
 
   private scheduleRefresh(reason: string, rootIds: string[], delayMs = 15_000) {
+    if (this.disposed) return;
     for (const rootId of rootIds) {
       this.pendingIndexRefreshRootIds.add(rootId);
+    }
+    this.indexRefreshReason = reason;
+    if (this.indexRefreshDue) {
+      this.drainScheduledRefresh();
+      return;
     }
     if (this.indexRefreshTimer) {
       clearTimeout(this.indexRefreshTimer);
     }
     this.indexRefreshTimer = setTimeout(() => {
       this.indexRefreshTimer = null;
-      const refreshRootIds = Array.from(this.pendingIndexRefreshRootIds);
-      this.pendingIndexRefreshRootIds.clear();
-      this.runRefresh(reason, refreshRootIds).catch((error) => {
-        console.warn("[exo] index refresh failed", error);
-      });
+      this.indexRefreshDue = true;
+      this.drainScheduledRefresh();
     }, delayMs);
   }
 
-  private async runRefresh(reason: string, rootIds: string[]): Promise<IndexSyncResult> {
-    if (!this.shouldUseIndex()) {
-      throw new Error("Indexing is disabled or has no indexed roots.");
+  private drainScheduledRefresh(): void {
+    if (
+      this.disposed
+      || !this.indexRefreshDue
+      || this.indexRefreshPromise
+      || this.indexSyncPromise
+      || this.autoEmbeddingPromise
+      || this.maintenanceWorkCount > 0
+    ) return;
+    if (!this.shouldAutomaticallyMaintainIndex()) {
+      this.indexRefreshDue = false;
+      this.pendingIndexRefreshRootIds.clear();
+      return;
     }
-    if (this.indexSyncPromise) {
-      return this.indexSyncPromise;
+    const rootIds = Array.from(this.pendingIndexRefreshRootIds);
+    if (rootIds.length === 0) {
+      this.indexRefreshDue = false;
+      return;
     }
-    if (this.indexRefreshPromise) {
-      return this.indexRefreshPromise;
-    }
+    const reason = this.indexRefreshReason;
+    this.indexRefreshDue = false;
+    this.pendingIndexRefreshRootIds.clear();
+    void this.runRefresh(reason, rootIds).catch((error) => {
+      console.warn("[exo] index refresh failed", error);
+    });
+  }
 
+  private runRefresh(reason: string, rootIds: string[]): Promise<IndexSyncResult> {
     const model = this.options.getWorkspaceModel();
-    const startedAtMs = Date.now();
+    const startedAtMs = this.now();
     this.options.sendState({ state: "running", reason });
-    this.indexRefreshPromise = qmdSearchProvider.update(model, this.options.getRuntimeRoot(), { rootIds })
+    this.indexRefreshPromise = this.runMaintenance(() => (
+      this.maintenanceDerivedIndex.update(model, this.options.getRuntimeRoot(), rootIds)
+    ))
       .then((status) => {
+        this.observePendingEmbeddings(status);
         const result: IndexSyncResult = {
           status,
           phases: [
@@ -247,13 +374,15 @@ export class IndexingService {
             {
               name: "embed",
               status: "skipped",
-              message: "Embeddings are deferred on save; use Sync index to rebuild them.",
+              message: model.indexing.mode === "lexical"
+                ? "Embeddings are not needed in lexical mode."
+                : "Embeddings will catch up automatically after Exo becomes quiet and idle.",
             },
           ],
           warnings:
-            model.indexing.mode === "lexical"
+            model.indexing.mode === "lexical" || status.pendingEmbeddings === 0
               ? []
-              : ["Save-triggered indexing refreshed documents only; embeddings remain available from the previous sync until rebuilt."],
+              : [`${status.pendingEmbeddings} embedding${status.pendingEmbeddings === 1 ? " is" : "s are"} waiting for automatic catch-up.`],
         };
         this.recordIndexJob("update", reason, startedAtMs, "completed", status, result.warnings);
         const measuredResult = { ...result, status: this.attachIndexJobMetrics(status) };
@@ -271,9 +400,182 @@ export class IndexingService {
       })
       .finally(() => {
         this.indexRefreshPromise = null;
+        if (this.indexRefreshDue) this.drainScheduledRefresh();
+        this.scheduleAutomaticEmbeddingCheck();
       });
 
     return this.indexRefreshPromise;
+  }
+
+  private observePendingEmbeddings(status: IndexStatus): void {
+    this.pendingEmbeddings = Math.max(0, status.pendingEmbeddings);
+    this.cacheStatus(status, this.options.getWorkspaceModel().workspaceRoot);
+    this.scheduleAutomaticEmbeddingCheck();
+  }
+
+  private scheduleAutomaticEmbeddingCheck(): void {
+    this.clearAutomaticEmbeddingTimer();
+    if (
+      this.disposed
+      || this.autoEmbeddingPromise
+      || this.indexRefreshPromise
+      || this.indexRefreshDue
+      || this.indexSyncPromise
+    ) return;
+
+    const nowMs = this.now();
+    const idleTimeMs = Math.max(0, this.getSystemIdleTimeMs());
+    this.autoEmbeddingState = recordAutoEmbeddingActivity(this.autoEmbeddingState, nowMs - idleTimeMs);
+    const model = this.options.getWorkspaceModel();
+    const decision = decideAutoEmbedding(this.autoEmbeddingState, {
+      nowMs,
+      indexMode: model.indexing.mode,
+      updateStrategy: this.options.getCurrentSettings().indexUpdateStrategy,
+      pendingEmbeddings: this.pendingEmbeddings,
+      foregroundWorkActive: this.foregroundWorkCount > 0,
+      maintenanceActive: this.maintenanceWorkCount > 0,
+    }, this.autoEmbeddingPolicy);
+
+    if (decision.action === "run") {
+      void this.runAutomaticEmbedding();
+      return;
+    }
+    if (decision.action === "wait" && decision.reconsiderAtMs !== undefined) {
+      this.autoEmbeddingTimer = setTimeout(
+        () => {
+          this.autoEmbeddingTimer = null;
+          this.scheduleAutomaticEmbeddingCheck();
+        },
+        Math.max(1, decision.reconsiderAtMs - nowMs),
+      );
+    }
+  }
+
+  private async runAutomaticEmbedding(): Promise<void> {
+    if (this.disposed || this.autoEmbeddingPromise) return;
+    const reason = "automatic-embedding";
+    const startedAtMs = this.now();
+    const pendingBefore = this.pendingEmbeddings;
+    this.options.sendState({ state: "running", reason });
+    this.autoEmbeddingPromise = this.runMaintenance(() => (
+      this.maintenanceDerivedIndex.embed(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        AUTO_EMBED_OPTIONS,
+      )
+    ))
+      .then((status) => {
+        const reportedPending = Math.max(0, status.pendingEmbeddings);
+        this.pendingEmbeddings = status.errors.length > 0
+          ? Math.max(pendingBefore, reportedPending)
+          : reportedPending;
+        this.cacheStatus(status, this.options.getWorkspaceModel().workspaceRoot);
+        if (status.errors.length > 0 || (this.pendingEmbeddings > 0 && this.pendingEmbeddings >= pendingBefore)) {
+          throw new Error(status.errors[0] ?? "Automatic embedding made no progress.");
+        }
+        this.autoEmbeddingState = recordAutoEmbeddingSuccess(this.autoEmbeddingState);
+        this.autoEmbeddingState = recordAutoEmbeddingActivity(this.autoEmbeddingState, this.now());
+        this.recordIndexJob("embed", reason, startedAtMs, "completed", status);
+        const result: IndexSyncResult = {
+          status: this.attachIndexJobMetrics(status),
+          phases: [{ name: "embed", status: "completed", message: "Pending embeddings caught up while Exo was idle." }],
+          warnings: [],
+        };
+        this.options.sendState({ state: "idle", reason, result });
+      })
+      .catch((error) => {
+        this.autoEmbeddingState = recordAutoEmbeddingFailure(
+          this.autoEmbeddingState,
+          this.now(),
+          this.autoEmbeddingPolicy,
+        );
+        this.recordIndexJob("embed", reason, startedAtMs, "failed", undefined, [], error);
+        this.options.sendState({ state: "error", reason, error: this.options.errorMessage(error) });
+      })
+      .finally(() => {
+        this.autoEmbeddingPromise = null;
+        this.drainScheduledRefresh();
+        this.scheduleAutomaticEmbeddingCheck();
+      });
+    await this.autoEmbeddingPromise;
+  }
+
+  private async runMaintenance<Result>(run: () => Promise<Result>): Promise<Result> {
+    if (this.disposed) throw new Error("Indexing service has been disposed.");
+    this.maintenanceWorkCount += 1;
+    this.clearAutomaticEmbeddingTimer();
+    try {
+      await this.waitForForegroundIdle();
+      if (this.disposed) throw new Error("Indexing service has been disposed.");
+      return await run();
+    } finally {
+      this.maintenanceWorkCount -= 1;
+      if (this.maintenanceWorkCount === 0) {
+        this.drainScheduledRefresh();
+        this.scheduleAutomaticEmbeddingCheck();
+      }
+    }
+  }
+
+  private waitForForegroundIdle(): Promise<void> {
+    if (this.foregroundWorkCount === 0) return Promise.resolve();
+    return new Promise((resolve) => this.foregroundIdleWaiters.add(resolve));
+  }
+
+  private finishForegroundWork(): void {
+    this.foregroundWorkCount -= 1;
+    if (this.foregroundWorkCount !== 0) return;
+    for (const resolve of this.foregroundIdleWaiters) resolve();
+    this.foregroundIdleWaiters.clear();
+    this.scheduleAutomaticEmbeddingCheck();
+  }
+
+  private shouldAutomaticallyMaintainIndex(): boolean {
+    return this.options.getCurrentSettings().indexUpdateStrategy === "on-save" && this.shouldUseIndex();
+  }
+
+  private clearAutomaticEmbeddingTimer(): void {
+    if (this.autoEmbeddingTimer) clearTimeout(this.autoEmbeddingTimer);
+    this.autoEmbeddingTimer = null;
+  }
+
+  private cacheStatus(status: IndexStatus, workspaceRoot: string): void {
+    this.lastKnownStatus = status;
+    this.lastKnownStatusWorkspaceRoot = workspaceRoot;
+  }
+
+  private emptyMaintenanceStatus(model: WorkspaceModel): IndexStatus {
+    const runtimePath = path.join(this.options.getRuntimeRoot(), "qmd");
+    return {
+      enabled: model.indexing.enabled,
+      mode: model.indexing.mode,
+      backend: model.indexing.backend,
+      dbPath: path.join(runtimePath, "index.sqlite"),
+      runtimePath,
+      indexedRoots: model.indexedRoots,
+      documentCount: 0,
+      pendingEmbeddings: this.pendingEmbeddings,
+      hasVectorIndex: false,
+      lastUpdated: null,
+      warnings: [],
+      errors: [],
+    };
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    if (this.indexRefreshTimer) clearTimeout(this.indexRefreshTimer);
+    this.clearAutomaticEmbeddingTimer();
+    this.indexRefreshTimer = null;
+    this.indexRefreshDue = false;
+    this.pendingIndexRefreshRootIds.clear();
+    this.autoEmbeddingState = disposeAutoEmbeddingScheduler(this.autoEmbeddingState);
+    for (const resolve of this.foregroundIdleWaiters) resolve();
+    this.foregroundIdleWaiters.clear();
+    for (const client of new Set([this.foregroundDerivedIndex, this.maintenanceDerivedIndex])) {
+      client.dispose();
+    }
   }
 
   private attachIndexJobMetrics(status: IndexStatus): IndexStatus {
@@ -289,7 +591,7 @@ export class IndexingService {
     warnings: string[] = [],
     error?: unknown,
   ) {
-    const completedAtMs = Date.now();
+    const completedAtMs = this.now();
     const metric: IndexJobMetric = {
       id: `index-job-${++this.indexJobSequence}`,
       kind,

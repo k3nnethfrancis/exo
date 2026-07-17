@@ -655,6 +655,9 @@ function normalizePaneContent(input: unknown): WorkspacePaneContent | null {
     const url = typeof candidate.url === "string" && candidate.url.trim() ? candidate.url.trim() : "about:blank";
     return { kind: "browser", url };
   }
+  if (candidate.kind === "graph") {
+    return { kind: "graph" };
+  }
   return null;
 }
 

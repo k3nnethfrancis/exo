@@ -18,6 +18,7 @@ import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
+import { GraphPane } from "./components/GraphPane";
 import { InvocationAuthorizationDialog } from "./components/InvocationAuthorizationDialog";
 import type { InlineAgentDraft } from "./components/inlineAgentComposer";
 import { PathList } from "./components/PathList";
@@ -54,13 +55,14 @@ import {
   workspaceSettingsStructuralDraftKey,
 } from "./workspaceSettingsModel";
 import { pathLabel } from "./workspaceTree";
-import type { IndexBusyState } from "./workspaceSettingsDialogTypes";
+import { summarizeIndexStatus } from "./indexStatusPresentation";
 import { getPreviewTitle, markdownPreviewExcerpt, suggestWikilinkTargetsFromTrees } from "./graphAffordances";
 import { summarizeTerminalStatusLine } from "./terminalSessions";
 import { hasInvocationDirtyConflict, invocationConflictKey } from "./invocationReviewState";
 import { workspaceBreadcrumb, type WorkspaceBreadcrumbSegment } from "./workspaceBreadcrumb";
 import { DEFAULT_UTILITY_SURFACE_STATE, isUtilityDestinationActive, reduceUtilitySurface } from "./utilitySurfaceModel";
 import { addPreviewTab, closePreviewTab, EMPTY_PREVIEW_TABS, selectPreviewTab, updatePreviewTabUrl } from "./previewTabsModel";
+import { LatestPaneNavigation } from "./latestPaneNavigation";
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
@@ -111,6 +113,7 @@ export function App() {
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
   const terminalRuntimeScrollbackLinesRef = useRef(DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES);
+  const latestPaneNavigationRef = useRef(new LatestPaneNavigation());
   const shellLayout = useShellLayout();
   const { tree: canvasTree, focusedLeafId: focusedPaneId, actions: canvasActions } = shellLayout.canvasPaneTree;
   const [utilityState, dispatchUtility] = useReducer(reduceUtilitySurface, DEFAULT_UTILITY_SURFACE_STATE);
@@ -650,8 +653,6 @@ export function App() {
 
   async function openFile(filePath: string, leafId?: PaneNodeId, options?: { line?: number | null }) {
     const targetLeafId = leafId ?? focusedPaneId;
-    await ensureDocumentLoaded(filePath);
-
     // File opens should never be trapped by a focused browser/terminal leaf.
     // Prefer the requested editor leaf, then any editor leaf, then recover by
     // converting the focused/first leaf back into an editor leaf.
@@ -659,25 +660,31 @@ export function App() {
     const targetEditorLeaf = targetLeaf?.content.kind === "editor" ? targetLeaf : undefined;
     const fallbackLeaf = targetLeaf ?? collectLeaves(canvasTree)[0];
     const editorLeafId = targetEditorLeaf?.id ?? findEditorLeaf(canvasTree)?.id ?? fallbackLeaf?.id;
-    if (editorLeafId) {
-      canvasActions.updateLeafContent(editorLeafId, (content) => {
-        if (content.kind !== "editor") {
-          return { kind: "editor", activePath: filePath, openPaths: [filePath], openFolderPaths: [], activeFolderPath: null };
+    await latestPaneNavigationRef.current.commitLatest(
+      editorLeafId ?? targetLeafId,
+      () => ensureDocumentLoaded(filePath),
+      () => {
+        if (editorLeafId) {
+          canvasActions.updateLeafContent(editorLeafId, (content) => {
+            if (content.kind !== "editor") {
+              return { kind: "editor", activePath: filePath, openPaths: [filePath], openFolderPaths: [], activeFolderPath: null };
+            }
+            return {
+              ...content,
+              activePath: filePath,
+              openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
+            };
+          });
+          canvasActions.focusLeaf(editorLeafId);
         }
-        return {
-          ...content,
-          activePath: filePath,
-          openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
-        };
-      });
-      canvasActions.focusLeaf(editorLeafId);
-    }
-    setActiveDocumentPath(filePath);
-    setActiveTag(null);
-    setTagResults([]);
-    if (options?.line && options.line > 0) {
-      setEditorRevealLineRequest({ filePath, line: options.line, nonce: Date.now() });
-    }
+        setActiveDocumentPath(filePath);
+        setActiveTag(null);
+        setTagResults([]);
+        if (options?.line && options.line > 0) {
+          setEditorRevealLineRequest({ filePath, line: options.line, nonce: Date.now() });
+        }
+      },
+    );
   }
 
   async function openTitleSegment(segment: WorkspaceBreadcrumbSegment) {
@@ -777,6 +784,19 @@ export function App() {
 
   function openConnectionsSurface() {
     selectUtilitySurface("connections");
+  }
+
+  function openGraphCanvas() {
+    const existing = collectLeaves(canvasTree).find((leaf) => leaf.content.kind === "graph");
+    if (existing) {
+      canvasActions.focusLeaf(existing.id);
+      return;
+    }
+    const target = findNode(canvasTree, (node) => node.kind === "leaf" && node.id === focusedPaneId) as PaneLeaf | undefined
+      ?? collectLeaves(canvasTree)[0];
+    if (!target) return;
+    const graphLeaf = canvasActions.splitLeaf(target.id, "horizontal", { kind: "graph" }, "after");
+    canvasActions.focusLeaf(graphLeaf.id);
   }
 
   function focusBrowserPane() {
@@ -1340,6 +1360,9 @@ export function App() {
       onOpenUtilityTerminal={openUtilityTerminal}
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderLeaf={(leaf, isFocused) => {
+        if (leaf.content.kind === "graph") {
+          return <GraphPane onClose={() => canvasActions.removeLeaf(leaf.id)} onOpenTarget={(target) => void openKnowledgeTarget(target)} />;
+        }
         if (leaf.content.kind === "terminal") {
           const terminalId = leaf.content.terminalId;
           const session = terminalSessions.find((entry) => entry.id === terminalId);
@@ -1467,7 +1490,7 @@ export function App() {
           </>
         );
       }}
-      connections={<InspectorDock document={activeDocument} graphContext={activeGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={activeTag} tagResults={tagResults} onToggle={toggleConnectionsSurface} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exo.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
+      connections={<InspectorDock document={activeDocument} graphContext={activeGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={activeTag} tagResults={tagResults} onToggle={toggleConnectionsSurface} onOpenGraphCanvas={openGraphCanvas} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exo.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
       onCreateMissingFolderIndexes={() => void createMissingFolderIndexes()}
@@ -1575,54 +1598,6 @@ export function App() {
 
 function uniqueMessages(messages: string[]): string[] {
   return [...new Set(messages.map((message) => message.trim()).filter(Boolean))];
-}
-
-function formatIndexStatus(status: IndexStatus): string {
-  const pieces = [
-    `Mode: ${status.mode}`,
-    `${status.indexedRoots.length} root${status.indexedRoots.length === 1 ? "" : "s"}`,
-    `${status.documentCount} document${status.documentCount === 1 ? "" : "s"}`,
-  ];
-  if (status.pendingEmbeddings > 0) {
-    pieces.push(`${status.pendingEmbeddings} pending embeddings`);
-  }
-  return pieces.join(" | ");
-}
-
-function summarizeIndexStatus(status: IndexStatus | null, busy: IndexBusyState): {
-  label: string;
-  tone: "muted" | "ok" | "warn" | "info" | "error";
-  title: string;
-  busy: boolean;
-} {
-  if (busy === "updating") {
-    return { label: "Updating search", tone: "info", title: "Updating QMD search.", busy: true };
-  }
-  if (busy === "syncing") {
-    return { label: "Syncing search", tone: "info", title: "Refreshing QMD documents and embeddings.", busy: true };
-  }
-  if (busy === "embedding") {
-    return { label: "Embedding", tone: "info", title: "Building QMD semantic embeddings.", busy: true };
-  }
-  if (!status) {
-    return { label: "Search unknown", tone: "muted", title: "Search status has not loaded yet.", busy: false };
-  }
-  if (status.backend === "filesystem") {
-    return { label: "Simple search", tone: "muted", title: "Immediate filename and path search is active.", busy: false };
-  }
-  if (status.errors.length > 0) {
-    return { label: "QMD needs attention", tone: "error", title: "Simple search remains available. Open Search settings to sync QMD or choose Simple search.", busy: false };
-  }
-  if (!status.enabled || status.mode === "off" || status.indexedRoots.length === 0) {
-    return { label: "QMD unavailable", tone: "muted", title: "Simple search remains available. Choose QMD in Search settings to set it up.", busy: false };
-  }
-  if (status.documentCount === 0) {
-    return { label: "QMD empty", tone: "warn", title: "QMD is configured but has no documents yet. Sync now to build it.", busy: false };
-  }
-  if ((status.mode === "semantic" || status.mode === "hybrid") && (!status.hasVectorIndex || status.pendingEmbeddings > 0)) {
-    return { label: "Embeddings needed", tone: "warn", title: formatIndexStatus(status), busy: false };
-  }
-  return { label: "QMD ready", tone: "ok", title: formatIndexStatus(status), busy: false };
 }
 
 function joinPath(parentPath: string, name: string): string {

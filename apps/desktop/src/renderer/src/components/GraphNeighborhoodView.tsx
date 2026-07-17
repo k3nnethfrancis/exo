@@ -1,3 +1,5 @@
+import { Expand } from "lucide-react";
+
 import type { RendererGraphNeighborhood } from "../graphAffordances";
 
 interface GraphNeighborhoodViewProps {
@@ -5,10 +7,11 @@ interface GraphNeighborhoodViewProps {
   onOpenTarget: (target: string) => void;
   onOpenExternal: (target: string) => void;
   onOpenTag: (tag: string) => void;
+  onOpenCanvas?: () => void;
 }
 
 export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
-  const { neighborhood, onOpenTarget, onOpenExternal, onOpenTag } = props;
+  const { neighborhood, onOpenTarget, onOpenExternal, onOpenCanvas } = props;
   const nodes = neighborhood?.nodes.filter((node) => node.kind !== "note" || node.target) ?? [];
 
   if (!neighborhood || nodes.length <= 1) {
@@ -22,13 +25,7 @@ export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
           <button
             key={node.id}
             className={`graph-neighborhood__node graph-neighborhood__node--${node.kind}`}
-            onClick={() => {
-              if (node.kind === "external") {
-                onOpenExternal(node.target);
-                return;
-              }
-              onOpenTarget(node.target);
-            }}
+            onClick={() => node.kind === "external" ? onOpenExternal(node.target) : onOpenTarget(node.target)}
             title={node.label}
             type="button"
           >
@@ -37,9 +34,14 @@ export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
           </button>
         ))}
       </div>
-      {neighborhood.edges.length ? (
-        <div className="graph-neighborhood__meta">{neighborhood.edges.length} edges</div>
-      ) : null}
+      <div className="graph-neighborhood__footer">
+        <span>{neighborhood.edges.length} edges</span>
+        {onOpenCanvas ? (
+          <button aria-label="Open full graph" onClick={onOpenCanvas} title="Open full graph" type="button">
+            <Expand size={13} />
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # Exo Issues
 
-Last updated: 2026-07-13
+Last updated: 2026-07-17
 
 This is the canonical active bug, release-QA, and dogfood tracker. It contains
 only work that can still change a current Exo decision or release claim. Git
@@ -89,6 +89,30 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ## Monitoring
 
+### EXO-ISSUE-118: Folder breadcrumb and invocation throughput gates regressed
+
+- Status: investigation required before graph-foundation clean replay
+- Severity: high
+- Area: editor navigation, Folder Overview enrichment, inline Command composer
+- Reproduction: on 2026-07-17, the existing Electron latency suite measured
+  breadcrumb Folder contents at 128 ms p50 against the 99 ms budget and active
+  invocation entry at 34 ms/character against the 24 ms/character budget. The
+  Graph Pane was never opened. Direct Explorer, filename Search, large-Workspace
+  Search, backlinks, ordinary typing, backspacing, and the 1,200-Note concurrent
+  derived-work scenario passed. The separate CLI failure is already tracked as
+  `EXO-ISSUE-111`.
+- Guardrail: do not attribute the regression to graph rendering without a trace,
+  weaken the existing budgets, or add another cache/fallback. Reproduce in a
+  clean worktree, inspect the retained Playwright traces, and isolate the first
+  transaction that exceeds the budget.
+- Acceptance:
+  - [ ] Reproduce breadcrumb and invocation failures on a clean branch based on
+    `main` with no Graph Pane open.
+  - [ ] Identify whether the cause is pre-existing dirty latency work, test
+    harness variance, or the graph branch's import/IPC changes.
+  - [ ] Rerun the full editor and derived-work latency specs within budget before
+    accepting the graph foundation.
+
 ### EXO-ISSUE-116: Inline agent composition can blank the renderer
 
 - Status: investigation required; non-reproducible dogfood report
@@ -146,6 +170,47 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - `pnpm ci:check`, focused Electron review tests, and a live two-turn Claude
     continuity gate pass. Verification: `docs/reviews/output/session-continuity-implementation-status.md`.
 
+### EXO-ISSUE-117: Semantic embeddings become stale unless users manually sync
+
+- Status: implemented 2026-07-15 under explicit user-approved Fable exception;
+  deterministic real-model convergence QA remains as a follow-up gate
+- Severity: high
+- Area: QMD indexing, background scheduling, derived worker lifecycle, Search status
+- Observed behavior:
+  - Save-triggered indexing refreshes QMD documents but intentionally defers
+    embeddings. Semantic and hybrid retrieval therefore accumulate pending
+    document hashes until the user runs Sync or Build embeddings.
+  - Running the previously unbounded QMD embed automatically would reintroduce
+    latency risk: the old installed QMD processed the complete pending set,
+    exposed no public work budget, and Exo serialized QMD search, maintenance,
+    and graph work through one utility-process queue.
+  - QMD update is root-scoped rather than path-scoped and scans, reads, and
+    hashes every matching file to discover a one-file change.
+- Expected behavior:
+  - `On save` means automatic eventual semantic freshness after a quiet period;
+    `Manual only` remains an explicit pause/override.
+  - Canonical Markdown and lexical search stay usable while semantic derived
+    state catches up. Foreground editor, navigation, Terminal, graph, and Search
+    work never wait on an unbounded embedding operation.
+  - Status exposes pending, active, paused, and failed states; full rebuild is a
+    repair/model/schema action rather than the normal sync path.
+- Architecture gate:
+  - [x] Fable transport failed authentication; Kenneth explicitly approved
+    proceeding without Fable on 2026-07-15. Preserve the failed review and
+    exception in `docs/reviews/2026-07-15-embedding-sync-runtime-session.md`.
+- Acceptance:
+  - [x] Add a deterministic quiet-period scheduler with bounded automatic work,
+    retry/backoff, and no automatic large-backlog job. Exo now carries a narrow,
+    reproducible QMD 2.5.3 patch for work budgets and atomic vector publication.
+  - [x] Preserve lexical fallback and existing public CLI/command-server routes.
+  - [x] Prove foreground search does not wait behind automatic embedding.
+  - [x] Prove rapid save bursts coalesce and Manual only cancels automatic work.
+  - [ ] Exercise sustained typing, navigation, Terminal, graph context, and
+    hybrid search while background catch-up is eligible, then prove convergence
+    after activity stops with the real embedding model. The real Electron
+    1,200-note hybrid-update latency gate passes with no long tasks; the
+    model-backed convergence half remains to be automated.
+
 ### EXO-ISSUE-111: Node 26 cold startup breaks the CLI-open latency gate
 
 - Status: open; runtime investigation required
@@ -165,7 +230,7 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-110: Derived graph/search work can stall editor navigation
 
-- Status: foreground-path fix complete; process-isolation follow-up required
+- Status: resolved on 2026-07-15
 - Severity: high
 - Area: editor input/navigation latency, Folder Overview, Search, WorkspaceGraph, QMD
 - Reproduction: on a 400-note workspace, opening an indexed Folder rebuilt a
@@ -189,14 +254,26 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     measured p99 fell from roughly 56 ms to roughly 12 ms.
   - The 400-note gates now measure roughly 55/60 ms for Folder Overview shell
     and contents and 11/20 ms for live filename results.
-- Remaining:
-  - [ ] Move QMD store/update/embed/search/status work behind an out-of-process
-    derived-data module so native/model work cannot block Electron main IPC.
-  - [ ] Replace whole-graph invalidation with incremental or worker-owned graph
-    updates if real-vault traces still show contention after caching and idle
-    scheduling.
-  - [ ] Run the editor input/selection latency gate concurrently with real QMD
-    update/embed/search work after QMD has an isolated worker boundary.
+  - QMD status/search/update/embed/sync and cold/incremental WorkspaceGraph work
+    now share a bounded Electron utility-process queue with cancellation,
+    timeout/kill/restart, exit recovery, serialized operations, and bounded
+    responses. Public IPC and CLI response shapes are unchanged.
+  - On-save indexing is root-scoped update-only in lexical, semantic, and
+    hybrid modes; embedding work runs only on explicit Sync.
+  - Ready graph snapshots update only the changed Markdown entry. Completed
+    graph context and autosave work wait for real editor idle time before
+    committing renderer state or disk work.
+  - Rapid same-pane navigation ignores stale async loads without serializing
+    independent panes, and active inline Command decorations/widget DOM map
+    incrementally while typing.
+- Resolution evidence:
+  - A real Electron gate ran hybrid/on-save QMD update plus cold graph context
+    over the same 1,200-note root while Terminal remained live: typing measured
+    6.7/11.8/14.1 ms p50/p90/p99 and alternating note navigation measured
+    39.9/42.4/49.5 ms, with no renderer long tasks.
+  - The roughly 500 KB sustained-editor gate measured ordinary typing p99 14.9
+    ms, rapid backspace p99 11.3 ms, and active inline Command typing p99 24.0
+    ms at roughly 56 characters/second while preserving the widget DOM node.
 
 
 ### EXO-ISSUE-109: Nested-site root-relative Markdown images show unavailable
@@ -267,5 +344,37 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 - Resolution: folder breadcrumbs and Explorer double-click now open a read-only
   Folder Overview. It surfaces an explicit `Create index` action only when the
   writable Folder has no `index.md`; raw indexes remain ordinary Markdown.
+
+### EXO-ISSUE-119: Experimental Graph View transport is not yet 10K-safe
+
+- Status: open; blocks production-scale Graph View claims, not the dev tracer
+- Severity: high before Graph View leaves experimental status
+- Area: Knowledge Graph projection, derived-process IPC, Graph Pane
+- Review evidence: removing the duplicated semantic snapshot materially shrank
+  the hot response, but a synthetic 10,000-node / 50,000-edge object projection
+  still exceeds the utility process's 8 MiB response ceiling. The Stellar lab's
+  10K result does not prove the current production Canvas transport or paint
+  path.
+- Required:
+  - [ ] Transfer compact typed topology and fetch bounded label/concept detail
+    by `sourceSnapshotId` on demand.
+  - [ ] Record transport/profile hashes and payload bytes at 10K/50K/100K.
+  - [ ] Gate Graph-open, orbit, zoom, selection, editor concurrency, idle
+    quiescence, and Canvas fallback before removing the Experimental label.
+
+### EXO-ISSUE-120: Mixed dev candidate must re-earn editor latency gates
+
+- Status: open; blocks merging the feature work into the stable dev candidate
+- Severity: high
+- Area: inline Command typing, breadcrumb Folder Overview, Node CLI startup
+- Review evidence: ordinary typing, backspace, and input-to-paint remain within
+  budget, but the mixed tree measured about 32 ms/character for the synthetic
+  Playwright invocation burst, about 128 ms p50 for breadcrumb Folder contents,
+  and about 101 ms p50 for Node 26 CLI open.
+- Required:
+  - [ ] Preserve zero renderer long tasks; do not weaken the existing gate.
+  - [ ] Separate driver overhead from in-app input-to-paint while retaining a
+    real accelerated-typing journey.
+  - [ ] Fix or explicitly isolate each regression before publishing `dev`.
 
 -- Shoshin | 2026-07-12

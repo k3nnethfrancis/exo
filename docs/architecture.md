@@ -1,6 +1,6 @@
 # Exo Architecture
 
-Last updated: 2026-07-13
+Last updated: 2026-07-17
 
 Exo is a local, user-owned Markdown exocortex with modular, tunable search, inline agent invocation, and graph management skills.
 
@@ -27,7 +27,53 @@ The current Folder model is:
 - Folder defaults and the nearest Folder Index chain are inherited guidance, not automatic child-note mutations. Explicit Note properties override defaults.
 - Tags and typed relationships express additional membership beyond the primary path.
 
-This produces useful ontology through normal organization without a separate profile database, mandatory schema, or ontology plugin. It remains compatible with permissive Open Knowledge Format conventions.
+This produces useful ontology through normal organization without a mandatory schema, ontology database, or ontology plugin. Optional user-owned Knowledge Profiles may interpret these same facts; they do not replace Folder Indexes or become another canonical store.
+
+## Accepted graph direction — feature-branch tracer
+
+The isolated graph lab and quality investigation are distilled in
+`graph-system-report-and-plan.md`. The `feat/graph-system-foundation` tracer now
+enforces this separation:
+
+```text
+canonical Markdown
+  → schema-agnostic Knowledge Graph
+  → profile/view projection
+  → deterministic layout
+  → renderer-independent scene
+  → WebGPU or Canvas pixels
+```
+
+The Knowledge Graph preserves open Concept types, arbitrary frontmatter
+Properties, Relations, resolution, authority, and Evidence. Generic Markdown is
+the zero-configuration profile. Open Knowledge Format 0.1 is the first
+implemented built-in interoperability profile on the feature branch. A
+Knowledge Profile may interpret a property as a
+Concept reference or declare validation rules, but unknown properties and types
+must survive and remain usable.
+
+Graph Views compile this cold semantic model into dense numeric topology and
+visual classes. Closed numeric node/edge kinds are allowed inside a compiled
+View for performance; they are not the ontology contract. Semantic similarity
+and inferred relationships remain versioned Derived Signals until accepted as
+Markdown changes.
+
+Exo still has overlapping legacy `GraphSnapshot` and `WorkspaceGraph`
+representations. The feature branch adds snapshot 0.2 and the dense Graph View
+behind `WorkspaceGraph`, but the protected caller/deletion pass remains before
+the consolidation can be called complete. The Canvas Graph Pane is an
+interaction tracer consuming that projection, not a third semantic model. Do
+not move ontology or relation meaning into Canvas/WebGPU code.
+
+Quality has two independent harnesses:
+
+- GraphRenderBench owns rendering, layout geometry, interaction, memory, and
+  latency.
+- GraphUtilityBench owns the initial independent identity, resolution, Evidence,
+  and profile-conformance tracer; its public task corpus must still add relation
+  extraction, semantic proposals, navigation, and agent retrieval utility.
+
+Neither produces an unexplained universal quality score.
 
 ## Deep modules
 
@@ -41,7 +87,12 @@ Owns Note Root identity, path authorization, containment, symlink policy, absolu
 
 ### `WorkspaceGraph`
 
-Owns Note identity, link resolution, backlinks, unresolved links, neighborhoods, graph context, and invalidation. Markdown is canonical; graph caches are derived. Folder Overview reads this context without creating another graph model.
+Owns the derived Knowledge Graph: Note/Concept identity, lossless Properties,
+Relation resolution and Evidence, backlinks, neighborhoods, graph context, and
+invalidation. Markdown is canonical; graph snapshots and profile interpretations
+are derived. During migration it also owns compatibility for the older graph
+representations. Folder Overview and Graph Views consume this boundary rather
+than creating their own graph models.
 
 ### `WorkspaceIndex`
 
@@ -84,7 +135,7 @@ The future Skill flow adds a reviewed, bounded proposal step; it is not claimed 
 | Note Roots and files | `WorkspaceModel`, `WorkspaceFiles` | Exo reads and mutates only authorized Note Roots | containment tests; `../issues.md#exo-issue-103`, `../CONTEXT.md` |
 | Workspace settings | `WorkspaceConfigStore`, revisioned `WorkspaceSettings` | Settings preserve unowned/unknown data and configured Commands | settings tests; `../issues.md#exo-issue-102` |
 | Notes and properties | Markdown/frontmatter, `NoteDocument` | Source on disk remains canonical | note/Markdown tests; `../CONTEXT.md` |
-| Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context | search/graph tests; `../README.md` |
+| Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context; the planned schema-agnostic graph preserves open properties, relation authority, and evidence | search/graph tests; `graph-system-report-and-plan.md` |
 | Canvas and panes | `WorkspaceCanvasLayoutSettings`, pane tree | Notes, Terminal, Preview, and Connections share one canvas | pane E2E; `../README.md` |
 | Terminal | `TerminalManager`, direct `node-pty`, xterm | Live terminal with bounded reload tail; no durable session history | terminal suite; `terminal-runtime-decision.md` |
 | Commands and invocation | `AgentCommand`, `InvocationRunner`, invocation records | Explicit inline invocation, headless document work, optional session handoff, observed-change review | invocation E2E; `../issues.md#exo-issue-106` |
@@ -131,4 +182,7 @@ After the launch loop is stable:
 - Unknown writers and overlapping changes remain ambiguous rather than falsely attributed.
 - Public CLI commands, command-server routes, and shared protocol types require the repository's architecture-review gate.
 
-See `extension-architecture.md`, `../CONTEXT.md`, and `adr/0002-folder-indexes-as-ontology.md` for the durable boundary and vocabulary.
+See `extension-architecture.md`, `graph-system-report-and-plan.md`,
+`../CONTEXT.md`, `adr/0002-folder-indexes-as-ontology.md`, and
+`adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` for the durable
+boundary and vocabulary.

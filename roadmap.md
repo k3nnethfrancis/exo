@@ -20,18 +20,25 @@ The current objective is no longer to complete the old plugin/routine/harness ro
 
 1. **Markdown workspace:** trustworthy files, authoring, properties, roots, canvas, and packaging.
 2. **Modular Search:** reliable filesystem and QMD retrieval behind the one earned provider seam.
-3. **Actionable graph:** links, backlinks, tags, properties, neighborhoods, and Connections today; Folder Index/Overview and explained relevant-context discovery are next-slice work.
+3. **Actionable graph:** links, backlinks, tags, properties, neighborhoods,
+   Folder Overview, and Connections today; a consolidated schema-agnostic graph,
+   optional Knowledge Profiles, GraphUtilityBench, and the production spatial
+   Graph View are the next graph-system slices.
 4. **Inline invocation:** configured Commands run only on explicit invocation; Exo observes and reviews changes. The first user-editable graph-management Skill is next-slice work.
 
 The product test is simple: a person can open an existing Markdown folder, resume thought, find context, understand the connection, explicitly invoke a configured Command, and review observed Markdown changes without surrendering file ownership. A bounded graph-management Skill is the next vertical slice.
 
 ## Shipped Core Loop: Inline Command Invocation
 
-Inline invocation is not a future bet. Typing `@` in the Markdown editor offers configured Commands; selecting one opens a transient multiline composer. Only Shift+Enter, after explicit confirmation, launches the configured local Command headlessly with the saved document snapshot, writes an invocation record, and presents observed changes for review. A provider session can be resumed explicitly in a visible Shell when provenance is available. The CLI can start the same configured Command with `exo spawn`.
+Inline invocation is not a future bet. Typing `@` in the Markdown editor offers configured Commands; selecting one opens a transient multiline composer. Only Command+Enter or its visible send action, after explicit confirmation, launches the configured local Command headlessly with the saved document snapshot, writes an invocation record, and presents observed changes for review. A provider session can be resumed explicitly in a visible Shell when provenance is available. The CLI can start the same configured Command with `exo invoke`.
 
 The remaining work is quality rather than a second system: make the inline affordance easier to notice, keep mention parsing precise, prove dirty-document/save and trust behavior, and ship the first user-editable **Find and connect relevant context** skill through this loop. Do not reintroduce a harness manager or Skill Manager to achieve that.
 
-Folder ontology is intentionally simple: folders provide a primary structural home; tags and typed relationships express additional membership. The optional `index.md` and Folder Overview design is accepted but not yet implemented, so it must not be described as current behavior.
+Folder ontology is intentionally simple: folders provide a primary structural
+home; tags and typed relationships express additional membership. Folder
+Overview and explicit optional `index.md` authoring are shipped substrate. An
+optional Knowledge Profile may interpret broader types, properties, and
+relationship rules without replacing that user-owned structure.
 
 ## Active Work Packages
 
@@ -75,13 +82,24 @@ Keep or reuse:
 
 ### WP2: Graph Read Path
 
-- Reuse and consolidate `packages/core/src/graph.ts`, `packages/core/src/graph-snapshot.ts`, and existing editor graph affordances.
-- Extract deterministic graph facts from Markdown links, wikilinks, tags, frontmatter/properties, headings where useful, unresolved links, and external links.
-- Add backlink query support and a note graph context surface.
-- Add graph properties read/edit affordance for a note.
-- Add a basic graph/neighborhood viewer.
-- After the active simplification/deletion/UI cleanup owners stabilize Explorer, Canvas, Files, and Graph, add Folder identity, path-derived containment, and Folder Overview support without resetting their work.
-- Expose useful CLI graph/read/search status where appropriate.
+- Preserve the shipped link, backlink, tag, property, Folder Overview, and
+  Connections behavior while consolidating `GraphSnapshot` and `WorkspaceGraph`.
+- Introduce graph snapshot 0.2 with open Concept types, lossless Properties,
+  Relation predicates, authority, resolution, and Evidence.
+- Keep Generic Markdown as the zero-requirement interpretation and add Open
+  Knowledge Format 0.1 as the first permissive interoperability profile.
+- Add a small user-owned Knowledge Profile contract only after public fixtures
+  and expected facts are frozen.
+- Build GraphUtilityBench for integrity, profile conformance, corruption
+  tolerance, semantic proposals, human navigation, and agent retrieval utility.
+- Compile renderer-neutral dense topology from the consolidated graph, then
+  integrate Stellar as a Graph Pane without placing semantic logic in WebGPU or
+  Canvas code.
+- Keep all graph/index/layout work off the editor critical path and preserve
+  ordinary CLI graph/read/search status where appropriate.
+
+The detailed gates and type direction are canonical in
+`docs/graph-system-report-and-plan.md`.
 
 ### WP3: CLI And Search Provider Hardening
 
@@ -95,7 +113,7 @@ Keep or reuse:
 ### WP4: Invocation Quality and First Skill
 
 - Make valid mention invocation visibly inline and keyboard-reachable without turning any Markdown text into an auto-run trigger.
-- Keep the existing user-owned `AgentCommand` model, explicit confirmation, headless note launch, optional provider-session handoff to Shell, local trust, `exo spawn`, and `.exo/invocations/` record as the one execution path.
+- Keep the existing user-owned `AgentCommand` model, explicit confirmation, headless note launch, optional provider-session handoff to Shell, local trust, `exo invoke`, and `.exo/invocations/` record as the one execution path.
 - Close the remaining save/trust/dirty-document acceptance evidence.
 - Ship **Find and connect relevant context** as the first provider-neutral, editable skill delivered through a configured Command and reviewed Markdown changes.
 

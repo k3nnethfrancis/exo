@@ -11,17 +11,24 @@ This directory contains public project context for humans and coding agents.
 5. `../README.md` — current product and setup surface.
 6. `architecture.md` — current package/domain architecture and retained feature/data-model index.
 7. `../roadmap.md` — next-slice and longer-term direction.
-8. `exograph-simplification-plan.md` — historical refactor/planning corpus; consult only with `tasks.md` for current status.
-9. `extension-architecture.md` — Markdown/config/Command-first extension ladder.
-10. `public-contract-reviews.md` — review ledger for protected CLI, command-server, and shared-protocol contracts.
-11. `usability-readiness.md` — installed-app readiness requirements.
-12. `harness.md` — development and validation workflow.
+8. `graph-system-report-and-plan.md` — graph-lab results, production knowledge model, quality framework, and gated integration plan.
+9. `exograph-simplification-plan.md` — historical refactor/planning corpus; consult only with `tasks.md` for current status.
+10. `extension-architecture.md` — Markdown/config/Command-first extension ladder.
+11. `public-contract-reviews.md` — review ledger for protected CLI, command-server, and shared-protocol contracts.
+12. `usability-readiness.md` — installed-app readiness requirements.
+13. `harness.md` — development and validation workflow.
 
 ## Current product direction
 
 > **Local Markdown exocortex + modular, tunable search + inline agent invocation + graph management skills.**
 
 Folders provide the first custom-ontology substrate. A Folder path gives Notes a primary home; optional user-owned `index.md` and Folder Overview are shipped behavior. Tags and typed relationships preserve multiple membership.
+
+The accepted graph direction is schema-agnostic: Markdown stays canonical,
+optional Knowledge Profiles interpret open properties and relationships, and
+Graph Views remain derived projections. Rendering/layout performance and
+knowledge utility use separate benchmarks. See
+`graph-system-report-and-plan.md`.
 
 Codex agents are actively completing trust, containment, editor/invocation, and repository-distillation work. Do not add automatic Folder Index creation or graph-management Skills without `tasks.md` evidence.
 
@@ -33,6 +40,7 @@ First-run can optionally install Exo's bounded, read-only MCP tools into the loc
 - `adr/0002-folder-indexes-as-ontology.md` — accepted Folder Index ontology decision.
 - `adr/0003-plugins-are-distribution-bundles.md` — accepted ruling that Plugins are future distribution bundles, not runtime seams.
 - `adr/0004-workspace-is-the-scope-object.md` — accepted ruling that Workspace is the unit of Markdown scope; any future global view is a read-only projection, not a Workspace.
+- `adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` — accepted ruling that Exo preserves open graph facts and interprets them through optional user-owned profiles.
 - `terminal-runtime-decision.md` — current direct-PTY decision.
 - `extension-architecture.md` — current core-versus-extension boundary.
 

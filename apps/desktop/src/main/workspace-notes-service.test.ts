@@ -1,4 +1,4 @@
-import { access, mkdtemp, mkdir, readFile, realpath, symlink, writeFile } from "node:fs/promises";
+import { access, mkdtemp, mkdir, readFile, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -220,7 +220,7 @@ describe("WorkspaceNotesService", () => {
 
     const backlinkPath = path.join(folderPath, "backlink.md");
     await writeFile(backlinkPath, "# Backlink\n\n[[index]]\n", "utf8");
-    service.invalidateDerivedState();
+    await service.handleWorkspaceChange({ rootPath: noteRoot, eventType: "rename", filePath: backlinkPath });
 
     const refreshedOverview = await service.getFolderOverview(folderPath);
     const refreshedGraph = await service.getGraphContext(indexPath);
@@ -228,6 +228,30 @@ describe("WorkspaceNotesService", () => {
       { path: backlinkPath, name: "backlink.md", kind: "file" },
     ]);
     expect(refreshedGraph?.backlinks.map((link) => link.target)).toEqual([backlinkPath]);
+  });
+
+  it("applies create, change, delete, and rename watcher events to a ready graph", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const focusPath = path.join(noteRoot, "focus.md");
+    const oldPath = path.join(noteRoot, "old.md");
+    const renamedPath = path.join(noteRoot, "renamed.md");
+    await writeFile(focusPath, "# Focus\n", "utf8");
+    await writeFile(oldPath, "# Old\n\n[[focus]]\n", "utf8");
+    expect((await service.getGraphContext(focusPath))?.backlinks.map((link) => link.target)).toEqual([oldPath]);
+
+    await writeFile(oldPath, "# Old\n", "utf8");
+    await service.handleWorkspaceChange({ rootPath: noteRoot, eventType: "change", filePath: oldPath });
+    expect((await service.getGraphContext(focusPath))?.backlinks).toEqual([]);
+
+    await writeFile(oldPath, "# Old\n\n[[focus]]\n", "utf8");
+    await rename(oldPath, renamedPath);
+    await service.handleWorkspaceChange({ rootPath: noteRoot, eventType: "rename", filePath: oldPath });
+    await service.handleWorkspaceChange({ rootPath: noteRoot, eventType: "rename", filePath: renamedPath });
+    expect((await service.getGraphContext(focusPath))?.backlinks.map((link) => link.target)).toEqual([renamedPath]);
+
+    await rm(renamedPath);
+    await service.handleWorkspaceChange({ rootPath: noteRoot, eventType: "rename", filePath: renamedPath });
+    expect((await service.getGraphContext(focusPath))?.backlinks).toEqual([]);
   });
 });
 
