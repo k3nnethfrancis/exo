@@ -36,6 +36,16 @@ Real runs additionally record the canonical source URL and source checksum.
   camera response, path behavior, and idle quiescence.
 - Capabilities absent from a baseline are explicit `unsupported` values.
 
+### Resilience
+
+- Inject two renderer failures to exercise WebGPU retry followed by Canvas
+  fallback.
+- Verify node/edge counts, profile hash, coordinates, selection, and layout
+  checksum survive the renderer transition.
+- After recovery settles, verify the renderer schedules zero recurring frames.
+- This is a deterministic recovery-path test, not a claim that the browser
+  delivered a physical GPU device-loss event.
+
 ## Fairness invariants
 
 - Same fixture bytes, viewport, DPR, browser binary, and hardware per comparison.

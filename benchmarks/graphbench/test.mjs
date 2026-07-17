@@ -61,6 +61,12 @@ assert.equal(aggregates[0].attempted, 3);
 assert.equal(aggregates[0].measured, 2);
 assert.equal(aggregates[0].failed, 1);
 assert.equal(aggregates[0].distribution.p50, 3);
+const resilienceAggregate = aggregateResults([
+  { engine: 'exo', engineVersion: '1', track: 'resilience', fixture: { checksum: 'r' }, status: 'measured', measurements: { recoveryMs: 12 } },
+  { engine: 'exo', engineVersion: '1', track: 'resilience', fixture: { checksum: 'r' }, status: 'measured', measurements: { recoveryMs: 18 } },
+])[0];
+assert.equal(resilienceAggregate.primaryMetric, 'recovery-ms');
+assert.equal(resilienceAggregate.distribution.p50, 15);
 
 assert.equal(resolvePresentationProfile('missing').id, 'explore-v1');
 assert.equal(presentationProfileHash('benchmark-v1'), presentationProfileHash(resolvePresentationProfile('benchmark-v1')));

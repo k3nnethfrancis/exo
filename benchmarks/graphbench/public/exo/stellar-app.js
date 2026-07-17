@@ -43,6 +43,7 @@ const state = {
   firstLayout: true,
   raf: 0,
   lastFrameAt: 0,
+  renderCount: 0,
   motion: null,
   width: 1,
   height: 1,
@@ -192,6 +193,7 @@ function invalidate() {
 
 function renderFrame(now) {
   state.raf = 0;
+  state.renderCount += 1;
   const started = performance.now();
   const elapsed = state.lastFrameAt ? Math.min(48, now - state.lastFrameAt) : 16.7;
   state.lastFrameAt = now;
@@ -610,6 +612,9 @@ function exposeBenchmarkContract() {
         selected: state.scene?.selected >= 0 ? state.scene.selected : null,
         pathLength: state.scene?.pathLength || 0,
         frameStats: frameStats(),
+        renderCount: state.renderCount,
+        rendererFailures: state.rendererFailures,
+        moving: Boolean(state.motion),
         gpuTiming: state.renderer?.gpuTimingSnapshot?.() || {
           supported: false,
           reason: `${state.renderer?.kind || 'initializing'} does not expose WebGPU timestamp queries.`,
@@ -632,6 +637,12 @@ function exposeBenchmarkContract() {
       overview: () => overview({ immediate: true }),
       select: (index) => selectNode(index),
       render: () => invalidate(),
+      exerciseRendererRecovery: async () => {
+        await handleRendererFailure(new Error('GraphBench injected renderer failure'), state.rendererGeneration);
+        await handleRendererFailure(new Error('GraphBench injected renderer failure'), state.rendererGeneration);
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        return state.renderer?.kind || null;
+      },
       positions: () => ({ dimensions: 3, values: Array.from(state.scene?.positions || []) }),
       clear: () => {
         state.scene.clearSelection();

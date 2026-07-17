@@ -65,6 +65,13 @@ export const PROFILES = Object.freeze({
     repetitions: 3,
     viewport: 'mobile',
   }),
+  resilience: Object.freeze({
+    cases: [{ nodes: 10_000, edgeRatio: 2 }],
+    engines: ['exo'],
+    tracks: ['resilience'],
+    repetitions: 3,
+    viewport: 'desktop',
+  }),
 });
 
 export const VIEWPORTS = Object.freeze({

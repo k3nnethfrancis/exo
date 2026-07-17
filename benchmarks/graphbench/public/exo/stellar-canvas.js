@@ -17,6 +17,7 @@ const TEAL_CSS = cssColor(TEAL);
 const AMBER_CSS = cssColor(AMBER);
 const PALETTE_CSS = PALETTE.map(cssColor);
 const TAU = Math.PI * 2;
+const SOLID_LINE = [];
 
 const FLAG_SELECTED = 1;
 const FLAG_NEIGHBOR = 2;

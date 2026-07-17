@@ -79,7 +79,7 @@ Every result records profile ID and parameter hash. Profiles may change radius, 
 4. **Done:** SuiteSparse fixtures with canonical source URL, archive SHA-256, and topology checksum.
 5. **Metric done; workload pending:** Procrustes-aligned incremental displacement.
 6. **Done:** mobile 390×844 product runs alongside 1440×960 desktop runs.
-7. Add WebGPU/Canvas parity, device-loss recovery, and zero-idle-work gates.
+7. **Partial:** injected WebGPU recovery, semantic Canvas parity, and zero-idle-work gates are done; pixel parity and browser-delivered device loss remain.
 8. Define the separate knowledge-usefulness task schema before adding any overall knowledge-graph assessment.
 
 ## Publication rule

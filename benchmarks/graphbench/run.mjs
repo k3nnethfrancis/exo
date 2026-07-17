@@ -139,8 +139,14 @@ async function runCase({ context, server, adapter, track, fixture, trial, presen
     let measurements;
     if (track === 'render') measurements = await measureRender(page, adapter);
     else if (track === 'product') measurements = await measureProduct(page, adapter);
+    else if (track === 'resilience') measurements = await measureResilience(page, adapter, readySnapshot);
     else measurements = await measureLayout(page, adapter, fixture);
     const snapshot = await page.evaluate((contract) => globalThis[contract].snapshot(), adapter.contract);
+    const browserFailures = [...diagnostics.consoleErrors, ...diagnostics.pageErrors, ...diagnostics.requestFailures];
+    if (browserFailures.length) throw new Error(`Browser diagnostics failed: ${browserFailures.join(' | ')}`);
+    if (measurements?.status === 'unsupported') {
+      return { ...identity, status: 'unsupported', reason: measurements.reason, snapshot, diagnostics };
+    }
     return { ...identity, status: 'measured', readyMs, measurements, snapshot, diagnostics };
   } catch (error) {
     const snapshot = await page.evaluate((contract) => {
@@ -230,6 +236,43 @@ async function measureProduct(page, adapter) {
   return {
     inputToFrame: summarize(inputLatencies),
     selectionToFrameMs: selectionMs,
+    memory: await measureMemory(page),
+  };
+}
+
+async function measureResilience(page, adapter, before) {
+  if (before.renderer !== 'webgpu') {
+    return { status: 'unsupported', reason: `Initial renderer is ${before.renderer}; WebGPU recovery cannot be exercised.` };
+  }
+  await page.evaluate((contract) => globalThis[contract].actions.select(0), adapter.contract);
+  const selected = await page.evaluate((contract) => globalThis[contract].snapshot(), adapter.contract);
+  const beganAt = performance.now();
+  const recoveredRenderer = await page.evaluate((contract) => globalThis[contract].actions.exerciseRendererRecovery(), adapter.contract);
+  const recoveryMs = performance.now() - beganAt;
+  const recovered = await page.evaluate((contract) => globalThis[contract].snapshot(), adapter.contract);
+  const continuity = {
+    nodeCount: recovered.nodeCount === selected.nodeCount,
+    edgeCount: recovered.edgeCount === selected.edgeCount,
+    profile: recovered.profile === selected.profile && recovered.profileHash === selected.profileHash,
+    layout: recovered.layout?.checksum === selected.layout?.checksum,
+    selection: recovered.selected === selected.selected,
+  };
+  if (recoveredRenderer !== 'canvas2d' || Object.values(continuity).some((value) => !value)) {
+    throw new Error(`Renderer recovery lost continuity: ${JSON.stringify({ recoveredRenderer, continuity })}`);
+  }
+  await page.waitForFunction((contract) => globalThis[contract].snapshot().moving === false, adapter.contract, { timeout: 2_000 });
+  await page.waitForTimeout(100);
+  const idleStart = await page.evaluate((contract) => globalThis[contract].snapshot().renderCount, adapter.contract);
+  await page.waitForTimeout(350);
+  const idleEnd = await page.evaluate((contract) => globalThis[contract].snapshot().renderCount, adapter.contract);
+  if (idleEnd !== idleStart) throw new Error(`Renderer continued drawing while idle (${idleStart} -> ${idleEnd})`);
+  return {
+    recoveryMs,
+    from: before.renderer,
+    to: recoveredRenderer,
+    failuresInjected: recovered.rendererFailures - before.rendererFailures,
+    continuity,
+    idle: { durationMs: 350, frames: idleEnd - idleStart },
     memory: await measureMemory(page),
   };
 }

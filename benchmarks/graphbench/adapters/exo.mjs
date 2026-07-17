@@ -4,7 +4,7 @@ export const exoAdapter = Object.freeze({
   available: true,
   contract: '__exoStellarLab',
   surface: '#stellar-shell',
-  capabilities: { render: true, layout: true, product: true, dimensions: 3 },
+  capabilities: { render: true, layout: true, product: true, resilience: true, dimensions: 3 },
   url(baseUrl, track, { presentationProfile = 'benchmark-v1' } = {}) {
     const staticLayout = track === 'layout' ? '' : '&layout=static';
     const labels = track === 'product' ? '1' : '0';

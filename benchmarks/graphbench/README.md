@@ -30,6 +30,7 @@ not contain a real Exo workspace projection.
 | `full` | 10k, 50k, 100k, 200k | 2, 5, 10, 20 | Exo, Sigma, GraphWaGu when prepared | publication run |
 | `million` | 500k, 1M | 2 | Exo | opt-in scale ceiling, not part of normal CI |
 | `mobile` | 10k | 2 | Exo | 390×844 at DPR 2 product-interaction run |
+| `resilience` | 10k | 2 | Exo | injected renderer recovery, Canvas continuity, and idle quiescence |
 
 Run from the Exo repository:
 
@@ -38,6 +39,7 @@ pnpm install
 pnpm graphbench:test
 pnpm graphbench:smoke
 pnpm graphbench:mobile
+pnpm graphbench:resilience
 pnpm --filter @exo/graphbench prepare:suitesparse
 pnpm --filter @exo/graphbench normalized:suitesparse
 ```
