@@ -64,9 +64,18 @@ Visual styling can distinguish those layers. Filters can remove any derived laye
 
 ## Engineering sequence
 
-1. Finish the compact renderer-neutral topology transport.
-2. Add an embedding-index projection adapter over the configured Exo index.
-3. Benchmark 10K–1M semantic-neighbor edges, incremental index updates, and projection fidelity.
-4. Define a portable offline model-snapshot format using typed arrays plus a small descriptor.
-5. Build one open-model tracer: token/residual activation trajectory for a single prompt.
-6. Add task-conditioned evaluations before making claims about interpretability or agent usefulness.
+1. Finish the current GraphBench suite and settle the open graph metadata,
+   Knowledge Profile, and renderer-neutral projection contracts.
+2. Verify that the configured index exposes vectors or a bounded top-k neighbor
+   graph through a supported provider seam. Do not read QMD's private database.
+3. If that seam is straightforward, add the smallest note-level embedding-index
+   projection with model, source-hash, and index-revision provenance.
+4. Benchmark 10K–1M semantic-neighbor edges, incremental index updates,
+   projection fidelity, and semantic-only versus authored-only versus hybrid
+   task utility.
+5. Define a portable offline model-snapshot format using typed arrays plus a
+   small descriptor.
+6. Build one open-model tracer: token/residual activation trajectory for a
+   single prompt.
+7. Add task-conditioned evaluations before making claims about interpretability
+   or agent usefulness.
