@@ -27,6 +27,10 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Changed
 
+- Makes the graph interaction contract concrete in the desktop surface: the
+  editor Graph action focuses the active Note, note-open double-click zooms
+  instead of reopening, empty-space double-click is inert, and Connections now
+  keeps headings, links, tags, and the local neighborhood in their own views.
 - Makes Search settings explicitly choose recommended **QMD** or **Simple search**; QMD now starts new Workspaces in lexical mode, keeps its configuration while Simple search is active, and shows maintenance only when selected.
 - Narrows the CLI to orientation, paginated path-first search, explicit
   configured-Command invocation, index status/sync, and desktop handoff;

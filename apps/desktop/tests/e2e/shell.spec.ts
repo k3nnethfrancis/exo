@@ -116,12 +116,13 @@ test("boots the shell, opens notes, and creates terminals on demand", async () =
   ).toEqual(["shell"]);
 
   await page.getByTestId("utility-pane-connections").click();
+  await page.getByTestId("connections-tab-links").click();
   await expect(page.getByTestId("utility-pane")).toBeVisible();
   await expect(page.locator('[data-testid="tags-panel"] .tag-pill').first()).toBeVisible();
   await page.locator('[data-testid="tags-panel"] .tag-pill').first().click();
   await expect(page.getByText(/Results for #/)).toBeVisible();
 
-  await page.getByTestId("connections-panel-outline").getByRole("button", { name: "Related Note" }).first().click();
+  await page.getByTestId("connections-panel-links").getByRole("button", { name: "Related Note" }).first().click();
   await expect(page.getByTestId("editor-title")).toHaveText("related-note");
 
   await cleanup();
@@ -615,7 +616,9 @@ test("renders inspector content when expanded", async () => {
   await page.getByTestId("utility-pane-connections").click();
 
   await expect(page.getByTestId("inspector-panel")).toContainText("Connections");
-  await expect(page.getByTestId("inspector-panel")).toContainText(/Related Note|\[\[agent-memory\]\]|#research/);
+  await page.getByTestId("connections-tab-links").click();
+  await expect(page.getByTestId("connections-panel-links")).toContainText(/Related Note|agent-memory|research/);
+  await page.getByTestId("connections-tab-graph").click();
   await expect(page.getByTestId("graph-neighborhood-panel")).toContainText("Neighborhood");
   await expect(page.getByTestId("graph-neighborhood")).toContainText("agent-memory");
   await expect(page.getByTestId("graph-neighborhood")).toContainText("research");
