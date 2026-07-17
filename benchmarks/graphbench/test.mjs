@@ -67,6 +67,9 @@ assert.notEqual(presentationProfileHash('benchmark-v1'), presentationProfileHash
 assert(Object.isFrozen(STELLAR_PRESENTATION_PROFILES));
 assert(Object.isFrozen(resolvePresentationProfile('capture-v1')));
 assert.equal(resolveNodeBaseRadius(0, 'benchmark-v1'), 4.08);
+assert.equal(resolveNodeBaseRadius(0, 'benchmark-v2'), 4);
+assert.equal(resolveNodeBaseRadius(1000, 'benchmark-v2'), 4);
+assert.equal(resolveNodeScreenRadius(1000, 100, 'benchmark-v2'), 4);
 assert.equal(resolvePresentationZoom(100, 'benchmark-v1'), 1);
 assert.equal(resolveNodeScreenRadius(16, 0.5, 'benchmark-v1'), resolveNodeScreenRadius(16, 8, 'benchmark-v1'));
 for (const profileId of ['explore-v1', 'capture-v1']) {

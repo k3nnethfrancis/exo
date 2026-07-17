@@ -27,6 +27,7 @@
     "test:visual": "pnpm --filter @exo/desktop build && playwright test -c apps/desktop/playwright.visual.config.ts",
     "graphbench:test": "pnpm --filter @exo/graphbench test",
     "graphbench:smoke": "pnpm --filter @exo/graphbench smoke",
+    "graphbench:normalized": "pnpm --filter @exo/graphbench normalized",
     "graphbench:mobile": "pnpm --filter @exo/graphbench mobile",
     "graphbench:full": "pnpm --filter @exo/graphbench full",
     "rebuild:native": "pnpm --filter @exo/desktop rebuild:native",

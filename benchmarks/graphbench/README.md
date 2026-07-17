@@ -24,6 +24,7 @@ not contain a real Exo workspace projection.
 | --- | --- | --- | --- | --- |
 | `smoke` | 10,000 | 2 | Exo, Sigma | fast contract check |
 | `compare` | 10k, 50k | 2, 10 | Exo, Sigma, pinned GraphWaGu | public comparator pass |
+| `normalized` | 10k, 50k | 2, 10 | Exo, Sigma | same 4px nodes, 1px edges, zero labels, viewport, and DPR |
 | `layout-smoke` | 10,000 | 2 | Exo | convergence and layout-quality gate |
 | `standard` | 10k, 50k | 2, 5, 10 | Exo, Sigma | normal comparison |
 | `full` | 10k, 50k, 100k, 200k | 2, 5, 10, 20 | Exo, Sigma, GraphWaGu when prepared | publication run |

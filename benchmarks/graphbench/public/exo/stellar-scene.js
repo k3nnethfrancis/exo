@@ -14,6 +14,13 @@ export const STELLAR_PRESENTATION_PROFILES = Object.freeze({
     aura: Object.freeze({ selectedScale: 1, hoveredScale: 1, selectedAlpha: 0, hoveredAlpha: 0 }),
     labels: Object.freeze({ mobile: 7, compact: 11, wide: 16 }),
   }),
+  'benchmark-v2': Object.freeze({
+    id: 'benchmark-v2', curve: 'normalized', zoomExponent: 0, zoomMin: 1, zoomMax: 1,
+    radiusMin: 4, radiusMax: 4, opacity: Object.freeze({ idle: 1, focused: 1, dimmed: 0.2 }),
+    aura: Object.freeze({ selectedScale: 1, hoveredScale: 1, selectedAlpha: 0, hoveredAlpha: 0 }),
+    labels: Object.freeze({ mobile: 0, compact: 0, wide: 0 }),
+    edges: Object.freeze({ idleWidth: 1, idleOpacity: 0.14, focusedWidth: 1, focusedOpacity: 0.72, pathWidth: 1, pathOpacity: 0.96 }),
+  }),
   'explore-v1': Object.freeze({
     id: 'explore-v1', curve: 'explore', zoomExponent: 0.38, zoomMin: 0.95, zoomMax: 4,
     radiusMin: 3, radiusMax: 30, opacity: Object.freeze({ idle: 0.86, focused: 1, dimmed: 0.2 }),
@@ -40,6 +47,7 @@ export function presentationProfileHash(profileOrId = 'explore-v1') {
 export function resolveNodeBaseRadius(degree, profileOrId = 'explore-v1') {
   const profile = typeof profileOrId === 'string' ? resolvePresentationProfile(profileOrId) : profileOrId;
   const safeDegree = Math.max(0, Number(degree) || 0);
+  if (profile.curve === 'normalized') return profile.radiusMin;
   if (profile.curve === 'historical') return clamp(3.2 + Math.sqrt(Math.max(1, safeDegree)) * 0.88, 3.6, 11.5);
   if (profile.curve === 'capture') return clamp(4 + 0.92 * Math.log2(1 + safeDegree), 4, 12);
   return clamp(3 + 0.75 * Math.log2(1 + safeDegree), 3.4, 10);
@@ -210,8 +218,9 @@ export class StellarScene {
       const focused = edge.source === this.selected || edge.target === this.selected;
       const onPath = this.pathEdges.has(edgeKey(edge.source, edge.target));
       const offset = index * 2;
-      this.edgeVisuals[offset] = onPath ? 1.85 : focused ? 1.25 : 0.62;
-      this.edgeVisuals[offset + 1] = onPath ? 0.96 : focused ? 0.72 : this.selected < 0 ? 0.14 : 0.045;
+      const style = this.presentation.edges;
+      this.edgeVisuals[offset] = onPath ? (style?.pathWidth ?? 1.85) : focused ? (style?.focusedWidth ?? 1.25) : (style?.idleWidth ?? 0.62);
+      this.edgeVisuals[offset + 1] = onPath ? (style?.pathOpacity ?? 0.96) : focused ? (style?.focusedOpacity ?? 0.72) : this.selected < 0 ? (style?.idleOpacity ?? 0.14) : 0.045;
     }
     this.writeStaticEdges();
   }

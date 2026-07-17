@@ -17,6 +17,18 @@ export const PROFILES = Object.freeze({
     repetitions: 3,
     viewport: 'desktop',
   }),
+  normalized: Object.freeze({
+    cases: [
+      { nodes: 10_000, edgeRatio: 2 },
+      { nodes: 10_000, edgeRatio: 10 },
+      { nodes: 50_000, edgeRatio: 2 },
+    ],
+    engines: ['exo', 'sigma'],
+    tracks: ['render'],
+    repetitions: 3,
+    viewport: 'desktop',
+    presentationProfile: 'benchmark-v2',
+  }),
   'layout-smoke': Object.freeze({
     cases: [{ nodes: 10_000, edgeRatio: 2 }],
     engines: ['exo'],

@@ -176,9 +176,9 @@ export class StellarCanvasRenderer {
       context.moveTo(projected[source], projected[source + 1]);
       context.quadraticCurveTo(control.x, control.y, projected[target], projected[target + 1]);
     }
-    context.globalAlpha = scene.selected < 0 ? 0.14 : 0.042;
+    context.globalAlpha = scene.selected < 0 ? (scene.presentation.edges?.idleOpacity ?? 0.14) : 0.042;
     context.strokeStyle = GRAPHITE_CSS;
-    context.lineWidth = 0.62;
+    context.lineWidth = scene.presentation.edges?.idleWidth ?? 0.62;
     context.stroke();
   }
 

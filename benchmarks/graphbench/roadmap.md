@@ -74,7 +74,7 @@ Every result records profile ID and parameter hash. Profiles may change radius, 
 ## Remaining implementation gates
 
 1. **Done:** WebGPU timestamp-query instrumentation with explicit unsupported reporting.
-2. Normalize `benchmark-v2` node radius, edge width, label count, and DPR across adapters.
+2. **Done for Exo/Sigma:** normalized `benchmark-v2` node radius, edge width, label count, viewport, and DPR.
 3. Fix or explicitly quarantine the Sigma combined-run stall.
 4. Add SuiteSparse fixtures with canonical source URL and checksum.
 5. **Metric done; workload pending:** Procrustes-aligned incremental displacement.

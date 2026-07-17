@@ -10,6 +10,7 @@ import { frameReport, roundDeep, summarize } from './lib/metrics.mjs';
 import { computeLayoutQuality } from './lib/quality.mjs';
 import { startServer } from './lib/server.mjs';
 import { PROFILES, SEED, VIEWPORTS } from './profiles.mjs';
+import { presentationProfileHash, resolvePresentationProfile } from './public/exo/stellar-scene.js';
 
 const graphbenchRoot = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(graphbenchRoot, '../..');
@@ -59,7 +60,7 @@ try {
       for (const track of profile.tracks) {
         for (let trial = 1; trial <= repetitions; trial += 1) {
           process.stdout.write(`${engine.padEnd(10)} ${track.padEnd(8)} ${String(fixture.nodeCount).padStart(7)} nodes ${String(fixture.edgeCount).padStart(8)} links ${trial}/${repetitions} ... `);
-          const result = await runCase({ context, server, adapter, track, fixture, trial });
+          const result = await runCase({ context, server, adapter, track, fixture, trial, presentationProfile: profile.presentationProfile || 'benchmark-v1' });
           results.push(result);
           console.log(result.status === 'measured' ? 'measured' : `${result.status}: ${result.reason}`);
         }
@@ -90,12 +91,13 @@ await fs.writeFile(path.join(graphbenchRoot, 'artifacts', 'latest.json'), `${JSO
 await fs.writeFile(path.join(graphbenchRoot, 'artifacts', 'latest.md'), renderMarkdown(report));
 console.log(`\nResults: ${path.join(runDirectory, 'summary.md')}`);
 
-async function runCase({ context, server, adapter, track, fixture, trial }) {
+async function runCase({ context, server, adapter, track, fixture, trial, presentationProfile }) {
   const identity = {
     engine: adapter?.id || 'unknown',
     engineVersion: adapter?.version || null,
     track,
     trial,
+    presentationProfile,
     fixture: {
       generator: fixture.generatorVersion,
       checksum: fixture.checksum,
@@ -118,7 +120,7 @@ async function runCase({ context, server, adapter, track, fixture, trial }) {
   page.on('requestfailed', (request) => diagnostics.requestFailures.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText}`));
   const beganAt = performance.now();
   try {
-    await page.goto(adapter.url(server.baseUrl, track), { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await page.goto(adapter.url(server.baseUrl, track, { presentationProfile }), { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await page.waitForFunction((contract) => {
       const target = globalThis[contract];
       return target && typeof target.snapshot === 'function' && target.snapshot().ready === true;
@@ -127,6 +129,12 @@ async function runCase({ context, server, adapter, track, fixture, trial }) {
     const readySnapshot = await page.evaluate((contract) => globalThis[contract].snapshot(), adapter.contract);
     if (readySnapshot.nodeCount !== fixture.nodeCount || readySnapshot.edgeCount !== fixture.edgeCount) {
       throw new Error(`Fixture count mismatch: expected ${fixture.nodeCount}/${fixture.edgeCount}, received ${readySnapshot.nodeCount}/${readySnapshot.edgeCount}`);
+    }
+    if (presentationProfile === 'benchmark-v2') {
+      const expectedHash = presentationProfileHash(resolvePresentationProfile(presentationProfile));
+      if (readySnapshot.profile !== presentationProfile || readySnapshot.profileHash !== expectedHash) {
+        throw new Error(`Visual profile mismatch: expected ${presentationProfile}/${expectedHash}, received ${readySnapshot.profile || 'missing'}/${readySnapshot.profileHash || 'missing'}`);
+      }
     }
     let measurements;
     if (track === 'render') measurements = await measureRender(page, adapter);

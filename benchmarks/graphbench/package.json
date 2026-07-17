@@ -6,6 +6,7 @@
   "scripts": {
     "smoke": "node run.mjs --profile smoke",
     "compare": "node run.mjs --profile compare",
+    "normalized": "node run.mjs --profile normalized",
     "layout:smoke": "node run.mjs --profile layout-smoke",
     "standard": "node run.mjs --profile standard",
     "full": "node run.mjs --profile full",
