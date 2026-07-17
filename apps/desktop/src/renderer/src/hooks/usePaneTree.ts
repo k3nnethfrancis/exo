@@ -42,7 +42,11 @@ export interface BrowserPaneContent {
   previewId: string;
 }
 
-export type PaneContent = EditorPaneContent | TerminalPaneContent | BrowserPaneContent;
+export interface GraphPaneContent {
+  kind: "graph";
+}
+
+export type PaneContent = EditorPaneContent | TerminalPaneContent | BrowserPaneContent | GraphPaneContent;
 
 /** The only layout shape written by the current canvas. */
 export interface WorkspaceCanvasLayout {
@@ -178,6 +182,9 @@ export function decodeCanvas(candidate: unknown): PaneNode | null {
     if (content?.kind === "terminal") return null;
     if (content?.kind === "browser" && typeof content.previewId === "string") {
       return { kind: "leaf", id: typeof node.id === "string" ? node.id : paneId(), content: { kind: "browser", previewId: content.previewId } };
+    }
+    if (content?.kind === "graph") {
+      return { kind: "leaf", id: typeof node.id === "string" ? node.id : paneId(), content: { kind: "graph" } };
     }
     if (content?.kind !== "editor") return null;
     return {

@@ -1,4 +1,4 @@
-import { app, nativeTheme } from "electron";
+import { app, nativeTheme, powerMonitor } from "electron";
 import path from "node:path";
 import { existsSync } from "node:fs";
 import { appendFile, mkdir, stat } from "node:fs/promises";
@@ -21,7 +21,6 @@ import {
   resolveWorkspaceModel,
   saveWorkspaceDocument,
   workspaceModelFromSettings,
-  WorkspaceIndex,
   searchNotes,
   writeOnboardingStateStore,
   type OnboardingStateStore,
@@ -37,6 +36,7 @@ import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
 import { CommandServerLifecycle } from "./command-server-lifecycle";
 import { IndexingService } from "./indexing-service";
+import { UtilityDerivedIndexClient } from "./derived-index-process";
 import { WorkspaceConfigStore, workspaceSettingsFromModel } from "./workspace-config-store";
 import { registerTerminalIpcHandlers } from "./terminal-ipc";
 import { TerminalManager } from "./terminal-manager";
@@ -85,12 +85,10 @@ let workspaceWatcherService: WorkspaceWatcherService;
 let indexingService: IndexingService;
 let workspaceNotesService: WorkspaceNotesService;
 let invocationRunner: InvocationRunner;
+let quitFlushStarted = false;
+let quitFlushComplete = false;
 
 const singleInstanceLock = app.requestSingleInstanceLock(resolveSingleInstanceData());
-
-function workspaceIndex(): WorkspaceIndex {
-  return new WorkspaceIndex({ context: { model: workspaceModel, runtimeRoot: resolveRuntimeRoot() } });
-}
 
 if (!singleInstanceLock) {
   console.error(
@@ -107,7 +105,7 @@ function createCommandServer() {
     onOpenFile: (filePath: string) => {
       sendToRenderer("command:open-file", filePath);
     },
-    onIndexSearch: (query, options) => workspaceIndex().search(query, options),
+    onIndexSearch: (query, options) => indexingService.search(query, options),
     onIndexStatus: () => indexingService.getMeasuredStatus(),
     onIndexSync: () => indexingService.runSync("command"),
     onGetStatus: () => ({
@@ -281,6 +279,8 @@ function registerIpcHandlers() {
     rejectInvocationReview: (input) => invocationRunner.rejectReview(input.invocationId, input.expectedAfterSha256),
     resumeInvocationInTerminal: (invocationId) => invocationRunner.resumeInTerminal(invocationId),
     getGraphContext: (filePath) => workspaceNotesService.getGraphContext(filePath),
+    getGraphView: (profileId) => workspaceNotesService.getGraphView(profileId),
+    getGraphConceptDetail: (conceptId, sourceSnapshotId, profileId) => workspaceNotesService.getGraphConceptDetail(conceptId, sourceSnapshotId, profileId),
     getMainWindow: () => appLifecycle.getMainWindow(),
     getModel: () => workspaceModel,
     getSettings: async () => currentSnapshot(),
@@ -306,7 +306,7 @@ function registerIpcHandlers() {
       indexingService.scheduleForFile(filePath, "note-save");
     },
     saveSettings,
-    searchIndex: (query, options) => workspaceIndex().search(query, options),
+    searchIndex: (query, options) => indexingService.search(query, options),
     searchNotes: (query) => searchNotes(workspaceModel, query),
     searchTag: (tag) => workspaceNotesService.searchTag(tag),
     searchWorkspace: (query) => workspaceNotesService.searchFilenames(query),
@@ -392,8 +392,10 @@ async function saveSettings(request: WorkspaceSettingsSaveRequest): Promise<Work
     workspaceNotesService.invalidateDerivedState();
     workspaceWatcherService.start(workspaceModel);
     terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
-    if (indexingService.shouldSyncAfterSettingsApply(previous, saved.settings)) {
-      indexingService.scheduleSync("settings-apply", 0);
+    if (indexingService.shouldReconcileAfterSettingsApply(previous, saved.settings)) {
+      indexingService.scheduleReconciliation("settings-apply", 0);
+    } else {
+      indexingService.applyCurrentAutomaticPolicy();
     }
     return { ...saved, runtimeApply: { status: "applied" } };
   } catch (error) {
@@ -409,6 +411,7 @@ async function switchWorkspace(workspaceId: string, expectedRevision: string | n
   workspaceNotesService.invalidateDerivedState();
   workspaceWatcherService.start(workspaceModel);
   terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
+  indexingService.scheduleReconciliation("workspace-switch", 0);
   return { ...saved, runtimeApply: { status: "applied" } };
 }
 
@@ -423,8 +426,14 @@ function applyOnboardingRuntimeEnv() {
 app.whenReady().then(async () => {
   workspaceConfig = new WorkspaceConfigStore({ userDataPath: app.getPath("userData") });
   workspaceWatcherService = new WorkspaceWatcherService((event) => {
-    workspaceNotesService?.invalidateDerivedState();
+    // Posting the graph refresh first preserves worker queue ordering, while
+    // canonical filesystem changes reach the renderer without waiting behind
+    // an already-running QMD job.
+    const refresh = Promise.resolve(workspaceNotesService?.handleWorkspaceChange(event));
     sendToRenderer("workspace:changed", event);
+    void refresh.catch((error) => {
+      console.warn("[exo] incremental workspace refresh failed", error);
+    });
   });
 
   const forcedTheme = process.env.EXO_FORCE_THEME;
@@ -461,6 +470,8 @@ app.whenReady().then(async () => {
   terminalManager = new TerminalManager(
     workspaceModel.defaultTerminalCwd,
   );
+  const foregroundDerivedIndex = new UtilityDerivedIndexClient();
+  const maintenanceDerivedIndex = new UtilityDerivedIndexClient();
   indexingService = new IndexingService({
     getWorkspaceModel: () => workspaceModel,
     getCurrentSettings: () => currentSettings(),
@@ -477,6 +488,9 @@ app.whenReady().then(async () => {
     },
     sendState: (event) => sendToRenderer("workspace:index-sync-state", event),
     errorMessage,
+    foregroundDerivedIndex,
+    maintenanceDerivedIndex,
+    getSystemIdleTimeMs: () => powerMonitor.getSystemIdleTime() * 1_000,
   });
   invocationRunner = new InvocationRunner({
     trustStateRoot: app.getPath("userData"),
@@ -492,6 +506,8 @@ app.whenReady().then(async () => {
   });
   workspaceNotesService = new WorkspaceNotesService({
     getWorkspaceModel: () => workspaceModel,
+    getRuntimeRoot: () => resolveRuntimeRoot(),
+    derivedIndex: foregroundDerivedIndex,
   });
   commandServerLifecycle = new CommandServerLifecycle({
     runtimeRoot: resolveRuntimeRoot(),
@@ -511,6 +527,7 @@ app.whenReady().then(async () => {
   registerIpcHandlers();
   broadcastTerminalData();
   workspaceWatcherService.start(workspaceModel);
+  indexingService.scheduleReconciliation("startup", 0);
   appLifecycle.createWindow();
   appLifecycle.setupTray();
   void commandServerLifecycle.start().catch((error) => {
@@ -553,10 +570,28 @@ function resolveRuntimeRoot(): string {
   return path.join(workspaceRoot, ".exo");
 }
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  const mainWindow = appLifecycle?.getMainWindow();
+  if (!quitFlushComplete && mainWindow && !mainWindow.isDestroyed() && appLifecycle.isRendererReady()) {
+    event.preventDefault();
+    if (quitFlushStarted) return;
+    quitFlushStarted = true;
+    void Promise.race([
+      mainWindow.webContents.executeJavaScript("globalThis.__exoFlushDirtyDocuments?.()", true),
+      new Promise((resolve) => setTimeout(resolve, 5_000)),
+    ]).catch((error) => {
+      logMain("renderer document flush failed during quit", serializeError(error));
+    }).finally(() => {
+      quitFlushComplete = true;
+      appLifecycle.prepareToQuit();
+      app.quit();
+    });
+    return;
+  }
   appLifecycle?.prepareToQuit();
   void commandServerLifecycle?.stop();
   workspaceWatcherService?.stop();
+  indexingService?.dispose();
 });
 
 app.on("window-all-closed", () => {

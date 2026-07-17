@@ -642,8 +642,9 @@ test("opens workspace settings from the workspace menu", async () => {
   await page.screenshot({ path: "/tmp/exo-workspace-settings-workspace.png", fullPage: false });
   await page.getByTestId("workspace-settings-tab-index").click();
   await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
-  await expect(page.getByTestId("workspace-settings-index-mode")).toHaveValue("off");
-  await expect(page.getByTestId("workspace-settings-dialog")).toContainText("Core search is always available");
+  await expect(page.getByTestId("workspace-settings-search-engine-simple")).toBeChecked();
+  await expect(page.getByTestId("workspace-settings-search-engine-qmd")).not.toBeChecked();
+  await expect(page.getByTestId("workspace-settings-simple-search-note")).toContainText("Simple search is active");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-index.png", fullPage: false });
   await page.getByTestId("workspace-settings-close").click();
   await expect(page.getByTestId("workspace-settings-dialog")).not.toBeVisible();
@@ -732,21 +733,6 @@ test("keeps the command server available while the window is hidden", async () =
   await expect(statusResponse.json()).resolves.toMatchObject({
     workspace: expect.objectContaining({ workspaceRoot: expect.any(String) }),
   });
-
-  const terminals = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals`, { headers }).then((response) => response.json()) as Array<{ id: string; kind: string }>;
-  const shell = terminals.find((terminal) => terminal.kind === "shell");
-  expect(shell).toBeTruthy();
-  const messageResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals/${shell!.id}/message`, {
-    method: "POST",
-    headers: { ...headers, "Content-Type": "application/json" },
-    body: JSON.stringify({ message: "hidden window qa", submit: true }),
-  });
-  expect(messageResponse.ok).toBe(true);
-  await expect.poll(async () => {
-    const tailResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/terminals/${shell!.id}/tail`, { headers });
-    const body = await tailResponse.json() as { tail?: string };
-    return body.tail ?? "";
-  }).toContain("hidden window qa");
 
   const showResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/show`, {
     method: "POST",

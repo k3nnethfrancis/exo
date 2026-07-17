@@ -16,6 +16,12 @@ import type {
 type QmdModule = typeof import("@tobilu/qmd");
 type QmdStore = Awaited<ReturnType<QmdModule["createStore"]>>;
 
+interface QmdEmbedOptions {
+  maxDocuments?: number;
+  maxDocsPerBatch?: number;
+  maxDurationMs?: number;
+}
+
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_CONTENT_LINES = 80;
 const QMD_DIRECTORY_NAME = "qmd";
@@ -58,8 +64,8 @@ export class QmdSearchProvider implements SearchProvider {
     return updateIndex(model, runtimeRoot, options);
   }
 
-  embed(model: WorkspaceModel, runtimeRoot: string): Promise<IndexStatus> {
-    return embedIndex(model, runtimeRoot);
+  embed(model: WorkspaceModel, runtimeRoot: string, options?: QmdEmbedOptions): Promise<IndexStatus> {
+    return embedIndex(model, runtimeRoot, options);
   }
 
   sync(model: WorkspaceModel, runtimeRoot: string): Promise<IndexSyncResult> {
@@ -160,7 +166,7 @@ async function updateIndex(model: WorkspaceModel, runtimeRoot: string, options: 
   return getIndexStatus(model, runtimeRoot);
 }
 
-async function embedIndex(model: WorkspaceModel, runtimeRoot: string): Promise<IndexStatus> {
+async function embedIndex(model: WorkspaceModel, runtimeRoot: string, options?: QmdEmbedOptions): Promise<IndexStatus> {
   ensureIndexEnabled(model);
   if (model.indexing.mode === "lexical") {
     throw new Error("Embedding is disabled in lexical mode.");
@@ -169,7 +175,7 @@ async function embedIndex(model: WorkspaceModel, runtimeRoot: string): Promise<I
   let store: QmdStore | null = null;
   try {
     store = await openQmdStore(model, runtimeRoot);
-    await store.embed();
+    await store.embed(options);
   } finally {
     await store?.close();
   }

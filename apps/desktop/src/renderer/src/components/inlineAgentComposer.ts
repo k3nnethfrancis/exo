@@ -9,7 +9,7 @@ export interface InlineAgentDraft {
   documentBody: string;
 }
 
-interface ComposerState {
+export interface ComposerState {
   id: number;
   handle: string;
   from: number;
@@ -49,22 +49,36 @@ const composerState = StateField.define<ComposerState | null>({
     }
     return next;
   },
-  provide: (field) => EditorView.decorations.from(field, (composer) => {
-    if (!composer) return Decoration.none;
-    return Decoration.set([
-      Decoration.mark({
-        class: `inline-agent-composer__mark inline-agent-composer__mark--${agentPresentation(composer.handle)}`,
-      }).range(composer.from, composer.to),
-      Decoration.mark({
-        class: `inline-agent-composer__mention inline-agent-composer__mention--${agentPresentation(composer.handle)}`,
-      }).range(composer.from, composer.messageFrom),
-      Decoration.widget({
-        widget: new InlineAgentAffordanceWidget(composer),
-        side: 1,
-      }).range(composer.to),
-    ]);
-  }),
 });
+
+const composerDecorations = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(value, transaction) {
+    let next = value.map(transaction.changes);
+    for (const effect of transaction.effects) {
+      if (effect.is(openComposer)) next = decorationsForComposer(effect.value);
+      if (effect.is(closeComposer)) next = Decoration.none;
+    }
+    return next;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+function decorationsForComposer(composer: ComposerState): DecorationSet {
+  return Decoration.set([
+    Decoration.mark({
+      class: `inline-agent-composer__mark inline-agent-composer__mark--${agentPresentation(composer.handle)}`,
+      inclusiveEnd: true,
+    }).range(composer.from, composer.to),
+    Decoration.mark({
+      class: `inline-agent-composer__mention inline-agent-composer__mention--${agentPresentation(composer.handle)}`,
+    }).range(composer.from, composer.messageFrom),
+    Decoration.widget({
+      widget: new InlineAgentAffordanceWidget(composer),
+      side: 1,
+    }).range(composer.to),
+  ]);
+}
 
 const persistedInvocationDecorations = StateField.define<DecorationSet>({
   create(state) { return invocationDecorations(state); },
@@ -116,6 +130,7 @@ export function inlineAgentComposerExtension(options: {
 }): Extension {
   return [
     composerState,
+    composerDecorations,
     ...(options.renderPersistedInvocations === false ? [] : [persistedInvocationDecorations]),
     composerCallbackFacet.of(options.onSend),
     Prec.highest(keymap.of([
@@ -193,13 +208,13 @@ function closeInlineAgentComposer(view: EditorView): boolean {
   return true;
 }
 
-class InlineAgentAffordanceWidget extends WidgetType {
+export class InlineAgentAffordanceWidget extends WidgetType {
   constructor(private readonly composer: ComposerState) {
     super();
   }
 
   eq(other: InlineAgentAffordanceWidget): boolean {
-    return this.composer.id === other.composer.id && this.composer.to === other.composer.to;
+    return this.composer.id === other.composer.id && this.composer.handle === other.composer.handle;
   }
 
   toDOM(view: EditorView): HTMLElement {

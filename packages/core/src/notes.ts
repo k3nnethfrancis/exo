@@ -70,19 +70,29 @@ export async function saveWorkspaceDocument(
 export function extractWikilinks(body: string): WikilinkReference[] {
   return Array.from(body.matchAll(WIKILINK_PATTERN)).map((match) => {
     const target = match[1].trim();
-    return { label: target, target };
+    const from = match.index ?? 0;
+    return { label: target, target, sourceRange: { from, to: from + match[0].length } };
   });
 }
 
 export function extractMarkdownLinks(body: string): MarkdownLinkReference[] {
-  return Array.from(body.matchAll(MARKDOWN_LINK_PATTERN)).map((match) => ({
-    label: match[1].trim(),
-    target: match[2].trim(),
-  }));
+  return Array.from(body.matchAll(MARKDOWN_LINK_PATTERN)).map((match) => {
+    const from = match.index ?? 0;
+    return {
+      label: match[1].trim(),
+      target: match[2].trim(),
+      sourceRange: { from, to: from + match[0].length },
+    };
+  });
 }
 
 export function extractTags(body: string, frontmatter: Record<string, unknown>): TagReference[] {
-  const bodyTags = Array.from(body.matchAll(TAG_PATTERN)).map((match) => match[2]);
+  const bodyTags = Array.from(body.matchAll(TAG_PATTERN)).map((match) => {
+    const hashOffset = match[0].lastIndexOf("#");
+    const from = (match.index ?? 0) + hashOffset;
+    const sourceRange = { from, to: from + match[2].length + 1 };
+    return { tag: match[2], source: "body" as const, sourceRange, occurrences: [{ source: "body" as const, sourceRange }] };
+  });
   const frontmatterTags = Array.isArray(frontmatter.tags)
     ? frontmatter.tags.filter((tag): tag is string => typeof tag === "string")
     : typeof frontmatter.tags === "string"
@@ -92,8 +102,19 @@ export function extractTags(body: string, frontmatter: Record<string, unknown>):
           .filter(Boolean)
       : [];
 
-  const tags = Array.from(new Set([...frontmatterTags, ...bodyTags])).sort();
-  return tags.map((tag) => ({ tag }));
+  const tags = new Map<string, TagReference>();
+  for (const tag of frontmatterTags) {
+    const existing = tags.get(tag);
+    const occurrence = { source: "frontmatter" as const };
+    if (existing) tags.set(tag, { ...existing, occurrences: [...existing.occurrences, occurrence] });
+    else tags.set(tag, { tag, source: "frontmatter", occurrences: [occurrence] });
+  }
+  for (const item of bodyTags) {
+    const existing = tags.get(item.tag);
+    if (existing) tags.set(item.tag, { ...existing, occurrences: [...existing.occurrences, ...item.occurrences] });
+    else tags.set(item.tag, item);
+  }
+  return [...tags.values()].sort((left, right) => left.tag.localeCompare(right.tag));
 }
 
 function isMarkdownPath(filePath: string): boolean {

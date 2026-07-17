@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { WorkspaceModel, WorkspaceSettings } from "@exo/core";
+import type { IndexStatus, WorkspaceModel, WorkspaceSettings } from "@exo/core";
+import type { DerivedIndexClient } from "./derived-index-process";
+import type { AutoEmbeddingPolicy } from "./indexing-auto-scheduler";
 import { IndexingService } from "./indexing-service";
 
 vi.mock("electron", () => ({
@@ -15,26 +17,29 @@ vi.mock("electron", () => ({
 }));
 
 describe("IndexingService", () => {
-  it("detects settings changes that require a full sync", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("detects settings changes that require root reconciliation", () => {
     const settings = workspaceSettings();
     const service = indexingService(settings);
 
-    expect(service.shouldSyncAfterSettingsApply(settings, settings)).toBe(false);
-    expect(service.shouldSyncAfterSettingsApply(settings, {
+    expect(service.shouldReconcileAfterSettingsApply(settings, settings)).toBe(false);
+    expect(service.shouldReconcileAfterSettingsApply(settings, {
       ...settings,
       indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
     })).toBe(true);
-    expect(service.shouldSyncAfterSettingsApply(settings, {
+    expect(service.shouldReconcileAfterSettingsApply(settings, {
       ...settings,
       indexedRoots: [{ ...settings.indexedRoots[0], path: "/workspace/notes/other" }],
     })).toBe(true);
-    expect(service.shouldSyncAfterSettingsApply(settings, {
+    expect(service.shouldReconcileAfterSettingsApply(settings, {
       ...settings,
       indexing: { enabled: false, mode: "off", backend: "qmd" },
       indexedRoots: [],
     })).toBe(false);
-    expect(service.shouldSyncAfterSettingsApply(settings, { ...settings, searchEngine: "filesystem" })).toBe(false);
-    expect(service.shouldSyncAfterSettingsApply({ ...settings, searchEngine: "filesystem" }, settings)).toBe(true);
+    expect(service.shouldReconcileAfterSettingsApply(settings, { ...settings, searchEngine: "filesystem" })).toBe(false);
+    expect(service.shouldReconcileAfterSettingsApply({ ...settings, searchEngine: "filesystem" }, settings)).toBe(true);
+    expect(service.shouldReconcileAfterSettingsApply({ ...settings, indexUpdateStrategy: "manual" }, settings)).toBe(true);
   });
 
   it("saves specific indexed roots and refuses broad system roots by default", async () => {
@@ -59,13 +64,305 @@ describe("IndexingService", () => {
       kind: "notes",
     });
   });
+
+  it("refreshes changed roots without rebuilding embeddings for hybrid on-save indexing", async () => {
+    vi.useFakeTimers();
+    const settings = workspaceSettings();
+    settings.indexing = { enabled: true, mode: "hybrid", backend: "qmd" };
+    const maintenance = derivedIndexClient();
+    const service = indexingService(settings, undefined, maintenance);
+
+    service.scheduleForFile("/workspace/notes/daily.md", "note-save");
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(maintenance.update).toHaveBeenCalledWith(
+      expect.objectContaining({ indexing: expect.objectContaining({ mode: "hybrid" }) }),
+      "/workspace/.exo",
+      ["index-notes"],
+    );
+    expect(maintenance.sync).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  it("waits for save quiet and system idle before running one bounded automatic slice", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const settings = workspaceSettings();
+    settings.indexing = { enabled: true, mode: "hybrid", backend: "qmd" };
+    const maintenance = derivedIndexClient();
+    vi.mocked(maintenance.update).mockResolvedValue(indexStatus(1));
+    vi.mocked(maintenance.embed).mockResolvedValue(indexStatus(0));
+    let systemIdleTimeMs = 0;
+    const service = indexingService(settings, undefined, maintenance, derivedIndexClient(), {
+      getSystemIdleTimeMs: () => systemIdleTimeMs,
+    });
+
+    service.scheduleForFile("/workspace/notes/daily.md", "note-save");
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(maintenance.embed).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(29_999);
+    expect(maintenance.embed).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(maintenance.embed).not.toHaveBeenCalled();
+
+    systemIdleTimeMs = 10_000;
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(maintenance.embed).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(maintenance.embed).toHaveBeenCalledWith(
+      expect.objectContaining({ indexing: expect.objectContaining({ mode: "hybrid" }) }),
+      "/workspace/.exo",
+      { maxDocuments: 4, maxDocsPerBatch: 1, maxDurationMs: 15_000 },
+    );
+    service.dispose();
+  });
+
+  it("coalesces rapid saves into one root refresh", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const settings = workspaceSettings();
+    const maintenance = derivedIndexClient();
+    vi.mocked(maintenance.update).mockResolvedValue(indexStatus(0, "lexical"));
+    const service = indexingService(settings, undefined, maintenance);
+
+    service.scheduleForFile("/workspace/notes/first.md", "first-save");
+    await vi.advanceTimersByTimeAsync(5_000);
+    service.scheduleForFile("/workspace/notes/second.md", "second-save");
+    await vi.advanceTimersByTimeAsync(5_000);
+    service.scheduleForFile("/workspace/notes/third.md", "third-save");
+    await vi.advanceTimersByTimeAsync(14_999);
+    expect(maintenance.update).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(maintenance.update).toHaveBeenCalledTimes(1);
+    service.dispose();
+  });
+
+  it("runs exactly one follow-up refresh when another save becomes due in flight", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const settings = workspaceSettings();
+    const first = deferred<IndexStatus>();
+    const maintenance = derivedIndexClient();
+    vi.mocked(maintenance.update)
+      .mockImplementationOnce(() => first.promise)
+      .mockResolvedValue(indexStatus(0, "lexical"));
+    const service = indexingService(settings, undefined, maintenance);
+
+    service.scheduleForFile("/workspace/notes/first.md", "first-save");
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(maintenance.update).toHaveBeenCalledTimes(1);
+
+    service.scheduleForFile("/workspace/notes/second.md", "second-save");
+    service.scheduleForFile("/workspace/notes/third.md", "third-save");
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(maintenance.update).toHaveBeenCalledTimes(1);
+
+    first.resolve(indexStatus(0, "lexical"));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(maintenance.update).toHaveBeenCalledTimes(2);
+    expect(maintenance.update).toHaveBeenLastCalledWith(
+      expect.anything(),
+      "/workspace/.exo",
+      ["index-notes"],
+    );
+    service.dispose();
+  });
+
+  it.each([
+    { name: "lexical mode", mode: "lexical" as const, strategy: "on-save" as const, pending: 1, updates: 1 },
+    { name: "Manual only", mode: "hybrid" as const, strategy: "manual" as const, pending: 1, updates: 0 },
+    { name: "zero pending", mode: "hybrid" as const, strategy: "on-save" as const, pending: 0, updates: 1 },
+    { name: "over-cap backlog", mode: "hybrid" as const, strategy: "on-save" as const, pending: 5, updates: 1 },
+  ])("does not automatically embed for $name", async ({ mode, strategy, pending, updates }) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const settings = workspaceSettings();
+    settings.indexing = { enabled: true, mode, backend: "qmd" };
+    settings.indexUpdateStrategy = strategy;
+    const maintenance = derivedIndexClient();
+    vi.mocked(maintenance.update).mockResolvedValue(indexStatus(pending, mode));
+    const service = indexingService(settings, undefined, maintenance, derivedIndexClient(), {
+      getSystemIdleTimeMs: () => 120_000,
+    });
+
+    service.scheduleForFile("/workspace/notes/daily.md", "note-save");
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(maintenance.update).toHaveBeenCalledTimes(updates);
+    expect(maintenance.embed).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
+  it("keeps explicit embed and sync unbounded", async () => {
+    const settings = workspaceSettings();
+    settings.indexing = { enabled: true, mode: "hybrid", backend: "qmd" };
+    settings.indexUpdateStrategy = "manual";
+    const maintenance = derivedIndexClient();
+    vi.mocked(maintenance.embed).mockResolvedValue(indexStatus(0));
+    const service = indexingService(settings, undefined, maintenance);
+
+    await service.embed("settings");
+    await service.runSync("settings");
+
+    expect(maintenance.embed).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo");
+    expect(maintenance.sync).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo");
+    service.dispose();
+  });
+
+  it("uses foreground filesystem search and cached status while maintenance is active", async () => {
+    const settings = workspaceSettings();
+    settings.indexing = { enabled: true, mode: "hybrid", backend: "qmd" };
+    settings.indexUpdateStrategy = "manual";
+    const held = deferred<IndexStatus>();
+    const maintenance = derivedIndexClient();
+    vi.mocked(maintenance.embed).mockImplementationOnce(() => held.promise);
+    const foreground = derivedIndexClient();
+    const service = indexingService(settings, undefined, maintenance, foreground);
+
+    const embedding = service.embed("settings");
+    await Promise.resolve();
+    const result = await service.search("needle");
+    const status = await service.getMeasuredStatus();
+
+    expect(foreground.search).toHaveBeenCalledWith(
+      expect.objectContaining({ searchEngine: "filesystem" }),
+      "/workspace/.exo",
+      "needle",
+      {},
+    );
+    expect(result.warnings).toContain("Index maintenance is running; showing Simple search results until it completes.");
+    expect(foreground.status).not.toHaveBeenCalled();
+    expect(status.warnings).toContain("Index maintenance is running; showing the last available index status until it finishes.");
+
+    held.resolve(indexStatus(0));
+    await embedding;
+    service.dispose();
+  });
+
+  it("retries no-progress slices with backoff and cools down between successful slices", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const settings = workspaceSettings();
+    settings.indexing = { enabled: true, mode: "hybrid", backend: "qmd" };
+    const maintenance = derivedIndexClient();
+    vi.mocked(maintenance.update).mockResolvedValue(indexStatus(2));
+    vi.mocked(maintenance.embed)
+      .mockResolvedValueOnce(indexStatus(2))
+      .mockResolvedValueOnce(indexStatus(1))
+      .mockResolvedValueOnce(indexStatus(0));
+    const retryPolicy: AutoEmbeddingPolicy = {
+      quietPeriodMs: 0,
+      idlePeriodMs: 100,
+      maxPendingEmbeddings: 4,
+      retryBaseDelayMs: 50,
+      retryMaxDelayMs: 50,
+      maxRetryAttempts: 2,
+    };
+    const service = indexingService(settings, undefined, maintenance, derivedIndexClient(), {
+      getSystemIdleTimeMs: () => 10_000,
+      autoEmbeddingPolicy: retryPolicy,
+    });
+
+    service.scheduleReconciliation("startup", 0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(maintenance.embed).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(49);
+    expect(maintenance.embed).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(maintenance.embed).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(99);
+    expect(maintenance.embed).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(maintenance.embed).toHaveBeenCalledTimes(3);
+    service.dispose();
+  });
+
+  it("lets a started slice finish while Manual only cancels its future retry", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const settings = workspaceSettings();
+    settings.indexing = { enabled: true, mode: "hybrid", backend: "qmd" };
+    const held = deferred<IndexStatus>();
+    const maintenance = derivedIndexClient();
+    vi.mocked(maintenance.update).mockResolvedValue(indexStatus(1));
+    vi.mocked(maintenance.embed).mockImplementationOnce(() => held.promise);
+    const immediatePolicy: AutoEmbeddingPolicy = {
+      quietPeriodMs: 0,
+      idlePeriodMs: 0,
+      maxPendingEmbeddings: 4,
+      retryBaseDelayMs: 50,
+      retryMaxDelayMs: 50,
+      maxRetryAttempts: 2,
+    };
+    const service = indexingService(settings, undefined, maintenance, derivedIndexClient(), {
+      getSystemIdleTimeMs: () => 10_000,
+      autoEmbeddingPolicy: immediatePolicy,
+    });
+
+    service.scheduleReconciliation("startup", 0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(maintenance.embed).toHaveBeenCalledTimes(1);
+
+    settings.indexUpdateStrategy = "manual";
+    service.applyCurrentAutomaticPolicy();
+    expect(maintenance.dispose).not.toHaveBeenCalled();
+    held.reject(new Error("model unavailable"));
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(maintenance.embed).toHaveBeenCalledTimes(1);
+    service.dispose();
+  });
+
+  it("reconciles roots through update-only startup work and disposes both clients and timers", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const settings = workspaceSettings();
+    settings.indexing = { enabled: true, mode: "hybrid", backend: "qmd" };
+    const maintenance = derivedIndexClient();
+    vi.mocked(maintenance.update).mockResolvedValue(indexStatus(0));
+    const foreground = derivedIndexClient();
+    const service = indexingService(settings, undefined, maintenance, foreground, {
+      getSystemIdleTimeMs: () => 60_000,
+    });
+
+    service.scheduleReconciliation("startup", 0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(maintenance.update).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo", ["index-notes"]);
+    expect(maintenance.sync).not.toHaveBeenCalled();
+
+    service.scheduleForFile("/workspace/notes/later.md", "note-save");
+    service.dispose();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(maintenance.update).toHaveBeenCalledTimes(1);
+    expect(maintenance.dispose).toHaveBeenCalledOnce();
+    expect(foreground.dispose).toHaveBeenCalledOnce();
+  });
 });
 
 function indexingService(
   settings: WorkspaceSettings,
   saveWorkspaceSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings> = async (nextSettings) => nextSettings,
+  maintenanceDerivedIndex: DerivedIndexClient = derivedIndexClient(),
+  foregroundDerivedIndex: DerivedIndexClient = derivedIndexClient(),
+  options: { getSystemIdleTimeMs?: () => number; autoEmbeddingPolicy?: AutoEmbeddingPolicy } = {},
 ) {
-  const model: WorkspaceModel = {
+  return new IndexingService({
+    getWorkspaceModel: () => workspaceModel(settings),
+    getCurrentSettings: () => settings,
+    getRuntimeRoot: () => "/workspace/.exo",
+    saveWorkspaceSettings,
+    sendState: () => {},
+    errorMessage: (error) => error instanceof Error ? error.message : String(error),
+    foregroundDerivedIndex,
+    maintenanceDerivedIndex,
+    now: () => Date.now(),
+    getSystemIdleTimeMs: options.getSystemIdleTimeMs,
+    autoEmbeddingPolicy: options.autoEmbeddingPolicy,
+  });
+}
+
+function workspaceModel(settings: WorkspaceSettings): WorkspaceModel {
+  return {
     workspaceRoot: settings.workspaceRoot,
     defaultTerminalCwd: settings.defaultTerminalCwd,
     noteRoots: settings.noteRoots.map((root, index) => ({ id: `note-${index + 1}`, label: `note-${index + 1}`, path: root })),
@@ -73,14 +370,53 @@ function indexingService(
     indexing: settings.indexing,
     searchEngine: settings.searchEngine,
   };
-  return new IndexingService({
-    getWorkspaceModel: () => model,
-    getCurrentSettings: () => settings,
-    getRuntimeRoot: () => "/workspace/.exo",
-    saveWorkspaceSettings,
-    sendState: () => {},
-    errorMessage: (error) => error instanceof Error ? error.message : String(error),
+}
+
+function derivedIndexClient(): DerivedIndexClient {
+  const status = indexStatus();
+  return {
+    status: vi.fn(async () => status),
+    search: vi.fn(async () => ({
+      results: [], query: "", intent: "", mode: "hybrid" as const,
+      source: "qmd" as const, provider: "qmd" as const, warnings: [],
+    })),
+    update: vi.fn(async () => status),
+    embed: vi.fn(async () => status),
+    sync: vi.fn(async () => ({ status, phases: [], warnings: [] })),
+    graphContext: vi.fn(async () => null),
+    graphView: vi.fn(async () => { throw new Error("graph view is not used by indexing tests"); }),
+    graphConceptDetail: vi.fn(async () => null),
+    graphRefresh: vi.fn(async () => {}),
+    graphInvalidate: vi.fn(async () => {}),
+    dispose: vi.fn(),
+  };
+}
+
+function indexStatus(pendingEmbeddings = 1, mode: IndexStatus["mode"] = "hybrid"): IndexStatus {
+  return {
+    enabled: true,
+    mode,
+    backend: "qmd",
+    dbPath: "/workspace/.exo/qmd/index.sqlite",
+    runtimePath: "/workspace/.exo/qmd",
+    indexedRoots: workspaceSettings().indexedRoots,
+    documentCount: 1,
+    pendingEmbeddings,
+    hasVectorIndex: true,
+    lastUpdated: null,
+    warnings: [],
+    errors: [],
+  };
+}
+
+function deferred<Value>() {
+  let resolve!: (value: Value) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<Value>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
   });
+  return { promise, resolve, reject };
 }
 
 function workspaceSettings(): WorkspaceSettings {

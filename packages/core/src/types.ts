@@ -96,7 +96,7 @@ export interface WorkspacePaneSplit {
   children: [WorkspacePaneNode, WorkspacePaneNode];
 }
 
-export type WorkspacePaneContent = WorkspaceEditorPaneContent | WorkspaceTerminalPaneContent | WorkspaceBrowserPaneContent;
+export type WorkspacePaneContent = WorkspaceEditorPaneContent | WorkspaceTerminalPaneContent | WorkspaceBrowserPaneContent | WorkspaceGraphPaneContent;
 
 export interface WorkspaceEditorPaneContent {
   kind: "editor";
@@ -113,6 +113,10 @@ export interface WorkspaceTerminalPaneContent {
 export interface WorkspaceBrowserPaneContent {
   kind: "browser";
   url: string;
+}
+
+export interface WorkspaceGraphPaneContent {
+  kind: "graph";
 }
 
 export interface TreeNode {
@@ -151,15 +155,23 @@ export interface NoteDocument {
 export interface WikilinkReference {
   label: string;
   target: string;
+  sourceRange: { from: number; to: number };
 }
 
 export interface MarkdownLinkReference {
   label: string;
   target: string;
+  sourceRange: { from: number; to: number };
 }
 
 export interface TagReference {
   tag: string;
+  source: "body" | "frontmatter";
+  sourceRange?: { from: number; to: number };
+  occurrences: ReadonlyArray<{
+    source: "body" | "frontmatter";
+    sourceRange?: { from: number; to: number };
+  }>;
 }
 
 export interface SearchResult {

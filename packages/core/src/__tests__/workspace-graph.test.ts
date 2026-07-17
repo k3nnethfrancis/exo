@@ -1,8 +1,9 @@
+import { writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { WorkspaceGraph } from "../workspace-graph";
+import { WorkspaceGraph, workspaceNoteId } from "../workspace-graph";
 import type { WorkspaceModel } from "../types";
 
 const roots: string[] = [];
@@ -38,6 +39,157 @@ describe("WorkspaceGraph", () => {
     expect(context?.backlinks).toEqual([
       expect.objectContaining({ label: "Related Note", target: path.join(notes, "related.md") }),
     ]);
+  });
+
+  it("refreshes only the changed note in an existing snapshot", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    const focusPath = path.join(notes, "focus.md");
+    const firstTargetPath = path.join(notes, "first.md");
+    const secondTargetPath = path.join(notes, "second.md");
+    const unrelatedPath = path.join(notes, "unrelated.md");
+    await writeFile(focusPath, "# Focus\n\n[[first]]\n");
+    await writeFile(firstTargetPath, "# First\n");
+    await writeFile(secondTargetPath, "# Second\n");
+    await writeFile(unrelatedPath, "# Unrelated\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+
+    expect((await graph.contextForNote(focusPath))?.outgoing[0]?.note?.filePath).toBe(firstTargetPath);
+    await rm(unrelatedPath);
+    await writeFile(focusPath, "# Focus\n\n[[second]]\n");
+
+    await graph.refreshFile(focusPath);
+
+    expect((await graph.contextForNote(focusPath))?.outgoing[0]?.note?.filePath).toBe(secondTargetPath);
+    expect(await graph.contextForNote(unrelatedPath)).not.toBeNull();
+    await expect(graph.status()).resolves.toMatchObject({ state: "ready", noteCount: 4 });
+  });
+
+  it("applies a file refresh that arrives while a rebuild is in flight", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    const focusPath = path.join(notes, "focus.md");
+    const targetPath = path.join(notes, "target.md");
+    await writeFile(focusPath, "# Focus\n");
+    await writeFile(targetPath, "# Target\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+    await graph.contextForNote(focusPath);
+
+    const rebuild = graph.rebuild();
+    await expect(graph.status()).resolves.toMatchObject({ state: "building" });
+    writeFileSync(focusPath, "# Focus\n\n[[target]]\n", "utf8");
+    const refresh = graph.refreshFile(focusPath);
+    await Promise.all([rebuild, refresh]);
+
+    expect((await graph.contextForNote(focusPath))?.outgoing[0]?.note?.filePath).toBe(targetPath);
+    await expect(graph.status()).resolves.toMatchObject({ state: "ready", noteCount: 2 });
+  });
+
+  it("projects open concepts, lossless properties, authored evidence, and deterministic identity", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    await writeFile(
+      path.join(notes, "metric.md"),
+      [
+        "---",
+        "title: Activation",
+        "type: [Metric, NorthStar]",
+        "unknown:",
+        "  nested:",
+        "    - keep",
+        "    - 7",
+        "tags: [growth]",
+        "---",
+        "",
+        "[[source]] [[missing]]",
+      ].join("\n"),
+    );
+    await writeFile(path.join(notes, "source.md"), "---\ntype: Evidence\n---\n# Source\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+
+    const snapshot = await graph.knowledgeSnapshot();
+    const second = await graph.knowledgeSnapshot();
+    const metric = snapshot.concepts.find((concept) => concept.label === "Activation");
+
+    expect(snapshot.version).toBe("0.2");
+    expect(snapshot.snapshotId).toBe(second.snapshotId);
+    expect(metric).toMatchObject({
+      conceptTypes: ["Metric", "NorthStar"],
+      properties: { unknown: { nested: ["keep", 7] } },
+    });
+    expect(snapshot.concepts).toContainEqual(expect.objectContaining({ id: "tag:growth", conceptTypes: ["tag"] }));
+    expect(snapshot.relations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        family: "link",
+        authority: "authored",
+        resolution: "resolved",
+        evidence: [expect.objectContaining({ kind: "source-span", detail: "source" })],
+      }),
+      expect.objectContaining({ family: "tag-membership", predicate: "has-tag", authority: "authored" }),
+    ]));
+    expect(snapshot.findings).toContainEqual(expect.objectContaining({ code: "relation.unresolved" }));
+  });
+
+  it("interprets OKF permissively while reporting its missing type requirement", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    await writeFile(path.join(notes, "typed.md"), "---\ntype: CustomThing\nproducer_field: keep\n---\n# Typed\n");
+    await writeFile(path.join(notes, "untyped.md"), "---\nunknown: survives\n---\n# Untyped\n");
+
+    const snapshot = await new WorkspaceGraph(model(workspace, notes)).knowledgeSnapshot("okf");
+
+    expect(snapshot.activeProfile).toMatchObject({ id: "okf", version: "0.1" });
+    expect(snapshot.concepts.find((concept) => concept.label === "Typed")?.properties).toMatchObject({ producer_field: "keep" });
+    expect(snapshot.findings).toContainEqual(expect.objectContaining({ code: "okf.missing-type", conceptIds: ["note:notes:untyped.md"] }));
+  });
+
+  it("preserves stable relation identity when a different link is inserted earlier", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    const sourcePath = path.join(notes, "source.md");
+    await writeFile(path.join(notes, "other.md"), "# Other\n");
+    await writeFile(path.join(notes, "target.md"), "# Target\n");
+    await writeFile(sourcePath, "[[target]]\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+    const before = await graph.knowledgeSnapshot();
+    const relationBefore = before.relations.find((relation) => relation.target.endsWith(":target.md"));
+
+    await writeFile(sourcePath, "[[other]]\n[[target]]\n");
+    await graph.refreshFile(sourcePath);
+    const after = await graph.knowledgeSnapshot();
+    const relationAfter = after.relations.find((relation) => relation.target.endsWith(":target.md"));
+
+    expect(relationAfter?.id).toBe(relationBefore?.id);
+  });
+
+  it("preserves path case in concept identity", () => {
+    expect(workspaceNoteId("notes", "Folder/Foo.md")).not.toBe(workspaceNoteId("notes", "folder/foo.md"));
+  });
+
+  it("rejects concept detail from a stale graph epoch", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    const notePath = path.join(notes, "focus.md");
+    await writeFile(notePath, "# Focus\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+    const first = await graph.graphView();
+    const conceptId = first.projection.nodes[0]?.id ?? "";
+    await writeFile(notePath, "# Changed\n");
+    await graph.refreshFile(notePath);
+
+    await expect(graph.graphConceptDetail(conceptId, first.projection.sourceSnapshotId)).resolves.toBeNull();
   });
 });
 

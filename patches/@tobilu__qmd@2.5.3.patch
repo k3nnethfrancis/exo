@@ -1,0 +1,126 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 937f9d24d2f9718f9b22211a8fad79bd7c00cbea..da1837db4f365ffc8a3150a0eb87b20bbd4daf3c 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -192,6 +192,10 @@ export interface QMDStore {
+         collection?: string;
+         maxDocsPerBatch?: number;
+         maxBatchBytes?: number;
++        /** Maximum number of pending documents to process in this call. */
++        maxDocuments?: number;
++        /** Maximum duration of the embedding session in milliseconds. */
++        maxDurationMs?: number;
+         chunkStrategy?: ChunkStrategy;
+         onProgress?: (info: EmbedProgress) => void;
+     }): Promise<EmbedResult>;
+diff --git a/dist/index.js b/dist/index.js
+index 7f2580e2c4bf3d31214efbbde4906b0baeae9a7e..f5e231fb113a2b2512e902763abf24a655e8fc09 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -222,6 +222,8 @@ export async function createStore(options) {
+                 collection: embedOpts?.collection,
+                 maxDocsPerBatch: embedOpts?.maxDocsPerBatch,
+                 maxBatchBytes: embedOpts?.maxBatchBytes,
++                maxDocuments: embedOpts?.maxDocuments,
++                maxDurationMs: embedOpts?.maxDurationMs,
+                 chunkStrategy: embedOpts?.chunkStrategy,
+                 onProgress: embedOpts?.onProgress,
+             });
+diff --git a/dist/store.d.ts b/dist/store.d.ts
+index 740a4f24a1ba9e4b3f2fcf18170413d39f0b8b35..3b189f7ed714ef44ca43f229bd9c8086c114f6b9 100644
+--- a/dist/store.d.ts
++++ b/dist/store.d.ts
+@@ -363,6 +363,10 @@ export type EmbedOptions = {
+     collection?: string;
+     maxDocsPerBatch?: number;
+     maxBatchBytes?: number;
++    /** Maximum number of pending documents to process in this call. */
++    maxDocuments?: number;
++    /** Maximum duration of the embedding session in milliseconds. */
++    maxDurationMs?: number;
+     chunkStrategy?: ChunkStrategy;
+     onProgress?: (info: EmbedProgress) => void;
+ };
+@@ -771,8 +775,8 @@ export declare function clearAllEmbeddings(db: Database, collection?: string): v
+  * Insert a single embedding into both content_vectors and vectors_vec tables.
+  * The hash_seq key is formatted as "hash_seq" for the vectors_vec table.
+  *
+- * content_vectors is inserted first so that getHashesForEmbedding (which checks
+- * only content_vectors) won't re-select the hash on a crash between the two inserts.
++ * The metadata and vector rows are published in one transaction so a crash cannot
++ * make an incomplete vector appear finished to the pending-embedding query.
+  *
+  * vectors_vec uses DELETE + INSERT instead of INSERT OR REPLACE because sqlite-vec's
+  * vec0 virtual tables silently ignore the OR REPLACE conflict clause.
+diff --git a/dist/store.js b/dist/store.js
+index 918126323d6ca56ecbadcacff097c3a78938cfe7..631cc178328636a68f20b6ae1e1c17fe860db4c6 100644
+--- a/dist/store.js
++++ b/dist/store.js
+@@ -1034,6 +1034,10 @@ function resolveEmbedOptions(options) {
+     return {
+         maxDocsPerBatch: validatePositiveIntegerOption("maxDocsPerBatch", options?.maxDocsPerBatch, DEFAULT_EMBED_MAX_DOCS_PER_BATCH),
+         maxBatchBytes: validatePositiveIntegerOption("maxBatchBytes", options?.maxBatchBytes, DEFAULT_EMBED_MAX_BATCH_BYTES),
++        maxDocuments: options?.maxDocuments === undefined
++            ? undefined
++            : validatePositiveIntegerOption("maxDocuments", options.maxDocuments, 1),
++        maxDurationMs: validatePositiveIntegerOption("maxDurationMs", options?.maxDurationMs, 30 * 60 * 1000),
+     };
+ }
+ const CONTENT_VECTOR_DESIRED_COLUMNS = [
+@@ -1152,12 +1156,13 @@ export async function generateEmbeddings(store, options) {
+     const model = options?.model ?? llm.embedModelName ?? DEFAULT_EMBED_MODEL;
+     const fingerprint = getEmbeddingFingerprint(model);
+     const now = new Date().toISOString();
+-    const { maxDocsPerBatch, maxBatchBytes } = resolveEmbedOptions(options);
++    const { maxDocsPerBatch, maxBatchBytes, maxDocuments, maxDurationMs } = resolveEmbedOptions(options);
+     const encoder = new TextEncoder();
+     if (options?.force) {
+         clearAllEmbeddings(db, options?.collection);
+     }
+-    const docsToEmbed = getPendingEmbeddingDocs(db, options?.collection, model);
++    const pendingDocs = getPendingEmbeddingDocs(db, options?.collection, model);
++    const docsToEmbed = maxDocuments === undefined ? pendingDocs : pendingDocs.slice(0, maxDocuments);
+     if (docsToEmbed.length === 0) {
+         return { docsProcessed: 0, chunksEmbedded: 0, errors: 0, durationMs: 0 };
+     }
+@@ -1374,7 +1379,7 @@ export async function generateEmbeddings(store, options) {
+             options?.onProgress?.({ chunksEmbedded, totalChunks, bytesProcessed, totalBytes, errors: activeErrorCount(), failures: failureList() });
+         }
+         return { chunksEmbedded, errors: activeErrorCount(), failures: failureList() };
+-    }, { maxDuration: 30 * 60 * 1000, name: 'generateEmbeddings' });
++    }, { maxDuration: maxDurationMs, name: 'generateEmbeddings' });
+     return {
+         docsProcessed: totalDocs,
+         chunksEmbedded: result.chunksEmbedded,
+@@ -2837,8 +2842,8 @@ export function clearAllEmbeddings(db, collection) {
+  * Insert a single embedding into both content_vectors and vectors_vec tables.
+  * The hash_seq key is formatted as "hash_seq" for the vectors_vec table.
+  *
+- * content_vectors is inserted first so that getHashesForEmbedding (which checks
+- * only content_vectors) won't re-select the hash on a crash between the two inserts.
++ * The metadata and vector rows are published in one transaction so a crash cannot
++ * make an incomplete vector appear finished to the pending-embedding query.
+  *
+  * vectors_vec uses DELETE + INSERT instead of INSERT OR REPLACE because sqlite-vec's
+  * vec0 virtual tables silently ignore the OR REPLACE conflict clause.
+@@ -2846,14 +2851,16 @@ export function clearAllEmbeddings(db, collection) {
+ export function insertEmbedding(db, hash, seq, pos, embedding, model, embeddedAt, totalChunks = 1, fingerprint = getEmbeddingFingerprint(model)) {
+     const hashSeq = `${hash}_${seq}`;
+     withLazyContentVectorMigration(db, () => {
+-        // Insert content_vectors first — crash-safe ordering (see getHashesForEmbedding)
+         const insertContentVectorStmt = db.prepare(`INSERT OR REPLACE INTO content_vectors (hash, seq, pos, model, embed_fingerprint, total_chunks, embedded_at) VALUES (?, ?, ?, ?, ?, ?, ?)`);
+-        insertContentVectorStmt.run(hash, seq, pos, model, fingerprint, totalChunks, embeddedAt);
+         // vec0 virtual tables don't support OR REPLACE — use DELETE + INSERT
+         const deleteVecStmt = db.prepare(`DELETE FROM vectors_vec WHERE hash_seq = ?`);
+         const insertVecStmt = db.prepare(`INSERT INTO vectors_vec (hash_seq, embedding) VALUES (?, ?)`);
+-        deleteVecStmt.run(hashSeq);
+-        insertVecStmt.run(hashSeq, embedding);
++        const publishEmbedding = db.transaction(() => {
++            insertContentVectorStmt.run(hash, seq, pos, model, fingerprint, totalChunks, embeddedAt);
++            deleteVecStmt.run(hashSeq);
++            insertVecStmt.run(hashSeq, embedding);
++        });
++        publishEmbedding();
+     });
+ }
+ function removeIncompleteEmbeddings(db, expectedChunksByHash, model) {

@@ -169,6 +169,24 @@ describe("QMD index adapter", () => {
     expect(stores.some((store) => store.embedCalls === 1)).toBe(true);
   });
 
+  it("passes total-work bounds to automatic embedding without changing explicit defaults", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "hybrid");
+
+    await qmdSearchProvider.embed(model, path.join(root, ".exo"), {
+      maxDocuments: 4,
+      maxDocsPerBatch: 1,
+      maxDurationMs: 15_000,
+    });
+    await qmdSearchProvider.embed(model, path.join(root, ".exo"));
+
+    const embeddingStores = stores.filter((store) => store.embedCalls > 0);
+    expect(embeddingStores.map((store) => store.embedOptions[0])).toEqual([
+      { maxDocuments: 4, maxDocsPerBatch: 1, maxDurationMs: 15_000 },
+      undefined,
+    ]);
+  });
+
   it("warns when derived Exo state in a Git workspace is not ignored", async () => {
     const root = await fixtureRoot();
     await mkdir(path.join(root, ".git"));
@@ -297,6 +315,7 @@ class MockStore {
   updateOptions: unknown[] = [];
   updateCalls = 0;
   embedCalls = 0;
+  embedOptions: unknown[] = [];
   getDocumentBodyCalls = 0;
 
   async getStatus() {
@@ -345,8 +364,9 @@ class MockStore {
     this.updateOptions.push(options);
   }
 
-  async embed() {
+  async embed(options?: unknown) {
     this.embedCalls += 1;
+    this.embedOptions.push(options);
   }
 
   async close() {}

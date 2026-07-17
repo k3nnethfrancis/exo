@@ -270,9 +270,14 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("inline-agent-composer")).toHaveCount(1);
     await page.evaluate(() => {
-      const scoped = window as typeof window & { __exoTypingSamples?: number[]; __exoTypingLongTasks?: number[] };
+      const scoped = window as typeof window & {
+        __exoTypingSamples?: number[];
+        __exoTypingLongTasks?: number[];
+        __exoInlineAgentComposerNode?: Element | null;
+      };
       scoped.__exoTypingSamples?.splice(0);
       scoped.__exoTypingLongTasks?.splice(0);
+      scoped.__exoInlineAgentComposerNode = document.querySelector("[data-testid='inline-agent-composer']");
     });
     const invocationText = "agent latency ".repeat(30);
     const invocationStartedAt = performance.now();
@@ -284,9 +289,14 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
         __exoTypingSamples?: number[];
         __exoTypingLongTasks?: number[];
         __exoTypingObserver?: PerformanceObserver;
+        __exoInlineAgentComposerNode?: Element | null;
       };
       scoped.__exoTypingObserver?.disconnect();
-      return { samples: scoped.__exoTypingSamples ?? [], longTasks: scoped.__exoTypingLongTasks ?? [] };
+      return {
+        samples: scoped.__exoTypingSamples ?? [],
+        longTasks: scoped.__exoTypingLongTasks ?? [],
+        composerNodeStable: scoped.__exoInlineAgentComposerNode === document.querySelector("[data-testid='inline-agent-composer']"),
+      };
     });
     const invocationSummary = latencySummary(invocationResult.samples);
     console.info(`Invocation typing latency: ${JSON.stringify({
@@ -300,7 +310,13 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     })}`);
     expect(invocationSummary.p90).toBeLessThanOrEqual(34);
     expect(invocationSummary.p99).toBeLessThanOrEqual(50);
-    expect(invocationResult.longTasks.filter((duration) => duration >= 50)).toEqual([]);
+    const invocationLongTasks = invocationResult.longTasks.filter((duration) => duration >= 50);
+    expect(invocationLongTasks).toEqual([]);
+    expect(invocationResult.composerNodeStable).toBe(true);
+    // 24 ms/character is 41 characters/second: well above human burst typing,
+    // while still catching the prior 25-30 ms/character composer churn.
+    expect(invocationElapsed / invocationText.length).toBeLessThanOrEqual(24);
+    await expect(page.getByTestId("editor-save-status")).toHaveText("Saved", { timeout: 5_000 });
   } finally {
     await cleanup();
   }

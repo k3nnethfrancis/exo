@@ -6,6 +6,14 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Added
 
+- Adds the experimental feature-branch graph-system tracer: an open Knowledge Graph 0.2,
+  Generic Markdown and permissive OKF profiles, evidence-backed utility
+  dimensions, dense renderer-neutral projection, and an interactive Canvas
+  Graph Pane whose semantic construction and finite layout run outside the
+  editor critical path. Canvas projection and painting remain renderer work.
+- Adds automatic semantic catch-up for QMD `On save` indexing: small pending
+  sets run in bounded slices only after Exo is quiet and the system is idle,
+  while `Manual only` remains an explicit pause.
 - Adds Exo-aware inline Command prompts, snapshot-backed inline editor diffs,
   and per-Command Claude context continuity with visible provenance and reset.
 - Adds a focused first-run flow: choose one main wiki, optionally install Exo's Workspace status/search MCP tools into Claude and Codex, then persist editable local invocation commands.
@@ -36,6 +44,17 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Keeps search responsive during index maintenance with separate foreground and
+  maintenance workers, truthful Simple-search fallback, bounded retries, and
+  transactional QMD metadata/vector publication so interrupted writes remain
+  pending instead of appearing complete.
+- Keeps the editor responsive when indexing and graph enrichment overlap: QMD
+  and WorkspaceGraph derived work now run in a restartable utility process,
+  hybrid/semantic saves defer embeddings, graph watcher events update one note,
+  and graph results commit only after editor input goes idle.
+- Stops periodic autosave from interrupting sustained typing, keeps the inline
+  Command widget/decorations stable and incremental, and prevents stale slower
+  note loads from replacing a newer same-pane selection.
 - Stops inherited operator note-root environment variables from skipping the first-run desktop setup; only explicit test fixtures may use that bypass.
 - Distinguishes a headless Command's chat/stdout from the Exo note in the invocation prompt, requires a successful filesystem write for linked responses, and fails stdout-only protocol completions that never reach the document.
 - Starts with an empty editor when no saved layout chooses a note instead of hard-coding an Exo `tasks.md`; restores only user-selected tabs and migrates saved canvas layouts from v2 to the renderer's canonical v3 schema.

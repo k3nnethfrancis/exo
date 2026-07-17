@@ -9,7 +9,12 @@ Exo owns the workspace, exograph, retrieval, mixed-pane canvas, configured Comma
 
 The `refactor/note-native-exo` branch is intentionally simplifying to Note Roots, Markdown, search, Connections, panes, direct terminals, configured Commands, and review. Do not restore retired architecture without an explicit product decision.
 
-Current execution is already underway through Codex work on simplification, legacy deletion, deep-module cleanup, and UI convergence. Preserve those work packages and ownership boundaries. The Folder Index/ontology direction below clarifies the target product; it does not authorize an agent to interrupt current deletion/UI work, expand scope inside another owner's files, or add a new public contract without assignment and review.
+The note-native simplification, Folder Overview, inline invocation, derived-work
+isolation, and isolated graph lab are now established substrate. Current graph
+work must follow `docs/graph-system-report-and-plan.md`: consolidate the knowledge
+model, prove optional profiles and utility on fixtures, then integrate the
+spatial Graph View. Do not import the lab as a third semantics path or add a new
+public contract without assignment and review.
 
 ## Start Here
 
@@ -17,15 +22,16 @@ Current execution is already underway through Codex work on simplification, lega
 2. `tasks.md` - active execution tracker
 3. `CONTEXT.md` - canonical Exo product glossary
 4. `docs/architecture.md` - shipped architecture and retained feature/data-model index
-5. `issues.md` - canonical bug, QA, and field-issue tracker
-6. `README.md` - current product surface and commands
-7. `roadmap.md` - future work only
-8. `ledger.md` - shipped history and reusable substrate
-9. `skills/terminal-stability/SKILL.md` - current direct-PTY invariants and QA rules
-10. `docs/extension-architecture.md` - concrete-seam extension ladder
-11. `docs/public-contract-reviews.md` - protected command-server, CLI, and shared-protocol review ledger
-12. `docs/usability-readiness.md` - installed-app readiness gate and evidence requirements
-13. `docs/exograph-simplification-plan.md` - historical refactor rationale and prior audits
+5. `docs/graph-system-report-and-plan.md` - graph evidence, knowledge model, quality framework, and production gates
+6. `issues.md` - canonical bug, QA, and field-issue tracker
+7. `README.md` - current product surface and commands
+8. `roadmap.md` - future work only
+9. `ledger.md` - shipped history and reusable substrate
+10. `skills/terminal-stability/SKILL.md` - current direct-PTY invariants and QA rules
+11. `docs/extension-architecture.md` - concrete-seam extension ladder
+12. `docs/public-contract-reviews.md` - protected command-server, CLI, and shared-protocol review ledger
+13. `docs/usability-readiness.md` - installed-app readiness gate and evidence requirements
+14. `docs/exograph-simplification-plan.md` - historical refactor rationale and prior audits
 
 Other dated plans are historical inventory until a separate deletion pass removes or distills them. They are not active instructions.
 
@@ -39,6 +45,9 @@ Before contributing, scan `skills/`. For broad Exo development, load the relevan
 
 - `skills/submit-exo-issue/SKILL.md` - available for contributors and intake agents that file, promote, deduplicate, or assign Exo bug/QA/setup reports. The lead/orchestrator may follow the tracker convention directly without invoking this skill.
 - `skills/terminal-stability/SKILL.md` - use before changing terminal runtime, rendering, settings, tests, or Command launch behavior.
+- `skills/graph-system-stability/SKILL.md` - use before changing graph domain
+  types, Knowledge Profiles, graph queries, utility evals, layout, scene,
+  rendering, Graph Pane integration, or graph performance tests.
 - `skills/deslopify-frontend/SKILL.md` - use before changing setup, settings, onboarding, future extension settings, or other configuration UI.
 
 ## Repository Map
@@ -122,11 +131,23 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Exo is the product. An exograph is the user-owned graph over Markdown notes, properties, links, tags, attachments, and accepted knowledge.
 - Durable approved graph facts should live in user-owned Markdown/frontmatter/properties, links, tags, and files. Derived indexes, inferred facts, proposals, activity records, artifact references, and provenance references belong under `.exo/` until accepted.
 - Exo may permissively consume Open Knowledge Format conventions—Markdown concepts, YAML frontmatter, normal links, optional `index.md`/`log.md`, and unknown-field preservation—but must not enforce a schema on arbitrary user Markdown.
-- **Next vertical slice — not shipped:** a Folder may have a user-owned `index.md` Folder Index. Folder Overview and index-aware Explorer presentation arrive together; until then, `index.md` remains ordinary Markdown and no folder inspection may write it implicitly.
-- When Folder Overview lands, viewing imported folders remains read-only; only an explicit authoring action may create durable folder metadata.
+- Folder Overview and index-aware Explorer presentation are shipped. A Folder
+  may have a user-owned `index.md`; viewing remains read-only and only an
+  explicit authoring action may create durable folder metadata.
 - Folder paths provide primary structural homes and inherited guidance, not exclusive types. Explicit note properties override defaults; tags and typed relationships preserve multiple membership.
-- Folder containment and inherited defaults are next-slice design work until explicitly implemented. A future Skill may consume a Folder Index chain only through the normal reviewed invocation path.
+- Folder containment and inherited guidance are current graph facts. A future
+  Skill may consume a Folder Index chain only through the normal reviewed
+  invocation path.
 - Exo should not impose one global schema or ontology. Users create ontologies through folders, Folder Indexes, properties, tags, links, and relationships; Exo detects, visualizes, searches, and helps maintain that user-owned structure.
+- Knowledge Profiles are optional user-owned interpretations of open Concept
+  types, Properties, Relations, and validation rules. Generic Markdown requires
+  none; OKF 0.1 is the first planned interoperability profile. Profiles must
+  preserve unknown user data and never become a second canonical database.
+- Graph Views change layout and visual encoding, not knowledge. Renderer-local
+  numeric kinds are performance projections and must not become ontology enums.
+- Keep GraphRenderBench and GraphUtilityBench separate. Never present layout
+  geometry, semantic similarity, or an unexplained aggregate as universal graph
+  quality.
 - Feed/event streams are deferred. Activity appears only when reviewed Invocation history earns it.
 - Automation is not automatically core. Invocation records are the first activity record; Routine product work is a superseded/deletion-audit target.
 - A configured Command is the V1 agent/tool identity: handle, label, executable/arguments, cwd policy, environment allowlist, pointer policy, and invocation metadata. `AgentCommand` is an internal type. Do not rebuild promptable harness identity.
@@ -138,7 +159,9 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Provenance distinguishes human, invocation, and unknown writers without claiming certainty the evidence cannot support.
 - Commands may act in an explicitly confirmed cwd; that explicit command choice never grants Exo a second workspace filesystem surface.
 - Root `issues.md` is the canonical Exo bug, QA, and field-report tracker. Do not create parallel Exo issue trackers under `docs/` or the notes vault.
-- Workcells/evals/training/search-optimization harnesses are deferred until the graph/read/invocation/review loop is stable.
+- GraphUtilityBench is active graph-system work. Broader Workcells, training,
+  and search-optimization harnesses remain deferred until the graph/read/
+  invocation/review loop is stable.
 - Optional or personal workflows should not become core by default.
 - CLI-first operator surfaces come before deep UI.
 - Every fragile UI/runtime behavior needs an automated harness or a documented manual evidence path.
@@ -158,6 +181,10 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
 - UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.
 - Before changing terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior, use `skills/terminal-stability/SKILL.md` and follow its ownership rules, fallback discipline, invariants, checks, and manual QA script.
+- Before changing graph domain types, snapshots, profile interpretation, graph
+  queries, layout, scene, WebGPU/Canvas rendering, Graph Pane integration, or
+  graph benchmarks, use `skills/graph-system-stability/SKILL.md` and identify
+  which graph layer owns the change before editing.
 - Before changing setup, settings, onboarding, future extension settings, or other configuration UI, use `skills/deslopify-frontend/SKILL.md` and keep screens dense, scannable, and low-prose.
 - When filing or promoting Exo bugs, setup reports, UX issues, or GitHub issues, keep root `issues.md` canonical. Contributor/intake agents should use `skills/submit-exo-issue/SKILL.md`; the lead/orchestrator may apply the same convention directly.
 - Exo uses an orchestrator-led coding pattern. Subagents execute scoped work, avoid broad architecture decisions, and report architectural or public-contract questions to the lead/orchestrator with evidence, options, and a recommendation. Subagents must not independently seek external architect/oracle review.

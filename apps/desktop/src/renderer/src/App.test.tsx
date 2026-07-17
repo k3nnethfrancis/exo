@@ -47,6 +47,7 @@ import {
   workspaceSettingsDialogIntroCopy,
   workspaceSettingsSavedFooterCopy,
 } from "./components/WorkspaceSettingsDialog";
+import { summarizeIndexStatus } from "./indexStatusPresentation";
 import {
   clampSelectionToRenderedListText,
   listEnterEdit,
@@ -269,9 +270,10 @@ describe("workspace settings footer copy", () => {
       ],
     }), null);
 
-    expect(copy?.text).toContain("Documents were refreshed");
+    expect(copy?.text).toContain("12 notes waiting after embedding failed");
     expect(copy?.text).toContain("Build embeddings");
     expect(copy?.text).toContain("lexical search remains available");
+    expect(copy?.text).not.toContain("ready");
   });
 
   it("shows in-progress index action status before a fresh status arrives", () => {
@@ -279,6 +281,31 @@ describe("workspace settings footer copy", () => {
     expect(indexSettingsStatusCopy(indexStatusFixture(), "updating")?.text).toContain("Embedding status will update");
     expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).toContain("semantic embeddings");
     expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).toContain("QMD");
+    expect(indexSettingsStatusCopy(indexStatusFixture(), "syncing")?.text).not.toContain("rebuild");
+  });
+
+  it("explains automatic and manual pending-embedding behavior without adding a setting", () => {
+    const pending = indexStatusFixture({ pendingEmbeddings: 3 });
+    const automatic = indexSettingsStatusCopy(pending, null, "on-save")?.text;
+    const manual = indexSettingsStatusCopy(pending, null, "manual")?.text;
+
+    expect(automatic).toContain("3 notes waiting");
+    expect(automatic).toContain("catch up automatically while Exo is idle");
+    expect(automatic).toContain("lexical search remains available");
+    expect(automatic).toContain("Build embeddings runs now");
+    expect(manual).toContain("3 notes waiting");
+    expect(manual).toContain("Automatic updates are paused");
+    expect(manual).toContain("lexical search remains available");
+    expect(manual).toContain("Sync now or Build embeddings");
+  });
+
+  it("shows the waiting-note count in the app search badge", () => {
+    expect(summarizeIndexStatus(indexStatusFixture({ pendingEmbeddings: 1 }), null)).toMatchObject({
+      label: "1 note waiting",
+      tone: "warn",
+      busy: false,
+    });
+    expect(summarizeIndexStatus(indexStatusFixture({ pendingEmbeddings: 12 }), null).label).toBe("12 notes waiting");
   });
 
   it("keeps provider failures out of the settings surface", () => {
@@ -330,10 +357,11 @@ describe("workspace settings footer copy", () => {
       />,
     );
 
-    expect(html).toContain("Sync now refreshes documents and embeddings");
+    expect(html).toContain("3 notes waiting");
+    expect(html).toContain("catch up automatically while Exo is idle");
     expect(html).toContain("Search engine");
     expect(html).toContain("QMD retrieval");
-    expect(html).toContain("3 pending embeddings");
+    expect(html).not.toContain("3 pending embeddings");
     expect(html).toContain("Search maintenance");
     expect(html).toContain("QMD");
     expect(html).not.toContain("Press Apply");

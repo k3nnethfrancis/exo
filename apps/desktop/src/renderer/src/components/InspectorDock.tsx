@@ -25,6 +25,7 @@ interface InspectorDockProps {
   onOpenTarget: (target: string) => void;
   onOpenExternal: (target: string) => void;
   onOpenTag: (tag: string) => void;
+  onOpenGraphCanvas?: () => void;
 }
 
 export function InspectorDock(props: InspectorDockProps) {
@@ -39,6 +40,7 @@ export function InspectorDock(props: InspectorDockProps) {
     onOpenTarget,
     onOpenExternal,
     onOpenTag,
+    onOpenGraphCanvas,
   } = props;
   const [activeTab, setActiveTab] = useState<ConnectionTab>("outline");
   const tabListId = useId();
@@ -113,7 +115,7 @@ export function InspectorDock(props: InspectorDockProps) {
           ) : activeTab === "links" ? (
             <LinksTab isMarkdown={isMarkdown} links={externalLinks} onOpenExternal={onOpenExternal} />
           ) : activeTab === "graph" ? (
-            <GraphNeighborhoodView neighborhood={graphContext?.neighborhood ?? null} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
+            <GraphNeighborhoodView neighborhood={graphContext?.neighborhood ?? null} onOpenCanvas={onOpenGraphCanvas} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
           ) : meaningfulActivity.length ? (
             <ActivityTab records={meaningfulActivity} />
           ) : (

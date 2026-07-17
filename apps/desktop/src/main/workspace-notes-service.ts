@@ -9,15 +9,21 @@ import {
   readWorkspaceDocument,
   type SearchResult,
   type FolderOverview,
+  type GraphConceptDetail,
+  type GraphViewBundle,
   type WorkspaceSearchResults,
   WorkspaceFiles,
   WorkspaceGraph,
   type WorkspaceGraphContext,
   type WorkspaceModel,
 } from "@exo/core";
+import type { WorkspaceChangeEvent } from "./workspace-watchers";
+import type { DerivedIndexClient } from "./derived-index-process";
 
 export interface WorkspaceNotesServiceOptions {
   getWorkspaceModel: () => WorkspaceModel;
+  getRuntimeRoot?: () => string;
+  derivedIndex?: DerivedIndexClient;
 }
 
 export class WorkspaceNotesService {
@@ -30,8 +36,37 @@ export class WorkspaceNotesService {
 
   invalidateDerivedState(): void {
     this.graph?.invalidate();
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      void this.options.derivedIndex
+        .graphInvalidate(this.options.getWorkspaceModel(), this.options.getRuntimeRoot())
+        .catch((error) => console.warn("[exo] derived graph invalidation failed", error));
+    }
     this.folderOverviewCache.clear();
     this.noteFileCache = null;
+  }
+
+  async handleWorkspaceChange(event: WorkspaceChangeEvent): Promise<void> {
+    if (!event.filePath) {
+      this.folderOverviewCache.clear();
+      this.noteFileCache = null;
+      if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+        await this.options.derivedIndex.graphInvalidate(this.options.getWorkspaceModel(), this.options.getRuntimeRoot());
+      } else {
+        this.graph?.invalidate();
+      }
+      return;
+    }
+
+    const changedPath = path.resolve(event.filePath);
+    this.invalidateFolderOverviewsForPath(changedPath);
+    this.noteFileCache = null;
+    if (/\.md$/i.test(changedPath)) {
+      if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+        await this.options.derivedIndex.graphRefresh(this.options.getWorkspaceModel(), this.options.getRuntimeRoot(), changedPath);
+      } else {
+        await this.graph?.refreshFile(changedPath);
+      }
+    }
   }
 
   async searchFilenames(query: string): Promise<WorkspaceSearchResults> {
@@ -204,7 +239,38 @@ export class WorkspaceNotesService {
 
   async getGraphContext(filePath: string): Promise<WorkspaceGraphContext | null> {
     const authorizedPath = await this.workspaceFiles().existing(filePath);
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.graphContext(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        authorizedPath,
+      );
+    }
     return this.workspaceGraph().contextForNote(authorizedPath);
+  }
+
+  async getGraphView(profileId?: string | null): Promise<GraphViewBundle> {
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.graphView(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        profileId,
+      );
+    }
+    return this.workspaceGraph().graphView(profileId);
+  }
+
+  async getGraphConceptDetail(conceptId: string, sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptDetail | null> {
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.graphConceptDetail(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        conceptId,
+        sourceSnapshotId,
+        profileId,
+      );
+    }
+    return this.workspaceGraph().graphConceptDetail(conceptId, sourceSnapshotId, profileId);
   }
 
   async getFolderOverview(directoryPath: string): Promise<FolderOverview> {
@@ -252,6 +318,19 @@ export class WorkspaceNotesService {
       this.noteFileCache = null;
     }
     return this.graph;
+  }
+
+  private invalidateFolderOverviewsForPath(changedPath: string): void {
+    const parentPath = path.dirname(changedPath);
+    for (const cachedPath of this.folderOverviewCache.keys()) {
+      if (
+        cachedPath === changedPath
+        || cachedPath === parentPath
+        || isPathWithin(changedPath, cachedPath)
+      ) {
+        this.folderOverviewCache.delete(cachedPath);
+      }
+    }
   }
 
   private noteRootPaths(): string[] {

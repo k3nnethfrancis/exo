@@ -34,6 +34,8 @@ export interface WorkspaceIpcHandlers {
   resumeInvocationInTerminal: WorkspaceApi["resumeInvocationInTerminal"];
   resolvePreviewTarget: WorkspaceApi["resolvePreviewTarget"];
   getGraphContext: NotesApi["getGraphContext"];
+  getGraphView: NotesApi["getGraphView"];
+  getGraphConceptDetail: NotesApi["getGraphConceptDetail"];
   getMainWindow: () => BrowserWindow | null;
   getModel: () => WorkspaceModel;
   getSettings: WorkspaceApi["getSettings"];
@@ -175,6 +177,10 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const authorizedPath = await workspaceFiles().existing(filePath);
     return handlers.getGraphContext(authorizedPath);
   });
+  handleDesktopInvoke("notes:get-graph-view", async (_event, profileId) => handlers.getGraphView(profileId));
+  handleDesktopInvoke("notes:get-graph-concept-detail", async (_event, conceptId, sourceSnapshotId, profileId) =>
+    handlers.getGraphConceptDetail(conceptId, sourceSnapshotId, profileId),
+  );
   handleDesktopInvoke("notes:resolve-target", async (_event, sourceFilePath, target) => handlers.resolveTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:resolve-markdown-image", async (_event, sourceFilePath, target) =>
     handlers.resolveMarkdownImage(sourceFilePath, target),

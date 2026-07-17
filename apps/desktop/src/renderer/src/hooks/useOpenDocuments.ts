@@ -11,6 +11,10 @@ export interface OpenEditorDocument extends NoteDocument {
 
 export type DocumentSaveStatus = "idle" | "saving" | "saved" | "error";
 
+const AUTOSAVE_IDLE_DELAY_MS = 2_000;
+const AUTOSAVE_MAX_DELAY_MS = 5_000;
+const CONTEXT_COMMIT_IDLE_DELAY_MS = 500;
+
 export interface UseOpenDocumentsOptions {
   workspaceModel: WorkspaceModel | null;
   getOpenEditorPaths: () => Set<string>;
@@ -28,6 +32,10 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   const optionsRef = useRef(options);
   const pendingRefreshesRef = useRef<Map<string, { timeoutId: number; diskVersion: FileStatInfo | null }>>(new Map());
   const pendingContextRefreshesRef = useRef<Map<string, { timeoutId?: number; idleId?: number }>>(new Map());
+  const pendingContextCommitsRef = useRef<Map<string, number>>(new Map());
+  const pendingAutosavesRef = useRef<Map<string, number>>(new Map());
+  const dirtySinceRef = useRef<Map<string, number>>(new Map());
+  const lastEditorInputAtRef = useRef(0);
   const scrollRestoreNonceRef = useRef(0);
 
   const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
@@ -46,24 +54,37 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   }, [options]);
 
   useEffect(() => {
-    const timer = setInterval(() => {
-      const dirtyPaths = Object.entries(openDocumentsRef.current)
-        .filter(([, doc]) => doc.dirty)
-        .map(([path]) => path);
-      for (const filePath of dirtyPaths) {
-        void saveDocument(filePath);
+    const recordEditorInput = (event: InputEvent) => {
+      if ((event.target as HTMLElement | null)?.closest?.(".cm-content")) {
+        lastEditorInputAtRef.current = performance.now();
       }
-    }, 5000);
-    return () => clearInterval(timer);
+    };
+    document.addEventListener("beforeinput", recordEditorInput, { capture: true });
+    return () => document.removeEventListener("beforeinput", recordEditorInput, { capture: true });
   }, []);
 
   useEffect(() => () => {
+    for (const timeoutId of pendingAutosavesRef.current.values()) {
+      window.clearTimeout(timeoutId);
+    }
+    pendingAutosavesRef.current.clear();
+    for (const timeoutId of pendingContextCommitsRef.current.values()) {
+      window.clearTimeout(timeoutId);
+    }
+    pendingContextCommitsRef.current.clear();
     for (const pending of pendingContextRefreshesRef.current.values()) {
       if (pending.timeoutId !== undefined) window.clearTimeout(pending.timeoutId);
       if (pending.idleId !== undefined) window.cancelIdleCallback(pending.idleId);
     }
     pendingContextRefreshesRef.current.clear();
   }, []);
+
+  useEffect(() => {
+    window.__exoFlushDirtyDocuments = flushDirtyDocuments;
+    return () => {
+      if (window.__exoFlushDirtyDocuments === flushDirtyDocuments) delete window.__exoFlushDirtyDocuments;
+    };
+  });
 
   function pruneToOpenPaths(openPaths: Set<string>) {
     setOpenDocuments((current) => {
@@ -182,6 +203,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     });
     scheduleMarkdownContextRefresh(document, filePath);
     setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
+    dirtySinceRef.current.delete(filePath);
 
     if (scrollTop !== null) {
       scrollRestoreNonceRef.current += 1;
@@ -211,6 +233,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     openDocumentsRef.current = nextDocuments;
     setOpenDocuments(nextDocuments);
     setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
+    scheduleAutosave(filePath);
   }
 
   function updateFrontmatter(key: string, value: unknown) {
@@ -236,9 +259,11 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     openDocumentsRef.current = nextDocuments;
     setOpenDocuments(nextDocuments);
     setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
+    scheduleAutosave(filePath);
   }
 
   async function saveDocument(filePath: string) {
+    cancelPendingAutosave(filePath);
     const document = openDocumentsRef.current[filePath];
     if (!document) {
       return;
@@ -252,26 +277,23 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       if (document.kind === "markdown" && remainsOpen && isAttachedNote(filePath, optionsRef.current.workspaceModel)) {
         scheduleMarkdownContextRefresh(document, filePath);
       }
-      setOpenDocuments((current) => {
-        if (!current[filePath]) {
-          return current;
+      const current = openDocumentsRef.current;
+      const latest = current[filePath];
+      if (latest) {
+        const stillDirty = latest.body !== document.body
+          || JSON.stringify(latest.frontmatter) !== JSON.stringify(document.frontmatter);
+        const next = { ...current };
+        if (!remainsOpen) delete next[filePath];
+        else next[filePath] = { ...latest, dirty: stillDirty, diskVersion };
+        openDocumentsRef.current = next;
+        setOpenDocuments(next);
+        if (stillDirty) {
+          dirtySinceRef.current.set(filePath, performance.now());
+          scheduleAutosave(filePath);
+        } else {
+          dirtySinceRef.current.delete(filePath);
         }
-        if (!remainsOpen) {
-          const next = { ...current };
-          delete next[filePath];
-          return next;
-        }
-        return {
-          ...current,
-          [filePath]: {
-            ...current[filePath],
-            dirty:
-              current[filePath].body !== document.body ||
-              JSON.stringify(current[filePath].frontmatter) !== JSON.stringify(document.frontmatter),
-            diskVersion,
-          },
-        };
-      });
+      }
       setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "saved" }));
       window.setTimeout(() => {
         setDocumentSaveStatuses((current) => current[filePath] === "saved" ? { ...current, [filePath]: "idle" } : current);
@@ -284,6 +306,12 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   }
 
   function deletePathsWithin(targetPath: string) {
+    for (const filePath of pendingAutosavesRef.current.keys()) {
+      if (isPathWithin(targetPath, filePath)) cancelPendingAutosave(filePath);
+    }
+    for (const filePath of dirtySinceRef.current.keys()) {
+      if (isPathWithin(targetPath, filePath)) dirtySinceRef.current.delete(filePath);
+    }
     setOpenDocuments((current) =>
       Object.fromEntries(Object.entries(current).filter(([filePath]) => !isPathWithin(targetPath, filePath))),
     );
@@ -293,6 +321,18 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   }
 
   function remapOpenPaths(sourcePath: string, nextPath: string) {
+    const dirtyTimesToRemap = Array.from(dirtySinceRef.current.entries())
+      .filter(([filePath]) => isPathWithin(sourcePath, filePath));
+    const autosavesToRemap = Array.from(pendingAutosavesRef.current.keys())
+      .filter((filePath) => isPathWithin(sourcePath, filePath))
+      .map((filePath) => filePath.replace(sourcePath, nextPath));
+    for (const filePath of pendingAutosavesRef.current.keys()) {
+      if (isPathWithin(sourcePath, filePath)) cancelPendingAutosave(filePath);
+    }
+    for (const [filePath, dirtySince] of dirtyTimesToRemap) {
+      dirtySinceRef.current.delete(filePath);
+      dirtySinceRef.current.set(filePath.replace(sourcePath, nextPath), dirtySince);
+    }
     const remapRecord = <T,>(record: Record<string, T>): Record<string, T> =>
       Object.fromEntries(
         Object.entries(record).map(([filePath, value]) => [
@@ -319,6 +359,46 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     if (activeDocumentPath && isPathWithin(sourcePath, activeDocumentPath)) {
       setActiveDocumentPath(activeDocumentPath.replace(sourcePath, nextPath));
     }
+    for (const filePath of autosavesToRemap) scheduleAutosave(filePath);
+  }
+
+  function scheduleAutosave(filePath: string) {
+    if (!dirtySinceRef.current.has(filePath)) dirtySinceRef.current.set(filePath, performance.now());
+    cancelPendingAutosave(filePath);
+    const dirtyForMs = performance.now() - (dirtySinceRef.current.get(filePath) ?? performance.now());
+    const timeoutId = window.setTimeout(
+      () => runAutosaveWhenIdle(filePath),
+      Math.max(0, Math.min(AUTOSAVE_IDLE_DELAY_MS, AUTOSAVE_MAX_DELAY_MS - dirtyForMs)),
+    );
+    pendingAutosavesRef.current.set(filePath, timeoutId);
+  }
+
+  function runAutosaveWhenIdle(filePath: string) {
+    const idleForMs = performance.now() - lastEditorInputAtRef.current;
+    const dirtyForMs = performance.now() - (dirtySinceRef.current.get(filePath) ?? performance.now());
+    if (idleForMs < AUTOSAVE_IDLE_DELAY_MS && dirtyForMs < AUTOSAVE_MAX_DELAY_MS) {
+      const timeoutId = window.setTimeout(
+        () => runAutosaveWhenIdle(filePath),
+        Math.min(AUTOSAVE_IDLE_DELAY_MS - idleForMs, AUTOSAVE_MAX_DELAY_MS - dirtyForMs),
+      );
+      pendingAutosavesRef.current.set(filePath, timeoutId);
+      return;
+    }
+    pendingAutosavesRef.current.delete(filePath);
+    void saveDocument(filePath);
+  }
+
+  async function flushDirtyDocuments(): Promise<void> {
+    const dirtyPaths = Object.entries(openDocumentsRef.current)
+      .filter(([, document]) => document.dirty)
+      .map(([filePath]) => filePath);
+    await Promise.all(dirtyPaths.map((filePath) => saveDocument(filePath)));
+  }
+
+  function cancelPendingAutosave(filePath: string) {
+    const timeoutId = pendingAutosavesRef.current.get(filePath);
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+    pendingAutosavesRef.current.delete(filePath);
   }
 
   function updateMarkdownContext(filePath: string, graphContext: WorkspaceGraphContext | null) {
@@ -329,6 +409,9 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   }
 
   function scheduleMarkdownContextRefresh(document: NoteDocument, filePath: string) {
+    const pendingCommit = pendingContextCommitsRef.current.get(filePath);
+    if (pendingCommit !== undefined) window.clearTimeout(pendingCommit);
+    pendingContextCommitsRef.current.delete(filePath);
     const existing = pendingContextRefreshesRef.current.get(filePath);
     if (existing?.timeoutId !== undefined) window.clearTimeout(existing.timeoutId);
     if (existing?.idleId !== undefined) window.cancelIdleCallback(existing.idleId);
@@ -339,7 +422,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       const run = () => {
         pendingContextRefreshesRef.current.delete(filePath);
         void loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel).then((graphContext) => {
-          updateMarkdownContext(filePath, graphContext);
+          scheduleMarkdownContextCommit(filePath, graphContext);
         }).catch((error) => {
           console.warn("[exo] failed to load graph context", { filePath, error });
         });
@@ -351,6 +434,23 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       }
     }, 250);
     pendingContextRefreshesRef.current.set(filePath, pending);
+  }
+
+  function scheduleMarkdownContextCommit(filePath: string, graphContext: WorkspaceGraphContext | null) {
+    const existing = pendingContextCommitsRef.current.get(filePath);
+    if (existing !== undefined) window.clearTimeout(existing);
+    const idleForMs = performance.now() - lastEditorInputAtRef.current;
+    const delayMs = Math.max(0, CONTEXT_COMMIT_IDLE_DELAY_MS - idleForMs);
+    const timeoutId = window.setTimeout(() => {
+      const currentIdleForMs = performance.now() - lastEditorInputAtRef.current;
+      if (currentIdleForMs < CONTEXT_COMMIT_IDLE_DELAY_MS) {
+        scheduleMarkdownContextCommit(filePath, graphContext);
+        return;
+      }
+      pendingContextCommitsRef.current.delete(filePath);
+      updateMarkdownContext(filePath, graphContext);
+    }, delayMs);
+    pendingContextCommitsRef.current.set(filePath, timeoutId);
   }
 
   return {
@@ -372,6 +472,12 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     deletePathsWithin,
     remapOpenPaths,
   };
+}
+
+declare global {
+  interface Window {
+    __exoFlushDirtyDocuments?: () => Promise<void>;
+  }
 }
 
 function noteTitleSource(body: string): string {

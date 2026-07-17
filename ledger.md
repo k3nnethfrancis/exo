@@ -230,12 +230,28 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
   live two-turn Claude test that recovered deleted external context through the
   resumed provider session.
 
+### Flagship spatial graph lab — 2026-07-16
+
+- Preserved the stable 2D kinetic comparison and built a separate true-3D
+  Stellar surface in `../exo-graph-viz-lab/public/stellar.html` under Kenneth's
+  explicit product override.
+- Split graph meaning, camera/input, worker layout, and pixels into independent
+  boundaries. The deterministic typed-array worker suspends fully after settle;
+  WebGPU draws instanced nodes/links; CPU picking and focal labels avoid GPU
+  readback; device loss recovers once and then falls back to Canvas.
+- Removed mode and camera-control chrome in favor of direct desktop/mobile
+  orbit, pan, dolly, focus, overview, path, keyboard, and reduced-motion input.
+- Added repeatable desktop/mobile and 20/250/2,500/10,000-node gates. The
+  10,000-node fixture settled in about five seconds with 1.1 ms p95 main-thread
+  frame work during the recorded 2026-07-16 run. This is lab evidence, not yet
+  authorization to integrate the surface into production Exo.
+
 ## Next Priorities
 
 1. Use installed Exo as the default environment for daily work and record every friction point as live bug-bash input.
 2. Stand up the GitHub issue-fix loop with conservative labels, isolated worktrees, test/app-QA requirements, and draft PR output.
-3. Resume plugin architecture with profile apply, permission grants, plugin-owned settings, project knowledge sync, and remaining harness compatibility cleanup.
-4. Define the profile manifest extension, graph-data API, graph visualization surface contract, and first semantic trace consumer.
+3. Harden the experimental graph tracer: compact transport, stable layout continuity, truthful evidence, accessible navigation, and packaged-runtime gates.
+4. Expand GraphBench with frozen visual profiles, scale/hardware matrices, real corpora, and task-conditioned utility measurements.
 5. Continue multi-agent coordination: roster, objectives, direct messages, changed-file/review links, file+SQLite transport, CLI/MCP access.
 6. Exograph architecture: write the profile/schema/proposal spec, add read-only graph/document context primitives, then add scoped maintainer writes.
 

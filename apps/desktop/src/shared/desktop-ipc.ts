@@ -49,6 +49,8 @@ export interface DesktopInvokeHandlers {
   "notes:save": NotesApi["save"];
   "notes:stat": NotesApi["stat"];
   "notes:get-graph-context": NotesApi["getGraphContext"];
+  "notes:get-graph-view": NotesApi["getGraphView"];
+  "notes:get-graph-concept-detail": NotesApi["getGraphConceptDetail"];
   "notes:resolve-target": NotesApi["resolveTarget"];
   "notes:resolve-markdown-image": NotesApi["resolveMarkdownImage"];
   "notes:ensure-target": NotesApi["ensureTarget"];

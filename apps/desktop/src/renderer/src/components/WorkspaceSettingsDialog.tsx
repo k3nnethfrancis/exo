@@ -244,7 +244,7 @@ function IndexSection({
   settings,
   setSettings,
 }: Pick<WorkspaceSettingsDialogProps, "indexBusy" | "indexStatus" | "onRunIndexUpdate" | "settings" | "setSettings">) {
-  const statusCopy = indexSettingsStatusCopy(indexStatus, indexBusy);
+  const statusCopy = indexSettingsStatusCopy(indexStatus, indexBusy, settings.indexUpdateStrategy);
   const qmdSelected = settings.searchEngine === "qmd";
 
   function selectSearchEngine(searchEngine: "qmd" | "filesystem") {
@@ -297,7 +297,7 @@ function IndexSection({
                 {(indexStatus?.indexedRoots.length ?? settings.indexedRoots.length) === 1 ? "" : "s"}
               </span>
               <span>{indexStatus?.documentCount ?? 0} docs</span>
-              <span>{indexStatus?.pendingEmbeddings ?? 0} pending embeddings</span>
+              <span>{waitingNotesCopy(indexStatus?.pendingEmbeddings ?? 0)}</span>
             </div>
           </div>
           {statusCopy ? (
@@ -386,7 +386,7 @@ function IndexSection({
                 <span>{job.kind}</span>
                 <span>{formatDuration(job.durationMs)}</span>
                 <span>{formatRelativeTime(job.completedAt)}</span>
-                <span>{job.status === "failed" ? "failed" : `${job.pendingEmbeddings ?? 0} pending`}</span>
+                <span>{job.status === "failed" ? "failed" : `${job.pendingEmbeddings ?? 0} waiting`}</span>
               </div>
             ))}
           </div>
@@ -421,15 +421,16 @@ function IndexSection({
 export function indexSettingsStatusCopy(
   indexStatus: IndexStatus | null,
   indexBusy: IndexBusyState,
+  indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"] = "on-save",
 ): { text: string; tone: "info" | "warn" | "error" } | null {
   if (indexBusy === "syncing") {
-    return { tone: "info", text: "Sync is refreshing documents and rebuilding embeddings. Status will refresh when it finishes." };
+    return { tone: "info", text: "Sync is refreshing documents and building pending embeddings. Status will refresh when it finishes." };
   }
   if (indexBusy === "updating") {
     return { tone: "info", text: "Refreshing QMD notes. Embedding status will update when it finishes." };
   }
   if (indexBusy === "embedding") {
-    return { tone: "info", text: "Building QMD semantic embeddings. Status will update when it finishes." };
+    return { tone: "info", text: "Building pending QMD semantic embeddings. Status will update when it finishes." };
   }
   if (!indexStatus) {
     return null;
@@ -450,15 +451,25 @@ export function indexSettingsStatusCopy(
     if (failedEmbeddingJob) {
       return {
         tone: "warn",
-        text: "Documents were refreshed, but embeddings did not complete. Build embeddings can retry; lexical search remains available.",
+        text: `${waitingNotesCopy(indexStatus.pendingEmbeddings)} after embedding failed; lexical search remains available. Build embeddings retries now.`,
+      };
+    }
+    if (indexUpdateStrategy === "manual") {
+      return {
+        tone: "warn",
+        text: `${waitingNotesCopy(indexStatus.pendingEmbeddings)}. Automatic updates are paused; lexical search remains available. Use Sync now or Build embeddings.`,
       };
     }
     return {
       tone: "warn",
-      text: "Embeddings are pending. Sync now refreshes documents and embeddings; Build embeddings retries incomplete semantic indexing.",
+      text: `${waitingNotesCopy(indexStatus.pendingEmbeddings)}. Small changes catch up automatically while Exo is idle; lexical search remains available. Build embeddings runs now.`,
     };
   }
   return null;
+}
+
+function waitingNotesCopy(count: number): string {
+  return `${count} note${count === 1 ? "" : "s"} waiting`;
 }
 
 function AppearanceSection({
