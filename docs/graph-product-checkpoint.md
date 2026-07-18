@@ -9,7 +9,8 @@ This is the canonical concise account. Use
 full experiment history, architecture, product lessons, domain model, and
 implementation plan. Use the
 [`M2 Max baseline`](../benchmarks/graphbench/reports/2026-07-16-m2-max-baseline.md)
-for reproducible numbers and [`GraphBench`](../benchmarks/graphbench/README.md)
+for reproducible numbers and the
+[`graph performance suite`](../benchmarks/graphbench/README.md)
 for metric definitions and commands. The Fable decision history remains in
 `docs/reviews/`; it is context, not the source of benchmark claims.
 
@@ -19,17 +20,16 @@ In plain English, we proved that Exo can turn a large Markdown workspace into a
 fast, fluid spatial graph rather than a slow diagram. The graph has a stable
 layout, real three-dimensional camera movement, focal labels, selection,
 neighbor and path highlighting, WebGPU rendering, a Canvas fallback, and
-desktop/mobile gestures. It stops doing work when the scene settles. GraphBench
-separates rendering speed, layout quality, interaction quality, and knowledge
-usefulness so a beautiful fast graph cannot pass by hiding a bad structure.
+desktop/mobile gestures. It stops doing work when the scene settles. Exo's
+internal performance suite separates rendering speed, layout quality,
+interaction, resilience, and incremental stability so a fast renderer cannot
+hide a bad layout or broken interaction.
 
 The latest benchmark work made those claims concrete. It runs the same fixed
 workload through Exo and Sigma, includes a real SuiteSparse topology, verifies
 that a 1% update to a 10,000-node graph preserves the old mental map, recovers
 from an injected WebGPU failure to Canvas in about 22 ms with selection and
-layout intact, and verifies that the settled renderer schedules zero frames. A
-task-grounded usefulness harness now exists too, although its real public
-knowledge corpus is still unfinished.
+layout intact, and verifies that the settled renderer schedules zero frames.
 
 We also built the production foundation beneath the pixels. Markdown remains
 canonical. The graph preserves open Concept types, lossless Properties, typed
@@ -51,8 +51,9 @@ objects out of hot GPU/draw paths.
 4. Direct pan, orbit, dolly, select, focus, and path gestures manipulate one
    spatial camera. Labels are a bounded focal resource rather than DOM attached
    to every node.
-5. GraphBench runs fixed-coordinate render, native layout, product interaction,
-   incremental stability, and knowledge usefulness as separate tracks. Every
+5. The graph performance suite runs fixed-coordinate render, native layout,
+   product interaction, resilience, and incremental stability as separate
+   tracks. Every
    result carries hardware, browser, viewport, fixture checksum, profile, and
    metric definitions.
 
@@ -60,7 +61,7 @@ objects out of hot GPU/draw paths.
 
 - The 10,000-node / 17,500-link density case settled in 4.52 seconds with
   1.2 ms p95 main-thread frame work in the graph lab.
-- The public 10,000-node / 20,000-link product run measured 1.38 ms p95 from
+- The 10,000-node / 20,000-link product run measured 1.38 ms p95 from
   pointer event to next frame and 16.3 MiB measured JS memory on an Apple M2
   Max.
 - With fixed coordinates at 50,000 nodes / 100,000 links, Exo maintained
@@ -81,15 +82,14 @@ any published number.
 - WebGPU can own pixels without owning graph meaning or interaction.
 - The same graph can support authored links, properties, semantic overlays, and
   future model-space projections without confusing them as equally canonical.
-- Speed, readable layout, and useful knowledge retrieval are separate things
-  and need separate tests.
+- Speed and readable layout are separate engineering properties and need
+  separate tests.
 
 ## What is still unfinished
 
-1. Finish the public GraphBench publication matrix, cross-renderer GPU timing,
-   pixel parity, browser-delivered device-loss, and multi-hardware evidence.
-2. Freeze the OKF/OpenWiki fixtures and the integrity, retrieval, traversal, and
-   corruption task corpus for GraphUtilityBench.
+1. Finish cross-renderer GPU timing, pixel parity, browser-delivered device loss,
+   and multi-hardware engineering evidence.
+2. Freeze the OKF/OpenWiki fixtures and schema/compatibility expectations.
 3. Finish the compact typed topology transport, stable persisted layout epochs,
    clean branch replay, and existing Exo latency regressions.
 4. Integrate the real Stellar renderer into packaged Exo with accessibility,
@@ -102,7 +102,7 @@ any published number.
 
 ## Interaction and product work we have not finished
 
-Node size is only partially addressed. The GraphBench version now has separate
+Node size is only partially addressed. The performance-suite version now has separate
 comparison, exploration, and image-capture presentation profiles. Exploration
 and capture increase node radius with semantic zoom while the normalized
 comparison profile deliberately keeps every node at four pixels. That is the

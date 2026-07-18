@@ -161,12 +161,11 @@ Start only after the trust gates above pass.
   - [x] Build a separate flagship true-3D spatial graph under Kenneth's explicit 2026-07-16 product override: deterministic self-suspending worker layout, WebGPU-instanced nodes/links, renderer-independent scene/picking/labels, direct orbit/pan/dolly gestures, paths, device-loss recovery, and Canvas fallback. The stable 2D kinetic prototype remains untouched; Stellar stays outside production Exo until real-graph dogfood proves it. `../exo-graph-viz-lab/stellar-contract.md`.
   - [x] Prototype a separate kinetic graph surface with worker-owned layout, stable clustered positions, semantic zoom, direct manipulation, focus/path lenses, and explicit frame-latency instrumentation; preserve the original graph-lab prototype for comparison.
   - [x] Use seeded synthetic 20 / 250 / 2,500 / 10,000-node fixtures to prove deterministic settle, picking, label collision, p95 frame time, gesture latency, memory stability, mental-map continuity, and low/high-density behavior. Private snapshots remain local-only.
-  - [ ] Build Exo GraphBench as a public, hardware-stamped comparison harness: seeded 10k / 50k / 100k / 200k fixtures at edge ratios 2 / 5 / 10 / 20; representative SuiteSparse graphs; common Exo/Sigma/GraphWaGu adapters; actual frame cadence, CPU, optional GPU timestamps, input latency, memory, initialization, convergence, and layout-quality metrics.
+  - [ ] Maintain Exo's repo-local, hardware-stamped graph performance suite: seeded 10k / 50k / 100k / 200k fixtures at edge ratios 2 / 5 / 10 / 20; representative SuiteSparse graphs; common Exo/Sigma/GraphWaGu adapters; actual frame cadence, CPU, optional GPU timestamps, input latency, memory, initialization, convergence, and layout-quality metrics.
     - [x] Land the v1 harness contract, deterministic fixtures, Exo/Sigma adapters, pinned upstream GraphWaGu preparation/adapter, canonical SuiteSparse ingestion, hardware stamps, frame/input/memory/convergence/quality metrics, count validation, and reproducible JSON/Markdown reports under `benchmarks/graphbench/`.
     - [x] Record the first M2 Max synthetic, `fe_4elt2`, product, and layout baselines in `benchmarks/graphbench/reports/2026-07-16-m2-max-baseline.md`; preserve the weak layout-quality result as a product finding.
-    - [x] Make GraphBench discoverable and reproducible from the public Exo repository; document its current monorepo boundary and standalone-repository exit criteria.
-    - [ ] Add cross-adapter GPU timestamp queries, run the opt-in 100k/200k publication matrix on at least two hardware classes, and publish the versioned result bundle.
-    - [ ] Extract GraphBench into its own public repository after the v1 contract and first two-hardware publication bundle are frozen; carry history, license, lockfile, CI, releases, and the Exo adapter without privileging Exo.
+    - [x] Make the suite reproducible inside an Exo checkout and document its monorepo boundary.
+    - [ ] Add cross-adapter GPU timestamp queries and run the opt-in 100k/200k matrix on at least two hardware classes.
   - [x] Supersede the conditional WebGPU deferral under Kenneth's explicit product override while retaining the sound boundary: CPU scene/picking/labels, WebGPU pixels, and a tested Canvas fallback. The separate 10,000-node WebGPU gate is reproducible in `../exo-graph-viz-lab/stellar-density-benchmark.cjs`.
   - [x] Replace graph-lab control chrome with conventional spatial navigation: primary drag or touch drag to pan; pinch or modifier-wheel to dolly; two-finger/modifier drag to pan; tap to select; second selection to explain a path; double-tap empty space for overview; Alt+drag to move a node. No visible Map/Focus/Path/physics/angle modes.
 
@@ -188,9 +187,8 @@ Start only after the trust gates above pass.
   mutation `graph-evolve` vault skill. Defer `evaluate-exograph`,
   `find-connect-context`, and `propose-knowledge-profile` until their underlying
   contracts exist.
-- [ ] Phase 0: pin one public Google OKF bundle and one OpenWiki wiki fixture,
-  define deterministic corruptions, and freeze 20 integrity/retrieval/traversal
-  tasks with expected answers.
+- [ ] Phase 0: pin one public Google OKF bundle and one OpenWiki wiki fixture and
+  define deterministic schema/compatibility cases with expected facts.
 - [ ] Phase 1: consolidate `GraphSnapshot` and `WorkspaceGraph` behind snapshot
   0.2 with open Concept types, lossless Properties, Relation predicates,
   authority, resolution, and Evidence; preserve current Connections, Folder
@@ -204,10 +202,8 @@ Start only after the trust gates above pass.
   - [x] Add built-in Generic Markdown and permissive OKF 0.1 interpretation;
     missing OKF type is a finding and unknown fields survive. User-owned profile
     configuration remains unearned.
-- [ ] Phase 3: build GraphUtilityBench and compare lexical, semantic, authored-
-  link, property-aware, hybrid, corrupted, and reviewed-enriched conditions.
-  - [x] Add the non-aggregate mechanical utility tracer for identity,
-    resolution, Evidence coverage, and profile conformance.
+- [x] Phase 3: cover identity, resolution, Evidence, and profile conformance in
+  deterministic graph contract tests. Keep AI-system evaluation outside Exo.
 - [ ] Phase 4: compile renderer-neutral dense topology and stable layout epochs
   from the consolidated graph; keep ontology strings and semantics out of hot
   renderer paths.
@@ -227,10 +223,10 @@ Start only after the trust gates above pass.
     double-click-open, repeated-node-focus, and explicit frame-all semantics;
     and rebuild Connections/Properties around one inspected Concept.
 - [ ] Phase 6: ship **Find and connect relevant context** through the existing
-  configured-Command review loop and measure proposal acceptance, edit burden,
-  retrieval lift, and irrelevant-context cost before adding another Skill.
-- [ ] Phase 7: prototype ontology onboarding only after the graph model and
-  utility evals can show a meaningful, reversible before/after result.
+  configured-Command review loop and measure product behavior before adding
+  another Skill.
+- [ ] Phase 7: prototype ontology onboarding only after the graph model can show
+  a meaningful, reversible before/after result.
 
 ### Dev → main promotion checkpoint — Fable reviewed 2026-07-17
 
@@ -252,7 +248,7 @@ Start only after the trust gates above pass.
 - [ ] Ship one provider-neutral, editable **Find and connect relevant context** skill through an existing trusted Command.
 - [ ] Combine Search with links, backlinks, tags, properties, and neighborhood evidence.
 - [ ] Require explanations and reviewable proposed Markdown/frontmatter changes; inferred similarity stays derived.
-- [ ] Measure retrieval lift, irrelevant-context cost, edit burden, and proposal acceptance before adding another skill.
+- [ ] Verify proposals remain understandable, reviewable, and reversible before adding another skill.
 
 ## Dogfood Queue
 

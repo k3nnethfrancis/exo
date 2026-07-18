@@ -22,8 +22,8 @@ The current objective is no longer to complete the old plugin/routine/harness ro
 2. **Modular Search:** reliable filesystem and QMD retrieval behind the one earned provider seam.
 3. **Actionable graph:** links, backlinks, tags, properties, neighborhoods,
    Folder Overview, and Connections today; a consolidated schema-agnostic graph,
-   optional Knowledge Profiles, GraphUtilityBench, and the production spatial
-   Graph View are the next graph-system slices.
+   optional Knowledge Profiles, and the production spatial Graph View are the
+   next graph-system slices.
 4. **Inline invocation:** configured Commands run only on explicit invocation; Exo observes and reviews changes. The first user-editable graph-management Skill is next-slice work.
 
 The product test is simple: a person can open an existing Markdown folder, resume thought, find context, understand the connection, explicitly invoke a configured Command, and review observed Markdown changes without surrendering file ownership. A bounded graph-management Skill is the next vertical slice.
@@ -88,10 +88,10 @@ Keep or reuse:
   Relation predicates, authority, resolution, and Evidence.
 - Keep Generic Markdown as the zero-requirement interpretation and add Open
   Knowledge Format 0.1 as the first permissive interoperability profile.
-- Add a small user-owned Knowledge Profile contract only after public fixtures
-  and expected facts are frozen.
-- Build GraphUtilityBench for integrity, profile conformance, corruption
-  tolerance, semantic proposals, human navigation, and agent retrieval utility.
+- Add a small user-owned Knowledge Profile contract only after interoperability
+  fixtures and expected facts are frozen.
+- Keep identity, resolution, Evidence, and profile conformance covered by
+  deterministic graph contract tests.
 - Compile renderer-neutral dense topology from the consolidated graph, then
   integrate Stellar as a Graph Pane without placing semantic logic in WebGPU or
   Canvas code.

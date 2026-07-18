@@ -15,7 +15,7 @@ The review confirmed the schema-agnostic Generic/OKF profile foundation and
 experimental graph boundary. It identified three bounded pre-main defects and
 required a packaged graph journey plus an explicit Node 26 CLI startup-budget
 split. Full shared inspected-Concept state, compact topology IPC, Stellar,
-custom profile authoring, ontology onboarding, and publication-scale GraphBench
+custom profile authoring, ontology onboarding, and expanded graph performance
 remain post-main `dev` work.
 
 -- Shoshin | 2026-07-17

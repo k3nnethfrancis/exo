@@ -1,6 +1,6 @@
 import type { GraphFinding, KnowledgeGraphSnapshot } from "./knowledge-graph";
 
-export interface GraphUtilityDimension {
+export interface GraphIntegrityDimension {
   id: "identity" | "resolution" | "evidence" | "profile-conformance";
   label: string;
   measured: number;
@@ -9,19 +9,15 @@ export interface GraphUtilityDimension {
   findings: readonly GraphFinding[];
 }
 
-export interface GraphUtilityReport {
+export interface GraphIntegrityReport {
   version: "0.1";
   snapshotId: string;
   profileId: string;
-  dimensions: readonly GraphUtilityDimension[];
+  dimensions: readonly GraphIntegrityDimension[];
 }
 
-/**
- * The first GraphUtilityBench tracer reports independent mechanical dimensions.
- * It deliberately has no aggregate score: task utility and semantic quality
- * require a named corpus and task set, not an arithmetic shortcut.
- */
-export function evaluateGraphUtility(snapshot: KnowledgeGraphSnapshot): GraphUtilityReport {
+/** Reports independent mechanical graph-integrity dimensions without an aggregate score. */
+export function evaluateGraphIntegrity(snapshot: KnowledgeGraphSnapshot): GraphIntegrityReport {
   const duplicateIds = duplicates(snapshot.concepts.map((concept) => concept.id));
   const identityFindings = duplicateIds.map((id) => finding("identity.duplicate", `Duplicate concept identity: ${id}`, [id], []));
   const unresolvedRelations = snapshot.relations.filter((relation) => relation.resolution === "unresolved" || relation.resolution === "ambiguous");
@@ -70,12 +66,12 @@ function isInspectableEvidence(evidence: KnowledgeGraphSnapshot["relations"][num
 }
 
 function dimension(
-  id: GraphUtilityDimension["id"],
+  id: GraphIntegrityDimension["id"],
   label: string,
   measured: number,
   total: number,
   findings: readonly GraphFinding[],
-): GraphUtilityDimension {
+): GraphIntegrityDimension {
   return { id, label, measured, total, ratio: total > 0 ? measured / total : null, findings };
 }
 
@@ -90,5 +86,5 @@ function duplicates(values: readonly string[]): string[] {
 }
 
 function finding(code: string, message: string, conceptIds: string[], relationIds: string[]): GraphFinding {
-  return { id: `utility:${code}:${[...conceptIds, ...relationIds].join(":")}`, severity: "warning", code, message, conceptIds, relationIds, evidence: [] };
+  return { id: `integrity:${code}:${[...conceptIds, ...relationIds].join(":")}`, severity: "warning", code, message, conceptIds, relationIds, evidence: [] };
 }

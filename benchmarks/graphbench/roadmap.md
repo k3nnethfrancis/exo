@@ -1,6 +1,7 @@
-# GraphBench v1 roadmap
+# Exo graph performance suite roadmap
 
-GraphBench measures the engineering properties of an interactive knowledge-graph surface. It does not pretend that one universal scalar can describe whether a person's knowledge graph is “good.” Renderer speed, layout legibility, knowledge structure, and agent usefulness are separate claims with separate evidence.
+This suite measures the engineering properties of Exo's interactive graph
+surface. Its scope ends at Exo software verification.
 
 ## Tracks
 
@@ -49,19 +50,6 @@ These are diagnostic dimensions, not a composite “quality score.” Different 
 - every publication case runs at least three independent page trials
 - results remain hardware-specific; machines are never pooled into one number
 
-### 5. Knowledge usefulness
-
-This is a future task-conditioned companion track, not a renderer benchmark.
-
-- answerable navigation tasks with known source notes
-- shortest explainable path recall
-- linked-note and semantic-neighbor retrieval recall
-- ontology/property constraint satisfaction
-- agent search success, tokens loaded, tool calls, and time to evidence
-- counterfactual tests after removing or adding suggested links/tags
-
-Only this track can support claims that graph structure helps an AI system. It requires real or deliberately authored corpora with ground-truth tasks; synthetic force-layout fixtures cannot prove it.
-
 ## Frozen visual profiles
 
 - `benchmark-v1`: historical Stellar workload; immutable after the first baseline.
@@ -80,25 +68,8 @@ Every result records profile ID and parameter hash. Profiles may change radius, 
 5. **Done:** deterministic 1% topology-update workload with Procrustes-aligned displacement and a `≤0.10` p95 unchanged-node gate. The 10K tracer measured `0.067` p95 after bounded warm-start anchoring.
 6. **Done:** mobile 390×844 product runs alongside 1440×960 desktop runs.
 7. **Partial:** injected WebGPU recovery, semantic Canvas parity, and zero-idle-work gates are done; pixel parity and browser-delivered device loss remain.
-8. **Contract done; corpus pending:** separate task-grounded knowledge-usefulness evaluator with counterfactual link/tag variants.
-
-## Standalone repository gate
-
-GraphBench remains beside Exo's renderer until its v1 measurement contract and
-first two-hardware publication bundle are frozen. Keeping them together during
-this phase makes renderer drift visible in the same change that causes it.
-
-Extract GraphBench into its own public repository when all of these are true:
-
-1. the result schema, fixture checksum rules, frozen visual profiles, and
-   adapter contract have a tagged v1;
-2. the publication matrix has repeatable evidence from at least two hardware
-   classes;
-3. the package has its own Apache-2.0 license, lockfile, CI, release/versioning
-   policy, and one-command smoke run from a fresh clone;
-4. Exo becomes an ordinary versioned adapter rather than a privileged path;
-5. history is preserved with a subtree split and Exo links to the canonical
-   GraphBench repository instead of carrying a fork.
+8. Keep the suite coupled to Exo's production renderer and CI so measurement
+   drift is visible in the change that causes it.
 
 ## Publication rule
 

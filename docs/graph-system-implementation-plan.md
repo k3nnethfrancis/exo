@@ -64,13 +64,12 @@ merge decision.
 | Open Knowledge Graph 0.2 | tracer complete | open Concept types, recursive Property values, Relation authority/resolution/Evidence, deterministic snapshot tests |
 | Generic Markdown profile | tracer complete | zero-configuration interpretation covered by core tests |
 | Permissive OKF 0.1 profile | tracer complete | unknown fields survive; missing `type` is a finding rather than rejection |
-| GraphUtility tracer | tracer complete | identity, resolution, Evidence, and profile-conformance dimensions; no aggregate score |
+| Graph contract tracer | tracer complete | identity, resolution, Evidence, and profile-conformance dimensions; no aggregate score |
 | Dense Graph View projection | tracer complete | deterministic numeric topology; tag facts remain canonical but tag hubs are omitted from the default view |
 | Derived-process transport | tracer complete | `graph-view` runs outside Electron's renderer/main critical path with bounded IPC response handling |
 | Normal Graph Pane | tracer complete | Canvas view in Connections and Workspace Canvas; select, shortest path, orbit, pan, zoom, frame, refresh |
 | Real-Workspace dogfood | passed in development Electron | 2,719 visible concepts / 1,929 links after default-view suppression; selection and path exercised with no renderer error |
-| Public fixtures + task corpus | pending | pin OKF/OpenWiki subsets and freeze 20 expected-fact/task cases |
-| Full GraphUtilityBench | pending | add corruption/task conditions and retrieval/navigation measures |
+| Interoperability fixtures | pending | pin OKF/OpenWiki subsets and freeze expected schema and relation facts |
 | Stellar/WebGPU production renderer | pending | port only after packaged-app, fallback, accessibility, quiescence, continuity, and editor-latency gates |
 | Clean replay | pending | isolate graph-only hunks from pre-existing dirty work, build/package, and review final branch diff |
 
@@ -114,7 +113,7 @@ remain the acceptance sequence, including work that has not yet been earned.
 | Relations explain authority, resolution, and evidence | quality model / Kenneth | graph report and OKF/OpenWiki analysis | **keep** |
 | Generic Markdown works without setup | product simplicity / Kenneth | Exo launch direction | **keep** |
 | OKF 0.1 is the first optional interoperability profile | product decision / Kenneth | ADR 0005 | **keep** |
-| Knowledge utility must be measured separately from layout | graph experiment / Kenneth | GraphBench baseline | **keep** |
+| Graph integrity must be verified separately from layout | graph experiment / Kenneth | graph performance baseline | **keep** |
 | Stellar ships in the same branch | inherited implementation convenience | no user requirement; raises rollback and review cost | **delete** |
 | Snapshot 0.2 requires a long-lived compatibility layer | earlier plan assumption | current caller inventory shows old snapshot APIs are tests/docs only | **question; delete unless an external caller is proven** |
 | A profile registry or profile UI is needed now | implementation convention | no validated user workflow | **delete** |
@@ -241,14 +240,10 @@ do not preserve forwarding wrappers without a caller.
 
 - `packages/core/src/knowledge-profile.ts`
 - `packages/core/src/graph-projection.ts`
-- `packages/core/src/graph-utility.ts`
+- `packages/core/src/graph-integrity.ts`
 - `packages/core/src/__tests__/knowledge-profile.test.ts`
 - `packages/core/src/__tests__/graph-projection.test.ts`
-- `benchmarks/graph-utility/manifest.json`
-- `benchmarks/graph-utility/tasks.json`
-- `benchmarks/graph-utility/run.ts`
-- `benchmarks/graph-utility/README.md` only if invocation and metric definitions
-  cannot be made self-evident from the root graph report and package scripts
+- `packages/core/src/__tests__/graph-integrity.test.ts`
 
 Do not create profile subclasses, registries, factories, persistence stores, or
 ontology-specific UI. The Graph Pane tracer is the sole UI exception: it exists
@@ -293,13 +288,11 @@ bound or initialization budget is approached.
    - hierarchy and tags;
    - malformed frontmatter and missing OKF `type`; and
    - derived semantic observations with producer versions.
-4. Freeze 20 tasks spanning integrity, concept lookup, property filtering,
-   backlinks, two-hop traversal, missing-relation detection, and correct edit
-   target.
-5. Define expected facts and answers independently of any renderer.
+4. Freeze expected identity, property, relation, resolution, and preservation
+   facts independently of any renderer.
 
-**Gate:** another engineer can inspect fixtures, expected graph facts, and task
-answers without running Exo.
+**Gate:** another engineer can inspect fixtures and expected graph facts without
+running Exo.
 
 **Commit:** fixtures, manifest, tasks, and expected answers only.
 
@@ -391,36 +384,27 @@ fall back safely to Generic Markdown.
 
 **Commit:** profile contract and two implementations.
 
-### WP5 — GraphUtilityBench tracer
+### WP5 — Graph contract tracer
 
-**Purpose:** test usefulness, not aesthetics.
+**Purpose:** verify graph semantics independently from rendering.
 
 1. Implement a deterministic runner over the WP0 fixture/task contract.
 2. Report separate dimensions:
    - conformance;
    - integrity;
    - semantic alignment when a derived provider is supplied;
-   - navigability/task completion;
-   - retrieval utility; and
    - stability/determinism.
-3. Compare these conditions where the fixture supports them:
-   - path/lexical identity only;
-   - authored links;
-   - tags/properties/profile Relations;
-   - deterministic precomputed semantic observations; and
-   - hybrid explicit plus derived context.
-4. Measure answer correctness, evidence recall, irrelevant context, traversal
-   length, correct edit target, latency, and deterministic output.
-5. Emit versioned JSON and concise Markdown. Do not aggregate dimensions into a
+3. Verify path identity, authored links, tags/properties/profile Relations, and
+   deterministic precomputed semantic observations.
+4. Emit versioned JSON and concise Markdown. Do not aggregate dimensions into a
    universal score.
-6. Add corruption runs that remove types, links, tags, or reference properties
+5. Add corruption runs that remove types, links, tags, or reference properties
    and confirm the affected dimension/task changes in the expected direction.
 
-**Gate:** the runner detects known corruptions; at least one property-aware or
-hybrid condition improves a declared task family without unacceptable context or
-latency. If it does not, record the result and stop before product projection.
+**Gate:** the runner detects known corruptions, preserves unknown data, and is
+deterministic without affecting editor latency.
 
-**Commit:** utility runner, metric definitions, and first baseline report.
+**Commit:** contract runner, metric definitions, and first baseline report.
 
 ### WP6 — Renderer-neutral projection contract
 
@@ -456,8 +440,7 @@ to explain every selected Relation.
 5. Reproduce graph-only commits on a clean worktree from latest `main`.
 6. Run `pnpm ci:check` in that clean worktree.
 7. Review the merge as a foundation plus interaction-tracer change, not as proof
-   that the production Stellar/WebGPU renderer or GraphUtilityBench corpus is
-   finished.
+   that the production Stellar/WebGPU renderer is finished.
 
 **Gate:** clean replay and CI pass; no user Markdown migration occurred; current
 installed Exo behavior remains intact.
@@ -497,10 +480,10 @@ pnpm build
 pnpm ci:check
 ```
 
-GraphRenderBench/Stellar gates are not required for pure semantic-model commits,
+Graph performance/Stellar gates are not required for pure semantic-model commits,
 but they are required before accepting the Graph Pane tracer because this branch
-now changes spatial interaction. Never use them as substitutes for
-GraphUtilityBench.
+now changes spatial interaction. Never use them as substitutes for graph
+contract tests.
 
 ## Performance budgets
 
@@ -510,7 +493,6 @@ GraphUtilityBench.
   bounded dependent indexes; it does not rebuild every document.
 - Cold graph construction reports p50/p90 over representative 400-, 2,500-, and
   10,000-Note synthetic fixtures before the branch merges.
-- Utility tasks report p50/p90/p99 and maximum separately from correctness.
 - Projection of a settled 10,000-Concept snapshot must not require DOM or GPU
   access and must be deterministic.
 
@@ -528,7 +510,6 @@ Stop the affected work package and report evidence if:
 - canonical IDs cannot be made stable across the selected multi-root fixtures;
 - incremental graph work regresses typing or Note navigation;
 - OKF fixtures require behavior that conflicts with ordinary Exo Markdown;
-- utility conditions show no meaningful task benefit from properties/Relations;
 - profile interpretation requires executable code or a registry to pass the
   chosen fixtures; or
 - unrelated dirty work prevents a clean replay of graph-only commits.
@@ -548,9 +529,9 @@ and editor-latency-under-load gates.
 
 ### `feat/find-connect-context`
 
-Begins after GraphUtilityBench establishes a useful evidence contract. It ships
-the first reviewed maintenance Skill and measures proposal acceptance, edit
-burden, retrieval lift, and irrelevant context.
+Begins after the graph contract tests establish trustworthy evidence. It ships
+the first reviewed maintenance Skill and verifies that proposals remain
+understandable, reviewable, and reversible.
 
 ### Ontology onboarding
 

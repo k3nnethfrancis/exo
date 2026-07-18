@@ -27,8 +27,8 @@ Folders provide the first custom-ontology substrate. A Folder path gives Notes a
 
 The accepted graph direction is schema-agnostic: Markdown stays canonical,
 optional Knowledge Profiles interpret open properties and relationships, and
-Graph Views remain derived projections. Rendering/layout performance and
-knowledge utility use separate benchmarks. See
+Graph Views remain derived projections. Graph contract tests and the repo-local
+rendering/layout performance suite remain separate. See
 `graph-system-report-and-plan.md`.
 
 Codex agents are actively completing trust, containment, editor/invocation, and repository-distillation work. Do not add automatic Folder Index creation or graph-management Skills without `tasks.md` evidence.

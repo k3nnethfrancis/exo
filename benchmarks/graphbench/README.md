@@ -1,34 +1,23 @@
-# Exo GraphBench
+# Exo graph performance suite
 
-GraphBench is a hardware-stamped browser benchmark for interactive node-link
-visualization. It borrows the scale matrix and layout-quality vocabulary from
-GraphWaGu and the 2025 web-library comparison, while separating three workloads
-that public claims often conflate:
+This directory contains Exo's hardware-stamped engineering harness for
+interactive node-link visualization. It borrows the scale matrix and
+layout-quality vocabulary from GraphWaGu and the 2025 web-library comparison,
+while separating three workloads that are easy to conflate:
 
 1. **Render** — every engine receives the same graph and fixed coordinates.
 2. **Layout** — an engine's native layout is timed and scored independently.
 3. **Product** — camera/input latency, selection, labels, and memory are tested
    as user-facing capabilities rather than renderer throughput.
 
-See [roadmap.md](./roadmap.md) for the full renderer, interaction, scale, and
-future knowledge-usefulness suite. The latter is intentionally separate: a fast
-layout benchmark cannot prove that a graph helps an agent answer questions.
-The task-grounded evaluation contract lives in
-[knowledge-usefulness.md](./knowledge-usefulness.md).
+See [roadmap.md](./roadmap.md) for the renderer, interaction, resilience, and
+scale gates. The suite's scope ends at Exo software verification.
 
 The checked-in runner never downloads private data. Generated fixtures and
 benchmark results live under `artifacts/`, which is safe to replace and should
 not contain a real Exo workspace projection.
 
-## Public access
-
-GraphBench is publicly available today at
-[github.com/k3nnethfrancis/exo/tree/main/benchmarks/graphbench](https://github.com/k3nnethfrancis/exo/tree/main/benchmarks/graphbench)
-under Exo's Apache-2.0 license. Its package is marked `private` only to prevent
-an accidental npm publish; the source, fixtures, adapters, metric definitions,
-and reproducible baseline report are public.
-
-From a fresh clone:
+From an Exo checkout:
 
 ```sh
 git clone https://github.com/k3nnethfrancis/exo.git
@@ -38,11 +27,8 @@ pnpm graphbench:test
 pnpm graphbench:smoke
 ```
 
-GraphBench is source-contained under this directory and has only two runtime
-dependencies, but it still consumes Exo's root pnpm lockfile, scripts, CI, and
-license. It is therefore accessible and reproducible, not yet an independent
-distribution. The standalone-repository exit criteria are tracked in
-[roadmap.md](./roadmap.md).
+The package is marked `private` because it is an internal Exo engineering tool,
+not an independently versioned distribution.
 
 ## Profiles
 
@@ -91,7 +77,7 @@ GPU time comes only from `timestamp-query`; unsupported adapters remain visibly
 unsupported. Every Exo snapshot records the frozen presentation profile and its
 parameter hash.
 
-## Public comparison basis
+## Comparison basis
 
 - [GraphWaGu](https://stevepetruzza.io/pubs/graphwagu-2022.pdf): synthetic scales from 100 to 1,000,000 vertices at 20 edges per
   vertex, plus SuiteSparse datasets; FPS, layout iteration time, convergence,
@@ -99,6 +85,6 @@ parameter hash.
 - [Zhao et al. (2025)](https://link.springer.com/article/10.1186/s42492-025-00193-y): 481 static datasets from 100 to 200,000 vertices and edge
   ratios 1–10; construction time and FPS across SVG, Canvas, and WebGL.
 
-GraphBench adds p50/p95/p99 frame cadence, next-paint input latency, precise JS
+Exo's suite adds p50/p95/p99 frame cadence, next-paint input latency, precise JS
 heap when Chromium exposes it, optional WebGPU timestamp queries, label overlap,
 and deterministic convergence. Results from different hardware are not pooled.

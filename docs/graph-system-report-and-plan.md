@@ -7,8 +7,8 @@ Date: 2026-07-17
 
 The graph lab proved that Exo can render and directly manipulate a large spatial
 graph with desktop- and mobile-grade responsiveness. It also proved that
-rendering speed, layout quality, knowledge quality, and retrieval utility are
-different problems and must have different owners and benchmarks.
+rendering speed, layout quality, and knowledge integrity are different problems
+and must have different owners and verification.
 
 Exo will therefore integrate the work as two systems joined by a narrow data
 contract:
@@ -25,10 +25,9 @@ relationships, with Open Knowledge Format 0.1 as the first interoperability
 profile. Profiles never become a second canonical database, and unknown
 properties or types must survive round trips.
 
-Graph quality will not be reduced to a universal scalar. Exo will report a
-quality vector with evidence, separating mechanical integrity, profile
-conformance, navigation, retrieval utility, and stability. Visual layout quality
-is measured separately from whether the knowledge graph helps a human or agent.
+Graph quality will not be reduced to a universal scalar. Exo will report
+evidenced mechanical integrity, profile conformance, and stability separately
+from visual layout quality.
 
 ## What the graph lab built
 
@@ -157,19 +156,18 @@ concepts. They must remain versioned Derived Signals until accepted. A strong
 semantic match is a proposal candidate; a weak semantic match across an
 authored link may be an important bridge rather than a defect.
 
-### Quality is task- and profile-conditioned
+### Quality is multidimensional
 
 There is no honest universal `graph quality = 82` metric. The useful model is:
 
 ```text
-Q(graph, knowledge profile, task set) =
-  [conformance, integrity, semantic alignment,
-   navigability, retrieval utility, stability]
+Q(graph, knowledge profile) =
+  [conformance, integrity, semantic alignment, stability]
 ```
 
 Each dimension must show its evidence and confidence. A quality report should
-say “seven Metric concepts have no declared source relation” or “hybrid graph
-context improved evidence recall by 18%,” not merely display a score.
+say “seven Metric concepts have no declared source relation,” not merely display
+a score.
 
 ### Interoperability and ontology are different
 
@@ -211,9 +209,6 @@ silently rewrite them, or reject unknown data.
 
 **Graph View** maps a selected graph projection into encodings and layout
 weights. It changes presentation, not knowledge.
-
-**Eval Profile** names the conformance rules and task set used to assess a graph.
-It prevents a metric useful for one ontology from masquerading as universal.
 
 ### Proposed graph snapshot 0.2
 
@@ -298,7 +293,7 @@ No property should affect physics merely because it exists. The user or a
 profile chooses that mapping. The same graph can therefore support topology,
 lineage, ontology, semantic, and temporal views without changing its Notes.
 
-## Quality and evaluation system
+## Graph verification
 
 ### Universal integrity checks
 
@@ -320,55 +315,24 @@ lineage, ontology, semantic, and temporal views without changing its Notes.
 - domain-specific citation or provenance requirements; and
 - profile/version compatibility.
 
-### Knowledge utility tasks
-
-- concept and evidence retrieval;
-- filtering by type/property;
-- two- and three-hop questions;
-- dependency and impact analysis;
-- missing-property or missing-relation detection;
-- correct-document selection for edits; and
-- human navigation and explanation.
-
-Measure correctness, evidence recall, irrelevant context, token cost, latency,
-wrong-Workspace intrusion, correct edit target, and human completion time.
-
-### Semantic proposal evaluation
-
-Mask known tags, properties, and relations in curated corpora, then measure
-whether graph-plus-semantic retrieval recovers them. Record precision and recall,
-but treat the existing graph as imperfect ground truth. The stronger product
-test is whether accepted proposals improve downstream retrieval or navigation
-without raising irrelevant context or edit burden.
-
-### Benchmark split
-
-**GraphRenderBench** is the existing GraphBench render/layout/product work. It
-owns pixels, positions, interactions, memory, and latency.
-
-**GraphUtilityBench** is the next harness. It owns graph conformance, integrity,
-relation extraction, semantic proposals, human traversal, and agent retrieval
-utility. It compares lexical-only, semantic-only, authored-link, property-aware,
-hybrid, corrupted, and reviewed-enriched conditions.
-
-Initial corpora should include a Google OKF bundle, OpenWiki's own generated
-wiki, deterministic synthetic graphs with exact ground truth, corrupted variants,
-and a private copy of a real Exo Workspace.
+Graph contract tests own schema conformance, identity, link resolution,
+Evidence, unknown-field preservation, deterministic snapshots, and malformed
+input behavior. The repo-local graph performance suite independently owns
+pixels, positions, interactions, memory, resilience, and latency.
 
 ## Detailed implementation plan
 
 ### Phase 0 — Freeze the contracts and fixtures
 
 1. Check in this report, ADR 0005, glossary updates, and roadmap changes.
-2. Select one small Google OKF bundle and one OpenWiki-generated wiki as public
+2. Select one small Google OKF bundle and one OpenWiki-generated wiki as
    read-only fixtures; record source revisions and licenses.
 3. Create deterministic corruptions: missing `type`, unknown properties, broken
    and ambiguous links, duplicate resources, wrong tags, and dropped relations.
-4. Define 20 initial retrieval, traversal, and integrity tasks before changing
-   the production graph model.
+4. Freeze expected schema, relation, resolution, and preservation facts before
+   changing the production graph model.
 
-Gate: the fixtures, expected facts, and task answers are reviewable without any
-renderer.
+Gate: the fixtures and expected facts are reviewable without any renderer.
 
 ### Phase 1 — Consolidate the knowledge graph
 
@@ -398,19 +362,15 @@ Gate: Exo loads both fixtures without mutation, preserves unknown data, explains
 every interpreted edge, and falls back to Generic Markdown when no profile is
 selected.
 
-### Phase 3 — Build GraphUtilityBench
+### Phase 3 — Complete graph contract verification
 
 1. Add conformance, integrity, and corruption-tolerance suites.
-2. Compare lexical, semantic, explicit-link, property-aware, and hybrid context.
-3. Add masked-tag/property/relation recovery tests.
-4. Add agent tasks for evidence retrieval, multi-hop answers, and correct edit
-   targeting.
-5. Add a small human navigation protocol for neighborhood, path, and map use.
-6. Report a quality vector with evidence rather than a composite score.
+2. Verify identity, link resolution, unknown-field preservation, Relation
+   Evidence, and deterministic snapshots.
+3. Report each dimension with evidence rather than a composite score.
 
-Gate: property-aware or hybrid graph context must demonstrate measurable utility
-on at least one representative task family without unacceptable irrelevant
-context or latency.
+Gate: the suite detects every deterministic fixture corruption and preserves all
+unknown data without affecting editor latency.
 
 ### Phase 4 — Compile production Graph Views
 
@@ -461,12 +421,12 @@ budgets on a private real-Workspace copy.
    and current configured-Command invocation path.
 2. Require proposed tags, properties, or relations to include Evidence and an
    explanation.
-3. Show Markdown/frontmatter diffs and the predicted affected quality dimensions.
-4. Record acceptance, rejection, edit burden, and downstream utility.
+3. Show Markdown/frontmatter diffs and the affected graph facts.
+4. Verify that proposals remain understandable, reviewable, and reversible.
 5. Do not add another maintenance Skill until this one demonstrates value.
 
-Gate: reviewed proposals improve a measured task or resolve a declared profile
-violation without silently expanding Exo's authority.
+Gate: reviewed proposals resolve a declared profile violation without silently
+expanding Exo's authority.
 
 ### Phase 7 — Ontology onboarding
 

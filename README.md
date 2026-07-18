@@ -70,7 +70,8 @@ Exo is early. The current branch is a heavy-handed Exograph refactor. Near-term 
 - Finish the trustworthy Markdown workspace and packaged-app proof.
 - Make filesystem/QMD Search reliable, fast, and explicit about provider health.
 - Consolidate the graph model around open Concepts, Properties, Relations, and
-  Evidence; prove Generic Markdown and OKF fixtures in GraphUtilityBench.
+  Evidence; prove Generic Markdown and OKF compatibility with deterministic
+  contract tests.
 - Integrate the tested spatial Graph View only after renderer-neutral projection,
   packaged-app, and editor-latency-under-load gates pass.
 - Turn Connections into actionable context through links, tags, properties,
@@ -83,14 +84,12 @@ See `roadmap.md` and `tasks.md` for the active plan.
 The current graph-system plan is `docs/graph-system-report-and-plan.md`.
 `docs/exograph-simplification-plan.md` is the historical refactor record.
 
-## GraphBench
+## Graph performance gates
 
-[GraphBench](./benchmarks/graphbench/README.md) is Exo's public,
-hardware-stamped benchmark for interactive node-link systems. It keeps fixed
-coordinate rendering, native layout, product interaction, incremental
-stability, and task-grounded knowledge usefulness as separate claims. That
-prevents a fast renderer from passing with an unreadable layout—or an attractive
-graph from claiming it helps an agent without task evidence.
+[The graph performance suite](./benchmarks/graphbench/README.md) is Exo's
+repo-local engineering harness for interactive node-link rendering. It keeps
+fixed-coordinate rendering, native layout, product interaction, resilience,
+and incremental stability as separate regression gates.
 
 Run its contract tests or the 10,000-node smoke profile from this repository:
 
@@ -99,10 +98,9 @@ pnpm graphbench:test
 pnpm graphbench:smoke
 ```
 
-The harness currently lives in the Exo monorepo so the production renderer and
-benchmark cannot silently diverge. Its source boundary is intentionally
-self-contained so it can become a standalone repository after the v1 public
-contract and first multi-hardware result bundle are frozen.
+The harness lives beside Exo's renderer so production behavior and regression
+evidence cannot silently diverge. Results are hardware-specific Exo engineering
+measurements, not a portable benchmark.
 
 ## Current Status
 

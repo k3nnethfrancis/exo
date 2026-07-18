@@ -77,10 +77,6 @@ _Avoid_: mandatory schema, ontology database, plugin runtime
 A derived projection that maps selected Concepts, Relations, Properties, and Derived Signals into layout weights, visual encodings, labels, and interaction. It changes presentation, not knowledge.
 _Avoid_: canonical graph, ontology
 
-**Eval Profile**
-A declared set of conformance rules and human or agent tasks used to assess an exograph for a particular purpose.
-_Avoid_: universal graph score
-
 **Derived Signal**
 A versioned machine observation such as semantic similarity, inferred type, or proposed Relation. It may support a suggestion but is not durable knowledge until the user accepts a Markdown change.
 _Avoid_: automatic edge, inferred fact

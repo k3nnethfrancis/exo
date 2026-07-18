@@ -70,7 +70,7 @@ Real runs additionally record the canonical source URL and source checksum.
   invalid rather than slow.
 - Publication profiles run at least three independent page trials per case and
   report the distribution across trials. A single lucky frame window is not a
-  public benchmark result.
+  comparison result.
 - Every renderer records a frozen visual-profile identifier and parameter hash.
   Presentation experiments never silently change the workload of an existing
   profile.

@@ -46,7 +46,7 @@ Before contributing, scan `skills/`. For broad Exo development, load the relevan
 - `skills/submit-exo-issue/SKILL.md` - available for contributors and intake agents that file, promote, deduplicate, or assign Exo bug/QA/setup reports. The lead/orchestrator may follow the tracker convention directly without invoking this skill.
 - `skills/terminal-stability/SKILL.md` - use before changing terminal runtime, rendering, settings, tests, or Command launch behavior.
 - `skills/graph-system-stability/SKILL.md` - use before changing graph domain
-  types, Knowledge Profiles, graph queries, utility evals, layout, scene,
+  types, Knowledge Profiles, graph queries, integrity checks, layout, scene,
   rendering, Graph Pane integration, or graph performance tests.
 - `skills/deslopify-frontend/SKILL.md` - use before changing setup, settings, onboarding, future extension settings, or other configuration UI.
 
@@ -145,9 +145,9 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
   preserve unknown user data and never become a second canonical database.
 - Graph Views change layout and visual encoding, not knowledge. Renderer-local
   numeric kinds are performance projections and must not become ontology enums.
-- Keep GraphRenderBench and GraphUtilityBench separate. Never present layout
-  geometry, semantic similarity, or an unexplained aggregate as universal graph
-  quality.
+- Keep graph contract tests and the repo-local graph performance suite separate.
+  Never present layout geometry, semantic similarity, or an unexplained
+  aggregate as universal graph quality.
 - Feed/event streams are deferred. Activity appears only when reviewed Invocation history earns it.
 - Automation is not automatically core. Invocation records are the first activity record; Routine product work is a superseded/deletion-audit target.
 - A configured Command is the V1 agent/tool identity: handle, label, executable/arguments, cwd policy, environment allowlist, pointer policy, and invocation metadata. `AgentCommand` is an internal type. Do not rebuild promptable harness identity.
@@ -159,9 +159,8 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Provenance distinguishes human, invocation, and unknown writers without claiming certainty the evidence cannot support.
 - Commands may act in an explicitly confirmed cwd; that explicit command choice never grants Exo a second workspace filesystem surface.
 - Root `issues.md` is the canonical Exo bug, QA, and field-report tracker. Do not create parallel Exo issue trackers under `docs/` or the notes vault.
-- GraphUtilityBench is active graph-system work. Broader Workcells, training,
-  and search-optimization harnesses remain deferred until the graph/read/
-  invocation/review loop is stable.
+- Broader Workcells, training, and search-optimization harnesses remain deferred
+  until the graph/read/invocation/review loop is stable.
 - Optional or personal workflows should not become core by default.
 - CLI-first operator surfaces come before deep UI.
 - Every fragile UI/runtime behavior needs an automated harness or a documented manual evidence path.

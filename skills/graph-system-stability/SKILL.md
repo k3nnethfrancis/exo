@@ -1,6 +1,6 @@
 ---
 name: graph-system-stability
-description: Use before changing Exo graph domain types, snapshot construction, relationship extraction, graph queries, Knowledge Profiles, graph utility evaluation, layout, scene logic, WebGPU/Canvas rendering, Graph Pane integration, or graph performance tests. Preserves Markdown ownership, open ontology, evidence, renderer independence, editor latency, deterministic layout, fallback behavior, and separate render-versus-knowledge quality gates.
+description: Use before changing Exo graph domain types, snapshot construction, relationship extraction, graph queries, Knowledge Profiles, graph integrity checks, layout, scene logic, WebGPU/Canvas rendering, Graph Pane integration, or graph performance tests. Preserves Markdown ownership, open ontology, evidence, renderer independence, editor latency, deterministic layout, and fallback behavior.
 ---
 
 # Graph System Stability
@@ -38,8 +38,8 @@ Choose the narrowest affected layer:
 4. **Renderer** — WebGPU or Canvas pixels and device recovery only.
 5. **Product integration** — Graph Pane, workers, IPC, persistence, editor-load
    isolation, accessibility, and packaged-app behavior.
-6. **Evaluation** — GraphRenderBench geometry/performance or GraphUtilityBench
-   integrity/retrieval/task utility.
+6. **Verification** — graph contract/integrity tests or the repo-local graph
+   performance suite.
 
 Do not solve a lower-layer problem by moving ownership into a higher layer.
 
@@ -92,11 +92,11 @@ Markdown → Knowledge Graph → Graph projection → Layout → Scene → Rende
 
 ### Honest quality
 
-- Keep renderer throughput, layout geometry, product interaction, graph
-  integrity, and task utility as separate results.
+- Keep renderer throughput, layout geometry, product interaction, and graph
+  integrity as separate results.
 - Never present density, modularity, orphan count, semantic similarity, stress,
   or neighborhood preservation as universal knowledge quality.
-- Quality claims name their fixture, profile, task set, sample size, hardware,
+- Quality claims name their fixture, profile, sample size, hardware,
   metric definition, and evidence.
 - Unsupported metrics remain unsupported; never synthesize a passing zero.
 
@@ -160,11 +160,10 @@ graph extraction/layout work runs. Verify the real packaged app for device
 fallback, viewport containment, accessibility, continuity after Note changes,
 and idle quiescence.
 
-### Graph utility changes
+### Graph integrity changes
 
-Use the versioned GraphUtilityBench contract once implemented. Until then,
-report the utility gate as unavailable; do not use GraphBench layout metrics as
-a proxy.
+Run the versioned graph contract tests. Do not use layout or renderer metrics as
+a proxy for schema conformance, relation resolution, or Evidence coverage.
 
 ## Red flags
 
@@ -177,7 +176,7 @@ Stop and redesign if a change introduces:
 - a separate production graph model created for the Graph Pane;
 - continuous animation or simulation at rest;
 - whole-Workspace graph work on typing, save, or Note-open paths;
-- renderer-only tests for knowledge or retrieval claims;
+- renderer-only tests for graph-integrity claims;
 - a universal graph-quality score; or
 - private Note titles, paths, or topology in public artifacts.
 

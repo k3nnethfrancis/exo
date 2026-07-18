@@ -77,5 +77,4 @@ Visual styling can distinguish those layers. Filters can remove any derived laye
    small descriptor.
 6. Build one open-model tracer: token/residual activation trajectory for a
    single prompt.
-7. Add task-conditioned evaluations before making claims about interpretability
-   or agent usefulness.
+7. Require dedicated evidence before making claims about interpretability.

@@ -65,15 +65,11 @@ the consolidation can be called complete. The Canvas Graph Pane is an
 interaction tracer consuming that projection, not a third semantic model. Do
 not move ontology or relation meaning into Canvas/WebGPU code.
 
-Quality has two independent harnesses:
-
-- GraphRenderBench owns rendering, layout geometry, interaction, memory, and
-  latency.
-- GraphUtilityBench owns the initial independent identity, resolution, Evidence,
-  and profile-conformance tracer; its public task corpus must still add relation
-  extraction, semantic proposals, navigation, and agent retrieval utility.
-
-Neither produces an unexplained universal quality score.
+Two kinds of verification remain deliberately separate. Graph contract tests
+cover identity, resolution, Evidence, and profile conformance. The repo-local
+graph performance suite covers rendering, layout geometry, interaction, memory,
+resilience, and latency. Neither produces an unexplained universal quality
+score.
 
 ## Deep modules
 

@@ -11,7 +11,7 @@ export * from "./graph-query";
 export * from "./knowledge-graph";
 export * from "./knowledge-profile";
 export * from "./graph-projection";
-export * from "./graph-utility";
+export * from "./graph-integrity";
 export * from "./workspace-graph";
 export * from "./agent-invocation";
 export * from "./provider-session";

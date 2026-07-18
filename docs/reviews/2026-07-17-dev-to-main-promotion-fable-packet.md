@@ -16,9 +16,8 @@ there.
 
 The checkpoint combines the previously accepted dev foundation with:
 
-- GraphBench as isolated repository tooling, including deterministic fixtures,
-  Exo/Sigma/GraphWaGu adapters, resilience and incremental-stability checks,
-  and a small task-grounded knowledge-utility tracer;
+- repo-local graph performance tooling, including deterministic fixtures,
+  Exo/Sigma/GraphWaGu adapters, resilience and incremental-stability checks;
 - an experimental Canvas Graph Pane backed by the renderer-neutral knowledge
   projection and worker layout;
 - editor-to-Graph navigation, focused Note framing, more responsive zoom and

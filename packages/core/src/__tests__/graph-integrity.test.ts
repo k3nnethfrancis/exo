@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { evaluateGraphUtility } from "../graph-utility";
+import { evaluateGraphIntegrity } from "../graph-integrity";
 import type { KnowledgeGraphSnapshot } from "../knowledge-graph";
 
-describe("GraphUtilityBench tracer", () => {
+describe("graph integrity tracer", () => {
   it("reports separate evidenced dimensions and never fabricates an aggregate quality score", () => {
     const snapshot: KnowledgeGraphSnapshot = {
       version: "0.2",
@@ -22,9 +22,15 @@ describe("GraphUtilityBench tracer", () => {
       activeProfile: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
     };
 
-    const report = evaluateGraphUtility(snapshot);
+    const report = evaluateGraphIntegrity(snapshot);
 
-    expect(report.dimensions.map((dimension) => dimension.id)).toEqual(["identity", "resolution", "evidence", "profile-conformance"]);
+    expect(report.version).toBe("0.1");
+    expect(report.dimensions.map((dimension) => dimension.id)).toEqual([
+      "identity",
+      "resolution",
+      "evidence",
+      "profile-conformance",
+    ]);
     expect(report.dimensions.find((dimension) => dimension.id === "resolution")).toMatchObject({ measured: 1, total: 2, ratio: 0.5 });
     expect(report.dimensions.find((dimension) => dimension.id === "evidence")).toMatchObject({ measured: 1, total: 2, ratio: 0.5 });
     expect(report.dimensions.find((dimension) => dimension.id === "evidence")?.findings).toContainEqual(expect.objectContaining({ code: "relation.missing-evidence" }));
