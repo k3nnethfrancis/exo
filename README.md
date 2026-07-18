@@ -83,6 +83,27 @@ See `roadmap.md` and `tasks.md` for the active plan.
 The current graph-system plan is `docs/graph-system-report-and-plan.md`.
 `docs/exograph-simplification-plan.md` is the historical refactor record.
 
+## GraphBench
+
+[GraphBench](./benchmarks/graphbench/README.md) is Exo's public,
+hardware-stamped benchmark for interactive node-link systems. It keeps fixed
+coordinate rendering, native layout, product interaction, incremental
+stability, and task-grounded knowledge usefulness as separate claims. That
+prevents a fast renderer from passing with an unreadable layout—or an attractive
+graph from claiming it helps an agent without task evidence.
+
+Run its contract tests or the 10,000-node smoke profile from this repository:
+
+```bash
+pnpm graphbench:test
+pnpm graphbench:smoke
+```
+
+The harness currently lives in the Exo monorepo so the production renderer and
+benchmark cannot silently diverge. Its source boundary is intentionally
+self-contained so it can become a standalone repository after the v1 public
+contract and first multi-hardware result bundle are frozen.
+
 ## Current Status
 
 Exo is under active development and not yet a polished public binary release.

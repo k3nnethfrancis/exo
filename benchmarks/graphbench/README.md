@@ -20,6 +20,30 @@ The checked-in runner never downloads private data. Generated fixtures and
 benchmark results live under `artifacts/`, which is safe to replace and should
 not contain a real Exo workspace projection.
 
+## Public access
+
+GraphBench is publicly available today at
+[github.com/k3nnethfrancis/exo/tree/main/benchmarks/graphbench](https://github.com/k3nnethfrancis/exo/tree/main/benchmarks/graphbench)
+under Exo's Apache-2.0 license. Its package is marked `private` only to prevent
+an accidental npm publish; the source, fixtures, adapters, metric definitions,
+and reproducible baseline report are public.
+
+From a fresh clone:
+
+```sh
+git clone https://github.com/k3nnethfrancis/exo.git
+cd exo
+pnpm install
+pnpm graphbench:test
+pnpm graphbench:smoke
+```
+
+GraphBench is source-contained under this directory and has only two runtime
+dependencies, but it still consumes Exo's root pnpm lockfile, scripts, CI, and
+license. It is therefore accessible and reproducible, not yet an independent
+distribution. The standalone-repository exit criteria are tracked in
+[roadmap.md](./roadmap.md).
+
 ## Profiles
 
 | Profile | Nodes | Edge / node ratios | Engines | Purpose |

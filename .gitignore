@@ -6,6 +6,9 @@ release/
 coverage/
 test-results/
 playwright-report/
+# Generated local QA evidence. Durable benchmark reports belong under
+# benchmarks/graphbench/reports/ instead.
+/artifacts/
 .exo/
 .exo-dev/
 .env

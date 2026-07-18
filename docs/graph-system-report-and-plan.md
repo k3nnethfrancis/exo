@@ -110,8 +110,8 @@ Canonical evidence:
 
 - `../../exo-graph-viz-lab/stellar-contract.md`
 - `../../exo-graph-viz-lab/stellar-benchmark-status.md`
-- `../../exo-graph-viz-lab/graphbench/contract.md`
-- `../../exo-graph-viz-lab/graphbench/reports/2026-07-16-m2-max-baseline.md`
+- `../benchmarks/graphbench/contract.md`
+- `../benchmarks/graphbench/reports/2026-07-16-m2-max-baseline.md`
 
 ## What the experiment taught us
 

@@ -2,6 +2,17 @@
 
 Date: 2026-07-17
 
+## Source packet for a short technical post
+
+This is the canonical concise account. Use
+[`graph-system-report-and-plan.md`](./graph-system-report-and-plan.md) for the
+full experiment history, architecture, product lessons, domain model, and
+implementation plan. Use the
+[`M2 Max baseline`](../benchmarks/graphbench/reports/2026-07-16-m2-max-baseline.md)
+for reproducible numbers and [`GraphBench`](../benchmarks/graphbench/README.md)
+for metric definitions and commands. The Fable decision history remains in
+`docs/reviews/`; it is context, not the source of benchmark claims.
+
 ## What we built
 
 In plain English, we proved that Exo can turn a large Markdown workspace into a
@@ -26,6 +37,43 @@ Relations, authored/declared/derived authority, resolution state, and Evidence.
 Generic Markdown works without configuration; OKF 0.1 is the first optional
 interoperability profile. A renderer-neutral projection keeps ontology and file
 objects out of hot GPU/draw paths.
+
+## How we built it
+
+1. Exo compiles canonical Markdown relationships into a typed,
+   renderer-neutral graph snapshot. The GPU never owns note meaning.
+2. A deterministic worker lays out typed-array node and edge data, preserves a
+   stable mental map across small topology changes, and suspends completely
+   after convergence.
+3. The CPU owns scene state, camera math, picking, paths, focal-label choice,
+   and fallback semantics. WebGPU performs instanced node/link drawing; Canvas
+   implements the same scene contract when WebGPU is unavailable or lost.
+4. Direct pan, orbit, dolly, select, focus, and path gestures manipulate one
+   spatial camera. Labels are a bounded focal resource rather than DOM attached
+   to every node.
+5. GraphBench runs fixed-coordinate render, native layout, product interaction,
+   incremental stability, and knowledge usefulness as separate tracks. Every
+   result carries hardware, browser, viewport, fixture checksum, profile, and
+   metric definitions.
+
+## Measured checkpoint
+
+- The 10,000-node / 17,500-link density case settled in 4.52 seconds with
+  1.2 ms p95 main-thread frame work in the graph lab.
+- The public 10,000-node / 20,000-link product run measured 1.38 ms p95 from
+  pointer event to next frame and 16.3 MiB measured JS memory on an Apple M2
+  Max.
+- With fixed coordinates at 50,000 nodes / 100,000 links, Exo maintained
+  14.36 ms p95 browser frame cadence while Sigma measured 40.03 ms in the same
+  run. This is a refresh-cadence comparison, not mislabeled GPU time.
+- A deterministic 1% update to the 10,000-node graph produced 0.067 p95 aligned
+  displacement for unchanged nodes against a 0.10 mental-map gate.
+- The resilience track verifies semantic Canvas fallback after an injected
+  WebGPU failure and zero recurring scheduled frames once the scene settles.
+
+These are checkpoint measurements, not universal performance claims. The
+machine, browser, fixture, profile, repetitions, and distribution must accompany
+any published number.
 
 ## What this proves
 

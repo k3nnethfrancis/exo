@@ -82,6 +82,24 @@ Every result records profile ID and parameter hash. Profiles may change radius, 
 7. **Partial:** injected WebGPU recovery, semantic Canvas parity, and zero-idle-work gates are done; pixel parity and browser-delivered device loss remain.
 8. **Contract done; corpus pending:** separate task-grounded knowledge-usefulness evaluator with counterfactual link/tag variants.
 
+## Standalone repository gate
+
+GraphBench remains beside Exo's renderer until its v1 measurement contract and
+first two-hardware publication bundle are frozen. Keeping them together during
+this phase makes renderer drift visible in the same change that causes it.
+
+Extract GraphBench into its own public repository when all of these are true:
+
+1. the result schema, fixture checksum rules, frozen visual profiles, and
+   adapter contract have a tagged v1;
+2. the publication matrix has repeatable evidence from at least two hardware
+   classes;
+3. the package has its own Apache-2.0 license, lockfile, CI, release/versioning
+   policy, and one-command smoke run from a fresh clone;
+4. Exo becomes an ordinary versioned adapter rather than a privileged path;
+5. history is preserved with a subtree split and Exo links to the canonical
+   GraphBench repository instead of carrying a fork.
+
 ## Publication rule
 
 A claim must name the hardware, browser, fixture checksum, view profile, renderer version, track, repetitions, and distribution. “Fast at 10K” is not a result; “1.2 ms p95 input-to-frame at 10K/20K edges on Apple M2 Max under `benchmark-v1`, three trials” is.
