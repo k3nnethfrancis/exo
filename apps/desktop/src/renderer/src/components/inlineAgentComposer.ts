@@ -126,6 +126,7 @@ export function openInlineAgentComposer(view: EditorView, input: { from: number;
 
 export function inlineAgentComposerExtension(options: {
   onSend: (draft: InlineAgentDraft) => void;
+  onClose?: (documentBody: string) => void;
   renderPersistedInvocations?: boolean;
 }): Extension {
   return [
@@ -136,7 +137,14 @@ export function inlineAgentComposerExtension(options: {
     Prec.highest(keymap.of([
       { key: "Cmd-Enter", run: sendInlineAgentComposer },
       { key: "Ctrl-Enter", run: sendInlineAgentComposer },
-      { key: "Escape", run: closeInlineAgentComposer },
+      {
+        key: "Escape",
+        run: (view) => {
+          const closed = closeInlineAgentComposer(view);
+          if (closed) options.onClose?.(view.state.doc.toString());
+          return closed;
+        },
+      },
     ])),
   ];
 }

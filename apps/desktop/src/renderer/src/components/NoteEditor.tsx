@@ -1,4 +1,5 @@
 import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { flushSync } from "react-dom";
 
 import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { indentWithTab } from "@codemirror/commands";
@@ -132,6 +133,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const [wikilinkSuggestions, setWikilinkSuggestions] = useState<WikilinkSuggestionState | null>(null);
   const [agentSuggestions, setAgentSuggestions] = useState<AgentSuggestionState | null>(null);
   const [wikilinkPreview, setWikilinkPreview] = useState<WikilinkPreviewState | null>(null);
+  const [inlineComposerActive, setInlineComposerActive] = useState(false);
   const [newPropertyKey, setNewPropertyKey] = useState("");
   const [newPropertyValue, setNewPropertyValue] = useState("");
 
@@ -187,10 +189,17 @@ export function NoteEditor(props: NoteEditorProps) {
   useEffect(() => { zoomEditorRef.current = onZoomEditor; }, [onZoomEditor]);
   const agentComposer = useMemo(
     () => inlineAgentComposerExtension({
-      onSend: (draft) => invokeAgentRef.current(draft),
+      onSend: (draft) => {
+        setInlineComposerActive(false);
+        invokeAgentRef.current(draft);
+      },
+      onClose: (documentBody) => {
+        setInlineComposerActive(false);
+        startTransition(() => onBodyChange(documentBody));
+      },
       renderPersistedInvocations: !rawMarkdownMode,
     }),
-    [rawMarkdownMode],
+    [onBodyChange, rawMarkdownMode],
   );
   const normalizedNewPropertyKey = normalizeFrontmatterPropertyKey(newPropertyKey);
   const newPropertyKeyFeedback = frontmatterPropertyKeyFeedback(newPropertyKey, document?.frontmatter ?? {});
@@ -331,6 +340,7 @@ export function NoteEditor(props: NoteEditorProps) {
         const active = agentSuggestions;
         if (!view || !active) return;
         openInlineAgentComposer(view, { from: active.from, to: active.to, handle: command.handle });
+        setInlineComposerActive(true);
         setAgentSuggestions(null);
       },
     [agentSuggestions],
@@ -459,7 +469,8 @@ export function NoteEditor(props: NoteEditorProps) {
       keymap.of([
         {
           key: "Mod-s",
-          run: () => {
+          run: (view) => {
+            if (inlineComposerActive) flushSync(() => onBodyChange(view.state.doc.toString()));
             saveRef.current();
             return true;
           },
@@ -495,7 +506,7 @@ export function NoteEditor(props: NoteEditorProps) {
         indentWithTab,
         ...lintKeymap,
       ]),
-    [],
+    [inlineComposerActive, onBodyChange],
   );
 
   const markdownPreviewExtensions = useMemo(
@@ -779,7 +790,11 @@ export function NoteEditor(props: NoteEditorProps) {
             className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
             data-testid="editor-save"
             disabled={!document.dirty || saveStatus === "saving"}
-            onClick={() => void onSave()}
+            onClick={() => {
+              const view = codeMirrorRef.current?.view;
+              if (inlineComposerActive && view) flushSync(() => onBodyChange(view.state.doc.toString()));
+              void saveRef.current();
+            }}
             title={document.dirty ? "Save" : "No unsaved changes"}
             type="button"
           >
@@ -920,7 +935,11 @@ export function NoteEditor(props: NoteEditorProps) {
             foldGutter: false,
             highlightSelectionMatches: false,
           }}
-          onChange={handleEditorChange}
+          onBlur={() => {
+            const view = codeMirrorRef.current?.view;
+            if (inlineComposerActive && view) startTransition(() => onBodyChange(view.state.doc.toString()));
+          }}
+          onChange={inlineComposerActive ? undefined : handleEditorChange}
           onCreateEditor={handleEditorCreated}
           height="100%"
         />

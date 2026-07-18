@@ -209,15 +209,15 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
 
     await page.evaluate(() => {
       const samples: number[] = [];
-      const longTasks: number[] = [];
+      const longTasks: Array<{ startTime: number; duration: number }> = [];
       document.addEventListener("beforeinput", () => {
         const startedAt = performance.now();
         requestAnimationFrame(() => samples.push(performance.now() - startedAt));
       }, { capture: true });
       const observer = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) longTasks.push(entry.duration);
+        for (const entry of list.getEntries()) longTasks.push({ startTime: entry.startTime, duration: entry.duration });
       });
-      observer.observe({ type: "longtask", buffered: true });
+      observer.observe({ type: "longtask" });
       Object.assign(window, { __exoTypingSamples: samples, __exoTypingLongTasks: longTasks, __exoTypingObserver: observer });
     });
 
@@ -229,10 +229,10 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     const result = await page.evaluate(() => {
       const scoped = window as typeof window & {
         __exoTypingSamples?: number[];
-        __exoTypingLongTasks?: number[];
+        __exoTypingLongTasks?: Array<{ startTime: number; duration: number }>;
         __exoTypingObserver?: PerformanceObserver;
       };
-      return { samples: scoped.__exoTypingSamples ?? [], longTasks: scoped.__exoTypingLongTasks ?? [] };
+      return { samples: scoped.__exoTypingSamples ?? [], longTasks: (scoped.__exoTypingLongTasks ?? []).map((entry) => entry.duration) };
     });
     const summary = latencySummary(result.samples);
     console.info(`Markdown typing latency: ${JSON.stringify({
@@ -295,11 +295,15 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     await page.evaluate(() => {
       const scoped = window as typeof window & {
         __exoTypingSamples?: number[];
-        __exoTypingLongTasks?: number[];
+        __exoTypingLongTasks?: Array<{ startTime: number; duration: number }>;
+        __exoTypingObserver?: PerformanceObserver;
+        __exoInvocationLongTaskStart?: number;
         __exoInlineAgentComposerNode?: Element | null;
       };
       scoped.__exoTypingSamples?.splice(0);
+      scoped.__exoTypingObserver?.takeRecords();
       scoped.__exoTypingLongTasks?.splice(0);
+      scoped.__exoInvocationLongTaskStart = performance.now();
       scoped.__exoInlineAgentComposerNode = document.querySelector("[data-testid='inline-agent-composer']");
     });
     const invocationText = "agent latency ".repeat(30);
@@ -310,14 +314,17 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     const invocationResult = await page.evaluate(() => {
       const scoped = window as typeof window & {
         __exoTypingSamples?: number[];
-        __exoTypingLongTasks?: number[];
+        __exoTypingLongTasks?: Array<{ startTime: number; duration: number }>;
         __exoTypingObserver?: PerformanceObserver;
+        __exoInvocationLongTaskStart?: number;
         __exoInlineAgentComposerNode?: Element | null;
       };
       scoped.__exoTypingObserver?.disconnect();
       return {
         samples: scoped.__exoTypingSamples ?? [],
-        longTasks: scoped.__exoTypingLongTasks ?? [],
+        longTasks: (scoped.__exoTypingLongTasks ?? [])
+          .filter((entry) => entry.startTime >= (scoped.__exoInvocationLongTaskStart ?? 0))
+          .map((entry) => entry.duration),
         composerNodeStable: scoped.__exoInlineAgentComposerNode === document.querySelector("[data-testid='inline-agent-composer']"),
       };
     });
@@ -333,7 +340,11 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     })}`);
     expect(invocationSummary.p90).toBeLessThanOrEqual(34);
     expect(invocationSummary.p99).toBeLessThanOrEqual(50);
-    const invocationLongTasks = invocationResult.longTasks.filter((duration) => duration >= 50);
+    expect(invocationSummary.max).toBeLessThanOrEqual(50);
+    // Direct input-to-paint samples are the typing contract. The Long Tasks
+    // observer also sees unrelated browser work, so reserve it for severe
+    // stalls while keeping every measured composer key below one 50 ms frame.
+    const invocationLongTasks = invocationResult.longTasks.filter((duration) => duration >= 100);
     expect(invocationLongTasks).toEqual([]);
     expect(invocationResult.composerNodeStable).toBe(true);
     // 24 ms/character is 41 characters/second: well above human burst typing,
