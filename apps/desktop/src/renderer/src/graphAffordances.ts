@@ -31,6 +31,7 @@ export interface RendererGraphBacklink {
 }
 
 export interface RendererGraphNeighborhood {
+  focusPath: string;
   nodes: Array<{ id: string; label: string; kind: "note" | "external" | "unresolved"; target: string }>;
   edges: Array<{ id: string; label: string; source: string; target: string; kind: "wikilink" | "markdownLink" }>;
 }
@@ -133,6 +134,7 @@ export function buildNoteGraphContext(
     unresolvedLinks: outgoingLinks.filter((item) => item.resolution === "unresolved" || item.resolution === "ambiguous"),
     externalLinks: outgoingLinks.filter((item) => item.resolution === "external"),
     neighborhood: {
+      focusPath: note.filePath,
       nodes: neighborhoodNodes,
       edges: [...outgoingEdges, ...backlinkEdges],
     },

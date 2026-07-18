@@ -128,6 +128,63 @@ test("boots the shell, opens notes, and creates terminals on demand", async () =
   await cleanup();
 });
 
+test("keeps editor, full graph, and backlink-only Connections on one navigation contract", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture({
+    mutable: true,
+    initialNoteLabel: "graph-target",
+    prepareWorkspace: async (workspaceRoot) => {
+      const notes = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(path.join(notes, "graph-target.md"), "# Graph Target\n\nA backlink-only target.\n", "utf8");
+      await writeFile(path.join(notes, "graph-source.md"), "# Graph Source\n\n[[graph-target]]\n", "utf8");
+    },
+  });
+
+  try {
+    await page.getByTestId("editor-panel").hover();
+    await page.getByTestId("open-note-graph").click();
+    const graphPane = page.getByTestId("graph-pane");
+    const graphCanvas = graphPane.locator('canvas[aria-label="Interactive knowledge graph"]');
+    await expect(graphPane).toBeVisible();
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
+
+    await page.getByTestId("sidebar").getByRole("button", { name: "graph-source" }).click();
+    await expect(page.getByTestId("editor-title")).toHaveText("graph-source");
+
+    const canvasBox = await graphCanvas.boundingBox();
+    expect(canvasBox).not.toBeNull();
+    const focusPoint = {
+      x: canvasBox!.x + canvasBox!.width / 2,
+      y: canvasBox!.y + canvasBox!.height / 2,
+    };
+    await page.mouse.dblclick(focusPoint.x, focusPoint.y);
+    await expect(page.getByTestId("editor-title")).toHaveText("graph-target");
+
+    await page.mouse.dblclick(focusPoint.x, focusPoint.y);
+    await expect(page.getByTestId("editor-title")).toHaveText("graph-target");
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
+
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-connections").click();
+    await page.getByTestId("connections-tab-outline").click();
+    await expect(page.getByTestId("connections-panel-outline")).toContainText("Graph Target");
+    await page.getByTestId("connections-tab-links").click();
+    await expect(page.getByTestId("connections-panel-links").getByRole("button", { name: "Graph Source" })).toBeVisible();
+    await page.getByTestId("connections-tab-graph").click();
+    const localGraph = page.getByTestId("connections-panel-graph");
+    await expect(localGraph.getByTestId("graph-neighborhood-panel")).toBeVisible();
+    await expect(localGraph).toContainText("1 edges");
+    await localGraph.getByRole("button", { name: "Open full graph" }).click();
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
+
+    await graphPane.getByRole("button", { name: "Close graph" }).click();
+    await expect(graphPane).toHaveCount(0);
+    await page.locator(".tab-strip__tab").filter({ hasText: "graph-source" }).click();
+    await expect(page.getByTestId("editor-title")).toHaveText("graph-source");
+  } finally {
+    await cleanup();
+  }
+});
+
 test("shows a visible BrowserWindow on startup", async () => {
   const { electronApp, page, cleanup } = await launchExoWorkspaceFixture();
 

@@ -410,7 +410,7 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - Editor, Connections, and graph-detail Properties do not share an explicit
     inspected-Concept owner, so focus changes can produce empty or wrong context.
 - Required:
-  - [ ] Before main, fix the three defects confirmed by Fable: backlink source
+  - [x] Before main, fix the three defects confirmed by Fable: backlink source
     Notes missing from local neighborhoods; Expand passing a MouseEvent as
     `focusPath`; and unchanged-snapshot Refresh resetting the relaxed layout
     without rerunning it.
@@ -430,7 +430,7 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     Evidence, profile interpretation, and the visual mappings a property drives.
   - [ ] Hide Activity until it has a real invocation/change/provenance stream,
     then define its empty and populated states.
-  - [ ] Add a packaged-app E2E covering editor → focused graph → Note open →
+  - [x] Add a packaged-app E2E covering editor → focused graph → Note open →
     repeated-node focus → Properties/Links/Outline consistency → back navigation.
 
 -- Shoshin | 2026-07-17

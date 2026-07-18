@@ -25,7 +25,7 @@ interface InspectorDockProps {
   onOpenTarget: (target: string) => void;
   onOpenExternal: (target: string) => void;
   onOpenTag: (tag: string) => void;
-  onOpenGraphCanvas?: () => void;
+  onOpenGraphCanvas?: (focusPath: string) => void;
 }
 
 export function InspectorDock(props: InspectorDockProps) {

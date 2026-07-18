@@ -37,7 +37,40 @@ describe("WorkspaceGraph", () => {
     await writeFile(path.join(notes, "related.md"), "---\ntitle: Related Note\n---\n[[focus]]\n");
     const context = await new WorkspaceGraph(model(workspace, notes)).contextForNote(path.join(notes, "focus.md"));
     expect(context?.backlinks).toEqual([
-      expect.objectContaining({ label: "Related Note", target: path.join(notes, "related.md") }),
+      expect.objectContaining({
+        label: "Related Note",
+        target: path.join(notes, "related.md"),
+        note: expect.objectContaining({ filePath: path.join(notes, "related.md") }),
+      }),
+    ]);
+    expect(context?.neighborhood.map((note) => note.filePath)).toEqual([
+      path.join(notes, "focus.md"),
+      path.join(notes, "related.md"),
+    ]);
+  });
+
+  it("includes a backlink-only source in the target note neighborhood", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    const targetPath = path.join(notes, "target.md");
+    const sourcePath = path.join(notes, "source.md");
+    await writeFile(targetPath, "# Target\n");
+    await writeFile(sourcePath, "# Source\n\n[[target]]\n");
+
+    const context = await new WorkspaceGraph(model(workspace, notes)).contextForNote(targetPath);
+
+    expect(context?.outgoing).toEqual([]);
+    expect(context?.backlinks).toHaveLength(1);
+    expect(context?.backlinks[0]).toMatchObject({
+      source: "note:notes:source.md",
+      target: sourcePath,
+      note: { id: "note:notes:source.md", filePath: sourcePath },
+    });
+    expect(context?.neighborhood.map((note) => note.id)).toEqual([
+      "note:notes:source.md",
+      "note:notes:target.md",
     ]);
   });
 

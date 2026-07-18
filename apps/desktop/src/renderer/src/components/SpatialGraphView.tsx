@@ -1,4 +1,4 @@
-import { Expand, RefreshCw, Scan } from "lucide-react";
+import { RefreshCw, Scan } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type WheelEvent } from "react";
 import type { GraphConceptDetail, GraphViewBundle, GraphViewProjection } from "@exo/core";
 
@@ -20,7 +20,6 @@ interface SpatialGraphViewProps {
   focusPath?: string | null;
   activePath?: string | null;
   onOpenTarget: (target: string) => void;
-  onOpenCanvas?: () => void;
 }
 
 interface PointerGesture {
@@ -36,9 +35,10 @@ interface PointerGesture {
 
 const PALETTE = ["#3f7d72", "#bf6840", "#78699c", "#8a7b4e", "#52779c", "#9b5f6c", "#65825b", "#8d684c"];
 
-export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarget, onOpenCanvas }: SpatialGraphViewProps) {
+export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarget }: SpatialGraphViewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gestureRef = useRef<PointerGesture | null>(null);
+  const bundleRef = useRef<GraphViewBundle | null>(null);
   const profileId = "generic-markdown" as const;
   const [bundle, setBundle] = useState<GraphViewBundle | null>(null);
   const [positions, setPositions] = useState<Float32Array>(new Float32Array());
@@ -53,18 +53,31 @@ export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarg
   const projection = bundle?.projection ?? null;
 
   useEffect(() => {
+    bundleRef.current = bundle;
+  }, [bundle]);
+
+  useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
     void window.exo.notes.getGraphView(profileId).then((next) => {
       if (cancelled) return;
+      const preserveScene = shouldPreserveGraphScene(
+        bundleRef.current?.projection.sourceSnapshotId ?? null,
+        next.projection.sourceSnapshotId,
+        positions.length,
+        next.projection.nodes.length,
+      );
+      bundleRef.current = next;
       setBundle(next);
-      const seeded = seededGraphPositions(next.projection);
-      setPositions(seeded);
-      setCamera(frameGraphCamera(seeded));
-      setSelected(-1);
-      setSelectedDetail(null);
-      setPathTarget(-1);
+      if (!preserveScene) {
+        const seeded = seededGraphPositions(next.projection);
+        setPositions(seeded);
+        setCamera(frameGraphCamera(seeded));
+        setSelected(-1);
+        setSelectedDetail(null);
+        setPathTarget(-1);
+      }
       setLoading(false);
     }).catch((reason) => {
       if (cancelled) return;
@@ -220,7 +233,6 @@ export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarg
       <div className="spatial-graph__toolbar">
         <span className="spatial-graph__phase">Experimental</span>
         <span className="spatial-graph__count">{projection?.nodes.length ?? 0} · {projection?.edges.length ?? 0}</span>
-        {onOpenCanvas ? <button aria-label="Open graph in canvas" onClick={onOpenCanvas} title="Open in canvas" type="button"><Expand size={14} /></button> : null}
         <button aria-label="Frame graph" onClick={() => setCamera(frameGraphCamera(positions))} title="Frame graph" type="button"><Scan size={14} /></button>
         <button aria-label="Refresh graph" onClick={() => setReloadNonce((value) => value + 1)} title="Refresh graph" type="button"><RefreshCw size={14} /></button>
       </div>
@@ -247,6 +259,15 @@ export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarg
       <GraphConceptDetailPanel detail={selectedDetail} projection={projection} selected={selected} onOpenTarget={onOpenTarget} />
     </div>
   );
+}
+
+export function shouldPreserveGraphScene(
+  previousSnapshotId: string | null,
+  nextSnapshotId: string,
+  positionCount: number,
+  nodeCount: number,
+): boolean {
+  return previousSnapshotId === nextSnapshotId && positionCount === nodeCount * 3;
 }
 
 function GraphConceptDetailPanel({

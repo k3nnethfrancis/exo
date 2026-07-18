@@ -48,6 +48,10 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Keeps backlink-only Notes coherent across Links and the local Graph, opens
+  the full Graph at the inspected Note without leaking click events into graph
+  state, and preserves settled layout and camera state across unchanged
+  refreshes.
 - Keeps search responsive during index maintenance with separate foreground and
   maintenance workers, truthful Simple-search fallback, bounded retries, and
   transactional QMD metadata/vector publication so interrupted writes remain

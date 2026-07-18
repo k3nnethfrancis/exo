@@ -1047,7 +1047,12 @@ describe("markdown editor wikilink behavior", () => {
     expect(graphContext?.outgoingLinks.map((item) => item.target).sort()).toEqual(["goals", "https://example.com"]);
     expect(graphContext?.externalLinks.map((item) => item.target)).toEqual(["https://example.com"]);
     expect(graphContext?.backlinks).toEqual([{ label: "Source", target: "/vault/source.md" }]);
+    expect(graphContext?.neighborhood.focusPath).toBe("/vault/current.md");
     expect(graphContext?.neighborhood.nodes.map((item) => item.kind)).toEqual(["note", "note"]);
+    expect(graphContext?.neighborhood.edges).toContainEqual(expect.objectContaining({
+      source: "note:notes:source.md",
+      target: "note:notes:current.md",
+    }));
   });
 
   it("returns a lightweight hover preview fallback for empty or missing note bodies", () => {
@@ -1097,7 +1102,7 @@ function graphContextFixture(overrides: Partial<WorkspaceGraphContext["note"]> =
       { source: note.id, target: "goals", label: "goals", resolution: "unresolved" },
       { source: note.id, target: "https://example.com", label: "external", resolution: "external" },
     ],
-    backlinks: [{ source: source.id, target: source.filePath, label: "Source", resolution: "resolved", note: note }],
+    backlinks: [{ source: source.id, target: source.filePath, label: "Source", resolution: "resolved", note: source }],
     unresolved: [{ source: note.id, target: "goals", label: "goals", resolution: "unresolved" }],
     neighborhood: [note, source],
   };

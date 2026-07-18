@@ -7,7 +7,7 @@ interface GraphNeighborhoodViewProps {
   onOpenTarget: (target: string) => void;
   onOpenExternal: (target: string) => void;
   onOpenTag: (tag: string) => void;
-  onOpenCanvas?: () => void;
+  onOpenCanvas?: (focusPath: string) => void;
 }
 
 export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
@@ -18,21 +18,25 @@ export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
     return <div className="footer-empty">No neighborhood yet</div>;
   }
 
+  const visibleNodes = nodes.slice(0, 8);
+  const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
+  const visibleEdges = neighborhood.edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target));
+
   return (
     <section className="graph-neighborhood" data-testid="graph-neighborhood-panel">
       <div className="connections-panel__section-title">Neighborhood</div>
       <div className="graph-neighborhood__map" aria-label="Local graph neighborhood">
         <svg viewBox="0 0 240 156" role="img">
-          {neighborhood.edges.map((edge) => {
-            const source = nodes.slice(0, 8).findIndex((node) => node.id === edge.source);
-            const target = nodes.slice(0, 8).findIndex((node) => node.id === edge.target);
+          {visibleEdges.map((edge) => {
+            const source = visibleNodes.findIndex((node) => node.id === edge.source);
+            const target = visibleNodes.findIndex((node) => node.id === edge.target);
             if (source < 0 || target < 0) return null;
-            const sourcePoint = localPoint(source, nodes.slice(0, 8).length);
-            const targetPoint = localPoint(target, nodes.slice(0, 8).length);
+            const sourcePoint = localPoint(source, visibleNodes.length);
+            const targetPoint = localPoint(target, visibleNodes.length);
             return <line key={edge.id} x1={sourcePoint.x} y1={sourcePoint.y} x2={targetPoint.x} y2={targetPoint.y} className="graph-neighborhood__edge" />;
           })}
-          {nodes.slice(0, 8).map((node, index) => {
-            const point = localPoint(index, Math.min(8, nodes.length));
+          {visibleNodes.map((node, index) => {
+            const point = localPoint(index, visibleNodes.length);
             return (
               <g key={node.id} className="graph-neighborhood__point" transform={`translate(${point.x} ${point.y})`}>
                 <circle r={index === 0 ? 6 : 4} />
@@ -44,7 +48,7 @@ export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
         </svg>
       </div>
       <div className="graph-neighborhood__nodes">
-        {nodes.slice(0, 8).map((node) => (
+        {visibleNodes.map((node) => (
           <button
             key={node.id}
             className={`graph-neighborhood__node graph-neighborhood__node--${node.kind}`}
@@ -57,9 +61,9 @@ export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
         ))}
       </div>
       <div className="graph-neighborhood__footer">
-        <span>{neighborhood.edges.length} edges</span>
+        <span>{visibleEdges.length} edges</span>
         {onOpenCanvas ? (
-          <button aria-label="Open full graph" onClick={onOpenCanvas} title="Open full graph" type="button">
+          <button aria-label="Open full graph" onClick={() => onOpenCanvas(neighborhood.focusPath)} title="Open full graph" type="button">
             <Expand size={13} />
           </button>
         ) : null}

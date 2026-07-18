@@ -239,9 +239,9 @@ Start only after the trust gates above pass.
   only the tracked Node 26 CLI process-start floor missed p50.
 - [x] Obtain Fable ruling: **approve after listed fixes**. Review artifacts:
   `docs/reviews/2026-07-17-dev-to-main-promotion-fable-{packet,response}.md`.
-- [ ] Fix Fable F1–F3: backlink-source neighborhoods, typed focused Graph
+- [x] Fix Fable F1–F3: backlink-source neighborhoods, typed focused Graph
   expansion, and unchanged-snapshot layout refresh stability.
-- [ ] Add the packaged graph interaction journey and split CLI startup-floor
+- [x] Add the packaged graph interaction journey and split CLI startup-floor
   measurement from Exo-side navigation work without weakening in-app budgets.
 - [ ] Re-run `ci:check`, `stable:smoke`, full `test:e2e`, latency gates, and
   `pack:mac` on the exact fixed tree; merge that SHA to `main`, then return to

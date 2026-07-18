@@ -406,7 +406,12 @@ export class WorkspaceGraph {
       outgoingByConcept.set(entry.note.id, outgoing);
       for (const link of outgoing) {
         if (!link.note) continue;
-        const backlink = { ...link, label: entry.note.title, target: entry.note.filePath };
+        const backlink = {
+          ...link,
+          label: entry.note.title,
+          target: entry.note.filePath,
+          note: entry.note,
+        };
         const current = incoming.get(link.note.id);
         if (current) current.push(backlink);
         else incoming.set(link.note.id, [backlink]);
