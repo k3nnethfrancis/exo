@@ -243,7 +243,7 @@ Start only after the trust gates above pass.
   expansion, and unchanged-snapshot layout refresh stability.
 - [x] Add the packaged graph interaction journey and split CLI startup-floor
   measurement from Exo-side navigation work without weakening in-app budgets.
-- [ ] Re-run `ci:check`, `stable:smoke`, full `test:e2e`, latency gates, and
+- [x] Re-run `ci:check`, `stable:smoke`, full `test:e2e`, latency gates, and
   `pack:mac` on the exact fixed tree; merge that SHA to `main`, then return to
   `dev` for the explicitly deferred graph/profile roadmap.
 
