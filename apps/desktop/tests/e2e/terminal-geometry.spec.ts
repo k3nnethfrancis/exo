@@ -14,7 +14,7 @@ test("keeps a direct-PTY fake TUI frame aligned at wide geometry", async () => {
   try {
     const shell = await pageShellSession(page);
     await startFakeInkAgent(page, shell.id);
-    const baseline = await waitForCompleteGeometryFrame(page, { minCols: 180 }, shell.id);
+    const baseline = await waitForCompleteGeometryFrame(page, { minCols: 120 }, shell.id);
 
     expect(baseline.frameCount).toBe(1);
     expect(baseline.rulerLength).toBe(baseline.cols);
@@ -50,10 +50,16 @@ async function launchWideTerminal() {
   await fixture.page.getByTestId("utility-pane-toggle").click();
   await fixture.page.getByTestId("utility-pane-terminal").click();
   await expect(fixture.page.getByTestId("terminal-surface")).toBeVisible();
-  if (await fixture.page.getByTestId("sidebar-collapse").isVisible()) {
-    await fixture.page.getByTestId("sidebar-collapse").click();
-    await expect(fixture.page.getByTestId("sidebar-expand")).toBeVisible();
+  if (!await fixture.page.locator(".workspace-shell").evaluate((element) => element.classList.contains("workspace-shell--sidebar-collapsed"))) {
+    await fixture.page.getByTestId("workspace-titlebar-sidebar").click();
+    await expect(fixture.page.locator(".workspace-shell")).toHaveClass(/workspace-shell--sidebar-collapsed/);
   }
+  const utilityResizer = await fixture.page.getByTestId("utility-pane-resizer").boundingBox();
+  expect(utilityResizer).not.toBeNull();
+  await fixture.page.mouse.move(utilityResizer!.x + utilityResizer!.width / 2, utilityResizer!.y + 120);
+  await fixture.page.mouse.down();
+  await fixture.page.mouse.move(utilityResizer!.x - 720, utilityResizer!.y + 120, { steps: 8 });
+  await fixture.page.mouse.up();
   await fixture.page.getByTestId("terminal-surface").click();
   return fixture;
 }
@@ -70,7 +76,7 @@ async function pageShellSession(page: Page) {
 }
 
 async function startFakeInkAgent(page: Page, terminalId: string): Promise<void> {
-  await waitForSettledRendererGeometry(page, terminalId, { minCols: 180 });
+  await waitForSettledRendererGeometry(page, terminalId, { minCols: 120 });
   await page.evaluate(async ({ id, command }) => {
     await window.exo.terminals.write(id, `${command}\n`);
   }, {

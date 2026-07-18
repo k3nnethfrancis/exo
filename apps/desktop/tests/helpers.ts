@@ -261,7 +261,7 @@ async function relaunchExoFixtureForJourney(
   });
   const page = electronApp.windows()[0] ?? await electronApp.firstWindow();
   await expect(page.getByTestId("sidebar")).toBeVisible();
-  await expect(page.getByTestId("editor-panel")).toBeVisible();
+  await expect(page.locator('[data-testid="editor-panel"], [data-testid="editor-empty"]')).toBeVisible();
   if (openTerminalSurface) {
     await page.getByTestId("utility-pane-toggle").click();
     await page.getByTestId("utility-pane-terminal").click();

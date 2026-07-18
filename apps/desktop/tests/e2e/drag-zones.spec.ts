@@ -6,7 +6,7 @@ test("splits editor panes without creating terminal or preview canvas leaves", a
   const { page, cleanup } = await launchExoWorkspaceFixture();
 
   try {
-    const source = await page.locator(".tab-strip__tab").first().boundingBox();
+    const source = await page.getByRole("button", { name: "related-note" }).first().boundingBox();
     const editor = await page.locator(".workspace-shell__canvas .pane-leaf--editor").first().boundingBox();
     expect(source).not.toBeNull();
     expect(editor).not.toBeNull();

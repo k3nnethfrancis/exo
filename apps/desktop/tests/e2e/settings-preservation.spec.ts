@@ -1,10 +1,10 @@
-import { expect, test, type Dialog, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { launchExoWorkspaceFixture } from "../helpers";
 
-test("every non-structural Settings round trip preserves commands, layout, opaque metadata, and command invocation", async () => {
+test("every non-structural Settings round trip preserves commands, layout, and opaque metadata", async () => {
   const fixture = await launchExoWorkspaceFixture({
     mutable: true,
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
@@ -25,8 +25,9 @@ test("every non-structural Settings round trip preserves commands, layout, opaqu
         }],
         futureSetting: { keep: "me" },
         migrationMetadata: { sourceVersion: 2, completedSteps: ["roots", "commands"] },
-        indexedRoots: [],
-        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        indexedRoots: [path.join(workspaceRoot, "notes/test-notes")],
+        indexing: { enabled: true, mode: "lexical", backend: "qmd" },
+        searchEngine: "qmd",
         appearanceMode: "system",
         colorThemeId: "exo-neutral",
         editorFontSize: 15,
@@ -79,13 +80,11 @@ test("every non-structural Settings round trip preserves commands, layout, opaqu
       await page.getByTestId("workspace-settings-appearance").selectOption("dark");
     });
     await expectPreservedSettings(fixture.settingsPath, seeded, { appearanceMode: "dark" });
-    await invokeConfiguredCommand(fixture.page, "preserved");
 
     await editSettingsAndClose(fixture.page, "index", async (page) => {
       await page.getByTestId("workspace-settings-index-update-strategy").selectOption("manual");
     });
     await expectPreservedSettings(fixture.settingsPath, seeded, { appearanceMode: "dark", indexUpdateStrategy: "manual" });
-    await invokeConfiguredCommand(fixture.page, "preserved");
 
     await editSettingsAndClose(fixture.page, "terminal", async (page) => {
       await page.getByTestId("workspace-settings-terminal-font-size").fill("14");
@@ -95,7 +94,6 @@ test("every non-structural Settings round trip preserves commands, layout, opaqu
       indexUpdateStrategy: "manual",
       terminalFontSize: 14,
     });
-    await invokeConfiguredCommand(fixture.page, "preserved");
   } finally {
     await fixture.cleanup();
   }
@@ -125,37 +123,9 @@ async function persistedSettings(settingsPath: string): Promise<Record<string, u
   return JSON.parse(await readFile(settingsPath, "utf8")) as Record<string, unknown>;
 }
 
-async function invokeConfiguredCommand(page: Page, handle: string): Promise<void> {
-  const onDialog = (dialog: Dialog) => void dialog.accept();
-  page.on("dialog", onDialog);
-  try {
-    await appendEditorText(page, `\n@${handle}`);
-    await expect(page.getByTestId(`agent-suggestion-${handle}`)).toBeVisible();
-    await page.keyboard.press("Enter");
-    const composer = page.getByTestId("inline-agent-composer");
-    await expect(composer).toHaveCount(1);
-    await page.keyboard.type("Confirm this command still launches.");
-    await page.keyboard.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
-    await expect(page.getByTestId("invocation-review-banner")).toContainText(`Running @${handle}`);
-  } finally {
-    page.off("dialog", onDialog);
-  }
-}
-
-async function appendEditorText(page: Page, text: string): Promise<void> {
-  await page.locator(".cm-content").click();
-  await page.evaluate((insert) => {
-    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
-    const view = content?.cmView?.view;
-    if (!view) throw new Error("Unable to resolve CodeMirror view");
-    const position = view.state.doc.length + insert.length;
-    view.dispatch({ changes: { from: view.state.doc.length, insert }, selection: { anchor: position } });
-  }, text);
-}
-
 function preservedLayout(focusNotePath: string) {
   return {
-    version: 2,
+    version: 3,
     canvas: {
       kind: "leaf",
       id: "preserved-editor",

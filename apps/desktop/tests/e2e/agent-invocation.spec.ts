@@ -388,6 +388,7 @@ async function launchInvocationFixture(
           label: `@${handle}`,
           handle,
           command: `${shellQuote(process.execPath)} ${shellQuote(scriptPath)} ${shellQuote(notePath)}`,
+          ...(handle === "claude" ? { adapter: "claude-code", continuityPolicy: "continuous" } : {}),
           cwdPolicy: "workspace_root",
           promptDelivery: "stdin",
           version: 1,

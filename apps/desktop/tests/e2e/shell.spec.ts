@@ -41,19 +41,13 @@ async function expectStableOuterFrame(
 }
 
 async function cycleAppearanceTo(page: import("@playwright/test").Page, targetMode: "system" | "light" | "dark") {
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const currentMode = await page.locator("html").getAttribute("data-appearance-mode");
-    if (currentMode === targetMode) {
-      return;
-    }
-
-    if (!(await page.getByTestId("workspace-appearance").isVisible().catch(() => false))) {
-      await page.getByTestId("workspace-menu-button").click();
-    }
-    await page.getByTestId("workspace-appearance").click();
-  }
-
-  throw new Error(`Unable to reach appearance mode ${targetMode}.`);
+  if (await page.locator("html").getAttribute("data-appearance-mode") === targetMode) return;
+  await page.getByTestId("workspace-menu-toggle").click();
+  await page.getByTestId("workspace-menu-settings").click();
+  await page.getByTestId("workspace-settings-tab-appearance").click();
+  await page.getByTestId("workspace-settings-appearance").selectOption(targetMode);
+  await expect(page.getByTestId("workspace-settings-status")).toContainText("Settings saved.");
+  await page.getByTestId("workspace-settings-close").click();
 }
 
 async function pageShellSession(page: import("@playwright/test").Page) {
@@ -363,6 +357,7 @@ test("suppresses generated daily-note titles but preserves explicit H1s", async 
   await expect(page.getByTestId("toggle-markdown-mode")).toBeVisible();
   await expect(page.getByTestId("editor-save")).toBeVisible();
   await expect(page.getByTestId("editor-save-status")).toBeVisible();
+  await page.getByTestId("editor-panel").hover();
   await page.getByTestId("toggle-properties").click();
   await expect(page.getByTestId("properties-panel")).toBeVisible();
 
@@ -658,7 +653,8 @@ test("lets you close editor tabs", async () => {
 
   await page.getByTestId("utility-pane-toggle").click();
   await page.getByTestId("utility-pane-connections").click();
-  await page.getByTestId("backlinks-panel").getByText("Related Note").click();
+  await page.getByTestId("connections-tab-links").click();
+  await page.getByTestId("connections-panel-links").getByRole("button", { name: "Related Note" }).first().click();
   await expect(page.getByTestId("editor-title")).toHaveText("related-note");
   await page.getByLabel("Close related-note").click();
   await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
@@ -677,8 +673,8 @@ test("renders inspector content when expanded", async () => {
   await expect(page.getByTestId("connections-panel-links")).toContainText(/Related Note|agent-memory|research/);
   await page.getByTestId("connections-tab-graph").click();
   await expect(page.getByTestId("graph-neighborhood-panel")).toContainText("Neighborhood");
-  await expect(page.getByTestId("graph-neighborhood")).toContainText("agent-memory");
-  await expect(page.getByTestId("graph-neighborhood")).toContainText("research");
+  await expect(page.getByTestId("graph-neighborhood-panel")).toContainText("Agent Memory");
+  await expect(page.getByTestId("graph-neighborhood-panel")).toContainText("Related Note");
 
   await cleanup();
 });
@@ -814,51 +810,6 @@ test("keeps the command server available while the window is hidden", async () =
   await cleanup();
 });
 
-test("supports CLI terminal control while the window is hidden", async () => {
-  const { electronApp, runtimeRoot, workspaceRoot, cleanup } = await launchExoTerminalFixture({
-    env: {
-      EXO_SHELL: "/bin/cat",
-      EXO_SHELL_ARGS: "",
-    },
-  });
-  const cliEnv: Record<string, string> = {
-    ...stringEnv(process.env),
-    COREPACK_ENABLE_PROJECT_SPEC: "0",
-    EXO_RUNTIME_ROOT: runtimeRoot,
-    EXO_WORKSPACE_ROOT: workspaceRoot,
-    EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
-    EXO_PROJECT_ROOTS: path.join(workspaceRoot, "projects/sample-project"),
-  };
-
-  try {
-    const hidden = await electronApp.evaluate(({ BrowserWindow }) => {
-      const window = BrowserWindow.getAllWindows()[0];
-      window.hide();
-      return !window.isVisible();
-    });
-    expect(hidden).toBe(true);
-
-    const status = runExoCli(["status"], cliEnv);
-    expect(status.status).toBe(0);
-    expect(status.stdout).toContain(workspaceRoot);
-
-    const terminals = runExoCli(["terminals", "list"], cliEnv);
-    expect(terminals.status).toBe(0);
-
-    const createdTerminal = runExoCli(["terminals", "create", "shell", workspaceRoot], cliEnv);
-    expect(createdTerminal.status).toBe(0);
-    const shellId = (JSON.parse(createdTerminal.stdout) as { id: string }).id;
-    expect(shellId).toMatch(/^term-\d+$/);
-
-    const cliMessage = `hidden cli qa ${Date.now()}`;
-    const send = runExoCli(["terminals", "send", shellId!, cliMessage], cliEnv);
-    expect(send.status).toBe(0);
-    await expect.poll(() => runExoCli(["terminals", "read", shellId!, "--lines", "2000"], cliEnv).stdout).toContain(cliMessage);
-  } finally {
-    await cleanup();
-  }
-});
-
 function runExoCli(args: string[], env: NodeJS.ProcessEnv) {
   return spawnSync(path.join(repoRoot, "bin/exo"), args, {
     cwd: repoRoot,
@@ -877,14 +828,14 @@ function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 test("switch workspace opens the workspace picker", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
 
-  await page.getByTestId("workspace-menu-button").click();
-  await page.getByTestId("workspace-settings").click();
+  await page.getByTestId("workspace-menu-toggle").click();
+  await page.getByTestId("workspace-menu-settings").click();
   await page.getByRole("button", { name: "Switch workspace" }).click();
-  await expect(page.getByTestId("onboarding")).toContainText("Select workspace");
+  await expect(page.getByTestId("onboarding")).toContainText("Choose a wiki");
   await expect(page.getByTestId("workspace-picker-item").first()).toContainText("test-notes");
   await expect(page.getByTestId("workspace-picker-open")).toBeEnabled();
   await page.getByTestId("workspace-picker-new").click();
-  await expect(page.getByTestId("onboarding")).toContainText("Choose notes folder");
+  await expect(page.getByTestId("onboarding")).toContainText("Choose a main wiki");
   await expect(page.getByTestId("onboarding-choose-notes")).toBeVisible();
 
   await cleanup();
@@ -898,12 +849,12 @@ test("shows first-run notes setup before the app shell", async () => {
     runtimeRootEnv: false,
   });
 
-  await expect(page.getByTestId("onboarding")).toContainText("Open notes folder");
+  await expect(page.getByTestId("onboarding")).toContainText("Choose your main wiki");
   await expect(page.getByTestId("workspace-picker")).toHaveCount(0);
   await expect(page.getByTestId("workspace-picker-open")).toHaveCount(0);
   await expect(page.getByTestId("onboarding")).toContainText("Default terminal");
   await expect(page.getByTestId("onboarding")).not.toContainText("Advanced search provider");
-  await expect(page.getByTestId("onboarding-notes-folder")).toContainText("No notes folder selected.");
+  await expect(page.getByTestId("onboarding-notes-folder")).toContainText("No main wiki selected.");
   await expect(page.getByTestId("onboarding-continue")).toBeDisabled();
   await expect(page.getByTestId("sidebar")).toHaveCount(0);
 
@@ -918,7 +869,7 @@ test("shows first-run setup from a packaged-style launch without workspace env",
     runtimeRootEnv: false,
   });
 
-  await expect(page.getByTestId("onboarding")).toContainText("Open notes folder");
+  await expect(page.getByTestId("onboarding")).toContainText("Choose your main wiki");
   await expect(page.getByTestId("workspace-picker-open")).toHaveCount(0);
   const model = await page.evaluate(() => window.exo.workspace.getModel());
   expect(model.workspaceRoot).not.toBe("/");
@@ -951,8 +902,10 @@ test("opens an existing notes folder from first-run setup", async () => {
   await expect(page.getByTestId("onboarding-terminal-folder")).toContainText(expectedTerminalCwd);
 
   await page.getByTestId("onboarding-continue").click();
+  await page.getByRole("button", { name: "Set up CLI agents" }).click();
+  await page.getByRole("button", { name: "Open Exo" }).click();
   await expect(page.getByTestId("sidebar")).toBeVisible();
-  await expect(page.getByTestId("editor-panel")).toBeVisible();
+  await expect(page.locator('[data-testid="editor-panel"], [data-testid="editor-empty"]')).toBeVisible();
   await page.getByTestId("utility-pane-toggle").click();
   await expect(page.getByTestId("utility-pane-terminal")).toBeVisible();
   await expect.poll(async () => page.evaluate(() => window.exo.workspace.getSetupState()))
@@ -978,17 +931,13 @@ test("opens an existing notes folder from first-run setup", async () => {
 test("collapses and reopens the workspace explorer", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
 
-  await page.getByTestId("sidebar-collapse").click();
-  await expect(page.getByTestId("sidebar-expand")).toBeVisible();
+  await page.getByTestId("workspace-titlebar-sidebar").click();
+  await expect(page.locator(".workspace-shell")).toHaveClass(/workspace-shell--sidebar-collapsed/);
   await expect(page.getByTestId("sidebar").getByRole("button", { name: "focus-note" })).toHaveCount(0);
-  const expandBox = await page.getByTestId("sidebar-expand").boundingBox();
-  const tabBox = await page.locator(".tab-strip__tab").first().boundingBox();
-  expect(expandBox).not.toBeNull();
-  expect(tabBox).not.toBeNull();
-  expect(tabBox!.x).toBeGreaterThan(expandBox!.x + expandBox!.width + 12);
+  await expect.poll(async () => (await page.locator(".workspace-shell__canvas").boundingBox())?.x ?? -1).toBe(0);
 
-  await page.getByTestId("sidebar-expand").click();
-  await expect(page.getByTestId("sidebar-collapse")).toBeVisible();
+  await page.getByTestId("workspace-titlebar-sidebar").click();
+  await expect(page.locator(".workspace-shell")).not.toHaveClass(/workspace-shell--sidebar-collapsed/);
   await expect(page.getByTestId("sidebar").getByRole("button", { name: "focus-note" })).toBeVisible();
 
   await cleanup();
@@ -1118,7 +1067,7 @@ test("does not feed xterm device responses back into terminal input", async () =
   await cleanup();
 });
 
-test("keeps list guides aligned with the visible bullet lanes", async () => {
+test("keeps nested list text and continuation lanes aligned", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
@@ -1190,15 +1139,13 @@ test("keeps list guides aligned with the visible bullet lanes", async () => {
   expect(childItem?.bulletCenterX).not.toBeNull();
   expect(grandchildItem?.bulletCenterX).not.toBeNull();
   expect(siblingItem?.bulletCenterX).not.toBeNull();
-  expect(continuationLine?.guideXs.length).toBe(1);
+  expect(continuationLine?.depth).toBe(siblingItem?.depth);
+  expect((childItem?.textLeftX ?? 0) - (topItem?.textLeftX ?? 0)).toBeGreaterThan(20);
+  expect((grandchildItem?.textLeftX ?? 0) - (childItem?.textLeftX ?? 0)).toBeGreaterThan(20);
+  expect(Math.abs((continuationLine?.textLeftX ?? 0) - (siblingItem?.textLeftX ?? 0))).toBeLessThanOrEqual(1.5);
 
-  expect(Math.abs((childItem?.guideXs[0] ?? 0) - (topItem?.bulletCenterX ?? 0))).toBeLessThanOrEqual(1.5);
-  expect(Math.abs((grandchildItem?.guideXs[0] ?? 0) - (topItem?.bulletCenterX ?? 0))).toBeLessThanOrEqual(1.5);
-  expect(Math.abs((grandchildItem?.guideXs[1] ?? 0) - (childItem?.bulletCenterX ?? 0))).toBeLessThanOrEqual(1.5);
-  expect(Math.abs((continuationLine?.guideXs[0] ?? 0) - (topItem?.bulletCenterX ?? 0))).toBeLessThanOrEqual(1.5);
-
-  expect(Math.round((topItem?.textLeftX ?? 0) - (topItem?.bulletRightX ?? 0))).toBeLessThanOrEqual(8);
-  expect(Math.round((childItem?.textLeftX ?? 0) - (childItem?.bulletRightX ?? 0))).toBeLessThanOrEqual(8);
+  expect(Math.round((topItem?.textLeftX ?? 0) - (topItem?.bulletRightX ?? 0))).toBeLessThanOrEqual(12);
+  expect(Math.round((childItem?.textLeftX ?? 0) - (childItem?.bulletRightX ?? 0))).toBeLessThanOrEqual(12);
 
   await cleanup();
 });

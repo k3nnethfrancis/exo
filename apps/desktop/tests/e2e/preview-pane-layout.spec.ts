@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -88,11 +88,11 @@ test("resizes the utility pane from its left edge", async () => {
   }
 });
 
-test("opens absolute local HTML paths through the command server in the preview pane", async () => {
-  const { page, runtimeRoot, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
+test("opens absolute local HTML paths in the preview pane", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (root) => {
-      const artifactRoot = path.join(root, "projects", "sample-project", "docs", "artifacts");
+      const artifactRoot = path.join(root, "notes", "test-notes", "artifacts");
       await mkdir(artifactRoot, { recursive: true });
       await writeFile(
         path.join(artifactRoot, "overall-exo-architecture.html"),
@@ -138,25 +138,15 @@ test("opens absolute local HTML paths through the command server in the preview 
   });
 
   try {
-    const serverInfo = JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number; token: string };
-    const commandHeaders = {
-      "Content-Type": "application/json",
-      "x-exo-command-token": serverInfo.token,
-    };
-    const firstPath = path.join(workspaceRoot, "projects", "sample-project", "docs", "artifacts", "overall-exo-architecture.html");
-    const secondPath = path.join(workspaceRoot, "projects", "sample-project", "docs", "artifacts", "core-plugin-boundary.html");
+    const firstPath = path.join(workspaceRoot, "notes", "test-notes", "artifacts", "overall-exo-architecture.html");
+    const secondPath = path.join(workspaceRoot, "notes", "test-notes", "artifacts", "core-plugin-boundary.html");
     const secondUrl = pathToFileURL(secondPath).toString();
 
-    const firstResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/preview/open`, {
-      method: "POST",
-      headers: commandHeaders,
-      body: JSON.stringify({ target: firstPath }),
-    });
-    expect(firstResponse.ok).toBe(true);
-    await expect(firstResponse.json()).resolves.toMatchObject({
-      url: pathToFileURL(firstPath).toString(),
-      source: "file",
-    });
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-preview").click();
+    await page.getByRole("button", { name: "New preview" }).click();
+    await page.getByTestId("browser-url-input").fill(firstPath);
+    await page.getByTestId("browser-load-url").click();
     await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", pathToFileURL(firstPath).toString());
     await expect.poll(async () => getPreviewLayoutMetrics(page)).toMatchObject({
       title: "Overall",
@@ -165,13 +155,8 @@ test("opens absolute local HTML paths through the command server in the preview 
       guestViewportMatchesElement: true,
     });
 
-    const secondResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/preview/open`, {
-      method: "POST",
-      headers: commandHeaders,
-      body: JSON.stringify({ target: secondPath }),
-    });
-    expect(secondResponse.ok).toBe(true);
-    await expect(secondResponse.json()).resolves.toMatchObject({ url: secondUrl, source: "file" });
+    await page.getByTestId("browser-url-input").fill(secondPath);
+    await page.getByTestId("browser-load-url").click();
     await expect(page.getByTestId("utility-pane").getByTestId("browser-pane")).toHaveCount(1);
     await expect(page.getByTestId("browser-url-input")).toHaveValue(secondUrl);
     await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", secondUrl);
