@@ -18,8 +18,11 @@ import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
 import { GraphPane } from "./components/GraphPane";
-import { InvocationAuthorizationDialog } from "./components/InvocationAuthorizationDialog";
-import type { InlineAgentDraft } from "./components/inlineAgentComposer";
+import {
+  InvocationActivitySurface,
+} from "./components/invocation";
+import { AppInvocationAuthorizationGate } from "./appInvocationAuthorization";
+import { cancelInlineAgentDraft, type InlineAgentDraft } from "./components/inlineAgentComposer";
 import { PathList } from "./components/PathList";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
@@ -62,6 +65,15 @@ import { workspaceBreadcrumb, type WorkspaceBreadcrumbSegment } from "./workspac
 import { DEFAULT_UTILITY_SURFACE_STATE, isUtilityDestinationActive, reduceUtilitySurface } from "./utilitySurfaceModel";
 import { addPreviewTab, closePreviewTab, EMPTY_PREVIEW_TABS, selectPreviewTab, updatePreviewTabUrl } from "./previewTabsModel";
 import { LatestPaneNavigation } from "./latestPaneNavigation";
+import {
+  applyInvocationActivityEvent,
+  applyInvocationRecord,
+  beginInvocationActivity,
+  failActiveInvocationActivity,
+  failInvocationActivity,
+  invocationCommandPresentation,
+  type InvocationActivityState,
+} from "./invocationActivityState";
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
@@ -71,6 +83,7 @@ interface PendingInvocationAuthorization {
   document: OpenEditorDocument;
   draft: InlineAgentDraft;
   fingerprint: string;
+  reason: string;
 }
 
 const NOTE_TREE_MAX_DEPTH = 3;
@@ -98,6 +111,7 @@ export function App() {
     payload?: InvocationReviewPayload | null;
   } | null>(null);
   const [pendingInvocationAuthorization, setPendingInvocationAuthorization] = useState<PendingInvocationAuthorization | null>(null);
+  const [invocationActivity, setInvocationActivity] = useState<InvocationActivityState | null>(null);
   const [keptInvocationConflicts, setKeptInvocationConflicts] = useState<Set<string>>(() => new Set());
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [folderIndexStatus, setFolderIndexStatus] = useState<FolderIndexStatus | null>(null);
@@ -244,9 +258,18 @@ export function App() {
       }
       setKeptInvocationConflicts(new Set());
       setInvocationReview((current) => current?.record.id === record.id ? { record } : current);
+      if (record.context === "note") {
+        setInvocationActivity((current) => applyInvocationRecord(current, record));
+      }
       void loadInvocationReview(record);
     });
   }, [scheduleOpenDocumentRefresh, workspaceModel?.workspaceRoot]);
+
+  useEffect(() => {
+    return window.exo.workspace.onInvocationActivity((event) => {
+      setInvocationActivity((current) => applyInvocationActivityEvent(current, event));
+    });
+  }, []);
 
   useEffect(() => {
     terminalState.pruneHydration(activeTerminalId ? new Set([activeTerminalId]) : new Set());
@@ -429,6 +452,10 @@ export function App() {
     if (!document) {
       return;
     }
+    const commandPresentation = invocationCommandPresentation(
+      draft.handle,
+      workspaceSettingsRef.current?.agentCommands ?? [],
+    );
     // CodeMirror owns the authoritative post-envelope body. Its ordinary
     // React propagation is deliberately deprioritized for typing latency, so
     // publish this exact snapshot to the synchronous document ref before any
@@ -441,11 +468,13 @@ export function App() {
         documentPath: document.filePath,
       });
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : String(error));
+      cancelInlineAgentDraft(draft, () => undefined);
+      setInvocationActivity(failInvocationActivity(commandPresentation, error));
       return;
     }
     if (!authorization.launchable || !authorization.cwd) {
-      window.alert(authorization.detail);
+      cancelInlineAgentDraft(draft, () => undefined);
+      setInvocationActivity(failInvocationActivity(commandPresentation, authorization.detail));
       return;
     }
     const pending = {
@@ -454,6 +483,7 @@ export function App() {
       document,
       draft,
       fingerprint: authorization.fingerprint,
+      reason: authorization.detail,
     };
     if (!authorization.trusted) {
       setPendingInvocationAuthorization(pending);
@@ -469,6 +499,7 @@ export function App() {
     // Authorization is a decision surface, not invocation status. Close it as
     // soon as the decision is made; failures belong to the document status UI.
     setPendingInvocationAuthorization(null);
+    setInvocationActivity(beginInvocationActivity(pending.command));
     try {
       await saveDocument(pending.document.filePath);
       const persisted = await window.exo.notes.read(pending.document.filePath);
@@ -491,26 +522,38 @@ export function App() {
       });
       setKeptInvocationConflicts(new Set());
       setInvocationReview({ record: result.invocation });
+      setInvocationActivity((current) => applyInvocationRecord(current, result.invocation));
       void loadInvocationReview(result.invocation);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : String(error));
+      setInvocationActivity(failInvocationActivity(pending.command, error));
     }
   }
 
-  async function endActiveInvocationObservation() {
-    if (!invocationReview) {
-      return;
+  function cancelPendingInlineAgentInvocation() {
+    const pending = pendingInvocationAuthorization;
+    if (!pending) return;
+    cancelInlineAgentDraft(pending.draft, () => setPendingInvocationAuthorization(null));
+  }
+
+  async function stopInlineAgentInvocation(invocationId: string) {
+    setInvocationActivity((current) => current?.invocationId === invocationId
+      ? { ...current, kind: "finishing", label: undefined }
+      : current);
+    try {
+      const finalized = await window.exo.workspace.endAgentInvocation(invocationId);
+      if (!finalized) return;
+      if (finalized.taggedDocumentPath) {
+        scheduleOpenDocumentRefresh(finalized.taggedDocumentPath);
+      }
+      setKeptInvocationConflicts(new Set());
+      setInvocationReview({ record: finalized });
+      setInvocationActivity((current) => applyInvocationRecord(current, finalized));
+      void loadInvocationReview(finalized);
+    } catch (error) {
+      setInvocationActivity((current) => current?.invocationId === invocationId
+        ? failActiveInvocationActivity(current, error)
+        : current);
     }
-    const finalized = await window.exo.workspace.endAgentInvocation(invocationReview.record.id);
-    if (!finalized) {
-      return;
-    }
-    if (finalized.taggedDocumentPath) {
-      scheduleOpenDocumentRefresh(finalized.taggedDocumentPath);
-    }
-    setKeptInvocationConflicts(new Set());
-    setInvocationReview({ record: finalized });
-    void loadInvocationReview(finalized);
   }
 
   async function loadInvocationReview(record: InvocationRecord) {
@@ -544,13 +587,16 @@ export function App() {
     } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
   }
 
-  async function resumeInvocationInTerminal() {
-    if (!invocationReview) return;
+  async function resumeInvocationInTerminal(invocationId: string) {
     try {
-      await window.exo.workspace.resumeInvocationInTerminal(invocationReview.record.id);
-      setInvocationReview(null);
+      await window.exo.workspace.resumeInvocationInTerminal(invocationId);
+      setInvocationActivity(null);
       dispatchUtility({ type: "select", destination: "terminal" });
-    } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
+    } catch (error) {
+      setInvocationActivity((current) => current?.invocationId === invocationId
+        ? failActiveInvocationActivity(current, error)
+        : current);
+    }
   }
 
   function keepInvocationDirtyBuffer(invocationId: string, filePath: string) {
@@ -1276,6 +1322,10 @@ export function App() {
   const utilityTerminalSessions = terminalSessions.filter((session) => !canvasTerminalIds.has(session.id));
   const utilityPreviewTabs = previewTabs.tabs.filter((tab) => !canvasPreviewIds.has(tab.id));
   const activePreview = utilityPreviewTabs.find((tab) => tab.id === previewTabs.activeId) ?? utilityPreviewTabs[0] ?? null;
+  const activityRecord = invocationActivity?.invocationId && invocationReview?.record.id === invocationActivity.invocationId
+    ? invocationReview.record
+    : null;
+  const activityCanStop = invocationActivity?.kind !== "done" && invocationActivity?.kind !== "failed";
   const utilityContent = utilityState.destination === "preview" && activePreview ? (
     <BrowserPane
       paneId={activePreview.id}
@@ -1466,21 +1516,17 @@ export function App() {
               invocationReview={
                 invocationReview?.record.taggedDocumentPath === pane.activePath
                   ? {
-                      ...invocationReview,
                       hasDirtyConflict: hasInvocationDirtyConflict(
                         invocationReview.record,
                         pane.activePath,
                         pane.activePath ? openDocuments[pane.activePath] : undefined,
                         keptInvocationConflicts,
                       ),
-                      onEndObservation: () => void endActiveInvocationObservation(),
                       onKeepDirtyBuffer: () => pane.activePath ? keepInvocationDirtyBuffer(invocationReview.record.id, pane.activePath) : undefined,
                       onReloadFromDisk: () => void (pane.activePath ? reloadInvocationDiskVersion(invocationReview.record.id, pane.activePath) : Promise.resolve()),
                       reviewPayload: invocationReview.payload ?? null,
                       onKeepReview: () => void keepInvocationReview(),
                       onRejectReview: () => void rejectInvocationReview(),
-                      onResumeInTerminal: invocationReview.record.providerSessionId ? () => void resumeInvocationInTerminal() : undefined,
-                      onDismiss: () => setInvocationReview(null),
                     }
                   : null
               }
@@ -1568,18 +1614,32 @@ export function App() {
       ) : null}
 
       {pendingInvocationAuthorization ? (
-        <InvocationAuthorizationDialog
-          command={pendingInvocationAuthorization.command.command}
-          commandLabel={pendingInvocationAuthorization.command.label}
-          cwd={pendingInvocationAuthorization.cwd || "Workspace root"}
-          documentPath={pendingInvocationAuthorization.document.filePath}
-          fingerprint={pendingInvocationAuthorization.fingerprint}
-          message={pendingInvocationAuthorization.draft.message}
-          onCancel={() => setPendingInvocationAuthorization(null)}
-          onRun={(persistTrust) => void startInlineAgentInvocation(
+        <AppInvocationAuthorizationGate
+          pending={pendingInvocationAuthorization}
+          onAuthorize={(authorization) => void startInlineAgentInvocation(
             pendingInvocationAuthorization,
-            { kind: persistTrust ? "always-allow" : "run-once" },
+            authorization,
           )}
+          onCancel={cancelPendingInlineAgentInvocation}
+        />
+      ) : null}
+
+      {invocationActivity ? (
+        <InvocationActivitySurface
+          commandHandle={invocationActivity.commandHandle}
+          commandLabel={invocationActivity.commandLabel}
+          kind={invocationActivity.kind}
+          label={invocationActivity.label}
+          errorDetail={invocationActivity.errorDetail}
+          onDismiss={invocationActivity.kind === "done" || invocationActivity.kind === "failed"
+            ? () => setInvocationActivity(null)
+            : undefined}
+          onResume={activityRecord?.providerSessionId && invocationActivity.invocationId
+            ? () => void resumeInvocationInTerminal(invocationActivity.invocationId!)
+            : undefined}
+          onStop={activityCanStop && invocationActivity.invocationId
+            ? () => void stopInlineAgentInvocation(invocationActivity.invocationId!)
+            : undefined}
         />
       ) : null}
 

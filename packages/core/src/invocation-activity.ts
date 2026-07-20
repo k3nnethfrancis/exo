@@ -1,5 +1,3 @@
-import path from "node:path";
-
 export const INVOCATION_ACTIVITY_KINDS = [
   "working",
   "reading",
@@ -31,10 +29,12 @@ export function invocationActivityLabel(value: unknown, maxLength = 72): string 
     .replace(/\s+/g, " ")
     .trim();
   if (!normalized) return null;
-  const basename = path.basename(normalized.replaceAll("\\", "/"));
+  const normalizedPath = normalized.replaceAll("\\", "/");
+  const basename = normalizedPath.slice(normalizedPath.lastIndexOf("/") + 1);
   if (!basename || basename === "." || basename === "/") return null;
   if (basename.length <= maxLength) return basename;
-  const extension = path.extname(basename);
+  const extensionStart = basename.lastIndexOf(".");
+  const extension = extensionStart > 0 ? basename.slice(extensionStart) : "";
   const stemLength = Math.max(1, maxLength - extension.length - 1);
   return `${basename.slice(0, stemLength)}…${extension}`;
 }

@@ -8,8 +8,8 @@ import { bracketMatching, foldGutter } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
-import { ArrowUpRight, Check, CircleAlert, Code2, LoaderCircle, Network, Plus, Save, SlidersHorizontal, X } from "lucide-react";
-import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
+import { Code2, Network, Plus, Save, SlidersHorizontal } from "lucide-react";
+import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 import type { InvocationReviewPayload } from "../../../shared/api";
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
@@ -19,7 +19,6 @@ import { AgentIcon } from "./AgentIcon";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
 import { inlineAgentComposerExtension, isPersistedInvocationPosition, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
-import { presentInvocation } from "../invocationPresentation";
 import { invocationInlineReviewExtension } from "../invocationInlineReview";
 import {
   buildNoteGraphContext,
@@ -225,6 +224,10 @@ export function NoteEditor(props: NoteEditorProps) {
       onClose: (documentBody) => {
         setInlineComposerActive(false);
         startTransition(() => bodyChangeRef.current(documentBody));
+      },
+      onRestore: (documentBody) => {
+        setInlineComposerActive(true);
+        bodyChangeRef.current(documentBody);
       },
       renderPersistedInvocations: !rawMarkdownMode,
     }),
@@ -764,13 +767,6 @@ export function NoteEditor(props: NoteEditorProps) {
     );
   }
 
-  const invocationPresentation = invocationReview
-    ? presentInvocation(invocationReview.record, invocationReview.hasDirtyConflict)
-    : null;
-  const InvocationStatusIcon = invocationPresentation?.tone === "active"
-    ? LoaderCircle
-    : invocationPresentation?.tone === "danger" ? CircleAlert : Check;
-
   return (
     <section
       className={`editor-panel ${compact ? "editor-panel--compact" : ""}`}
@@ -1040,52 +1036,34 @@ export function NoteEditor(props: NoteEditorProps) {
             ))}
           </div>
         ) : null}
-        {invocationReview && invocationPresentation ? (
-          <div className={`invocation-review invocation-review--${invocationPresentation.tone}`} data-testid="invocation-review-banner" role="status">
-            <InvocationStatusIcon aria-hidden="true" className={`invocation-review__status-icon ${invocationPresentation.tone === "active" ? "invocation-review__status-icon--spinning" : ""}`} size={15} strokeWidth={1.8} />
-            <div className="invocation-review__summary">
-              <strong>{invocationPresentation.title}</strong>
-              <span>{invocationPresentation.detail}</span>
-            </div>
-            <div className="invocation-review__actions">
-              {invocationReview.hasDirtyConflict ? (
-                <>
-                  <button className="toolbar-button" data-testid="invocation-keep-dirty-buffer" onClick={invocationReview.onKeepDirtyBuffer} type="button">
-                    Keep buffer
-                  </button>
-                  <button className="toolbar-button toolbar-button--primary" data-testid="invocation-reload-disk" onClick={invocationReview.onReloadFromDisk} type="button">
-                    Reload disk
-                  </button>
-                </>
-              ) : null}
-              {invocationReview.record.status === "running" ? (
-                <button className="toolbar-button" data-testid="invocation-end-observation" onClick={invocationReview.onEndObservation} type="button">
-                  End
-                </button>
-              ) : null}
-              {invocationReview.onResumeInTerminal ? (
-                <button className="invocation-review__resume" data-testid="invocation-resume-terminal" onClick={invocationReview.onResumeInTerminal} title="Open this session in Terminal" type="button">
-                  <span><strong>Resume</strong><code>{invocationPresentation.resumeCommand}</code></span>
-                  <ArrowUpRight aria-hidden="true" size={14} strokeWidth={1.8} />
-                </button>
-              ) : null}
-              {invocationPresentation.dismissible ? (
-                <button aria-label="Dismiss invocation status" className="icon-button invocation-review__dismiss" data-testid="invocation-dismiss" onClick={invocationReview.onDismiss} title="Dismiss" type="button">
-                  <X aria-hidden="true" size={14} />
-                </button>
-              ) : null}
-            </div>
-            {invocationReview.reviewPayload?.before !== null && invocationReview.reviewPayload?.before !== undefined && invocationReview.reviewPayload.after !== null ? (
-              <div className="invocation-review__proposal" data-testid="invocation-review-proposal">
-                <div className="invocation-review__proposal-header">
-                  <span>
-                    <strong>Saved to disk.</strong>
-                    {invocationReview.hasDirtyConflict
-                      ? " Showing changes against your current buffer. Reject is unavailable until the buffer matches disk."
-                      : " Review changes inline. Reject restores the pre-invocation snapshot."}
-                  </span>
+        {invocationReview?.reviewPayload?.before !== null &&
+        invocationReview?.reviewPayload?.before !== undefined &&
+        invocationReview.reviewPayload.after !== null ? (
+          <div
+            className={`invocation-review ${invocationReview.hasDirtyConflict ? "invocation-review--danger" : ""}`}
+            data-testid="invocation-review-proposal"
+          >
+            <div className="invocation-review__proposal">
+              <div className="invocation-review__proposal-header">
+                <span>
+                  <strong>Saved to disk.</strong>
+                  {invocationReview.hasDirtyConflict
+                    ? " Showing changes against your current buffer. Reject is unavailable until the buffer matches disk."
+                    : " Review changes inline. Reject restores the pre-invocation snapshot."}
+                </span>
+                <span>
+                  {invocationReview.hasDirtyConflict ? (
+                    <>
+                      <button className="toolbar-button" data-testid="invocation-keep-dirty-buffer" onClick={invocationReview.onKeepDirtyBuffer} type="button">
+                        Keep buffer
+                      </button>
+                      <button className="toolbar-button toolbar-button--primary" data-testid="invocation-reload-disk" onClick={invocationReview.onReloadFromDisk} type="button">
+                        Reload disk
+                      </button>
+                    </>
+                  ) : null}
                   {invocationReview.reviewPayload.invocation.review?.status === "pending" ? (
-                    <span>
+                    <>
                       <button className="toolbar-button" data-testid="invocation-keep-review" onClick={invocationReview.onKeepReview} type="button">Keep</button>
                       {invocationReview.reviewPayload.canReject ? (
                         <button
@@ -1099,11 +1077,11 @@ export function NoteEditor(props: NoteEditorProps) {
                           Reject
                         </button>
                       ) : null}
-                    </span>
-                  ) : <span>{invocationReview.reviewPayload.invocation.review?.status === "kept" ? "Kept" : "Rejected"}</span>}
-                </div>
+                    </>
+                  ) : invocationReview.reviewPayload.invocation.review?.status === "kept" ? "Kept" : "Rejected"}
+                </span>
               </div>
-            ) : null}
+            </div>
           </div>
         ) : null}
       </div>
@@ -1113,16 +1091,12 @@ export function NoteEditor(props: NoteEditorProps) {
 }
 
 interface NoteInvocationReview {
-  record: InvocationRecord;
   hasDirtyConflict: boolean;
-  onEndObservation: () => void;
   onKeepDirtyBuffer: () => void;
   onReloadFromDisk: () => void;
   reviewPayload: InvocationReviewPayload | null;
   onKeepReview: () => void;
   onRejectReview: () => void;
-  onResumeInTerminal?: () => void;
-  onDismiss: () => void;
 }
 
 function clampPosition(position: number, docLength: number): number {
