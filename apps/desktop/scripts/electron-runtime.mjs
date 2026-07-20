@@ -17,6 +17,20 @@ export function electronPlatformPath(platform) {
   }
 }
 
+export function resolveElectronDownloadArch({ platform, arch, configuredArch, isRosetta = false }) {
+  if (configuredArch) {
+    return configuredArch;
+  }
+  if (platform === "darwin" && arch === "x64" && isRosetta) {
+    return "arm64";
+  }
+  return arch;
+}
+
+export function electronInstallStrategy(platform) {
+  return platform === "darwin" || platform === "mas" ? "ditto" : "upstream";
+}
+
 export function ensureElectronRuntime({
   electronDirectory,
   install,
@@ -33,9 +47,11 @@ export function ensureElectronRuntime({
     }
   } else {
     // Electron's installer trusts path.txt plus the launcher binary. Packaging
-    // can leave both while consuming the Framework, so invalidate the marker
-    // before installing or the upstream script will incorrectly short-circuit.
+    // can leave both while consuming the Framework. Remove the whole partial
+    // dist as well as the marker: extraction into a half-consumed app bundle is
+    // not atomic and can stall or preserve missing Framework links.
     rmSync(pathFile, { force: true });
+    rmSync(path.join(electronDirectory, "dist"), { recursive: true, force: true });
     install();
   }
 

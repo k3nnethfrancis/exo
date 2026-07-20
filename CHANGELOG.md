@@ -34,6 +34,8 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
   source checkout when Exo reports CLI installation status.
 - Restores the local Electron runtime after macOS packaging so development and
   source E2E launches continue without reinstalling dependencies.
+- Replaces incomplete cached Electron distributions before recovery instead of
+  extracting over a half-consumed app bundle.
 - Makes the graph interaction contract concrete in the desktop surface: the
   editor Graph action focuses the active Note, note-open double-click zooms
   instead of reopening, empty-space double-click is inert, and Connections now

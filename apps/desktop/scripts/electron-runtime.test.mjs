@@ -6,8 +6,10 @@ import test from "node:test";
 
 import {
   electronPlatformPath,
+  electronInstallStrategy,
   electronRuntimeRequiredPaths,
   ensureElectronRuntime,
+  resolveElectronDownloadArch,
 } from "./electron-runtime.mjs";
 
 test("electronPlatformPath matches Electron's canonical host paths", () => {
@@ -18,6 +20,24 @@ test("electronPlatformPath matches Electron's canonical host paths", () => {
   assert.equal(electronPlatformPath("openbsd"), "electron");
   assert.equal(electronPlatformPath("win32"), "electron.exe");
   assert.throws(() => electronPlatformPath("plan9"), /not available on platform: plan9/);
+});
+
+test("resolveElectronDownloadArch preserves explicit arch and Rosetta behavior", () => {
+  assert.equal(resolveElectronDownloadArch({ platform: "darwin", arch: "x64", isRosetta: true }), "arm64");
+  assert.equal(resolveElectronDownloadArch({
+    platform: "darwin",
+    arch: "x64",
+    configuredArch: "x64",
+    isRosetta: true,
+  }), "x64");
+  assert.equal(resolveElectronDownloadArch({ platform: "linux", arch: "x64", isRosetta: true }), "x64");
+});
+
+test("electronInstallStrategy confines ditto recovery to macOS", () => {
+  assert.equal(electronInstallStrategy("darwin"), "ditto");
+  assert.equal(electronInstallStrategy("mas"), "ditto");
+  assert.equal(electronInstallStrategy("linux"), "upstream");
+  assert.equal(electronInstallStrategy("win32"), "upstream");
 });
 
 test("repairs a complete cached Electron dist whose required path.txt is missing", () => {
@@ -46,6 +66,8 @@ test("reinstalls a Darwin runtime whose launcher survived but Framework was cons
   withElectronFixture("darwin", ({ electronDirectory, platformPath, requiredPaths, binaryPath }) => {
     mkdirSync(path.dirname(binaryPath), { recursive: true });
     writeFileSync(binaryPath, "electron");
+    const staleResource = path.join(electronDirectory, "dist", "stale-resource");
+    writeFileSync(staleResource, "partial");
     writeFileSync(path.join(electronDirectory, "path.txt"), platformPath);
     let installCalls = 0;
 
@@ -55,6 +77,8 @@ test("reinstalls a Darwin runtime whose launcher survived but Framework was cons
       install() {
         installCalls += 1;
         assert.equal(existsSync(path.join(electronDirectory, "path.txt")), false);
+        assert.equal(existsSync(path.join(electronDirectory, "dist")), false);
+        assert.equal(existsSync(staleResource), false);
         for (const requiredPath of requiredPaths) {
           mkdirSync(path.dirname(requiredPath), { recursive: true });
           writeFileSync(requiredPath, "electron");
