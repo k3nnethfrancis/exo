@@ -77,6 +77,13 @@ indexing service alone turns pending state into policy language: waiting for
 automatic catch-up, beyond the bounded automatic slice, or paused by Manual
 mode. A healthy automatic path never tells the user to run a CLI repair.
 
+The retry circuit is work-sensitive. Repeated failures of unchanged pending
+work remain exhausted and status reports the failed automatic path plus the
+explicit Sync repair. A strictly newer canonical save clears that exhausted
+budget, observes fresh pending state, and may converge through the same bounded
+automatic path. Deterministic scheduler and service tests cover exhaustion,
+truthful status, no repeated retry, newer save, and recovery to zero pending.
+
 ## Commands
 
 ```sh

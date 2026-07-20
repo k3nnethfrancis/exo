@@ -73,7 +73,8 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
   state, and preserves settled layout and camera state across unchanged
   refreshes.
 - Keeps search responsive during index maintenance with separate foreground and
-  maintenance workers, truthful Simple-search fallback, bounded retries, and
+  maintenance workers, truthful Simple-search fallback, bounded retries that
+  stay exhausted for unchanged work and re-arm on a genuinely newer save, and
   transactional QMD metadata/vector publication so interrupted writes remain
   pending instead of appearing complete.
 - Keeps cold graph construction from queueing foreground Search by giving

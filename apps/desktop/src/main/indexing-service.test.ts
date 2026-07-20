@@ -355,6 +355,65 @@ describe("IndexingService", () => {
     service.dispose();
   });
 
+  it("reports exhausted automatic work and lets a new canonical save recover it", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const settings = workspaceSettings();
+    settings.indexing = { enabled: true, mode: "hybrid", backend: "qmd" };
+    const maintenance = derivedIndexClient();
+    vi.mocked(maintenance.update).mockResolvedValue(indexStatus(1));
+    vi.mocked(maintenance.embed)
+      .mockRejectedValueOnce(new Error("model unavailable"))
+      .mockRejectedValueOnce(new Error("model unavailable"))
+      .mockResolvedValueOnce(indexStatus(0));
+    const foreground = derivedIndexClient();
+    vi.mocked(foreground.status)
+      .mockResolvedValueOnce(indexStatus(1))
+      .mockResolvedValue(indexStatus(0));
+    const retryPolicy: AutoEmbeddingPolicy = {
+      quietPeriodMs: 0,
+      idlePeriodMs: 0,
+      maxPendingEmbeddings: 4,
+      retryBaseDelayMs: 10,
+      retryMaxDelayMs: 10,
+      maxRetryAttempts: 1,
+    };
+    const service = indexingService(settings, undefined, maintenance, foreground, {
+      getSystemIdleTimeMs: () => 10_000,
+      autoEmbeddingPolicy: retryPolicy,
+    });
+
+    service.scheduleReconciliation("startup", 0);
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(maintenance.embed).toHaveBeenCalledTimes(2);
+
+    const exhausted = await service.getMeasuredStatus();
+    expect(exhausted.pendingEmbeddings).toBe(1);
+    expect(exhausted.warnings).toContain(
+      "1 document hash needs embeddings; automatic catch-up failed after 2 attempts. Run Sync to repair it.",
+    );
+    expect(exhausted.warnings.join(" ")).not.toContain("waiting for automatic catch-up");
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(maintenance.embed).toHaveBeenCalledTimes(2);
+
+    service.scheduleForFile("/workspace/notes/new-canonical-work.md", "note-save");
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(maintenance.update).toHaveBeenCalledTimes(2);
+    expect(maintenance.embed).toHaveBeenCalledTimes(3);
+
+    const converged = await service.getMeasuredStatus();
+    expect(converged.pendingEmbeddings).toBe(0);
+    expect(converged.warnings.join(" ")).not.toMatch(/failed after|waiting for automatic catch-up/);
+    expect(converged.recentJobs).toContainEqual(expect.objectContaining({
+      kind: "embed",
+      reason: "automatic-embedding",
+      status: "completed",
+      pendingEmbeddings: 0,
+    }));
+    service.dispose();
+  });
+
   it("lets a started slice finish while Manual only cancels its future retry", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);

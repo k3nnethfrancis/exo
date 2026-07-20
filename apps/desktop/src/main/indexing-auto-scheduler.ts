@@ -55,7 +55,13 @@ export function recordAutoEmbeddingSave(
   nowMs: number,
 ): AutoEmbeddingSchedulerState {
   if (state.disposed) return state;
-  return { ...state, lastSaveAtMs: latestTimestamp(state.lastSaveAtMs, nowMs) };
+  const isNewSave = state.lastSaveAtMs === null || nowMs > state.lastSaveAtMs;
+  return {
+    ...state,
+    lastSaveAtMs: latestTimestamp(state.lastSaveAtMs, nowMs),
+    failureCount: isNewSave ? 0 : state.failureCount,
+    retryNotBeforeMs: isNewSave ? 0 : state.retryNotBeforeMs,
+  };
 }
 
 export function recordAutoEmbeddingActivity(
@@ -121,7 +127,7 @@ export function decideAutoEmbedding(
   if (context.foregroundWorkActive) {
     return { action: "wait", reason: "foreground-work" };
   }
-  if (state.failureCount > nonNegativeInteger(policy.maxRetryAttempts)) {
+  if (hasExhaustedAutoEmbeddingRetries(state, policy)) {
     return { action: "skip", reason: "retries-exhausted" };
   }
   if (context.nowMs < state.retryNotBeforeMs) {
@@ -139,6 +145,13 @@ export function decideAutoEmbedding(
   }
 
   return { action: "run" };
+}
+
+export function hasExhaustedAutoEmbeddingRetries(
+  state: AutoEmbeddingSchedulerState,
+  policy: AutoEmbeddingPolicy,
+): boolean {
+  return state.failureCount > nonNegativeInteger(policy.maxRetryAttempts);
 }
 
 function latestTimestamp(previous: number | null, next: number): number {

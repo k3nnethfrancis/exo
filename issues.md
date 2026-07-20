@@ -212,7 +212,9 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     exception in `docs/reviews/2026-07-15-embedding-sync-runtime-session.md`.
 - Acceptance:
   - [x] Add a deterministic quiet-period scheduler with bounded automatic work,
-    retry/backoff, and no automatic large-backlog job. Exo now carries a narrow,
+    retry/backoff, and no automatic large-backlog job. Exhausted unchanged work
+    stays tripped with an explicit repair warning; a genuinely newer canonical
+    save receives a fresh bounded retry budget. Exo now carries a narrow,
     reproducible QMD 2.5.3 patch for work budgets and atomic vector publication.
   - [x] Preserve lexical fallback and existing public CLI/command-server routes.
   - [x] Prove foreground search does not wait behind automatic embedding.

@@ -192,6 +192,15 @@ test("keeps editor work responsive while hybrid QMD refresh runs out of process"
     expect(navigation.p50).toBeLessThanOrEqual(99);
     expect(navigation.p90).toBeLessThanOrEqual(150);
     expect(navigation.p99).toBeLessThanOrEqual(300);
+    expect(
+      finalProbe.longTasks.filter((duration) => duration >= 50),
+      `renderer long tasks across concurrent typing/navigation/Search/graph/Terminal work: ${JSON.stringify({
+        graphMs: concurrentSurfaces?.graph.elapsed,
+        searchMs: concurrentSurfaces?.search.samples,
+        terminalMs: concurrentSurfaces?.terminal.elapsed,
+        longTasks: finalProbe.longTasks,
+      })}`,
+    ).toEqual([]);
   } finally {
     await fixture.cleanup();
   }

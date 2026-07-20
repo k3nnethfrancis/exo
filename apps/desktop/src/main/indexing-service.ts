@@ -18,6 +18,7 @@ import {
   createAutoEmbeddingSchedulerState,
   decideAutoEmbedding,
   disposeAutoEmbeddingScheduler,
+  hasExhaustedAutoEmbeddingRetries,
   recordAutoEmbeddingActivity,
   recordAutoEmbeddingFailure,
   recordAutoEmbeddingSave,
@@ -552,7 +553,9 @@ export class IndexingService {
     const subject = `${count} document hash${count === 1 ? "" : "es"}`;
     const need = count === 1 ? "needs" : "need";
     const strategy = this.options.getCurrentSettings().indexUpdateStrategy;
-    const policyWarning = strategy === "manual"
+    const policyWarning = hasExhaustedAutoEmbeddingRetries(this.autoEmbeddingState, this.autoEmbeddingPolicy)
+      ? `${subject} ${need} embeddings; automatic catch-up failed after ${this.autoEmbeddingState.failureCount} attempts. Run Sync to repair it.`
+      : strategy === "manual"
       ? `${subject} ${need} embeddings; automatic updates are paused.`
       : count > this.autoEmbeddingPolicy.maxPendingEmbeddings
         ? `${subject} ${need} embeddings; automatic catch-up only runs for ${this.autoEmbeddingPolicy.maxPendingEmbeddings} or fewer.`
