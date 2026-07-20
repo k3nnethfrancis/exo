@@ -36,6 +36,7 @@ export interface InvocationReviewJournalEntry {
   status: InvocationReviewJournalEntryStatus;
   completedAt?: string;
   reason?: string;
+  acceptedSha256?: string | null;
 }
 
 export interface InvocationReviewJournal {
@@ -282,8 +283,12 @@ export class InvocationArtifactStore {
   async updateReviewJournalEntry(
     invocationId: string,
     changeId: string,
-    outcome: { status: "applied"; completedAt?: string } | { status: "conflict"; reason: string; completedAt?: string },
+    outcome: { status: "applied"; completedAt?: string; acceptedSha256?: string | null } | { status: "conflict"; reason: string; completedAt?: string },
   ): Promise<InvocationReviewJournal> {
+    if (outcome.status === "applied" && outcome.acceptedSha256 !== undefined && outcome.acceptedSha256 !== null &&
+      !/^[a-f0-9]{64}$/.test(outcome.acceptedSha256)) {
+      throw new Error("Review journal accepted hashes must be lowercase SHA-256 values or null.");
+    }
     const current = await this.readReviewJournal(invocationId);
     if (!current) throw new Error(`Invocation ${invocationId} has no review journal.`);
     let found = false;
@@ -293,7 +298,8 @@ export class InvocationArtifactStore {
       found = true;
       if (entry.status !== "pending") {
         const sameOutcome = entry.status === outcome.status &&
-          (outcome.status !== "conflict" || entry.reason === outcome.reason);
+          (outcome.status !== "conflict" || entry.reason === outcome.reason) &&
+          (outcome.status !== "applied" || outcome.acceptedSha256 === undefined || entry.acceptedSha256 === outcome.acceptedSha256);
         if (sameOutcome) return entry;
         throw new Error(`Invocation review change ${changeId} is already ${entry.status}.`);
       }
@@ -302,6 +308,9 @@ export class InvocationArtifactStore {
         status: outcome.status,
         completedAt,
         ...(outcome.status === "conflict" ? { reason: outcome.reason } : {}),
+        ...(outcome.status === "applied" && outcome.acceptedSha256 !== undefined
+          ? { acceptedSha256: outcome.acceptedSha256 }
+          : {}),
       };
     });
     if (!found) throw new Error(`Invocation review change ${changeId} was not found.`);
@@ -704,6 +713,13 @@ function normalizeReviewJournal(value: unknown): InvocationReviewJournal | null 
     if (entry.action !== "keep" && entry.action !== "reject") throw new Error("Invocation review journal action is invalid.");
     if (entry.status !== "pending" && entry.status !== "applied" && entry.status !== "conflict") throw new Error("Invocation review journal status is invalid.");
     if (entry.status === "conflict" && typeof entry.reason !== "string") throw new Error("Invocation review conflict reason is invalid.");
+    if (entry.status !== "applied" && entry.acceptedSha256 !== undefined) {
+      throw new Error("Invocation review accepted hash is invalid.");
+    }
+    if (entry.acceptedSha256 !== undefined && entry.acceptedSha256 !== null &&
+      (typeof entry.acceptedSha256 !== "string" || !/^[a-f0-9]{64}$/.test(entry.acceptedSha256))) {
+      throw new Error("Invocation review accepted hash is invalid.");
+    }
     seen.add(entry.changeId);
     return {
       changeId: entry.changeId,
@@ -711,6 +727,9 @@ function normalizeReviewJournal(value: unknown): InvocationReviewJournal | null 
       status: entry.status,
       ...(typeof entry.completedAt === "string" ? { completedAt: entry.completedAt } : {}),
       ...(entry.status === "conflict" ? { reason: entry.reason } : {}),
+      ...(entry.status === "applied" && (typeof entry.acceptedSha256 === "string" || entry.acceptedSha256 === null)
+        ? { acceptedSha256: entry.acceptedSha256 }
+        : {}),
     } satisfies InvocationReviewJournalEntry;
   });
   return { version: 1, createdAt: candidate.createdAt, updatedAt: candidate.updatedAt, entries };

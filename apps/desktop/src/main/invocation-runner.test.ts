@@ -575,11 +575,15 @@ describe("InvocationRunner readiness parity", () => {
       message: "Test failure.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody,
     });
 
-    await expect(updated).resolves.toMatchObject({
+    const failed = await updated;
+    expect(failed).toMatchObject({
       status: "failed",
       exitCode: 17,
       failureReason: "Command exited with code 17.",
     });
+    await expect(runner.listHistoryForNote(notePath)).resolves.toEqual([
+      expect.objectContaining({ invocationId: failed.id, outcome: "failed", changedFileCount: 0 }),
+    ]);
   });
 
   it("keeps an exact failed-process changeset reviewable", async () => {
@@ -612,10 +616,10 @@ describe("InvocationRunner readiness parity", () => {
     await expect(runner.listHistoryForNote(createdPath)).resolves.toEqual([
       expect.objectContaining({ invocationId: failed.id, outcome: "pending", changedFileCount: 1 }),
     ]);
-    await runner.reviewInvocationAll(failed.id, "reject");
-    await expect(readFile(createdPath, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await runner.reviewInvocationAll(failed.id, "keep");
+    await expect(readFile(createdPath, "utf8")).resolves.toBe("partial\n");
     await expect(runner.listHistoryForNote(createdPath)).resolves.toEqual([
-      expect.objectContaining({ invocationId: failed.id, outcome: "rejected", changedFileCount: 1 }),
+      expect.objectContaining({ invocationId: failed.id, outcome: "kept", changedFileCount: 1 }),
     ]);
   });
 
@@ -766,6 +770,41 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const afterReview = await runner.prepare(invocationRequest(notePath, nextBody));
     await expect(runner.authorizeAndStart(afterReview, authorizationFor(afterReview))).resolves.toMatchObject({ ok: true });
     await runner.stopAll();
+  });
+
+  it("keeps a conflicted review listed and blocks its Note Root until Keep-current resolves it", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-conflict-lock-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const body = protocolNoteBody("# Before\n", command.handle, "Update this.");
+    await writeFile(notePath, body);
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+    const prepared = await runner.prepare(invocationRequest(notePath, body));
+    const overlapping = await runner.prepare(invocationRequest(notePath, body));
+    await runner.authorizeAndStart(prepared, authorizationFor(prepared));
+    await writeFile(notePath, `${removeDocumentAgentInvocation(body, TEST_PROTOCOL_INVOCATION_ID, command.handle)}${formatDocumentAgentResponse({
+      invocationId: TEST_PROTOCOL_INVOCATION_ID,
+      agent: command.handle,
+      message: "Updated.",
+    })}\n`);
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    processFactory.process.exit(0, "done");
+    const completed = await updated;
+    const changedNote = completed.changeset!.files.find((change) => change.operation === "modified")!;
+    await writeFile(notePath, "newer human work\n");
+
+    const conflicted = await runner.reviewInvocationFile(completed.id, changedNote.id, "reject");
+    expect(conflicted.changeset?.status).toBe("conflict");
+    await expect(runner.listPendingReviews()).resolves.toEqual([
+      expect.objectContaining({ invocationId: completed.id, pendingFileCount: 1 }),
+    ]);
+    await expect(runner.authorizeAndStart(overlapping, authorizationFor(overlapping))).rejects.toMatchObject({ code: "review-busy" });
+
+    const resolved = await runner.reviewInvocationFile(completed.id, changedNote.id, "keep");
+    expect(resolved.changeset?.status).toBe("kept");
+    await expect(runner.listPendingReviews()).resolves.toEqual([]);
   });
 
   it("reports pending review and maps a fully resolved mixed decision to kept history", async () => {

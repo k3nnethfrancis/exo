@@ -145,6 +145,15 @@ describe("invocation artifacts", () => {
       changeId: "modified:note",
       completedAt: "2026-07-20T01:00:01.000Z",
     });
+    await first.updateReviewJournalEntry("recover-me", "created:other", {
+      status: "applied",
+      acceptedSha256: "a".repeat(64),
+      completedAt: "2026-07-20T01:00:02.000Z",
+    });
+    await expect(first.updateReviewJournalEntry("recover-me", "created:other", {
+      status: "applied",
+      acceptedSha256: "not-a-hash",
+    })).rejects.toThrow("lowercase SHA-256");
     const invocationDir = path.join(workspaceRoot, ".exo", "invocations", "recover-me");
     await writeFile(path.join(invocationDir, ".launch-manifest.json-interrupted.tmp"), "not json");
 
@@ -158,11 +167,18 @@ describe("invocation artifacts", () => {
       reviewJournal: {
         entries: [
           { changeId: "modified:note", status: "applied" },
-          { changeId: "created:other", status: "pending" },
+          { changeId: "created:other", status: "applied", acceptedSha256: "a".repeat(64) },
         ],
       },
     });
     await expect(restarted.listArtifactRecoveries()).resolves.toEqual([recovery]);
+    await writeFile(path.join(invocationDir, "review-journal.json"), JSON.stringify({
+      version: 1,
+      createdAt: "2026-07-20T01:00:00.000Z",
+      updatedAt: "2026-07-20T01:00:02.000Z",
+      entries: [{ changeId: "created:other", action: "keep", status: "applied", acceptedSha256: "not-a-hash" }],
+    }));
+    await expect(restarted.readReviewJournal("recover-me")).rejects.toThrow("accepted hash is invalid");
     await expect(restarted.readArtifactRecovery("missing")).resolves.toEqual({
       invocationId: "missing",
       cleanBase: null,

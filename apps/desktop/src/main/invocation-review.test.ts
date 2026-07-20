@@ -1,4 +1,5 @@
 import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -80,6 +81,40 @@ describe("InvocationReviewService", () => {
 
     expect(resolved.changeset?.files.find((change) => change.id === modified.id)?.decision.status).toBe("conflict");
     await expect(readFile(fixture.paths.modified, "utf8")).resolves.toBe("newer human work\n");
+    await expect(service.getFilePayload(resolved, modified.id)).resolves.toMatchObject({ canKeep: true, canReject: false });
+
+    const acceptedCurrent = "newest human work\n";
+    await writeFile(fixture.paths.modified, acceptedCurrent, "utf8");
+    const kept = await service.resolve(resolved, [{ changeId: modified.id, action: "keep" }]);
+    expect(kept.changeset?.files.find((change) => change.id === modified.id)?.decision).toMatchObject({
+      status: "kept",
+      acceptedSha256: createHash("sha256").update(acceptedCurrent).digest("hex"),
+    });
+    await expect(readFile(fixture.paths.modified, "utf8")).resolves.toBe(acceptedCurrent);
+  });
+
+  it("recovers a journaled Keep-current conflict with its decision-time hash", async () => {
+    const fixture = await changesetFixture();
+    const service = new InvocationReviewService(fixture.workspaceRoot);
+    const store = new InvocationStore(fixture.workspaceRoot);
+    const modified = fixture.record.changeset!.files.find((change) => change.operation === "modified")!;
+    await writeFile(fixture.paths.modified, "conflicting work\n");
+    const conflicted = await service.resolve(fixture.record, [{ changeId: modified.id, action: "reject" }]);
+    const acceptedAtClick = "accepted at click\n";
+    const acceptedSha256 = createHash("sha256").update(acceptedAtClick).digest("hex");
+    await writeFile(fixture.paths.modified, acceptedAtClick);
+    await store.beginReviewJournal(conflicted.id, [{ changeId: modified.id, action: "keep" }]);
+    await store.updateReviewJournalEntry(conflicted.id, modified.id, { status: "applied", acceptedSha256 });
+    await writeFile(fixture.paths.modified, "edited after click\n");
+
+    const recovered = await service.recoverJournal(conflicted);
+
+    expect(recovered.changeset?.files.find((change) => change.id === modified.id)?.decision).toMatchObject({
+      status: "kept",
+      acceptedSha256,
+    });
+    await expect(readFile(fixture.paths.modified, "utf8")).resolves.toBe("edited after click\n");
+    await expect(store.readReviewJournal(conflicted.id)).resolves.toBeNull();
   });
 
   it("uses the clean protocol base for Reject and preserves frontmatter bytes", async () => {
@@ -105,6 +140,112 @@ describe("InvocationReviewService", () => {
 
     expect(resolved.changeset?.status).toBe("rejected");
     await expect(readFile(notePath, "utf8")).resolves.toBe(clean);
+  });
+
+  it("removes the unchanged tagged invocation envelope when every visible change is rejected", async () => {
+    const fixture = await unchangedTaggedFixture(1);
+    const resolved = await new InvocationReviewService(fixture.workspaceRoot).resolve(
+      fixture.record,
+      fixture.record.changeset!.files.map((change) => ({ changeId: change.id, action: "reject" as const })),
+    );
+
+    expect(resolved.changeset?.status).toBe("rejected");
+    expect(resolved.changeset?.files).toHaveLength(1);
+    await expect(readFile(fixture.notePath, "utf8")).resolves.toBe(fixture.clean);
+    await expect(stat(fixture.createdPaths[0]!)).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("preserves the unchanged tagged invocation envelope when every visible change is kept", async () => {
+    const fixture = await unchangedTaggedFixture(1);
+    const resolved = await new InvocationReviewService(fixture.workspaceRoot).resolve(
+      fixture.record,
+      fixture.record.changeset!.files.map((change) => ({ changeId: change.id, action: "keep" as const })),
+    );
+
+    expect(resolved.changeset?.status).toBe("kept");
+    await expect(readFile(fixture.notePath, "utf8")).resolves.toBe(fixture.launchText);
+    await expect(readFile(fixture.createdPaths[0]!, "utf8")).resolves.toBe("created 0\n");
+  });
+
+  it("preserves the unchanged tagged invocation envelope for mixed review decisions", async () => {
+    const fixture = await unchangedTaggedFixture(2);
+    const [first, second] = fixture.record.changeset!.files;
+    const resolved = await new InvocationReviewService(fixture.workspaceRoot).resolve(fixture.record, [
+      { changeId: first!.id, action: "reject" },
+      { changeId: second!.id, action: "keep" },
+    ]);
+
+    expect(resolved.changeset?.status).toBe("resolved");
+    await expect(readFile(fixture.notePath, "utf8")).resolves.toBe(fixture.launchText);
+  });
+
+  it("blocks final all-Reject when the unchanged tagged note drifted after settlement", async () => {
+    const fixture = await unchangedTaggedFixture(1);
+    const drifted = `${fixture.launchText}\nNewer human work.\n`;
+    await writeFile(fixture.notePath, drifted);
+    const service = new InvocationReviewService(fixture.workspaceRoot);
+
+    const blocked = await service.resolve(
+      fixture.record,
+      fixture.record.changeset!.files.map((change) => ({ changeId: change.id, action: "reject" as const })),
+    );
+
+    expect(blocked.changeset?.status).toBe("conflict");
+    expect(blocked.review?.status).toBe("pending");
+    const taggedConflict = blocked.changeset!.files.find((change) => change.decision.status === "conflict")!;
+    await expect(service.getFilePayload(blocked, taggedConflict.id)).resolves.toMatchObject({
+      canKeep: true,
+      canReject: false,
+    });
+    await expect(readFile(fixture.notePath, "utf8")).resolves.toBe(drifted);
+    await expect(readFile(fixture.createdPaths[0]!, "utf8")).resolves.toBe("created 0\n");
+    await expect(new InvocationStore(fixture.workspaceRoot).readReviewJournal(fixture.record.id)).resolves.toBeNull();
+  });
+
+  it("finishes the implicit tagged clean-base restore from a review journal after restart", async () => {
+    const fixture = await unchangedTaggedFixture(1);
+    const store = new InvocationStore(fixture.workspaceRoot);
+    const change = fixture.record.changeset!.files[0]!;
+    await store.beginReviewJournal(fixture.record.id, [
+      { changeId: change.id, action: "reject" },
+      { changeId: "implicit:tagged-clean-base", action: "reject" },
+    ]);
+    await rm(fixture.createdPaths[0]!);
+    await store.updateReviewJournalEntry(fixture.record.id, change.id, { status: "applied" });
+
+    const recovered = await new InvocationReviewService(fixture.workspaceRoot).recoverJournal(fixture.record);
+
+    expect(recovered.changeset?.status).toBe("rejected");
+    await expect(readFile(fixture.notePath, "utf8")).resolves.toBe(fixture.clean);
+    await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
+  });
+
+  it("reconciles applied visible Rejects and exposes tagged drift after restart", async () => {
+    const fixture = await unchangedTaggedFixture(1);
+    const store = new InvocationStore(fixture.workspaceRoot);
+    const change = fixture.record.changeset!.files[0]!;
+    await store.beginReviewJournal(fixture.record.id, [
+      { changeId: change.id, action: "reject" },
+      { changeId: "implicit:tagged-clean-base", action: "reject" },
+    ]);
+    await rm(fixture.createdPaths[0]!);
+    await store.updateReviewJournalEntry(fixture.record.id, change.id, { status: "applied" });
+    const drifted = `${fixture.launchText}\nNewer human work.\n`;
+    await writeFile(fixture.notePath, drifted);
+
+    const service = new InvocationReviewService(fixture.workspaceRoot);
+    const recovered = await service.recoverJournal(fixture.record);
+
+    expect(recovered.changeset?.status).toBe("conflict");
+    expect(recovered.changeset?.files.find((entry) => entry.id === change.id)?.decision.status).toBe("rejected");
+    const conflict = recovered.changeset!.files.find((entry) => entry.decision.status === "conflict")!;
+    await expect(service.getFilePayload(recovered, conflict.id)).resolves.toMatchObject({ canKeep: true, canReject: false });
+    await expect(readFile(fixture.notePath, "utf8")).resolves.toBe(drifted);
+    await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
+
+    const resolved = await service.resolve(recovered, [{ changeId: conflict.id, action: "keep" }]);
+    expect(resolved.changeset?.status).toBe("resolved");
+    await expect(readFile(fixture.notePath, "utf8")).resolves.toBe(drifted);
   });
 
   it.each(["deleted", "renamed"] as const)("restores the clean tagged note when the proposal %s it", async (operation) => {
@@ -166,6 +307,26 @@ describe("InvocationReviewService", () => {
     await expect(stat(fixture.paths.renamedTo)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
   });
+
+  it("materializes a journaled conflict instead of clearing an unresolved decision", async () => {
+    const fixture = await changesetFixture();
+    const store = new InvocationStore(fixture.workspaceRoot);
+    const modified = fixture.record.changeset!.files.find((change) => change.operation === "modified")!;
+    await store.beginReviewJournal(fixture.record.id, [{ changeId: modified.id, action: "reject" }]);
+    await store.updateReviewJournalEntry(fixture.record.id, modified.id, {
+      status: "conflict",
+      reason: "Simulated crash after conflict journaling.",
+    });
+
+    const recovered = await new InvocationReviewService(fixture.workspaceRoot).recoverJournal(fixture.record);
+
+    expect(recovered.changeset?.files.find((change) => change.id === modified.id)?.decision).toMatchObject({
+      status: "conflict",
+      reason: "Simulated crash after conflict journaling.",
+    });
+    expect(recovered.review?.status).toBe("pending");
+    await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
+  });
 });
 
 async function changesetFixture() {
@@ -201,6 +362,27 @@ async function changesetFixture() {
   const record = invocationRecord(id, workspaceRoot, noteRoot, paths.modified, changeset);
   await store.writeRecord(record);
   return { workspaceRoot, noteRoot, paths, record };
+}
+
+async function unchangedTaggedFixture(createdCount: number) {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-unchanged-tagged-"));
+  temporaryRoots.push(workspaceRoot);
+  const noteRoot = path.join(workspaceRoot, "notes");
+  const notePath = path.join(noteRoot, "note.md");
+  await mkdir(noteRoot);
+  const clean = "Human text before request.\n\n";
+  const launchText = `${clean}<exo-invocation id="11111111-1111-4111-8111-111111111111" agent="claude" status="sent">\n@claude create files\n</exo-invocation>\n`;
+  await writeFile(notePath, launchText);
+  const store = new InvocationStore(workspaceRoot);
+  const id = `unchanged-tagged-${createdCount}`;
+  await store.captureCleanBase(id, { path: notePath, content: clean });
+  const launch = await store.captureManifest(id, "launch", [noteRoot]);
+  const createdPaths = Array.from({ length: createdCount }, (_value, index) => path.join(noteRoot, `created-${index}.md`));
+  await Promise.all(createdPaths.map((createdPath, index) => writeFile(createdPath, `created ${index}\n`)));
+  const settled = await store.captureManifest(id, "settled", [noteRoot]);
+  const record = invocationRecord(id, workspaceRoot, noteRoot, notePath, buildInvocationChangeset(launch, settled));
+  await store.writeRecord(record);
+  return { workspaceRoot, notePath, clean, launchText, createdPaths, record };
 }
 
 function invocationRecord(

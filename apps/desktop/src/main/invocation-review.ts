@@ -34,6 +34,13 @@ interface ReviewResolution {
   action: InvocationReviewAction;
 }
 
+const IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID = "implicit:tagged-clean-base";
+
+interface ImplicitTaggedRestore {
+  cleanBase: InvocationFileState;
+  proposal: InvocationFileState;
+}
+
 interface FileProbe {
   exists: boolean;
   sha256: string | null;
@@ -66,7 +73,7 @@ export class InvocationReviewService {
       change,
       beforeText: reviewBefore?.mediaType === "text" && before ? before.toString("utf8") : null,
       afterText: change.after?.mediaType === "text" && after ? after.toString("utf8") : null,
-      canKeep: change.decision.status === "pending",
+      canKeep: change.decision.status === "pending" || change.decision.status === "conflict",
       canReject: change.decision.status === "pending",
     };
   }
@@ -82,15 +89,20 @@ export class InvocationReviewService {
     }
     const plan = [...unique].map(([changeId, action]) => ({ changeId, action }));
     if (plan.length === 0) return record;
-    const changes = plan.map(({ changeId }) => {
+    const changes = plan.map(({ changeId, action }) => {
       const change = record.changeset!.files.find((entry) => entry.id === changeId);
-      if (!change || change.decision.status !== "pending") {
+      const reviewable = change?.decision.status === "pending" ||
+        change?.decision.status === "conflict" && action === "keep";
+      if (!change || !reviewable) {
         throw new InvocationReviewError("review-unavailable", `Invocation change ${changeId} is not pending.`);
       }
       return change;
     });
 
     const cleanBase = await this.store.readCleanBase(record.id);
+    const implicitTaggedRestore = willRejectEntireChangeset(record.changeset, plan)
+      ? await this.getImplicitTaggedRestore(record, cleanBase)
+      : null;
     assertTaggedCleanBase(
       record,
       changes.filter((_change, index) => plan[index]!.action === "reject"),
@@ -98,7 +110,9 @@ export class InvocationReviewService {
     );
     const existingJournal = await this.store.readReviewJournal(record.id);
     const resumedJournal = existingJournal !== null;
-    await this.store.beginReviewJournal(record.id, plan);
+    await this.store.beginReviewJournal(record.id, implicitTaggedRestore
+      ? [...plan, { changeId: IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, action: "reject" }]
+      : plan);
 
     const checks = await Promise.all(changes.map((change, index) =>
       preflightChange(change, plan[index]!.action, rejectionBeforeState(record, change, cleanBase))));
@@ -118,6 +132,20 @@ export class InvocationReviewService {
       await this.store.clearReviewJournal(record.id);
       return next;
     }
+    const implicitCheck = implicitTaggedRestore
+      ? await preflightImplicitTaggedRestore(implicitTaggedRestore)
+      : null;
+    if (implicitCheck?.state === "conflict") {
+      const changeset = withImplicitTaggedConflict(record.changeset, implicitTaggedRestore!, implicitCheck);
+      const next = withCompatibilityReview({ ...record, changeset });
+      await this.store.writeRecord(next);
+      await this.store.updateReviewJournalEntry(record.id, IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, {
+        status: "conflict",
+        reason: implicitCheck.reason,
+      });
+      await this.store.clearReviewJournal(record.id);
+      return next;
+    }
 
     let changeset: InvocationChangeset = record.changeset;
     const reviewedAt = new Date().toISOString();
@@ -134,10 +162,40 @@ export class InvocationReviewService {
           check.state === "partial",
         );
       }
-      await this.store.updateReviewJournalEntry(record.id, change.id, { status: "applied", completedAt: reviewedAt });
-      changeset = resolveInvocationFileChange(changeset, change.id, action === "keep"
-        ? { status: "kept", reviewedAt, acceptedSha256: change.after?.sha256 ?? null }
-        : { status: "rejected", reviewedAt });
+      const decision = action === "keep"
+        ? {
+            status: "kept" as const,
+            reviewedAt,
+            acceptedSha256: change.decision.status === "conflict"
+              ? check.currentSha256
+              : change.after?.sha256 ?? null,
+          }
+        : { status: "rejected" as const, reviewedAt };
+      await this.store.updateReviewJournalEntry(record.id, change.id, {
+        status: "applied",
+        completedAt: reviewedAt,
+        ...(decision.status === "kept" ? { acceptedSha256: decision.acceptedSha256 } : {}),
+      });
+      changeset = resolveInvocationFileChange(changeset, change.id, decision);
+    }
+    if (implicitTaggedRestore && implicitCheck) {
+      try {
+        if (implicitCheck.state === "proposal") {
+          await restoreImplicitTaggedCleanBase(this.store, record.id, implicitTaggedRestore);
+        }
+        await this.store.updateReviewJournalEntry(record.id, IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, {
+          status: "applied",
+          completedAt: reviewedAt,
+        });
+      } catch (error) {
+        const check = await implicitConflictFromError(implicitTaggedRestore, error);
+        changeset = withImplicitTaggedConflict(changeset, implicitTaggedRestore, check);
+        await this.store.updateReviewJournalEntry(record.id, IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, {
+          status: "conflict",
+          reason: check.reason,
+          completedAt: reviewedAt,
+        });
+      }
     }
     const next = withCompatibilityReview({ ...record, changeset });
     await this.store.writeRecord(next);
@@ -149,14 +207,50 @@ export class InvocationReviewService {
     const journal = await this.store.readReviewJournal(record.id);
     if (!journal || !record.changeset) return record;
     const cleanBase = await this.store.readCleanBase(record.id);
+    const implicitEntry = journal.entries.find((entry) => entry.changeId === IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID);
+    const implicitTaggedRestore = implicitEntry
+      ? await this.getImplicitTaggedRestore(record, cleanBase)
+      : null;
+    const implicitCheck = implicitEntry?.status === "pending" && implicitTaggedRestore
+      ? await preflightImplicitTaggedRestore(implicitTaggedRestore)
+      : null;
+    const persistedImplicitConflict = implicitEntry?.status === "conflict" && implicitTaggedRestore
+      ? await implicitConflict(
+          implicitTaggedRestore,
+          implicitEntry.reason ?? "The invocation request could not be removed safely.",
+        )
+      : null;
     let changeset = record.changeset;
     const completedAt = journal.updatedAt;
     let changed = false;
+    let hasConflict = false;
     for (const entry of journal.entries) {
+      if (entry.changeId === IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID) continue;
       const change = changeset.files.find((candidate) => candidate.id === entry.changeId);
-      if (!change || change.decision.status !== "pending") continue;
+      const reviewable = change?.decision.status === "pending" ||
+        change?.decision.status === "conflict" && entry.action === "keep";
+      if (!change || !reviewable) continue;
+      if (entry.action === "keep" && entry.status === "applied" && entry.acceptedSha256 !== undefined) {
+        changeset = resolveInvocationFileChange(changeset, change.id, {
+          status: "kept",
+          reviewedAt: entry.completedAt ?? completedAt,
+          acceptedSha256: entry.acceptedSha256,
+        });
+        changed = true;
+        continue;
+      }
       const reviewBefore = rejectionBeforeState(record, change, cleanBase);
       const check = await preflightChange(change, entry.action, reviewBefore);
+      if (entry.status === "conflict") {
+        changeset = resolveInvocationFileChange(changeset, change.id, {
+          status: "conflict",
+          reason: entry.reason ?? "The review encountered a file conflict before Exo could persist it.",
+          currentSha256: check.currentSha256,
+        });
+        changed = true;
+        hasConflict = true;
+        continue;
+      }
       if (entry.action === "reject" && check.state === "partial") {
         await rejectChange(this.store, record.id, change, reviewBefore, true);
         await this.store.updateReviewJournalEntry(record.id, change.id, { status: "applied", completedAt });
@@ -166,10 +260,18 @@ export class InvocationReviewService {
       }
       if (check.state === "resolved" || entry.action === "keep" && check.state === "proposal") {
         if (entry.status !== "applied") {
-          await this.store.updateReviewJournalEntry(record.id, change.id, { status: "applied", completedAt });
+          await this.store.updateReviewJournalEntry(record.id, change.id, {
+            status: "applied",
+            completedAt,
+            ...(entry.action === "keep" ? { acceptedSha256: check.currentSha256 } : {}),
+          });
         }
         changeset = resolveInvocationFileChange(changeset, change.id, entry.action === "keep"
-          ? { status: "kept", reviewedAt: completedAt, acceptedSha256: change.after?.sha256 ?? null }
+          ? {
+              status: "kept",
+              reviewedAt: completedAt,
+              acceptedSha256: entry.acceptedSha256 !== undefined ? entry.acceptedSha256 : check.currentSha256,
+            }
           : { status: "rejected", reviewedAt: completedAt });
         changed = true;
         continue;
@@ -181,14 +283,160 @@ export class InvocationReviewService {
           currentSha256: check.currentSha256,
         });
         changed = true;
+        hasConflict = true;
       }
     }
-    if (!changed) return record;
+    if (!hasConflict && implicitEntry?.status === "pending" && implicitTaggedRestore && implicitCheck) {
+      if (implicitCheck.state === "conflict") {
+        changeset = withImplicitTaggedConflict(changeset, implicitTaggedRestore, implicitCheck);
+        await this.store.updateReviewJournalEntry(record.id, IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, {
+          status: "conflict",
+          reason: implicitCheck.reason,
+          completedAt,
+        });
+        changed = true;
+      } else {
+        try {
+          if (implicitCheck.state === "proposal") {
+            await restoreImplicitTaggedCleanBase(this.store, record.id, implicitTaggedRestore);
+          }
+          await this.store.updateReviewJournalEntry(record.id, IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, {
+            status: "applied",
+            completedAt,
+          });
+        } catch (error) {
+          const check = await implicitConflictFromError(implicitTaggedRestore, error);
+          changeset = withImplicitTaggedConflict(changeset, implicitTaggedRestore, check);
+          await this.store.updateReviewJournalEntry(record.id, IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, {
+            status: "conflict",
+            reason: check.reason,
+            completedAt,
+          });
+          changed = true;
+        }
+      }
+    }
+    if (!hasConflict && persistedImplicitConflict && implicitTaggedRestore) {
+      changeset = withImplicitTaggedConflict(changeset, implicitTaggedRestore, persistedImplicitConflict);
+      changed = true;
+    }
+    if (!changed) {
+      const unresolvedJournalConflict = journal.entries.some((entry) =>
+        entry.status === "conflict" && !hasDurableConflict(record, entry.changeId));
+      if (unresolvedJournalConflict) return record;
+      await this.store.clearReviewJournal(record.id);
+      return record;
+    }
     const next = withCompatibilityReview({ ...record, changeset });
     await this.store.writeRecord(next);
     await this.store.clearReviewJournal(record.id);
     return next;
   }
+
+  private async getImplicitTaggedRestore(
+    record: InvocationRecord,
+    cleanBase: InvocationCleanBaseRef | null,
+  ): Promise<ImplicitTaggedRestore | null> {
+    if (!record.taggedDocumentPath) return null;
+    if (!cleanBase) {
+      throw new InvocationReviewError("review-unavailable", "The exact clean invocation base is unavailable.");
+    }
+    const taggedIsVisibleChange = record.changeset?.files.some((change) =>
+      change.before?.path === cleanBase.file.path || change.after?.path === cleanBase.file.path ||
+      change.before?.path === record.taggedDocumentPath || change.after?.path === record.taggedDocumentPath);
+    if (taggedIsVisibleChange) return null;
+    const settled = await this.store.readManifest(record.id, "settled");
+    const proposal = settled?.files[cleanBase.file.path];
+    if (!proposal) {
+      throw new InvocationReviewError("review-unavailable", "The settled invocation document snapshot is unavailable.");
+    }
+    return { cleanBase: cleanBase.file, proposal };
+  }
+}
+
+function hasDurableConflict(record: InvocationRecord, changeId: string): boolean {
+  if (changeId === IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID) {
+    return Boolean(record.changeset?.files.some((change) =>
+      change.id.startsWith(`${IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID}:`) && change.decision.status === "conflict"));
+  }
+  return record.changeset?.files.find((change) => change.id === changeId)?.decision.status === "conflict";
+}
+
+function willRejectEntireChangeset(
+  changeset: InvocationChangeset,
+  plan: readonly ReviewResolution[],
+): boolean {
+  const planned = new Map(plan.map((entry) => [entry.changeId, entry.action]));
+  return changeset.files.every((change) =>
+    change.decision.status === "rejected" ||
+    change.decision.status === "pending" && planned.get(change.id) === "reject");
+}
+
+async function preflightImplicitTaggedRestore(restore: ImplicitTaggedRestore): Promise<ReviewPreflight> {
+  const current = await probeFile(restore.proposal.path);
+  if (matchesState(current, restore.cleanBase)) return { state: "resolved", currentSha256: current.sha256 };
+  if (matchesState(current, restore.proposal)) return { state: "proposal", currentSha256: current.sha256 };
+  return drift(current.sha256);
+}
+
+async function restoreImplicitTaggedCleanBase(
+  store: InvocationStore,
+  invocationId: string,
+  restore: ImplicitTaggedRestore,
+): Promise<void> {
+  const bytes = await requiredSnapshot(store, invocationId, restore.cleanBase);
+  await replaceVerifiedProposal(restore.proposal, restore.cleanBase, bytes);
+}
+
+async function implicitConflictFromError(
+  restore: ImplicitTaggedRestore,
+  error: unknown,
+): Promise<Extract<ReviewPreflight, { state: "conflict" }>> {
+  const detail = error instanceof Error ? error.message : String(error);
+  return implicitConflict(restore, `The invocation request could not be removed safely. ${detail}`);
+}
+
+async function implicitConflict(
+  restore: ImplicitTaggedRestore,
+  reason: string,
+): Promise<Extract<ReviewPreflight, { state: "conflict" }>> {
+  let currentSha256: string | null = null;
+  try {
+    currentSha256 = (await probeFile(restore.proposal.path)).sha256;
+  } catch {
+    // The conflict remains reachable even when probing the current file is
+    // itself what failed; Keep-current can probe again at decision time.
+  }
+  return {
+    state: "conflict",
+    currentSha256,
+    reason,
+  };
+}
+
+function withImplicitTaggedConflict(
+  changeset: InvocationChangeset,
+  restore: ImplicitTaggedRestore,
+  conflict: Extract<ReviewPreflight, { state: "conflict" }>,
+): InvocationChangeset {
+  const id = `${IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID}:${restore.proposal.path}`;
+  const synthetic: InvocationFileChange = {
+    id,
+    operation: "modified",
+    before: restore.cleanBase,
+    after: restore.proposal,
+    decision: {
+      status: "conflict",
+      reason: conflict.reason,
+      currentSha256: conflict.currentSha256,
+    },
+  };
+  const { resolvedAt: _resolvedAt, ...unresolved } = changeset;
+  return {
+    ...unresolved,
+    status: "conflict",
+    files: [...changeset.files.filter((change) => change.id !== id), synthetic],
+  };
 }
 
 export function withCompatibilityReview(record: InvocationRecord): InvocationRecord {
@@ -198,7 +446,8 @@ export function withCompatibilityReview(record: InvocationRecord): InvocationRec
     ? changeset.files.find((change) => change.before?.path === record.taggedDocumentPath || change.after?.path === record.taggedDocumentPath)
     : undefined;
   const representative = tagged ?? changeset.files[0]!;
-  const terminal = changeset.files.every((change) => change.decision.status !== "pending");
+  const terminal = changeset.files.every((change) =>
+    change.decision.status === "kept" || change.decision.status === "rejected");
   const allRejected = changeset.files.every((change) => change.decision.status === "rejected");
   const reviewedAt = changeset.resolvedAt ?? changeset.files
     .map((change) => "reviewedAt" in change.decision ? change.decision.reviewedAt : undefined)
@@ -220,7 +469,12 @@ async function preflightChange(
   action: InvocationReviewAction,
   rejectionBefore: InvocationFileState | undefined,
 ): Promise<ReviewPreflight> {
-  if (action === "keep") return { state: "proposal", currentSha256: change.after?.sha256 ?? null };
+  if (action === "keep") {
+    const currentSha256 = change.decision.status === "conflict"
+      ? (await probeFile(change.after?.path ?? change.before!.path)).sha256
+      : change.after?.sha256 ?? null;
+    return { state: "proposal", currentSha256 };
+  }
   const beforePath = change.before?.path;
   const afterPath = change.after?.path;
   const beforeCurrent = beforePath ? await probeFile(beforePath) : absentProbe();

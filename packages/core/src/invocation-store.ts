@@ -127,7 +127,7 @@ export class InvocationStore {
   updateReviewJournalEntry(
     invocationId: string,
     changeId: string,
-    outcome: { status: "applied"; completedAt?: string } | { status: "conflict"; reason: string; completedAt?: string },
+    outcome: { status: "applied"; completedAt?: string; acceptedSha256?: string | null } | { status: "conflict"; reason: string; completedAt?: string },
   ): Promise<InvocationReviewJournal> {
     return this.artifacts.updateReviewJournalEntry(invocationId, changeId, outcome);
   }

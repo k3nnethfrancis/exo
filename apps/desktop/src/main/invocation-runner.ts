@@ -652,7 +652,7 @@ export class InvocationRunner extends EventEmitter {
     const scope = this.scopeForInvocation(id);
     const record = await requiredInvocation(new InvocationStore(scope.workspaceRoot), id);
     const resolutions = record.changeset?.files
-      .filter((change) => change.decision.status === "pending")
+      .filter((change) => change.decision.status === "pending" || action === "keep" && change.decision.status === "conflict")
       .map((change) => ({ changeId: change.id, action })) ?? [];
     return this.resolveReview(id, resolutions);
   }
@@ -660,7 +660,7 @@ export class InvocationRunner extends EventEmitter {
   async listPendingReviews(): Promise<InvocationReviewListItem[]> {
     const settings = this.options.getWorkspaceSettings();
     return (await new InvocationStore(settings.workspaceRoot).listRecords())
-      .filter((record) => record.changeset?.files.some((change) => change.decision.status === "pending"))
+      .filter((record) => record.changeset?.files.some((change) => isUnresolvedReviewDecision(change.decision.status)))
       .sort(newestRecordFirst)
       .map(reviewListItem);
   }
@@ -668,8 +668,12 @@ export class InvocationRunner extends EventEmitter {
   async listHistoryForNote(notePath: string): Promise<InvocationHistoryItem[]> {
     const settings = this.options.getWorkspaceSettings();
     const exactPath = await canonicalPathOrResolved(notePath);
-    return (await new InvocationStore(settings.workspaceRoot).listRecords())
-      .filter((record) => record.changeset?.files.some((change) =>
+    const records = await new InvocationStore(settings.workspaceRoot).listRecords();
+    const taggedPaths = await Promise.all(records.map((record) => record.taggedDocumentPath
+      ? canonicalPathOrResolved(record.taggedDocumentPath)
+      : null));
+    return records
+      .filter((record, index) => taggedPaths[index] === exactPath || record.changeset?.files.some((change) =>
         change.before?.path === exactPath || change.after?.path === exactPath))
       .sort(newestRecordFirst)
       .map((record) => ({
@@ -701,7 +705,7 @@ export class InvocationRunner extends EventEmitter {
 
   async keepReview(id: string): Promise<InvocationRecord | null> {
     const record = await this.get(id);
-    if (!record?.changeset?.files.some((change) => change.decision.status === "pending")) return record;
+    if (!record?.changeset?.files.some((change) => isUnresolvedReviewDecision(change.decision.status))) return record;
     return this.reviewInvocationAll(id, "keep");
   }
 
@@ -911,7 +915,7 @@ export class InvocationRunner extends EventEmitter {
     try {
       const unresolved = (await store.listRecords()).find((record) =>
         record.id !== prepared.id &&
-        record.changeset?.files.some((change) => change.decision.status === "pending") &&
+        record.changeset?.files.some((change) => isUnresolvedReviewDecision(change.decision.status)) &&
         rootsOverlap(record.noteRoots ?? [], roots));
       if (unresolved) {
         throw new InvocationRunnerError("review-busy", "Review the previous invocation before starting another in this Note Root.", { invocationId: unresolved.id });
@@ -1113,9 +1117,13 @@ function reviewListItem(record: InvocationRecord): InvocationReviewListItem {
     ...(record.endedAt ? { endedAt: record.endedAt } : {}),
     command: { handle: record.command.handle, label: record.command.label },
     changedFileCount: record.changeset?.files.length ?? 0,
-    pendingFileCount: record.changeset?.files.filter((change) => change.decision.status === "pending").length ?? 0,
+    pendingFileCount: record.changeset?.files.filter((change) => isUnresolvedReviewDecision(change.decision.status)).length ?? 0,
     status: record.status,
   };
+}
+
+function isUnresolvedReviewDecision(status: string): boolean {
+  return status === "pending" || status === "conflict";
 }
 
 function newestRecordFirst(left: InvocationRecord, right: InvocationRecord): number {
@@ -1127,7 +1135,7 @@ function invocationHistoryOutcome(record: InvocationRecord): InvocationHistoryIt
   if (changesetStatus === "pending-review" || changesetStatus === "partially-resolved" || changesetStatus === "conflict" ||
       record.status === "pending" || record.status === "running") return "pending";
   if (changesetStatus === "rejected") return "rejected";
-  if (changesetStatus === "resolved") return "kept";
+  if (changesetStatus === "kept" || changesetStatus === "resolved") return "kept";
   if (record.status === "failed" || record.status === "orphaned") return "failed";
   return "kept";
 }
