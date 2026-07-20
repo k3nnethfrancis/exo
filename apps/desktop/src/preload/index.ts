@@ -109,6 +109,7 @@ const api: DesktopApi = {
     getGraphView: (profileId) => invokeDesktop("notes:get-graph-view", profileId),
     getGraphTopology: (profileId) => invokeDesktop("notes:get-graph-topology", profileId),
     getGraphConceptSummaries: (indexes, sourceSnapshotId, profileId) => invokeDesktop("notes:get-graph-concept-summaries", indexes, sourceSnapshotId, profileId),
+    graphConceptLookup: (reference, sourceSnapshotId, profileId) => invokeDesktop("notes:graph-concept-lookup", reference, sourceSnapshotId, profileId),
     getGraphConceptDetailByIndex: (index, sourceSnapshotId, profileId) => invokeDesktop("notes:get-graph-concept-detail-by-index", index, sourceSnapshotId, profileId),
     getGraphConceptDetail: (conceptId, sourceSnapshotId, profileId) => invokeDesktop("notes:get-graph-concept-detail", conceptId, sourceSnapshotId, profileId),
     resolveTarget: (sourceFilePath, target) => invokeDesktop("notes:resolve-target", sourceFilePath, target),

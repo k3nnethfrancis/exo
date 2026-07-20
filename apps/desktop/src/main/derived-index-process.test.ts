@@ -123,9 +123,28 @@ describe("UtilityDerivedIndexClient", () => {
     worker.emit("message", { id: 3, ok: true, result: { status: "ok", sourceSnapshotId: "snapshot:fixture", summaries: [], payloadBytes: 100 } });
     await expect(summaries).resolves.toMatchObject({ status: "ok" });
 
+    const lookup = client.graphConceptLookup(
+      model(),
+      "/workspace/.exo",
+      { filePath: "/workspace/notes/focus.md" },
+      "snapshot:fixture",
+      "okf",
+    );
+    expect(worker.messages.at(-1)).toMatchObject({
+      operation: "graph-concept-lookup",
+      reference: { filePath: "/workspace/notes/focus.md" },
+      sourceSnapshotId: "snapshot:fixture",
+    });
+    worker.emit("message", {
+      id: 4,
+      ok: true,
+      result: { status: "ok", sourceSnapshotId: "snapshot:fixture", summary: { index: 1, label: "Focus" }, payloadBytes: 130 },
+    });
+    await expect(lookup).resolves.toMatchObject({ status: "ok", summary: { index: 1 } });
+
     const detail = client.graphConceptDetailByIndex(model(), "/workspace/.exo", 1, "snapshot:fixture", "okf");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-concept-detail-by-index", index: 1 });
-    worker.emit("message", { id: 4, ok: true, result: { status: "missing", sourceSnapshotId: "snapshot:fixture", index: 1, payloadBytes: 100 } });
+    worker.emit("message", { id: 5, ok: true, result: { status: "missing", sourceSnapshotId: "snapshot:fixture", index: 1, payloadBytes: 100 } });
     await expect(detail).resolves.toMatchObject({ status: "missing" });
   });
 

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import path from "node:path";
 
 import type { ConceptNode, GraphFinding, KnowledgeGraphSnapshot, RelationEdge } from "./knowledge-graph";
 
@@ -107,6 +108,9 @@ export interface GraphTopologyCompilation {
   topology: GraphTopology;
   /** Cold server-side identity index. Never transport this with topology. */
   conceptIds: readonly string[];
+  /** Cold server-side reverse indexes. Never transport these with topology. */
+  conceptIndexById: ReadonlyMap<string, number>;
+  conceptIndexByFilePath: ReadonlyMap<string, number>;
 }
 
 export interface GraphConceptSummary {
@@ -114,6 +118,17 @@ export interface GraphConceptSummary {
   label: string;
   filePath?: string;
   relativePath?: string;
+}
+
+export type GraphConceptLookupReference =
+  | { conceptId: string; filePath?: never }
+  | { filePath: string; conceptId?: never };
+
+export interface GraphConceptLookupResult {
+  status: "ok" | "stale" | "missing";
+  sourceSnapshotId: string;
+  summary?: GraphConceptSummary;
+  payloadBytes: number;
 }
 
 export type GraphDetailReadStatus = "ok" | "stale" | "missing" | "too-large";
@@ -273,7 +288,22 @@ export function compileGraphTopology(snapshot: KnowledgeGraphSnapshot): GraphTop
       tagRelations: snapshot.relations.length - visibleRelations.length,
     },
   });
-  return { topology, conceptIds: concepts.map((concept) => concept.id) };
+  const conceptIds = concepts.map((concept) => concept.id);
+  const conceptIndexByFilePath = new Map<string, number>();
+  concepts.forEach((concept, index) => {
+    if (concept.filePath) conceptIndexByFilePath.set(normalizeGraphConceptFilePath(concept.filePath), index);
+  });
+  return {
+    topology,
+    conceptIds,
+    conceptIndexById: new Map(conceptIds.map((conceptId, index) => [conceptId, index])),
+    conceptIndexByFilePath,
+  };
+}
+
+/** Canonical logical path key used by the cold topology indexes. */
+export function normalizeGraphConceptFilePath(filePath: string): string {
+  return path.normalize(path.resolve(filePath));
 }
 
 export function createGraphTopology(input: {

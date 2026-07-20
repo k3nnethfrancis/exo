@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { GRAPH_CONCEPT_SUMMARY_MAX_BYTES } from "../graph-projection";
 import { WorkspaceGraph, workspaceNoteId } from "../workspace-graph";
 import type { WorkspaceModel } from "../types";
 
@@ -297,6 +298,79 @@ describe("WorkspaceGraph", () => {
       status: "too-large",
       summaries: [],
     });
+  });
+
+  it("looks up cold concept identity by id or normalized file path in one cached topology epoch", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    const folder = path.join(notes, "Folder");
+    await mkdir(folder, { recursive: true });
+    const focusPath = path.join(folder, "Focus.md");
+    await writeFile(focusPath, "# Focus\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+    const topology = await graph.graphTopology();
+    const conceptId = (await graph.graphView()).projection.nodes[0]?.id ?? "";
+
+    const byId = await graph.graphConceptLookup({ conceptId }, topology.sourceSnapshotId);
+    const byPath = await graph.graphConceptLookup(
+      { filePath: path.join(folder, "..", "Folder", "Focus.md") },
+      topology.sourceSnapshotId,
+    );
+
+    expect(byId).toMatchObject({ status: "ok", summary: { index: 0, label: "Focus", filePath: focusPath } });
+    expect(byPath).toEqual(byId);
+    expect(byId.payloadBytes).toBe(Buffer.byteLength(JSON.stringify(byId), "utf8"));
+    await expect(graph.graphConceptLookup({ conceptId: "missing" }, topology.sourceSnapshotId))
+      .resolves.toMatchObject({ status: "missing" });
+    await expect(graph.graphConceptLookup({ filePath: path.join(notes, "missing.md") }, topology.sourceSnapshotId))
+      .resolves.toMatchObject({ status: "missing" });
+    await expect(graph.graphConceptLookup({} as never, topology.sourceSnapshotId)).rejects.toThrow("exactly one");
+    await expect(graph.graphConceptLookup({ conceptId, filePath: focusPath } as never, topology.sourceSnapshotId)).rejects.toThrow("exactly one");
+    await expect(graph.graphConceptLookup({ conceptId: "" }, topology.sourceSnapshotId)).rejects.toThrow("must not be empty");
+
+    await writeFile(focusPath, "# Changed\n");
+    await graph.refreshFile(focusPath);
+    await expect(graph.graphConceptLookup({ conceptId }, topology.sourceSnapshotId))
+      .resolves.toMatchObject({ status: "stale" });
+    const refreshedTopology = await graph.graphTopology();
+    await expect(graph.graphConceptLookup({ conceptId }, refreshedTopology.sourceSnapshotId))
+      .resolves.toMatchObject({ status: "ok", summary: { label: "Changed" } });
+  });
+
+  it("enforces the exact cold concept lookup payload byte cap", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    const hugePath = path.join(notes, "huge.md");
+    await writeFile(hugePath, "---\ntitle: x\n---\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+    let topology = await graph.graphTopology();
+    const baseline = await graph.graphConceptLookup({ filePath: hugePath }, topology.sourceSnapshotId);
+    expect(baseline.status).toBe("ok");
+    let titleLength = GRAPH_CONCEPT_SUMMARY_MAX_BYTES;
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      const candidate = { ...baseline, summary: { ...baseline.summary, label: "x".repeat(titleLength) }, payloadBytes: 0 };
+      let bytes = Buffer.byteLength(JSON.stringify(candidate), "utf8");
+      for (let sizeIteration = 0; sizeIteration < 3; sizeIteration += 1) {
+        candidate.payloadBytes = bytes;
+        bytes = Buffer.byteLength(JSON.stringify(candidate), "utf8");
+      }
+      titleLength -= bytes - GRAPH_CONCEPT_SUMMARY_MAX_BYTES;
+    }
+
+    await writeFile(hugePath, `---\ntitle: ${"x".repeat(titleLength)}\n---\n`);
+    await graph.refreshFile(hugePath);
+    topology = await graph.graphTopology();
+    const atLimit = await graph.graphConceptLookup({ filePath: hugePath }, topology.sourceSnapshotId);
+    expect(atLimit.payloadBytes).toBe(GRAPH_CONCEPT_SUMMARY_MAX_BYTES);
+
+    await writeFile(hugePath, `---\ntitle: ${"x".repeat(titleLength + 1)}\n---\n`);
+    await graph.refreshFile(hugePath);
+    topology = await graph.graphTopology();
+    await expect(graph.graphConceptLookup({ filePath: hugePath }, topology.sourceSnapshotId))
+      .rejects.toThrow("65536-byte limit");
   });
 });
 

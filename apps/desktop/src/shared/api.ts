@@ -7,6 +7,8 @@ import type {
   FolderOverview,
   GraphConceptDetail,
   GraphConceptDetailByIndexResult,
+  GraphConceptLookupReference,
+  GraphConceptLookupResult,
   GraphConceptSummaryResult,
   GraphTopology,
   GraphViewBundle,
@@ -282,6 +284,7 @@ export interface DesktopApi {
     getGraphView: (profileId?: string | null) => Promise<GraphViewBundle>;
     getGraphTopology: (profileId?: string | null) => Promise<GraphTopology>;
     getGraphConceptSummaries: (indexes: number[], sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptSummaryResult>;
+    graphConceptLookup: (reference: GraphConceptLookupReference, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptLookupResult>;
     getGraphConceptDetailByIndex: (index: number, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptDetailByIndexResult>;
     getGraphConceptDetail: (conceptId: string, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptDetail | null>;
     resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;

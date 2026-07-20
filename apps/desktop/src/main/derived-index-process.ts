@@ -7,6 +7,8 @@ import type {
   IndexSyncResult,
   GraphConceptDetail,
   GraphConceptDetailByIndexResult,
+  GraphConceptLookupReference,
+  GraphConceptLookupResult,
   GraphConceptSummaryResult,
   GraphTopology,
   GraphViewBundle,
@@ -43,6 +45,7 @@ export interface DerivedIndexClient {
   graphView(model: WorkspaceModel, runtimeRoot: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphViewBundle>;
   graphTopology(model: WorkspaceModel, runtimeRoot: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphTopology>;
   graphConceptSummaries(model: WorkspaceModel, runtimeRoot: string, indexes: number[], sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptSummaryResult>;
+  graphConceptLookup(model: WorkspaceModel, runtimeRoot: string, reference: GraphConceptLookupReference, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptLookupResult>;
   graphConceptDetailByIndex(model: WorkspaceModel, runtimeRoot: string, index: number, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptDetailByIndexResult>;
   graphConceptDetail(model: WorkspaceModel, runtimeRoot: string, conceptId: string, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptDetail | null>;
   graphRefresh(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<void>;
@@ -160,6 +163,17 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
     signal?: AbortSignal,
   ): Promise<GraphConceptSummaryResult> {
     return this.request({ operation: "graph-concept-summaries", context: { model, runtimeRoot }, indexes, sourceSnapshotId, profileId }, signal);
+  }
+
+  graphConceptLookup(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    reference: GraphConceptLookupReference,
+    sourceSnapshotId: string,
+    profileId?: string | null,
+    signal?: AbortSignal,
+  ): Promise<GraphConceptLookupResult> {
+    return this.request({ operation: "graph-concept-lookup", context: { model, runtimeRoot }, reference, sourceSnapshotId, profileId }, signal);
   }
 
   graphConceptDetailByIndex(

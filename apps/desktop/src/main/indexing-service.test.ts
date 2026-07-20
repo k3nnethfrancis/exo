@@ -527,6 +527,7 @@ function derivedIndexClient(): DerivedIndexClient {
     graphView: vi.fn(async () => { throw new Error("graph view is not used by indexing tests"); }),
     graphTopology: vi.fn(async () => { throw new Error("graph topology is not used by indexing tests"); }),
     graphConceptSummaries: vi.fn(async () => { throw new Error("graph summaries are not used by indexing tests"); }),
+    graphConceptLookup: vi.fn(async () => { throw new Error("graph lookup is not used by indexing tests"); }),
     graphConceptDetailByIndex: vi.fn(async () => { throw new Error("graph detail is not used by indexing tests"); }),
     graphConceptDetail: vi.fn(async () => null),
     graphRefresh: vi.fn(async () => {}),

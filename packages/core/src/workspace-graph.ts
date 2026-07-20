@@ -25,7 +25,10 @@ import {
   type BoundedGraphConceptDetail,
   type GraphConceptDetail,
   type GraphConceptDetailByIndexResult,
+  type GraphConceptLookupReference,
+  type GraphConceptLookupResult,
   type GraphConceptRelationDetail,
+  type GraphConceptSummary,
   type GraphConceptSummaryResult,
   type GraphTopology,
   type GraphTopologyCompilation,
@@ -316,13 +319,7 @@ export class WorkspaceGraph {
     const detailIndex = this.detailIndex(snapshot);
     const summaries = normalizedIndexes.map((index) => {
       const concept = detailIndex.concepts.get(conceptIds[index] ?? "");
-      if (!concept) return null;
-      return {
-        index,
-        label: concept.label,
-        ...(concept.filePath ? { filePath: concept.filePath } : {}),
-        ...(concept.relativePath ? { relativePath: concept.relativePath } : {}),
-      };
+      return concept ? graphConceptSummary(index, concept) : null;
     });
     if (summaries.some((summary) => summary === null)) {
       return boundedSummaryResult({ status: "missing", sourceSnapshotId: snapshot.snapshotId, summaries: [] });
@@ -334,6 +331,39 @@ export class WorkspaceGraph {
     });
     if (result.payloadBytes <= GRAPH_CONCEPT_SUMMARY_MAX_BYTES) return result;
     return boundedSummaryResult({ status: "too-large", sourceSnapshotId: snapshot.snapshotId, summaries: [] });
+  }
+
+  async graphConceptLookup(
+    reference: GraphConceptLookupReference,
+    sourceSnapshotId: string,
+    profileId?: string | null,
+  ): Promise<GraphConceptLookupResult> {
+    const normalizedReference = validateGraphConceptLookupReference(reference);
+    const snapshot = await this.knowledgeSnapshot(profileId);
+    if (snapshot.snapshotId !== sourceSnapshotId) {
+      return boundedLookupResult({ status: "stale", sourceSnapshotId: snapshot.snapshotId });
+    }
+    const compilation = this.topologyForSnapshot(snapshot, profileId);
+    const index = normalizedReference.kind === "concept-id"
+      ? compilation.conceptIndexById.get(normalizedReference.value)
+      : compilation.conceptIndexByFilePath.get(normalizedReference.value);
+    if (index === undefined) {
+      return boundedLookupResult({ status: "missing", sourceSnapshotId: snapshot.snapshotId });
+    }
+    const conceptId = compilation.conceptIds[index];
+    const concept = conceptId ? this.detailIndex(snapshot).concepts.get(conceptId) : undefined;
+    if (!concept) {
+      return boundedLookupResult({ status: "missing", sourceSnapshotId: snapshot.snapshotId });
+    }
+    const result = boundedLookupResult({
+      status: "ok",
+      sourceSnapshotId: snapshot.snapshotId,
+      summary: graphConceptSummary(index, concept),
+    });
+    if (result.payloadBytes > GRAPH_CONCEPT_SUMMARY_MAX_BYTES) {
+      throw new Error(`Graph concept lookup exceeded the ${GRAPH_CONCEPT_SUMMARY_MAX_BYTES}-byte limit.`);
+    }
+    return result;
   }
 
   async graphConceptDetailByIndex(
@@ -604,6 +634,44 @@ function boundedSummaryResult(input: Omit<GraphConceptSummaryResult, "payloadByt
   const result = { ...input, payloadBytes: 0 };
   result.payloadBytes = stableJsonBytes(result);
   return result;
+}
+
+function boundedLookupResult(input: Omit<GraphConceptLookupResult, "payloadBytes">): GraphConceptLookupResult {
+  const result = { ...input, payloadBytes: 0 };
+  result.payloadBytes = stableJsonBytes(result);
+  return result;
+}
+
+function graphConceptSummary(index: number, concept: ConceptNode): GraphConceptSummary {
+  return {
+    index,
+    label: concept.label,
+    ...(concept.filePath ? { filePath: concept.filePath } : {}),
+    ...(concept.relativePath ? { relativePath: concept.relativePath } : {}),
+  };
+}
+
+type NormalizedGraphConceptLookupReference =
+  | { kind: "concept-id"; value: string }
+  | { kind: "file-path"; value: string };
+
+function validateGraphConceptLookupReference(reference: GraphConceptLookupReference): NormalizedGraphConceptLookupReference {
+  if (!reference || typeof reference !== "object") {
+    throw new Error("Graph concept lookup requires exactly one of conceptId or filePath.");
+  }
+  const hasConceptId = reference.conceptId !== undefined;
+  const hasFilePath = reference.filePath !== undefined;
+  if (hasConceptId === hasFilePath) {
+    throw new Error("Graph concept lookup requires exactly one of conceptId or filePath.");
+  }
+  if (hasConceptId) {
+    const conceptId = reference.conceptId?.trim();
+    if (!conceptId) throw new Error("Graph concept lookup conceptId must not be empty.");
+    return { kind: "concept-id", value: conceptId };
+  }
+  const filePath = reference.filePath;
+  if (!filePath?.trim()) throw new Error("Graph concept lookup filePath must not be empty.");
+  return { kind: "file-path", value: path.normalize(path.resolve(filePath)) };
 }
 
 function boundedConceptDetailResult(

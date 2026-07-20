@@ -12,6 +12,8 @@ import {
   type FolderOverview,
   type GraphConceptDetail,
   type GraphConceptDetailByIndexResult,
+  type GraphConceptLookupReference,
+  type GraphConceptLookupResult,
   type GraphConceptSummaryResult,
   type GraphTopology,
   type GraphViewBundle,
@@ -288,6 +290,24 @@ export class WorkspaceNotesService {
     return this.workspaceGraph().graphConceptSummaries(indexes, sourceSnapshotId, profileId);
   }
 
+  async graphConceptLookup(
+    reference: GraphConceptLookupReference,
+    sourceSnapshotId: string,
+    profileId?: string | null,
+  ): Promise<GraphConceptLookupResult> {
+    const normalizedReference = await this.authorizeGraphConceptLookupReference(reference);
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.graphConceptLookup(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        normalizedReference,
+        sourceSnapshotId,
+        profileId,
+      );
+    }
+    return this.workspaceGraph().graphConceptLookup(normalizedReference, sourceSnapshotId, profileId);
+  }
+
   async getGraphConceptDetailByIndex(index: number, sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptDetailByIndexResult> {
     if (this.options.derivedIndex && this.options.getRuntimeRoot) {
       return this.options.derivedIndex.graphConceptDetailByIndex(
@@ -312,6 +332,30 @@ export class WorkspaceNotesService {
       );
     }
     return this.workspaceGraph().graphConceptDetail(conceptId, sourceSnapshotId, profileId);
+  }
+
+  private async authorizeGraphConceptLookupReference(reference: GraphConceptLookupReference): Promise<GraphConceptLookupReference> {
+    if (!reference || typeof reference !== "object") {
+      throw new Error("Graph concept lookup requires exactly one of conceptId or filePath.");
+    }
+    const hasConceptId = reference.conceptId !== undefined;
+    const hasFilePath = reference.filePath !== undefined;
+    if (hasConceptId === hasFilePath) {
+      throw new Error("Graph concept lookup requires exactly one of conceptId or filePath.");
+    }
+    if (hasConceptId) {
+      const conceptId = reference.conceptId?.trim();
+      if (!conceptId) throw new Error("Graph concept lookup conceptId must not be empty.");
+      return { conceptId };
+    }
+    const requestedPath = reference.filePath;
+    if (!requestedPath?.trim()) throw new Error("Graph concept lookup filePath must not be empty.");
+    const resolvedPath = await this.workspaceFiles().existing(requestedPath);
+    const model = this.options.getWorkspaceModel();
+    const root = model.noteRoots.find((candidate) => isPathWithin(path.resolve(candidate.path), resolvedPath));
+    if (!root) throw new Error("Refusing to access a path outside configured note roots.");
+    const [canonicalPath, canonicalRoot] = await Promise.all([realpath(resolvedPath), realpath(root.path)]);
+    return { filePath: path.resolve(root.path, path.relative(canonicalRoot, canonicalPath)) };
   }
 
   async getFolderOverview(directoryPath: string): Promise<FolderOverview> {

@@ -4,6 +4,8 @@ import type {
   IndexSyncResult,
   GraphConceptDetail,
   GraphConceptDetailByIndexResult,
+  GraphConceptLookupReference,
+  GraphConceptLookupResult,
   GraphConceptSummaryResult,
   GraphTopology,
   GraphViewBundle,
@@ -33,6 +35,7 @@ export type DerivedIndexRequest =
   | { id: number; operation: "graph-view"; context: DerivedIndexContext; profileId?: string | null }
   | { id: number; operation: "graph-topology"; context: DerivedIndexContext; profileId?: string | null }
   | { id: number; operation: "graph-concept-summaries"; context: DerivedIndexContext; indexes: number[]; sourceSnapshotId: string; profileId?: string | null }
+  | { id: number; operation: "graph-concept-lookup"; context: DerivedIndexContext; reference: GraphConceptLookupReference; sourceSnapshotId: string; profileId?: string | null }
   | { id: number; operation: "graph-concept-detail-by-index"; context: DerivedIndexContext; index: number; sourceSnapshotId: string; profileId?: string | null }
   | { id: number; operation: "graph-concept-detail"; context: DerivedIndexContext; conceptId: string; sourceSnapshotId: string; profileId?: string | null }
   | { id: number; operation: "graph-refresh"; context: DerivedIndexContext; filePath: string }
@@ -51,7 +54,7 @@ export interface DerivedIndexCancelRequest {
 
 export type DerivedIndexWorkerRequest = DerivedIndexRequest | DerivedIndexCancelRequest;
 
-export type DerivedIndexResult = IndexStatus | IndexSyncResult | WorkspaceIndexSearchResponse | WorkspaceGraphContext | GraphViewBundle | GraphTopology | GraphConceptSummaryResult | GraphConceptDetailByIndexResult | GraphConceptDetail | null;
+export type DerivedIndexResult = IndexStatus | IndexSyncResult | WorkspaceIndexSearchResponse | WorkspaceGraphContext | GraphViewBundle | GraphTopology | GraphConceptSummaryResult | GraphConceptLookupResult | GraphConceptDetailByIndexResult | GraphConceptDetail | null;
 
 export type DerivedIndexResponse =
   | { id: number; ok: true; result: DerivedIndexResult }

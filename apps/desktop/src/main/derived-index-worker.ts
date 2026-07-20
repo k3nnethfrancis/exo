@@ -73,6 +73,8 @@ function run(request: DerivedIndexRequest): Promise<DerivedIndexResult> {
       return graphFor(model).graphTopology(request.profileId);
     case "graph-concept-summaries":
       return graphFor(model).graphConceptSummaries(request.indexes, request.sourceSnapshotId, request.profileId);
+    case "graph-concept-lookup":
+      return graphFor(model).graphConceptLookup(request.reference, request.sourceSnapshotId, request.profileId);
     case "graph-concept-detail-by-index":
       return graphFor(model).graphConceptDetailByIndex(request.index, request.sourceSnapshotId, request.profileId);
     case "graph-concept-detail":
@@ -117,7 +119,7 @@ function isRequest(value: unknown): value is DerivedIndexRequest {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<DerivedIndexRequest>;
   return Number.isSafeInteger(candidate.id)
-    && ["status", "search", "update", "embed", "sync", "graph-context", "graph-view", "graph-topology", "graph-concept-summaries", "graph-concept-detail-by-index", "graph-concept-detail", "graph-refresh", "graph-invalidate"].includes(String(candidate.operation))
+    && ["status", "search", "update", "embed", "sync", "graph-context", "graph-view", "graph-topology", "graph-concept-summaries", "graph-concept-lookup", "graph-concept-detail-by-index", "graph-concept-detail", "graph-refresh", "graph-invalidate"].includes(String(candidate.operation))
     && Boolean(candidate.context?.model)
     && typeof candidate.context?.runtimeRoot === "string";
 }

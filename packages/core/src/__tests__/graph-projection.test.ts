@@ -56,6 +56,8 @@ describe("graph projection", () => {
 
     expect(first.topology).toEqual(second.topology);
     expect(first.conceptIds).toEqual(["note:private:a.md", "note:private:b.md"]);
+    expect(first.conceptIndexById.get("note:private:b.md")).toBe(1);
+    expect(first.conceptIndexByFilePath.get("/Users/private/notes/a.md")).toBe(0);
     expect(first.topology.nodeCount).toBe(2);
     expect(first.topology.edgeCount).toBe(1);
     expect(first.topology.payloadBytes).toBe(graphTopologyPayloadBytes(first.topology));
@@ -144,8 +146,8 @@ function fixtureSnapshot(): KnowledgeGraphSnapshot {
     generatedAt: "2026-07-17T00:00:00.000Z",
     scope: { workspaceRoot: "/Users/private/notes", noteRootIds: ["private"], paths: ["/Users/private/notes/a.md"] },
     concepts: [
-      { id: "note:private:b.md", label: "Private Beta", conceptTypes: [], properties: {}, resolution: "resolved", tags: [] },
-      { id: "note:private:a.md", label: "Private Alpha", conceptTypes: ["SensitiveOntologyType"], properties: {}, resolution: "resolved", tags: [] },
+      { id: "note:private:b.md", label: "Private Beta", filePath: "/Users/private/notes/b.md", conceptTypes: [], properties: {}, resolution: "resolved", tags: [] },
+      { id: "note:private:a.md", label: "Private Alpha", filePath: "/Users/private/notes/a.md", conceptTypes: ["SensitiveOntologyType"], properties: {}, resolution: "resolved", tags: [] },
     ],
     relations: [{ id: "relation:private", source: "note:private:a.md", target: "note:private:b.md", family: "link", authority: "authored", resolution: "resolved", directed: true, evidence: [] }],
     findings: [],

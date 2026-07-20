@@ -300,6 +300,7 @@ function registerIpcHandlers() {
     getGraphView: (profileId) => workspaceNotesService.getGraphView(profileId),
     getGraphTopology: (profileId) => workspaceNotesService.getGraphTopology(profileId),
     getGraphConceptSummaries: (indexes, sourceSnapshotId, profileId) => workspaceNotesService.getGraphConceptSummaries(indexes, sourceSnapshotId, profileId),
+    graphConceptLookup: (reference, sourceSnapshotId, profileId) => workspaceNotesService.graphConceptLookup(reference, sourceSnapshotId, profileId),
     getGraphConceptDetailByIndex: (index, sourceSnapshotId, profileId) => workspaceNotesService.getGraphConceptDetailByIndex(index, sourceSnapshotId, profileId),
     getGraphConceptDetail: (conceptId, sourceSnapshotId, profileId) => workspaceNotesService.getGraphConceptDetail(conceptId, sourceSnapshotId, profileId),
     getMainWindow: () => appLifecycle.getMainWindow(),

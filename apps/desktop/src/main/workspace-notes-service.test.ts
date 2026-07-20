@@ -237,6 +237,38 @@ describe("WorkspaceNotesService", () => {
     expect(refreshedGraph?.backlinks.map((link) => link.target)).toEqual([backlinkPath]);
   });
 
+  it("authorizes and case-preserves graph concept file lookup within note roots", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const folder = path.join(noteRoot, "CasePreserved");
+    await mkdir(folder, { recursive: true });
+    const focusPath = path.join(folder, "Focus.md");
+    await writeFile(focusPath, "# Focus\n", "utf8");
+    const topology = await service.getGraphTopology();
+
+    await expect(service.graphConceptLookup(
+      { filePath: path.join(folder, "..", "CasePreserved", "Focus.md") },
+      topology.sourceSnapshotId,
+    )).resolves.toMatchObject({
+      status: "ok",
+      summary: { label: "Focus", filePath: focusPath },
+    });
+  });
+
+  it("denies invalid and outside-root graph concept file lookup before graph dispatch", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const focusPath = path.join(noteRoot, "focus.md");
+    const outsidePath = path.join(path.dirname(noteRoot), "outside.md");
+    await writeFile(focusPath, "# Focus\n", "utf8");
+    await writeFile(outsidePath, "# Outside\n", "utf8");
+    const topology = await service.getGraphTopology();
+
+    await expect(service.graphConceptLookup({ filePath: outsidePath }, topology.sourceSnapshotId))
+      .rejects.toThrow("outside configured note roots");
+    await expect(service.graphConceptLookup({} as never, topology.sourceSnapshotId)).rejects.toThrow("exactly one");
+    await expect(service.graphConceptLookup({ conceptId: "note:x", filePath: focusPath } as never, topology.sourceSnapshotId))
+      .rejects.toThrow("exactly one");
+  });
+
   it("applies create, change, delete, and rename watcher events to a ready graph", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const focusPath = path.join(noteRoot, "focus.md");
