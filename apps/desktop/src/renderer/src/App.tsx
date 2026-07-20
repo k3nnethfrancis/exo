@@ -11,7 +11,7 @@ import type {
 } from "@exo/core";
 import type { InvocationActivityEvent } from "@exo/core/invocation-activity";
 
-import type { CliInstallationStatus, InvocationHistoryItem, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
+import type { CliInstallationStatus, InvocationFileReviewPayload, InvocationHistoryItem, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -128,6 +128,8 @@ export function App() {
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const [invocationReviewQueue, setInvocationReviewQueue] = useState<InvocationReviewQueueState>(EMPTY_INVOCATION_REVIEW_QUEUE);
+  const [invocationReviewDecisionPending, setInvocationReviewDecisionPending] = useState(false);
+  const invocationReviewDecisionPendingRef = useRef(false);
   const [invocationHistory, setInvocationHistory] = useState<InvocationHistoryItem[]>([]);
   const [inspectorTabRequest, setInspectorTabRequest] = useState<{ tab: "history"; nonce: number } | null>(null);
   const [pendingInvocationAuthorization, setPendingInvocationAuthorization] = useState<PendingInvocationAuthorization | null>(null);
@@ -223,10 +225,11 @@ export function App() {
     ensureDocumentLoaded,
     openVirtualDocument,
     scheduleRefresh: scheduleOpenDocumentRefresh,
-    reloadFromDisk: reloadOpenDocumentFromDisk,
     updateBody,
     updateFrontmatter,
     saveDocument,
+    prepareDocumentsForReview,
+    discardAndReloadDocument,
   } = openDocumentsState;
   const workspaceMutations = useWorkspaceMutations({
     workspaceModel,
@@ -676,40 +679,61 @@ export function App() {
   }
 
   async function resolveInvocationReview(action: "keep" | "reject") {
-    if (!activeReviewEntry || !activeReviewChangeId || activeReviewEntry.source === "history") return;
+    if (!activeReviewEntry || !activeReviewChangeId || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
+    const entry = activeReviewEntry;
+    const changeId = activeReviewChangeId;
+    const payload = activeReviewPayload;
+    invocationReviewDecisionPendingRef.current = true;
+    flushSync(() => setInvocationReviewDecisionPending(true));
     try {
+      await prepareDocumentsForReview(payload ? invocationReviewDocumentPaths(payload) : []);
       const record = await window.exo.workspace.reviewInvocationFile({
-        invocationId: activeReviewEntry.invocationId,
-        changeId: activeReviewChangeId,
+        invocationId: entry.invocationId,
+        changeId,
         action,
       });
       setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, record));
       await reloadTrees();
-      const decision = record.changeset?.files.find((change) => change.id === activeReviewChangeId)?.decision.status;
+      const decision = record.changeset?.files.find((change) => change.id === changeId)?.decision.status;
       if (decision === "kept" || decision === "rejected") {
-        await refreshReviewAfterResolution(activeReviewPayload, action);
+        await refreshReviewAfterResolution(payload, action);
       }
     } catch (error) {
-      setInvocationActivity(failInvocationActivity(activeReviewEntry.command, error));
-      if (activeReviewPayload) {
+      setInvocationActivity(failInvocationActivity(entry.command, error));
+      if (payload) {
         const refreshed = await window.exo.workspace.getInvocationFileReview({
-          invocationId: activeReviewEntry.invocationId,
-          changeId: activeReviewChangeId,
+          invocationId: entry.invocationId,
+          changeId,
         }).catch(() => null);
         if (refreshed) setInvocationReviewQueue((current) => cacheInvocationFileReview(current, refreshed));
       }
+    } finally {
+      invocationReviewDecisionPendingRef.current = false;
+      setInvocationReviewDecisionPending(false);
     }
   }
 
   async function resolveAllInvocationReviews(action: "keep" | "reject") {
-    if (!activeReviewEntry || activeReviewEntry.source === "history") return;
+    if (!activeReviewEntry || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
+    const entry = activeReviewEntry;
+    invocationReviewDecisionPendingRef.current = true;
+    flushSync(() => setInvocationReviewDecisionPending(true));
     try {
-      const record = await window.exo.workspace.reviewInvocationAll({ invocationId: activeReviewEntry.invocationId, action });
+      const payloads = await Promise.all(entry.changeIds.map((changeId) => entry.payloads[changeId] ??
+        window.exo.workspace.getInvocationFileReview({ invocationId: entry.invocationId, changeId })));
+      await prepareDocumentsForReview(payloads.flatMap(invocationReviewDocumentPaths));
+      const record = await window.exo.workspace.reviewInvocationAll({ invocationId: entry.invocationId, action });
       setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, record));
       await reloadTrees();
-      for (const payload of Object.values(activeReviewEntry.payloads)) await refreshReviewAfterResolution(payload, action);
+      for (const payload of payloads) {
+        const decision = record.changeset?.files.find((change) => change.id === payload.change.id)?.decision.status;
+        if (decision === "kept" || decision === "rejected") await refreshReviewAfterResolution(payload, action);
+      }
     } catch (error) {
-      setInvocationActivity(failInvocationActivity(activeReviewEntry.command, error));
+      setInvocationActivity(failInvocationActivity(entry.command, error));
+    } finally {
+      invocationReviewDecisionPendingRef.current = false;
+      setInvocationReviewDecisionPending(false);
     }
   }
 
@@ -740,11 +764,8 @@ export function App() {
     if (payload.change.operation === "renamed" && afterPath) removeDeletedPathsFromEditor(afterPath);
     const restoredPath = beforePath ?? afterPath;
     if (!restoredPath) return;
-    if (openDocuments[restoredPath] && !openDocuments[restoredPath]?.dirty) {
-      await reloadOpenDocumentFromDisk(restoredPath).catch(() => undefined);
-      return;
-    }
-    await openFile(restoredPath);
+    if (openDocuments[restoredPath]) await discardAndReloadDocument(restoredPath).catch(() => undefined);
+    else await openFile(restoredPath);
   }
 
   async function resumeInvocationInTerminal(
@@ -1673,6 +1694,7 @@ export function App() {
                         currentIndex: activeReviewEntry.currentIndex,
                       },
                       readOnly: activeReviewEntry.source === "history",
+                      decisionPending: invocationReviewDecisionPending,
                       onNavigate: (index) => setInvocationReviewQueue((current) => navigateInvocationReview(current, index)),
                       onKeepCurrent: () => void resolveInvocationReview("keep"),
                       onRejectCurrent: () => void resolveInvocationReview("reject"),
@@ -1870,4 +1892,8 @@ function getEditorScrollerForPath(filePath: string): HTMLElement | null {
 
 function fileName(filePath: string): string {
   return filePath.split(/[\\/]/u).filter(Boolean).at(-1) ?? "File";
+}
+
+function invocationReviewDocumentPaths(payload: InvocationFileReviewPayload): string[] {
+  return [...new Set([payload.change.before?.path, payload.change.after?.path].filter((value): value is string => Boolean(value)))];
 }

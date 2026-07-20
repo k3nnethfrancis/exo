@@ -1014,7 +1014,7 @@ export function NoteEditor(props: NoteEditorProps) {
             foldGutter: false,
             highlightSelectionMatches: false,
           }}
-          editable={!document.readOnly}
+          editable={!document.readOnly && !invocationReview?.decisionPending}
           onBlur={() => {
             const view = codeMirrorRef.current?.view;
             if (inlineComposerActive && view) startTransition(() => bodyChangeRef.current(view.state.doc.toString()));
@@ -1090,6 +1090,7 @@ export function NoteEditor(props: NoteEditorProps) {
         {invocationReview ? (
           <InvocationReviewControls
             queue={invocationReview.queue}
+            decisionPending={invocationReview.decisionPending}
             position={reviewPosition}
             onNavigate={invocationReview.onNavigate}
             onKeepCurrent={() => invocationReview.onKeepCurrent()}
@@ -1112,6 +1113,7 @@ interface NoteInvocationReview {
   payload: InvocationFileReviewPayload;
   queue: InvocationReviewQueueProjection;
   readOnly: boolean;
+  decisionPending: boolean;
   onNavigate: (index: number) => void;
   onKeepCurrent: () => void;
   onRejectCurrent: () => void;

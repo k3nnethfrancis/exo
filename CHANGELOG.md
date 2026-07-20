@@ -61,6 +61,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 - Serializes per-file and bulk invocation review decisions so concurrent Keep
   and Reject actions cannot lose a decision or overwrite the accepted file state.
+- Makes invocation review drain editor autosaves before an exact decision, so
+  Reject cannot be reapplied by a stale dirty buffer, and shows frontmatter-only
+  and Unix-permission changes in the page-native review surface.
 - Makes Folder Overview open previously unloaded child Notes and newly created
   Folder Indexes through the canonical file-open transaction, while
   synchronously refreshing cached index state after explicit creation.

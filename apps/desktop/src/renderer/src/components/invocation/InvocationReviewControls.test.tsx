@@ -153,4 +153,44 @@ describe("InvocationReviewControls", () => {
     )).toEqual(["Edited", "Created", "Deleted", "Renamed"]);
   });
 
+  it("shows frontmatter-only and permission-only changes without replacing the page diff", () => {
+    const html = renderToStaticMarkup(
+      <InvocationReviewControls
+        queue={{
+          currentIndex: 0,
+          items: [{
+            id: "metadata",
+            path: "/notes/example.md",
+            operation: "modified",
+            metadataChanges: [{ key: "status", before: "draft", after: "ready" }],
+            permissionChange: { before: "0644", after: "0755" },
+          }],
+        }}
+        {...callbacks}
+      />,
+    );
+
+    expect(html).toContain('aria-label="File metadata changes"');
+    expect(html).toContain('aria-label="status: draft to ready"');
+    expect(html).toContain('aria-label="Permissions changed from 0644 to 0755"');
+    expect(html).toContain("draft");
+    expect(html).toContain("ready");
+    expect(html).not.toContain("@@");
+  });
+
+  it("disables exact decisions while the editor save barrier is settling", () => {
+    const html = renderToStaticMarkup(
+      <InvocationReviewControls
+        decisionPending
+        queue={{ items: [items[2]!], currentIndex: 0 }}
+        {...callbacks}
+      />,
+    );
+
+    expect(html).toContain('aria-label="Reject"');
+    expect(html).toContain('aria-label="Keep"');
+    expect(html).toContain('aria-busy="true"');
+    expect(html.match(/disabled=""/g)).toHaveLength(2);
+  });
+
 });

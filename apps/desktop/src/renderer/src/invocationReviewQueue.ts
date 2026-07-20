@@ -5,6 +5,7 @@ import type {
   InvocationReviewListItem,
 } from "../../shared/api";
 import type { InvocationReviewItemProjection } from "./components/invocation";
+import { invocationReviewMetadata } from "./invocationInlineReview";
 
 export interface InvocationReviewQueueEntry {
   invocationId: string;
@@ -189,12 +190,15 @@ export function invocationReviewProjection(entry: InvocationReviewQueueEntry): I
     const { change } = payload;
     const path = change.after?.path ?? change.before?.path ?? `File ${index + 1}`;
     const decision = change.decision.status;
+    const metadata = invocationReviewMetadata(payload);
     return {
       id: change.id,
       path,
       ...(change.operation === "renamed" && change.before?.path ? { previousPath: change.before.path } : {}),
       operation: change.operation,
       mediaType: change.after?.mediaType ?? change.before?.mediaType,
+      ...(metadata.frontmatter.length > 0 ? { metadataChanges: metadata.frontmatter } : {}),
+      ...(metadata.permission ? { permissionChange: metadata.permission } : {}),
       ...(change.operation === "deleted" ? { summary: "Former content · empty after invocation" } : {}),
       ...(decision === "conflict" ? { conflict: change.decision.reason } : {}),
       ...(decision === "kept" || decision === "rejected" ? { resolved: decision } : {}),

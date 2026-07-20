@@ -3,6 +3,7 @@ import { noteTitle } from "@exo/core/note-title";
 import type { NoteDocument, WorkspaceGraphContext, WorkspaceModel } from "@exo/core";
 
 import type { FileStatInfo } from "../../../shared/api";
+import { DocumentSaveBarrier } from "./documentSaveBarrier";
 
 export interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
@@ -36,6 +37,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   const pendingContextRefreshesRef = useRef<Map<string, { timeoutId?: number; idleId?: number }>>(new Map());
   const pendingContextCommitsRef = useRef<Map<string, number>>(new Map());
   const pendingAutosavesRef = useRef<Map<string, number>>(new Map());
+  const saveBarrierRef = useRef(new DocumentSaveBarrier());
   const dirtySinceRef = useRef<Map<string, number>>(new Map());
   const lastEditorInputAtRef = useRef(0);
   const scrollRestoreNonceRef = useRef(0);
@@ -279,8 +281,12 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     scheduleAutosave(filePath);
   }
 
-  async function saveDocument(filePath: string) {
+  function saveDocument(filePath: string): Promise<void> {
     cancelPendingAutosave(filePath);
+    return saveBarrierRef.current.run(filePath, () => performSaveDocument(filePath));
+  }
+
+  async function performSaveDocument(filePath: string) {
     const document = openDocumentsRef.current[filePath];
     if (!document || document.readOnly) {
       return;
@@ -320,6 +326,30 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "error" }));
       throw error;
     }
+  }
+
+  /**
+   * Make editor state observable to exact review before main probes the file.
+   * The caller disables editing first, so draining then flushing produces one
+   * stable on-disk version: a human edit becomes a visible review conflict.
+   */
+  async function prepareDocumentsForReview(filePaths: readonly string[]): Promise<void> {
+    const uniquePaths = [...new Set(filePaths)];
+    for (const filePath of uniquePaths) cancelPendingAutosave(filePath);
+    await Promise.all(uniquePaths.map(async (filePath) => {
+      await saveBarrierRef.current.idle(filePath);
+      cancelPendingAutosave(filePath);
+      if (openDocumentsRef.current[filePath]?.dirty) await saveDocument(filePath);
+      await saveBarrierRef.current.idle(filePath);
+    }));
+  }
+
+  /** Discard a settled review proposal only after all prior writes are done. */
+  async function discardAndReloadDocument(filePath: string): Promise<void> {
+    cancelPendingAutosave(filePath);
+    await saveBarrierRef.current.idle(filePath);
+    cancelPendingAutosave(filePath);
+    await reloadFromDisk(filePath);
   }
 
   function deletePathsWithin(targetPath: string) {
@@ -487,6 +517,8 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     updateBody,
     updateFrontmatter,
     saveDocument,
+    prepareDocumentsForReview,
+    discardAndReloadDocument,
     deletePathsWithin,
     remapOpenPaths,
   };

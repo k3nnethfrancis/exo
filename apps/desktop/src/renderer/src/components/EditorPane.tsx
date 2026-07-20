@@ -199,6 +199,7 @@ export interface EditorInvocationReview {
   payload: InvocationFileReviewPayload;
   queue: InvocationReviewQueueProjection;
   readOnly: boolean;
+  decisionPending: boolean;
   onNavigate: (index: number) => void;
   onKeepCurrent: () => void;
   onRejectCurrent: () => void;

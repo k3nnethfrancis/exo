@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { InvocationFileReviewPayload } from "../../shared/api";
 
-import { invocationReviewOriginal, invocationSnapshotBody } from "./invocationInlineReview";
+import {
+  invocationReviewMetadata,
+  invocationReviewOriginal,
+  invocationSnapshotBody,
+  invocationSnapshotFrontmatter,
+} from "./invocationInlineReview";
 
 describe("invocation snapshot projection", () => {
   it("keeps plain-text snapshots intact", () => {
@@ -31,5 +36,40 @@ describe("invocation snapshot projection", () => {
   it("treats a created file as empty before the invocation", () => {
     const payload = { beforeText: null, afterText: "created content\n" } as InvocationFileReviewPayload;
     expect(invocationReviewOriginal(payload, "text")).toBe("");
+  });
+
+  it("projects frontmatter-only edits as exact structured field changes", () => {
+    const payload = {
+      beforeText: "---\ntitle: Before\ntags:\n  - exo\nstatus: draft\n---\nSame body\n",
+      afterText: "---\ntitle: After\ntags:\n  - exo\nstatus: ready\n---\nSame body\n",
+      change: {
+        before: { mode: 0o644 },
+        after: { mode: 0o644 },
+      },
+    } as InvocationFileReviewPayload;
+
+    expect(invocationReviewMetadata(payload)).toEqual({
+      frontmatter: [
+        { key: "status", before: "draft", after: "ready" },
+        { key: "title", before: "Before", after: "After" },
+      ],
+    });
+    expect(invocationSnapshotFrontmatter(payload.afterText)).toBe("title: After\ntags:\n  - exo\nstatus: ready\n");
+  });
+
+  it("projects chmod-only changes even when file text is identical", () => {
+    const payload = {
+      beforeText: "Same body\n",
+      afterText: "Same body\n",
+      change: {
+        before: { mode: 0o644 },
+        after: { mode: 0o755 },
+      },
+    } as InvocationFileReviewPayload;
+
+    expect(invocationReviewMetadata(payload)).toEqual({
+      frontmatter: [],
+      permission: { before: "0644", after: "0755" },
+    });
   });
 });

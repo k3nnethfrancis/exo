@@ -29,6 +29,8 @@ export interface InvocationReviewItemProjection {
   operation: InvocationReviewOperation;
   mediaType?: InvocationReviewMediaType;
   summary?: string;
+  metadataChanges?: readonly { key: string; before?: string; after?: string }[];
+  permissionChange?: { before: string; after: string };
   conflict?: string;
   resolved?: "kept" | "rejected";
 }
@@ -47,6 +49,7 @@ export interface InvocationReviewPosition {
 
 export interface InvocationReviewControlsProps {
   queue: InvocationReviewQueueProjection;
+  decisionPending?: boolean;
   position?: InvocationReviewPosition;
   onNavigate?: (index: number) => void;
   onKeepCurrent: (item: InvocationReviewItemProjection, index: number) => void;
@@ -61,6 +64,7 @@ export interface InvocationReviewControlsProps {
 
 export function InvocationReviewControls({
   queue,
+  decisionPending = false,
   position,
   onNavigate,
   onKeepCurrent,
@@ -85,6 +89,7 @@ export function InvocationReviewControls({
 
   return (
     <section
+      aria-busy={decisionPending}
       aria-label="Review invocation changes"
       className={`invocation-review-controls${conflicted ? " invocation-review-controls--conflict" : ""}`}
       data-multiple={multiple ? "true" : "false"}
@@ -117,14 +122,14 @@ export function InvocationReviewControls({
             {multiple ? (
               <nav aria-label="Review files">
                 <IconAction
-                  disabled={index === 0 || !onNavigate}
+                  disabled={decisionPending || index === 0 || !onNavigate}
                   label="Previous file"
                   onClick={() => onNavigate?.(index - 1)}
                 >
                   <ChevronLeft size={15} />
                 </IconAction>
                 <IconAction
-                  disabled={index === queue.items.length - 1 || !onNavigate}
+                  disabled={decisionPending || index === queue.items.length - 1 || !onNavigate}
                   label="Next file"
                   onClick={() => onNavigate?.(index + 1)}
                 >
@@ -141,6 +146,8 @@ export function InvocationReviewControls({
         <p className="invocation-review-controls__summary">{item.summary}</p>
       ) : null}
 
+      {item.metadataChanges?.length || item.permissionChange ? <ReviewMetadata item={item} /> : null}
+
       {item.resolved ? (
         <div className="invocation-review-controls__resolved" role="status">
           {item.resolved === "kept" ? "Kept" : "Rejected"}
@@ -155,10 +162,10 @@ export function InvocationReviewControls({
       ) : (
         <>
           <div aria-label="Review decision" className="invocation-review-controls__decisions" role="group">
-            <DecisionAction kind="reject" label="Reject" onClick={() => onRejectCurrent(item, index)}>
+            <DecisionAction disabled={decisionPending} kind="reject" label="Reject" onClick={() => onRejectCurrent(item, index)}>
               <Undo2 size={14} />
             </DecisionAction>
-            <DecisionAction kind="keep" label="Keep" onClick={() => onKeepCurrent(item, index)}>
+            <DecisionAction disabled={decisionPending} kind="keep" label="Keep" onClick={() => onKeepCurrent(item, index)}>
               <Check size={15} />
             </DecisionAction>
           </div>
@@ -171,12 +178,12 @@ export function InvocationReviewControls({
               </summary>
               <div aria-label="Review all files" role="group">
                 {onRejectAll ? (
-                  <DecisionAction kind="reject" label="Reject all" onClick={onRejectAll}>
+                  <DecisionAction disabled={decisionPending} kind="reject" label="Reject all" onClick={onRejectAll}>
                     <Undo2 size={14} />
                   </DecisionAction>
                 ) : null}
                 {onKeepAll ? (
-                  <DecisionAction kind="keep" label="Keep all" onClick={onKeepAll}>
+                  <DecisionAction disabled={decisionPending} kind="keep" label="Keep all" onClick={onKeepAll}>
                     <Check size={15} />
                   </DecisionAction>
                 ) : null}
@@ -186,6 +193,33 @@ export function InvocationReviewControls({
         </>
       )}
     </section>
+  );
+}
+
+function ReviewMetadata({ item }: { item: InvocationReviewItemProjection }) {
+  return (
+    <dl aria-label="File metadata changes" className="invocation-review-controls__metadata">
+      {item.metadataChanges?.map((change) => (
+        <div key={change.key} aria-label={`${change.key}: ${change.before ?? "not set"} to ${change.after ?? "not set"}`}>
+          <dt>{change.key}</dt>
+          <dd>
+            <del>{change.before ?? "Not set"}</del>
+            <span aria-hidden="true">→</span>
+            <ins>{change.after ?? "Not set"}</ins>
+          </dd>
+        </div>
+      ))}
+      {item.permissionChange ? (
+        <div aria-label={`Permissions changed from ${item.permissionChange.before} to ${item.permissionChange.after}`}>
+          <dt>Permissions</dt>
+          <dd>
+            <del>{item.permissionChange.before}</del>
+            <span aria-hidden="true">→</span>
+            <ins>{item.permissionChange.after}</ins>
+          </dd>
+        </div>
+      ) : null}
+    </dl>
   );
 }
 
@@ -224,11 +258,13 @@ function ConflictActions({
 
 function DecisionAction({
   children,
+  disabled = false,
   kind,
   label,
   onClick,
 }: {
   children: ReactNode;
+  disabled?: boolean;
   kind: "keep" | "reject";
   label: string;
   onClick: () => void;
@@ -237,6 +273,7 @@ function DecisionAction({
     <button
       aria-label={label}
       className={`invocation-review-decision invocation-review-decision--${kind}`}
+      disabled={disabled}
       onClick={onClick}
       title={label}
       type="button"
