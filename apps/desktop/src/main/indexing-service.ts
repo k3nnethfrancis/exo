@@ -100,7 +100,7 @@ export class IndexingService {
     const model = this.options.getWorkspaceModel();
     if (this.maintenanceWorkCount > 0) {
       const cached = this.lastKnownStatusWorkspaceRoot === model.workspaceRoot ? this.lastKnownStatus : null;
-      const status = cached ?? this.emptyMaintenanceStatus(model);
+      const status = this.presentStatus(cached ?? this.emptyMaintenanceStatus(model));
       return this.attachIndexJobMetrics({
         ...status,
         warnings: [...status.warnings, MAINTENANCE_STATUS_WARNING],
@@ -110,7 +110,7 @@ export class IndexingService {
     try {
       const status = await this.foregroundDerivedIndex.status(model, this.options.getRuntimeRoot());
       this.cacheStatus(status, model.workspaceRoot);
-      return this.attachIndexJobMetrics(status);
+      return this.attachIndexJobMetrics(this.presentStatus(status));
     } finally {
       this.finishForegroundWork();
     }
@@ -175,7 +175,7 @@ export class IndexingService {
     });
   }
 
-  async runMeasuredStatusJob(
+  private async runMeasuredStatusJob(
     kind: IndexJobMetric["kind"],
     reason: string,
     run: () => Promise<IndexStatus>,
@@ -183,8 +183,8 @@ export class IndexingService {
     const startedAtMs = this.now();
     try {
       const status = await run();
-      this.recordIndexJob(kind, reason, startedAtMs, "completed", status);
-      return this.attachIndexJobMetrics(status);
+      this.recordIndexJob(kind, reason, startedAtMs, "completed", this.presentStatus(status));
+      return status;
     } catch (error) {
       this.recordIndexJob(kind, reason, startedAtMs, "failed", undefined, [], error);
       throw error;
@@ -195,8 +195,7 @@ export class IndexingService {
     return this.runMeasuredStatusJob("update", reason, () => this.runMaintenance(() => (
       this.maintenanceDerivedIndex.update(this.options.getWorkspaceModel(), this.options.getRuntimeRoot())
     ))).then((status) => {
-      this.observePendingEmbeddings(status);
-      return status;
+      return this.attachIndexJobMetrics(this.presentStatus(this.observePendingEmbeddings(status)));
     });
   }
 
@@ -205,8 +204,7 @@ export class IndexingService {
       this.maintenanceDerivedIndex.embed(this.options.getWorkspaceModel(), this.options.getRuntimeRoot())
     ))).then((status) => {
       this.autoEmbeddingState = recordAutoEmbeddingSuccess(this.autoEmbeddingState);
-      this.observePendingEmbeddings(status);
-      return status;
+      return this.attachIndexJobMetrics(this.presentStatus(this.observePendingEmbeddings(status)));
     });
   }
 
@@ -277,9 +275,10 @@ export class IndexingService {
     ))
       .then((result) => {
         this.autoEmbeddingState = recordAutoEmbeddingSuccess(this.autoEmbeddingState);
-        this.observePendingEmbeddings(result.status);
-        this.recordIndexJob("sync", reason, startedAtMs, "completed", result.status, result.warnings);
-        const measuredResult = { ...result, status: this.attachIndexJobMetrics(result.status) };
+        const rawStatus = this.observePendingEmbeddings(result.status);
+        const status = this.presentStatus(rawStatus);
+        this.recordIndexJob("sync", reason, startedAtMs, "completed", status, result.warnings);
+        const measuredResult = { ...result, status: this.attachIndexJobMetrics(status) };
         this.options.sendState({ state: "idle", reason, result: measuredResult });
         return measuredResult;
       })
@@ -361,8 +360,9 @@ export class IndexingService {
     this.indexRefreshPromise = this.runMaintenance(() => (
       this.maintenanceDerivedIndex.update(model, this.options.getRuntimeRoot(), rootIds)
     ))
-      .then((status) => {
-        this.observePendingEmbeddings(status);
+      .then((rawStatus) => {
+        this.observePendingEmbeddings(rawStatus);
+        const status = this.presentStatus(rawStatus);
         const result: IndexSyncResult = {
           status,
           phases: [
@@ -407,10 +407,11 @@ export class IndexingService {
     return this.indexRefreshPromise;
   }
 
-  private observePendingEmbeddings(status: IndexStatus): void {
-    this.pendingEmbeddings = Math.max(0, status.pendingEmbeddings);
-    this.cacheStatus(status, this.options.getWorkspaceModel().workspaceRoot);
+  private observePendingEmbeddings(rawStatus: IndexStatus): IndexStatus {
+    this.pendingEmbeddings = Math.max(0, rawStatus.pendingEmbeddings);
+    this.cacheStatus(rawStatus, this.options.getWorkspaceModel().workspaceRoot);
     this.scheduleAutomaticEmbeddingCheck();
+    return rawStatus;
   }
 
   private scheduleAutomaticEmbeddingCheck(): void {
@@ -464,12 +465,13 @@ export class IndexingService {
         AUTO_EMBED_OPTIONS,
       )
     ))
-      .then((status) => {
+      .then((rawStatus) => {
+        const status = this.presentStatus(rawStatus);
         const reportedPending = Math.max(0, status.pendingEmbeddings);
         this.pendingEmbeddings = status.errors.length > 0
           ? Math.max(pendingBefore, reportedPending)
           : reportedPending;
-        this.cacheStatus(status, this.options.getWorkspaceModel().workspaceRoot);
+        this.cacheStatus(rawStatus, this.options.getWorkspaceModel().workspaceRoot);
         if (status.errors.length > 0 || (this.pendingEmbeddings > 0 && this.pendingEmbeddings >= pendingBefore)) {
           throw new Error(status.errors[0] ?? "Automatic embedding made no progress.");
         }
@@ -542,6 +544,20 @@ export class IndexingService {
   private cacheStatus(status: IndexStatus, workspaceRoot: string): void {
     this.lastKnownStatus = status;
     this.lastKnownStatusWorkspaceRoot = workspaceRoot;
+  }
+
+  private presentStatus(status: IndexStatus): IndexStatus {
+    if (status.pendingEmbeddings <= 0 || status.mode === "lexical") return status;
+    const count = status.pendingEmbeddings;
+    const subject = `${count} document hash${count === 1 ? "" : "es"}`;
+    const need = count === 1 ? "needs" : "need";
+    const strategy = this.options.getCurrentSettings().indexUpdateStrategy;
+    const policyWarning = strategy === "manual"
+      ? `${subject} ${need} embeddings; automatic updates are paused.`
+      : count > this.autoEmbeddingPolicy.maxPendingEmbeddings
+        ? `${subject} ${need} embeddings; automatic catch-up only runs for ${this.autoEmbeddingPolicy.maxPendingEmbeddings} or fewer.`
+        : `${subject} ${need} embeddings and ${count === 1 ? "is" : "are"} waiting for automatic catch-up.`;
+    return { ...status, warnings: [...status.warnings, policyWarning] };
   }
 
   private emptyMaintenanceStatus(model: WorkspaceModel): IndexStatus {

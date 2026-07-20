@@ -134,6 +134,31 @@ describe("UtilityDerivedIndexClient", () => {
     await expect(embedding).resolves.toMatchObject({ backend: "qmd" });
   });
 
+  it("keeps foreground search responsive while a separate graph process is held", async () => {
+    const foregroundWorker = new FakeProcess();
+    const graphWorker = new FakeProcess();
+    const foreground = new UtilityDerivedIndexClient({ spawn: () => foregroundWorker, workerPath: "/app/derived-index-worker.js" });
+    const graph = new UtilityDerivedIndexClient({ spawn: () => graphWorker, workerPath: "/app/derived-index-worker.js" });
+
+    const context = graph.graphContext(model(), "/workspace/.exo", "/workspace/notes/focus.md");
+    expect(graphWorker.messages.at(-1)).toMatchObject({ operation: "graph-context" });
+
+    const searching = foreground.search(model(), "/workspace/.exo", "needle");
+    foregroundWorker.emit("message", {
+      id: 1,
+      ok: true,
+      result: { results: [], query: "needle", mode: "lexical", source: "filesystem", warnings: [] },
+    });
+    await expect(searching).resolves.toMatchObject({ query: "needle", source: "filesystem" });
+
+    let graphSettled = false;
+    void context.finally(() => { graphSettled = true; });
+    await Promise.resolve();
+    expect(graphSettled).toBe(false);
+    graphWorker.emit("message", { id: 1, ok: true, result: null });
+    await expect(context).resolves.toBeNull();
+  });
+
   it("rejects requests when the worker exits and starts a fresh worker afterward", async () => {
     const workers: FakeProcess[] = [];
     const client = new UtilityDerivedIndexClient({

@@ -76,8 +76,12 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
   maintenance workers, truthful Simple-search fallback, bounded retries, and
   transactional QMD metadata/vector publication so interrupted writes remain
   pending instead of appearing complete.
+- Keeps cold graph construction from queueing foreground Search by giving
+  WorkspaceGraph its own restartable utility process.
+- Loads sqlite-vec from the unpacked native dependency path in packaged macOS
+  apps so semantic indexing works outside the source checkout.
 - Keeps the editor responsive when indexing and graph enrichment overlap: QMD
-  and WorkspaceGraph derived work now run in a restartable utility process,
+  and WorkspaceGraph derived work now run in restartable utility processes,
   hybrid/semantic saves defer embeddings, graph watcher events update one note,
   and graph results commit only after editor input goes idle.
 - Stops periodic autosave from interrupting sustained typing, keeps the inline

@@ -101,13 +101,25 @@ async function getIndexStatus(model: WorkspaceModel, runtimeRoot: string): Promi
     store = await openQmdStore(model, runtimeRoot);
     const qmdStatus = await store.getStatus();
     const lastUpdated = latestCollectionUpdate(qmdStatus.collections);
+    const documentCount = Number(qmdStatus.totalDocuments ?? 0);
+    const pendingEmbeddings = Number(qmdStatus.needsEmbedding ?? 0);
+    const hasVectorIndex = Boolean(qmdStatus.hasVectorIndex);
+    const readinessWarnings = model.indexing.mode !== "lexical"
+      && documentCount > 0
+      && pendingEmbeddings === 0
+      && !hasVectorIndex
+      ? ["Semantic vector index is unavailable even though no embeddings are pending. Build embeddings to repair it."]
+      : [];
     return {
       ...base,
-      documentCount: Number(qmdStatus.totalDocuments ?? 0),
-      pendingEmbeddings: Number(qmdStatus.needsEmbedding ?? 0),
-      hasVectorIndex: Boolean(qmdStatus.hasVectorIndex),
+      documentCount,
+      pendingEmbeddings,
+      hasVectorIndex,
       lastUpdated,
-      warnings: [...modeWarnings(model, Boolean(qmdStatus.hasVectorIndex), Number(qmdStatus.needsEmbedding ?? 0)), ...runtimeWarnings],
+      // Readiness is structured state. The caller that owns automatic/manual
+      // policy decides how to present pending embeddings; provider warnings
+      // remain reserved for degradation and repair facts.
+      warnings: [...readinessWarnings, ...runtimeWarnings],
     };
   } catch (error) {
     return {
@@ -478,19 +490,6 @@ function resolveQmdPath(displayPath: string | null, roots: IndexedRoot[]): strin
   }
   const root = roots.find((candidate) => collectionName(candidate) === collection || candidate.label === collection);
   return root ? path.join(root.path, ...segments) : null;
-}
-
-function modeWarnings(model: WorkspaceModel, hasVectorIndex: boolean, pendingEmbeddings: number): string[] {
-  if (model.indexing.mode === "lexical") {
-    return [];
-  }
-  if (!hasVectorIndex) {
-    return ["Semantic/hybrid search needs embeddings. Run `exo index sync`."];
-  }
-  if (pendingEmbeddings > 0) {
-    return [`${pendingEmbeddings} document hashes need embeddings. Run \`exo index sync\`.`];
-  }
-  return [];
 }
 
 function latestCollectionUpdate(collections: Array<{ lastUpdated?: unknown; lastUpdatedAt?: unknown; last_updated?: unknown }>): string | null {

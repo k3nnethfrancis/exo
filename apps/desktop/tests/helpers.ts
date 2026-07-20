@@ -135,7 +135,7 @@ async function launchExoFixtureForJourney(
     delete launchEnv.EXO_RUNTIME_ROOT;
   }
 
-  const packagedAppPath = process.env.EXO_PACKAGED_APP_PATH;
+  const packagedAppPath = packagedExecutablePath(process.env.EXO_PACKAGED_APP_PATH);
   const electronApp = await electron.launch({
     ...(packagedAppPath ? { executablePath: packagedAppPath } : {}),
     args: packagedAppPath ? [] : [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
@@ -279,7 +279,7 @@ async function relaunchExoFixtureForJourney(
     delete launchEnv.EXO_RUNTIME_ROOT;
   }
 
-  const packagedAppPath = process.env.EXO_PACKAGED_APP_PATH;
+  const packagedAppPath = packagedExecutablePath(process.env.EXO_PACKAGED_APP_PATH);
   const electronApp = await electron.launch({
     ...(packagedAppPath ? { executablePath: packagedAppPath } : {}),
     args: packagedAppPath ? [] : [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
@@ -308,6 +308,12 @@ async function relaunchExoFixtureForJourney(
       await rm(previous.homeRoot, { recursive: true, force: true });
     },
   };
+}
+
+function packagedExecutablePath(appPath: string | undefined): string | undefined {
+  return appPath?.endsWith(".app")
+    ? path.join(appPath, "Contents", "MacOS", "Exo")
+    : appPath;
 }
 
 async function cleanupFixtureTmuxSessions(runtimeRoot: string, tmuxServerName: string): Promise<void> {

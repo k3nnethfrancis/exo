@@ -1,3 +1,22 @@
+diff --git a/dist/db.js b/dist/db.js
+index 88b6e034c0d9cf6353df1947f2276c0eda5dba9c..db38b92d76474baedd56dd19fbaeb119544e5280 100644
+--- a/dist/db.js
++++ b/dist/db.js
+@@ -49,7 +49,13 @@ if (isBun) {
+ else {
+     _Database = (await import("better-sqlite3")).default;
+     const sqliteVec = await import("sqlite-vec");
+-    _sqliteVecLoad = (db) => sqliteVec.load(db);
++    // Electron resolves packaged dependencies through app.asar, but SQLite's
++    // native extension loader needs the real unpacked filesystem path.
++    _sqliteVecLoad = (db) => {
++        const loadablePath = sqliteVec.getLoadablePath();
++        const nativeLoadablePath = loadablePath.replace(/\.asar([\\/])/, ".asar.unpacked$1");
++        db.loadExtension(nativeLoadablePath);
++    };
+ }
+ /**
+  * Open a SQLite database. Works with both bun:sqlite and better-sqlite3.
 diff --git a/dist/index.d.ts b/dist/index.d.ts
 index 937f9d24d2f9718f9b22211a8fad79bd7c00cbea..da1837db4f365ffc8a3150a0eb87b20bbd4daf3c 100644
 --- a/dist/index.d.ts

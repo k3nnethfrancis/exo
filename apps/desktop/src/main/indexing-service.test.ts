@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { IndexStatus, WorkspaceModel, WorkspaceSettings } from "@exo/core";
 import type { DerivedIndexClient } from "./derived-index-process";
 import type { AutoEmbeddingPolicy } from "./indexing-auto-scheduler";
-import { IndexingService } from "./indexing-service";
+import { IndexingService, type IndexingServiceOptions } from "./indexing-service";
 
 vi.mock("electron", () => ({
   app: {
@@ -240,6 +240,83 @@ describe("IndexingService", () => {
     service.dispose();
   });
 
+  it("keeps foreground surfaces explicit while an eligible automatic slice converges", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    const settings = workspaceSettings();
+    settings.indexing = { enabled: true, mode: "hybrid", backend: "qmd" };
+    const held = deferred<IndexStatus>();
+    const maintenance = derivedIndexClient();
+    vi.mocked(maintenance.update).mockResolvedValue(indexStatus(1));
+    vi.mocked(maintenance.embed).mockImplementationOnce(() => held.promise);
+    const foreground = derivedIndexClient();
+    vi.mocked(foreground.status).mockResolvedValue(indexStatus(0));
+    const events: Parameters<IndexingServiceOptions["sendState"]>[0][] = [];
+    const immediatePolicy: AutoEmbeddingPolicy = {
+      quietPeriodMs: 0,
+      idlePeriodMs: 0,
+      maxPendingEmbeddings: 4,
+      retryBaseDelayMs: 50,
+      retryMaxDelayMs: 50,
+      maxRetryAttempts: 2,
+    };
+    const service = indexingService(settings, undefined, maintenance, foreground, {
+      getSystemIdleTimeMs: () => 10_000,
+      autoEmbeddingPolicy: immediatePolicy,
+      sendState: (event) => events.push(event),
+    });
+
+    service.scheduleReconciliation("startup", 0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(maintenance.embed).toHaveBeenCalledOnce();
+
+    const search = await service.search("needle");
+    const during = await service.getMeasuredStatus();
+    expect(search).toMatchObject({ source: "qmd" });
+    expect(search.warnings).toContain("Index maintenance is running; showing Simple search results until it completes.");
+    expect(during.pendingEmbeddings).toBe(1);
+    expect(during.warnings).toContain("1 document hash needs embeddings and is waiting for automatic catch-up.");
+    expect(during.warnings).toContain("Index maintenance is running; showing the last available index status until it finishes.");
+
+    held.resolve(indexStatus(0));
+    await vi.advanceTimersByTimeAsync(0);
+    const converged = await service.getMeasuredStatus();
+    expect(converged.pendingEmbeddings).toBe(0);
+    expect(converged.recentJobs).toContainEqual(expect.objectContaining({
+      kind: "embed",
+      reason: "automatic-embedding",
+      status: "completed",
+      pendingEmbeddings: 0,
+    }));
+    expect(events).toEqual(expect.arrayContaining([
+      expect.objectContaining({ state: "running", reason: "automatic-embedding" }),
+      expect.objectContaining({ state: "idle", reason: "automatic-embedding" }),
+    ]));
+    service.dispose();
+  });
+
+  it.each([
+    ["on-save", 1, "1 document hash needs embeddings and is waiting for automatic catch-up."],
+    ["on-save", 5, "5 document hashes need embeddings; automatic catch-up only runs for 4 or fewer."],
+    ["manual", 1, "1 document hash needs embeddings; automatic updates are paused."],
+  ] as const)("describes %s pending-vector policy truthfully", async (strategy, pending, warning) => {
+    const settings = workspaceSettings();
+    settings.indexing = { enabled: true, mode: "hybrid", backend: "qmd" };
+    settings.indexUpdateStrategy = strategy;
+    const foreground = derivedIndexClient();
+    vi.mocked(foreground.status).mockResolvedValue({
+      ...indexStatus(pending),
+      warnings: ["runtime warning"],
+    });
+    const service = indexingService(settings, undefined, derivedIndexClient(), foreground);
+
+    const status = await service.getMeasuredStatus();
+    expect(status.warnings).toContain("runtime warning");
+    expect(status.warnings).toContain(warning);
+    expect(status.warnings.join(" ")).not.toContain("exo index sync");
+    service.dispose();
+  });
+
   it("retries no-progress slices with backoff and cools down between successful slices", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
@@ -344,14 +421,18 @@ function indexingService(
   saveWorkspaceSettings: (settings: WorkspaceSettings) => Promise<WorkspaceSettings> = async (nextSettings) => nextSettings,
   maintenanceDerivedIndex: DerivedIndexClient = derivedIndexClient(),
   foregroundDerivedIndex: DerivedIndexClient = derivedIndexClient(),
-  options: { getSystemIdleTimeMs?: () => number; autoEmbeddingPolicy?: AutoEmbeddingPolicy } = {},
+  options: {
+    getSystemIdleTimeMs?: () => number;
+    autoEmbeddingPolicy?: AutoEmbeddingPolicy;
+    sendState?: IndexingServiceOptions["sendState"];
+  } = {},
 ) {
   return new IndexingService({
     getWorkspaceModel: () => workspaceModel(settings),
     getCurrentSettings: () => settings,
     getRuntimeRoot: () => "/workspace/.exo",
     saveWorkspaceSettings,
-    sendState: () => {},
+    sendState: options.sendState ?? (() => {}),
     errorMessage: (error) => error instanceof Error ? error.message : String(error),
     foregroundDerivedIndex,
     maintenanceDerivedIndex,

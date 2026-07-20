@@ -52,7 +52,7 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 - [x] Implement the deterministic scheduler, dual-worker runtime boundary, bounded retry/backoff, and truthful pending/paused/failed status behavior.
 - [x] Carry the narrow QMD 2.5.3 patch for bounded embedding calls and atomic metadata/vector publication; align desktop, core, and CLI on the patched package.
 - [x] Run focused and full automated gates plus the real Electron 1,200-note concurrent update/typing/navigation latency scenario.
-- [ ] Add a deterministic packaged-app gate using the real embedding model that proves automatic post-idle convergence while Terminal, graph context, and hybrid search remain usable.
+- [x] Add a deterministic packaged-app gate using the real embedding model that proves automatic post-idle convergence while Terminal, graph context, and hybrid search remain usable. Evidence: `docs/reviews/output/2026-07-19-derived-work-convergence.md`.
 
 ### Latency stabilization — complete
 

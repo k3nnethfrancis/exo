@@ -179,8 +179,8 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-117: Semantic embeddings become stale unless users manually sync
 
-- Status: implemented 2026-07-15 under explicit user-approved Fable exception;
-  deterministic real-model convergence QA remains as a follow-up gate
+- Status: resolved 2026-07-19; implemented under the explicit user-approved
+  Fable exception and closed by source plus packaged real-model convergence QA
 - Severity: high
 - Area: QMD indexing, background scheduling, derived worker lifecycle, Search status
 - Observed behavior:
@@ -212,11 +212,16 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - [x] Preserve lexical fallback and existing public CLI/command-server routes.
   - [x] Prove foreground search does not wait behind automatic embedding.
   - [x] Prove rapid save bursts coalesce and Manual only cancels automatic work.
-  - [ ] Exercise sustained typing, navigation, Terminal, graph context, and
+  - [x] Exercise sustained typing, navigation, Terminal, graph context, and
     hybrid search while background catch-up is eligible, then prove convergence
-    after activity stops with the real embedding model. The real Electron
-    1,200-note hybrid-update latency gate passes with no long tasks; the
-    model-backed convergence half remains to be automated.
+    after activity stops with the real embedding model. The 1,200-note source
+    gate measured typing at 6.9/12.1/14.5 ms p50/p90/p99, navigation at
+    40.2/42.1/47.8 ms, warmed Search at 9.2/10.0/10.0 ms, and zero long tasks.
+    The packaged app measured 6.8/12.0/13.8 ms typing,
+    40.3/41.5/47.8 ms navigation, 9.7/10.2/10.2 ms warmed Search, and zero long
+    tasks. Source and packaged real-model journeys both converged to zero
+    pending hashes; see
+    `docs/reviews/output/2026-07-19-derived-work-convergence.md`.
 
 ### EXO-ISSUE-111: Node 26 cold startup breaks the CLI-open latency gate
 
@@ -266,10 +271,12 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     measured p99 fell from roughly 56 ms to roughly 12 ms.
   - The 400-note gates now measure roughly 55/60 ms for Folder Overview shell
     and contents and 11/20 ms for live filename results.
-  - QMD status/search/update/embed/sync and cold/incremental WorkspaceGraph work
-    now share a bounded Electron utility-process queue with cancellation,
-    timeout/kill/restart, exit recovery, serialized operations, and bounded
-    responses. Public IPC and CLI response shapes are unchanged.
+  - QMD foreground status/search, QMD maintenance, and cold/incremental
+    WorkspaceGraph work use three independent bounded Electron utility-process
+    queues. Each retains cancellation, timeout/kill/restart, exit recovery,
+    serialized operations, and bounded responses; cold graph work cannot queue
+    foreground Search behind it. Public IPC and CLI response shapes are
+    unchanged.
   - On-save indexing is root-scoped update-only in lexical, semantic, and
     hybrid modes; embedding work runs only on explicit Sync.
   - Ready graph snapshots update only the changed Markdown entry. Completed
@@ -283,6 +290,11 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     over the same 1,200-note root while Terminal remained live: typing measured
     6.7/11.8/14.1 ms p50/p90/p99 and alternating note navigation measured
     39.9/42.4/49.5 ms, with no renderer long tasks.
+  - A later 1,200-note source/package gate isolated graph and foreground Search.
+    Source Search measured 98.4 ms cold and 9.2/10.0/10.0 ms warmed
+    p50/p90/p99; packaged Search measured 114.8 ms cold and 9.7/10.2/10.2 ms
+    warmed. Terminal writes stayed below 1 ms and both runs had zero renderer
+    long tasks. See `docs/reviews/output/2026-07-19-derived-work-convergence.md`.
   - The roughly 500 KB sustained-editor gate measured ordinary typing p99 14.9
     ms, rapid backspace p99 11.3 ms, and active inline Command typing p99 24.0
     ms at roughly 56 characters/second while preserving the widget DOM node.

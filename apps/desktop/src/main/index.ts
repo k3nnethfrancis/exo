@@ -81,6 +81,7 @@ let onboardingRuntimeRoot: string | null = null;
 let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
 let indexingService: IndexingService;
+let graphDerivedIndex: UtilityDerivedIndexClient;
 let workspaceNotesService: WorkspaceNotesService;
 let invocationRunner: InvocationRunner;
 let quitFlushStarted = false;
@@ -411,9 +412,9 @@ function applyOnboardingRuntimeEnv() {
 app.whenReady().then(async () => {
   workspaceConfig = new WorkspaceConfigStore({ userDataPath: app.getPath("userData") });
   workspaceWatcherService = new WorkspaceWatcherService((event) => {
-    // Posting the graph refresh first preserves worker queue ordering, while
-    // canonical filesystem changes reach the renderer without waiting behind
-    // an already-running QMD job.
+    // Queue graph refresh before notifying the renderer so a following context
+    // request observes that refresh. Graph owns a separate utility process, so
+    // this ordering never delays foreground Search or QMD maintenance.
     const refresh = Promise.resolve(workspaceNotesService?.handleWorkspaceChange(event));
     sendToRenderer("workspace:changed", event);
     void refresh.catch((error) => {
@@ -457,6 +458,7 @@ app.whenReady().then(async () => {
   );
   const foregroundDerivedIndex = new UtilityDerivedIndexClient();
   const maintenanceDerivedIndex = new UtilityDerivedIndexClient();
+  graphDerivedIndex = new UtilityDerivedIndexClient();
   indexingService = new IndexingService({
     getWorkspaceModel: () => workspaceModel,
     getCurrentSettings: () => currentSettings(),
@@ -492,7 +494,7 @@ app.whenReady().then(async () => {
   workspaceNotesService = new WorkspaceNotesService({
     getWorkspaceModel: () => workspaceModel,
     getRuntimeRoot: () => resolveRuntimeRoot(),
-    derivedIndex: foregroundDerivedIndex,
+    derivedIndex: graphDerivedIndex,
   });
   commandServerLifecycle = new CommandServerLifecycle({
     runtimeRoot: resolveRuntimeRoot(),
@@ -577,6 +579,7 @@ app.on("before-quit", (event) => {
   void commandServerLifecycle?.stop();
   workspaceWatcherService?.stop();
   indexingService?.dispose();
+  graphDerivedIndex?.dispose();
 });
 
 app.on("window-all-closed", () => {
