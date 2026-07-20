@@ -70,3 +70,38 @@ The production sequence is therefore:
 
 Canvas integration, WebGPU acceleration, packaged proof, private-vault dogfood, stale-surface deletion, and launch documentation follow those dependency-setting waves.
 
+## Integrated foundation checkpoint
+
+The dependency-setting waves are now integrated on `launch/gate-d`:
+
+- `9e6481d` — compact typed topology and bounded evidenced detail;
+- `0d9ae51` — renderer-neutral scene, picking, labels, controllers, and idle scheduler;
+- `e8aa2f5` — one compile-time topology contract shared by core and scene;
+- `26a22ce` — App-owned inspected Concept and navigation contract;
+- `f0a5188` — bounded O(1) Concept-ID/file-path lookup;
+- `fb92a0a` — renderer-neutral presentation plan and Canvas reference adapter;
+- `4033e16` — deterministic typed layout worker.
+
+The scale contract uses a 64-bit stable Concept key for continuity and a separate
+32-bit layout seed. A 32-bit identity would have roughly a 69% probability of at
+least one collision at 100K nodes; the extra identity word preserves exact
+continuity while keeping the 100K / 500K hot packet at `6,600,563` bytes.
+
+Current evidence:
+
+| Gate | Result |
+| --- | --- |
+| Compact transport, 10K / 50K | 660,560 bytes |
+| Compact transport, 50K / 250K | 3,300,562 bytes |
+| Compact transport, 100K / 500K | 6,600,563 bytes |
+| Renderer-neutral scene preparation, 10K / 50K | 2.95 ms p50 / 5.30 ms p95 |
+| Canvas plan + dispatch, 10K / 50K | ~6.19 ms combined p95, 9 draw calls |
+| Canvas plan + dispatch, 50K / 250K | ~21.45 ms combined p95, 9 draw calls |
+| Typed layout, 10K / 50K | ~579 ms to terminal; ~4.1 MiB typed working memory |
+| 1% topology update continuity | aligned displacement p95 0.0119, budget <= 0.10 |
+
+These are component measurements, not production FPS claims. The atomic product
+migration must still connect topology, lookup, scene, worker, Canvas, bounded
+metadata, shared inspection, gestures, and quiescence before Gate D can claim a
+working production path. The 50K presentation tier must cache static plan data
+rather than rebuilding the full plan on every camera frame.
