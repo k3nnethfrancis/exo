@@ -102,14 +102,6 @@ export interface HeadlessInvocationResult {
 
 export type InvocationStartResult = InvocationResult | HeadlessInvocationResult;
 
-export interface InvocationReviewPayload {
-  invocation: InvocationRecord;
-  patch: string | null;
-  before: string | null;
-  after: string | null;
-  canReject: boolean;
-}
-
 export interface InvocationReviewListItem {
   invocationId: string;
   createdAt: string;
@@ -173,6 +165,7 @@ export class InvocationRunner extends EventEmitter {
   private readonly changesetLocks = new Map<string, { invocationId: string; noteRoots: string[] }>();
   private readonly recoveryBlocks = new Map<string, { noteRoots: string[]; reason: string }>();
   private readonly invocationScopes = new Map<string, { workspaceRoot: string; noteRoots: string[] }>();
+  private readonly reviewDecisionTails = new Map<string, Promise<void>>();
   private readonly activityState = new Map<string, {
     lastKey: string;
     emittedAtMs: number;
@@ -649,7 +642,6 @@ export class InvocationRunner extends EventEmitter {
   async get(id: string): Promise<InvocationRecord | null> {
     return new InvocationStore(this.scopeForInvocation(id).workspaceRoot).readRecord(id);
   }
-  async review(id: string): Promise<InvocationRecord | null> { return this.get(id); }
 
   async getInvocationFileReview(id: string, changeId: string): Promise<InvocationFileReviewPayload> {
     const scope = this.scopeForInvocation(id);
@@ -662,12 +654,7 @@ export class InvocationRunner extends EventEmitter {
   }
 
   async reviewInvocationAll(id: string, action: "keep" | "reject"): Promise<InvocationRecord> {
-    const scope = this.scopeForInvocation(id);
-    const record = await requiredInvocation(new InvocationStore(scope.workspaceRoot), id);
-    const resolutions = record.changeset?.files
-      .filter((change) => change.decision.status === "pending" || action === "keep" && change.decision.status === "conflict")
-      .map((change) => ({ changeId: change.id, action })) ?? [];
-    return this.resolveReview(id, resolutions);
+    return this.resolveReview(id, [], action);
   }
 
   async listPendingReviews(): Promise<InvocationReviewListItem[]> {
@@ -699,42 +686,6 @@ export class InvocationRunner extends EventEmitter {
         changeIds: record.changeset?.files.map((change) => change.id) ?? [],
         ...(record.providerSessionId ? { providerSessionId: record.providerSessionId } : {}),
       }));
-  }
-
-  async getReview(id: string): Promise<InvocationReviewPayload | null> {
-    const scope = this.scopeForInvocation(id);
-    const store = new InvocationStore(scope.workspaceRoot);
-    const invocation = await store.readRecord(id);
-    const change = representativeChange(invocation);
-    if (!invocation || !change) return null;
-    const payload = await this.reviewService(scope.workspaceRoot).getFilePayload(invocation, change.id);
-    return {
-      invocation,
-      patch: wholeTextDiff(change, payload.beforeText, payload.afterText),
-      before: payload.beforeText,
-      after: payload.afterText,
-      canReject: payload.canReject,
-    };
-  }
-
-  async keepReview(id: string): Promise<InvocationRecord | null> {
-    const record = await this.get(id);
-    if (!record?.changeset?.files.some((change) => isUnresolvedReviewDecision(change.decision.status))) return record;
-    return this.reviewInvocationAll(id, "keep");
-  }
-
-  async rejectReview(id: string, expectedAfterSha256: string | null): Promise<InvocationRecord> {
-    const scope = this.scopeForInvocation(id);
-    const store = new InvocationStore(scope.workspaceRoot);
-    const record = await requiredInvocation(store, id);
-    const representative = representativeChange(record);
-    if (!representative || representative.decision.status !== "pending") {
-      throw new InvocationRunnerError("review-unavailable", "This invocation has no pending document review.");
-    }
-    if ((representative.after?.sha256 ?? null) !== expectedAfterSha256) {
-      throw new InvocationRunnerError("review-drift", "The proposed document version no longer matches this review.");
-    }
-    return this.reviewInvocationAll(id, "reject");
   }
 
   async resumeInTerminal(id: string): Promise<TerminalSessionInfo> {
@@ -1015,17 +966,70 @@ export class InvocationRunner extends EventEmitter {
   private async resolveReview(
     id: string,
     resolutions: Array<{ changeId: string; action: "keep" | "reject" }>,
+    allAction?: "keep" | "reject",
   ): Promise<InvocationRecord> {
-    const scope = this.scopeForInvocation(id);
-    const store = new InvocationStore(scope.workspaceRoot);
-    const record = await requiredInvocation(store, id);
+    return this.serializeReviewDecision(id, async () => {
+      const scope = this.scopeForInvocation(id);
+      const store = new InvocationStore(scope.workspaceRoot);
+      const record = await requiredInvocation(store, id);
+      const effectiveResolutions = allAction
+        ? record.changeset?.files
+          .filter((change) => change.decision.status === "pending" || allAction === "keep" && change.decision.status === "conflict")
+          .map((change) => ({ changeId: change.id, action: allAction })) ?? []
+        : resolutions;
+      const requested = new Map<string, "keep" | "reject">();
+      for (const resolution of effectiveResolutions) {
+        const existing = requested.get(resolution.changeId);
+        if (existing && existing !== resolution.action) {
+          throw new InvocationRunnerError("review-unavailable", "A file cannot have two review decisions.");
+        }
+        requested.set(resolution.changeId, resolution.action);
+      }
+
+      const pending: Array<{ changeId: string; action: "keep" | "reject" }> = [];
+      for (const [changeId, action] of requested) {
+        const change = record.changeset?.files.find((entry) => entry.id === changeId);
+        if (!change) {
+          throw new InvocationRunnerError("review-unavailable", `Invocation change ${changeId} was not found.`);
+        }
+        const resolvedAsRequested = action === "keep"
+          ? change.decision.status === "kept"
+          : change.decision.status === "rejected";
+        if (resolvedAsRequested) continue;
+        const reviewable = change.decision.status === "pending" ||
+          change.decision.status === "conflict" && action === "keep";
+        if (!reviewable) {
+          throw new InvocationRunnerError(
+            "review-unavailable",
+            `Invocation change ${changeId} was already resolved as ${change.decision.status}.`,
+          );
+        }
+        pending.push({ changeId, action });
+      }
+      if (pending.length === 0) return record;
+
+      try {
+        const next = await this.reviewService(scope.workspaceRoot).resolve(record, pending);
+        this.emit("updated", next);
+        return next;
+      } catch (error) {
+        if (error instanceof InvocationReviewError) throw new InvocationRunnerError(error.code, error.message);
+        throw error;
+      }
+    });
+  }
+
+  private async serializeReviewDecision<T>(id: string, operation: () => Promise<T>): Promise<T> {
+    const predecessor = this.reviewDecisionTails.get(id) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => { release = resolve; });
+    this.reviewDecisionTails.set(id, current);
+    await predecessor.catch(() => undefined);
     try {
-      const next = await this.reviewService(scope.workspaceRoot).resolve(record, resolutions);
-      this.emit("updated", next);
-      return next;
-    } catch (error) {
-      if (error instanceof InvocationReviewError) throw new InvocationRunnerError(error.code, error.message);
-      throw error;
+      return await operation();
+    } finally {
+      release();
+      if (this.reviewDecisionTails.get(id) === current) this.reviewDecisionTails.delete(id);
     }
   }
 
@@ -1131,28 +1135,6 @@ async function requiredInvocation(store: InvocationStore, id: string): Promise<I
   const record = await store.readRecord(id);
   if (!record) throw new InvocationRunnerError("not-found", `Invocation ${id} was not found.`);
   return record;
-}
-
-function representativeChange(record: InvocationRecord | null): InvocationFileChange | null {
-  if (!record?.changeset?.files.length) return null;
-  return record.taggedDocumentPath
-    ? record.changeset.files.find((change) =>
-        change.before?.path === record.taggedDocumentPath || change.after?.path === record.taggedDocumentPath) ?? record.changeset.files[0]!
-    : record.changeset.files[0]!;
-}
-
-function wholeTextDiff(change: InvocationFileChange, before: string | null, after: string | null): string | null {
-  if (before === null && after === null) return null;
-  const beforePath = change.before?.path ?? change.after?.path ?? "file";
-  const afterPath = change.after?.path ?? change.before?.path ?? "file";
-  return [
-    `--- a/${path.basename(beforePath)}`,
-    `+++ b/${path.basename(afterPath)}`,
-    "@@ -1 +1 @@",
-    ...(before ?? "").split("\n").map((line) => `-${line}`),
-    ...(after ?? "").split("\n").map((line) => `+${line}`),
-    "",
-  ].join("\n");
 }
 
 function changedFileRefs(files: readonly InvocationFileChange[], observedPaths: ReadonlySet<string>): InvocationRecord["changedFileRefs"] {

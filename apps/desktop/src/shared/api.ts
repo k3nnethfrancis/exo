@@ -129,14 +129,6 @@ export interface LaunchAgentInvocationResponse {
   terminal?: TerminalSessionInfo;
 }
 
-export interface InvocationReviewPayload {
-  invocation: InvocationRecord;
-  patch: string | null;
-  before: string | null;
-  after: string | null;
-  canReject: boolean;
-}
-
 export interface InvocationFileReviewPayload {
   invocation: InvocationRecord;
   change: InvocationFileChange;
@@ -248,9 +240,6 @@ export interface DesktopApi {
     configureProviderMcp: (input: ProviderMcpSetupInput) => Promise<ProviderMcpSetupResult[]>;
     getCliInstallationStatus: () => Promise<CliInstallationStatus>;
     endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;
-    getInvocationReview: (invocationId: string) => Promise<InvocationReviewPayload | null>;
-    keepInvocationReview: (invocationId: string) => Promise<InvocationRecord | null>;
-    rejectInvocationReview: (input: { invocationId: string; expectedAfterSha256: string | null }) => Promise<InvocationRecord>;
     listPendingInvocationReviews: () => Promise<InvocationReviewListItem[]>;
     listInvocationHistory: (notePath: string) => Promise<InvocationHistoryItem[]>;
     getInvocationFileReview: (input: { invocationId: string; changeId: string }) => Promise<InvocationFileReviewPayload>;

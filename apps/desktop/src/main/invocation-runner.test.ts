@@ -305,12 +305,13 @@ describe("InvocationRunner readiness parity", () => {
       .resolves.toContain('"status": "process-exited"');
     await expect(readFile(path.join(workspaceB, ".exo", "invocations", prepared.id, "record.json"), "utf8"))
       .rejects.toMatchObject({ code: "ENOENT" });
-    await expect(runner.getReview(prepared.id)).resolves.toMatchObject({
+    const changedNote = completed.changeset!.files.find((change) => change.operation === "modified")!;
+    await expect(runner.getInvocationFileReview(prepared.id, changedNote.id)).resolves.toMatchObject({
       invocation: { workspaceRoot: workspaceA },
-      before: removeDocumentAgentInvocation(documentBody, TEST_PROTOCOL_INVOCATION_ID, command.handle),
-      after: expect.stringContaining("# Changed in Workspace A"),
+      beforeText: removeDocumentAgentInvocation(documentBody, TEST_PROTOCOL_INVOCATION_ID, command.handle),
+      afterText: expect.stringContaining("# Changed in Workspace A"),
     });
-    await runner.rejectReview(prepared.id, completed.review?.afterSha256 ?? null);
+    await runner.reviewInvocationFile(prepared.id, changedNote.id, "reject");
     await expect(readFile(notePath, "utf8")).resolves.toBe(
       removeDocumentAgentInvocation(documentBody, TEST_PROTOCOL_INVOCATION_ID, command.handle),
     );
@@ -677,11 +678,11 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
       providerSessionId: sessionId,
       review: { status: "pending" },
     });
-    const review = await runner.getReview(completed.id);
+    const changedNote = completed.changeset!.files.find((change) => change.operation === "modified")!;
+    const review = await runner.getInvocationFileReview(completed.id, changedNote.id);
     const cleanBase = removeDocumentAgentInvocation(documentBody, TEST_PROTOCOL_INVOCATION_ID, "claude");
-    expect(review).toMatchObject({ canReject: true, before: cleanBase, after: afterBody });
-    expect(review?.patch).toContain("-# Before");
-    const rejected = await runner.rejectReview(completed.id, completed.review?.afterSha256 ?? null);
+    expect(review).toMatchObject({ canReject: true, beforeText: cleanBase, afterText: afterBody });
+    const rejected = await runner.reviewInvocationFile(completed.id, changedNote.id, "reject");
     expect(rejected.review).toMatchObject({ status: "rejected" });
     await expect(readFile(notePath, "utf8")).resolves.toBe(cleanBase);
     await expect(runner.listHistoryForNote(notePath)).resolves.toEqual([
@@ -875,6 +876,73 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     await expect(runner.listHistoryForNote(notePath)).resolves.toEqual([
       expect.objectContaining({ invocationId: completed.id, outcome: "kept", changedFileCount: 2 }),
     ]);
+  });
+
+  it("serializes concurrent identical file decisions as one idempotent review", async () => {
+    const fixture = await multiFileReviewFixture();
+    const created = fixture.completed.changeset!.files.find((change) => change.operation === "created")!;
+
+    const [first, repeated] = await Promise.all([
+      fixture.runner.reviewInvocationFile(fixture.completed.id, created.id, "keep"),
+      fixture.runner.reviewInvocationFile(fixture.completed.id, created.id, "keep"),
+    ]);
+
+    expect(first.changeset?.files.find((change) => change.id === created.id)?.decision.status).toBe("kept");
+    expect(repeated.changeset?.files.find((change) => change.id === created.id)?.decision.status).toBe("kept");
+    await expect(readFile(fixture.createdPath, "utf8")).resolves.toBe("created\n");
+    await expect(new InvocationStore(fixture.root).readReviewJournal(fixture.completed.id)).resolves.toBeNull();
+  });
+
+  it("preserves concurrent decisions for different files in one durable record", async () => {
+    const fixture = await multiFileReviewFixture();
+    const created = fixture.completed.changeset!.files.find((change) => change.operation === "created")!;
+    const modified = fixture.completed.changeset!.files.find((change) => change.operation === "modified")!;
+
+    await Promise.all([
+      fixture.runner.reviewInvocationFile(fixture.completed.id, created.id, "keep"),
+      fixture.runner.reviewInvocationFile(fixture.completed.id, modified.id, "reject"),
+    ]);
+
+    const persisted = await fixture.runner.get(fixture.completed.id);
+    expect(persisted?.changeset?.status).toBe("resolved");
+    expect(persisted?.changeset?.files.find((change) => change.id === created.id)?.decision.status).toBe("kept");
+    expect(persisted?.changeset?.files.find((change) => change.id === modified.id)?.decision.status).toBe("rejected");
+    await expect(readFile(fixture.createdPath, "utf8")).resolves.toBe("created\n");
+    await expect(new InvocationStore(fixture.root).readReviewJournal(fixture.completed.id)).resolves.toBeNull();
+  });
+
+  it("rejects a concurrent contradictory file decision without overwriting the winner", async () => {
+    const fixture = await multiFileReviewFixture();
+    const created = fixture.completed.changeset!.files.find((change) => change.operation === "created")!;
+
+    const [keep, reject] = await Promise.allSettled([
+      fixture.runner.reviewInvocationFile(fixture.completed.id, created.id, "keep"),
+      fixture.runner.reviewInvocationFile(fixture.completed.id, created.id, "reject"),
+    ]);
+
+    expect(keep).toMatchObject({ status: "fulfilled", value: { changeset: { status: "partially-resolved" } } });
+    expect(reject).toMatchObject({
+      status: "rejected",
+      reason: expect.objectContaining({ code: "review-unavailable" }),
+    });
+    await expect(readFile(fixture.createdPath, "utf8")).resolves.toBe("created\n");
+    const persisted = await fixture.runner.get(fixture.completed.id);
+    expect(persisted?.changeset?.files.find((change) => change.id === created.id)?.decision.status).toBe("kept");
+  });
+
+  it("serializes concurrent contradictory bulk decisions without reversing the first result", async () => {
+    const fixture = await multiFileReviewFixture();
+
+    const [keepAll, rejectAll] = await Promise.all([
+      fixture.runner.reviewInvocationAll(fixture.completed.id, "keep"),
+      fixture.runner.reviewInvocationAll(fixture.completed.id, "reject"),
+    ]);
+
+    expect(keepAll.changeset?.status).toBe("kept");
+    expect(rejectAll.changeset?.status).toBe("kept");
+    expect(rejectAll.changeset?.files.every((change) => change.decision.status === "kept")).toBe(true);
+    await expect(readFile(fixture.createdPath, "utf8")).resolves.toBe("created\n");
+    await expect(readFile(fixture.notePath, "utf8")).resolves.toContain("Bulk-safe response.");
   });
 
   it("stops every headless process once and settles active runs before returning", async () => {
@@ -1112,6 +1180,30 @@ async function startPrepared(
 ) {
   const prepared = await runner.prepare(request);
   return runner.authorizeAndStart(prepared, authorizationFor(prepared));
+}
+
+async function multiFileReviewFixture() {
+  const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-concurrent-review-"));
+  temporaryRoots.push(root);
+  const notePath = path.join(root, "note.md");
+  const createdPath = path.join(root, "created.md");
+  const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+  const body = protocolNoteBody("# Concurrent review\n", command.handle, "Change files.");
+  await writeFile(notePath, body);
+  const processFactory = new FakeInvocationProcessFactory();
+  const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+  const prepared = await runner.prepare(invocationRequest(notePath, body));
+  await runner.authorizeAndStart(prepared, authorizationFor(prepared));
+  await writeFile(notePath, `${removeDocumentAgentInvocation(body, TEST_PROTOCOL_INVOCATION_ID, command.handle)}${formatDocumentAgentResponse({
+    invocationId: TEST_PROTOCOL_INVOCATION_ID,
+    agent: command.handle,
+    message: "Bulk-safe response.",
+  })}\n`);
+  await writeFile(createdPath, "created\n");
+  const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+  processFactory.process.exit(0, "done");
+  const completed = await updated;
+  return { root, notePath, createdPath, runner, completed };
 }
 
 class FakeTerminalManager extends EventEmitter {

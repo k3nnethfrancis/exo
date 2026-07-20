@@ -28,9 +28,6 @@ export interface DesktopInvokeHandlers {
   "workspace:configure-provider-mcp": WorkspaceApi["configureProviderMcp"];
   "workspace:get-cli-installation-status": WorkspaceApi["getCliInstallationStatus"];
   "workspace:end-agent-invocation": WorkspaceApi["endAgentInvocation"];
-  "workspace:get-invocation-review": WorkspaceApi["getInvocationReview"];
-  "workspace:keep-invocation-review": WorkspaceApi["keepInvocationReview"];
-  "workspace:reject-invocation-review": WorkspaceApi["rejectInvocationReview"];
   "workspace:list-pending-invocation-reviews": WorkspaceApi["listPendingInvocationReviews"];
   "workspace:list-invocation-history": WorkspaceApi["listInvocationHistory"];
   "workspace:get-invocation-file-review": WorkspaceApi["getInvocationFileReview"];

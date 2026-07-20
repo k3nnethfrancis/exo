@@ -30,9 +30,6 @@ export interface WorkspaceIpcHandlers {
   configureProviderMcp: WorkspaceApi["configureProviderMcp"];
   getCliInstallationStatus: WorkspaceApi["getCliInstallationStatus"];
   endAgentInvocation: WorkspaceApi["endAgentInvocation"];
-  getInvocationReview: WorkspaceApi["getInvocationReview"];
-  keepInvocationReview: WorkspaceApi["keepInvocationReview"];
-  rejectInvocationReview: WorkspaceApi["rejectInvocationReview"];
   listPendingInvocationReviews: WorkspaceApi["listPendingInvocationReviews"];
   listInvocationHistory: WorkspaceApi["listInvocationHistory"];
   getInvocationFileReview: WorkspaceApi["getInvocationFileReview"];
@@ -101,9 +98,6 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:configure-provider-mcp", async (_event, input) => handlers.configureProviderMcp(input));
   handleDesktopInvoke("workspace:get-cli-installation-status", async () => handlers.getCliInstallationStatus());
   handleDesktopInvoke("workspace:end-agent-invocation", async (_event, invocationId) => handlers.endAgentInvocation(invocationId));
-  handleDesktopInvoke("workspace:get-invocation-review", async (_event, invocationId) => handlers.getInvocationReview(invocationId));
-  handleDesktopInvoke("workspace:keep-invocation-review", async (_event, invocationId) => handlers.keepInvocationReview(invocationId));
-  handleDesktopInvoke("workspace:reject-invocation-review", async (_event, input) => handlers.rejectInvocationReview(input));
   handleDesktopInvoke("workspace:list-pending-invocation-reviews", async () => handlers.listPendingInvocationReviews());
   handleDesktopInvoke("workspace:list-invocation-history", async (_event, notePath) =>
     handlers.listInvocationHistory(await workspaceFiles().writable(notePath)));
