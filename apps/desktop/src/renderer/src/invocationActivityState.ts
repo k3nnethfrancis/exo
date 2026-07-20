@@ -20,6 +20,33 @@ export interface InvocationActivityState {
 }
 
 const INVOCATION_ERROR_DETAIL_LIMIT = 180;
+const MAX_EARLY_INVOCATION_IDS = 8;
+const MAX_EARLY_INVOCATION_EVENTS = 16;
+
+export type EarlyInvocationActivityEvents = Map<string, InvocationActivityEvent[]>;
+
+export function bufferEarlyInvocationActivityEvent(
+  buffered: EarlyInvocationActivityEvents,
+  event: InvocationActivityEvent,
+) {
+  const events = buffered.get(event.invocationId) ?? [];
+  buffered.delete(event.invocationId);
+  buffered.set(event.invocationId, [...events, event].slice(-MAX_EARLY_INVOCATION_EVENTS));
+  while (buffered.size > MAX_EARLY_INVOCATION_IDS) {
+    const oldest = buffered.keys().next().value;
+    if (oldest === undefined) break;
+    buffered.delete(oldest);
+  }
+}
+
+export function takeEarlyInvocationActivityEvents(
+  buffered: EarlyInvocationActivityEvents,
+  invocationId: string,
+): InvocationActivityEvent[] {
+  const events = buffered.get(invocationId) ?? [];
+  buffered.clear();
+  return events;
+}
 
 export function beginInvocationActivity(command: Pick<AgentCommand, "handle" | "label">): InvocationActivityState {
   return {
@@ -73,7 +100,9 @@ export function applyInvocationActivityEvent(
   event: InvocationActivityEvent,
 ): InvocationActivityState | null {
   if (!current || current.kind === "done" || current.kind === "failed") return current;
-  if (current.invocationId && current.invocationId !== event.invocationId) return current;
+  // An event cannot establish identity. Launch returns the authoritative
+  // record; callers may buffer early events until that exact ID is known.
+  if (!current.invocationId || current.invocationId !== event.invocationId) return current;
   const label = invocationActivityLabel(event.label);
   return {
     ...current,
@@ -82,6 +111,19 @@ export function applyInvocationActivityEvent(
     errorDetail: undefined,
     ...(label ? { label } : { label: undefined }),
   };
+}
+
+export function bindInvocationActivity(
+  current: InvocationActivityState | null,
+  record: InvocationRecord,
+  earlyEvents: readonly InvocationActivityEvent[],
+): InvocationActivityState {
+  return earlyEvents
+    .filter((event) => event.invocationId === record.id)
+    .reduce<InvocationActivityState>(
+      (state, event) => applyInvocationActivityEvent(state, event) ?? state,
+      applyInvocationRecord(current, record),
+    );
 }
 
 export function applyInvocationRecord(

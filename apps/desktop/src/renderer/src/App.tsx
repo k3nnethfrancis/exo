@@ -9,6 +9,7 @@ import type {
   WorkspaceModel,
   WorkspaceSettings,
 } from "@exo/core";
+import type { InvocationActivityEvent } from "@exo/core/invocation-activity";
 
 import type { CliInstallationStatus, InvocationHistoryItem, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
 
@@ -68,9 +69,12 @@ import {
   applyInvocationRecord,
   acknowledgeInvocationActivity,
   beginInvocationActivity,
+  bindInvocationActivity,
+  bufferEarlyInvocationActivityEvent,
   failActiveInvocationActivity,
   failInvocationActivity,
   invocationCommandPresentation,
+  takeEarlyInvocationActivityEvents,
   type InvocationActivityState,
 } from "./invocationActivityState";
 import {
@@ -143,6 +147,7 @@ export function App() {
   );
   const terminalRuntimeScrollbackLinesRef = useRef(DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES);
   const invocationHistoryRequestRef = useRef(0);
+  const invocationActivityEarlyEventsRef = useRef(new Map<string, InvocationActivityEvent[]>());
   const latestPaneNavigationRef = useRef(new LatestPaneNavigation());
   const shellLayout = useShellLayout();
   const { tree: canvasTree, focusedLeafId: focusedPaneId, actions: canvasActions } = shellLayout.canvasPaneTree;
@@ -321,7 +326,13 @@ export function App() {
 
   useEffect(() => {
     return window.exo.workspace.onInvocationActivity((event) => {
-      setInvocationActivity((current) => applyInvocationActivityEvent(current, event));
+      setInvocationActivity((current) => {
+        if (current?.invocationId === null && current.kind !== "done" && current.kind !== "failed") {
+          bufferEarlyInvocationActivityEvent(invocationActivityEarlyEventsRef.current, event);
+          return current;
+        }
+        return applyInvocationActivityEvent(current, event);
+      });
     });
   }, []);
 
@@ -577,6 +588,7 @@ export function App() {
     // Authorization is a decision surface, not invocation status. Close it as
     // soon as the decision is made; failures belong to the document status UI.
     setPendingInvocationAuthorization(null);
+    invocationActivityEarlyEventsRef.current.clear();
     setInvocationActivity(beginInvocationActivity(pending.command));
     try {
       await saveDocument(pending.document.filePath);
@@ -598,7 +610,8 @@ export function App() {
         authorization,
         expectedFingerprint: pending.fingerprint,
       });
-      setInvocationActivity((current) => applyInvocationRecord(current, result.invocation));
+      const earlyEvents = takeEarlyInvocationActivityEvents(invocationActivityEarlyEventsRef.current, result.invocation.id);
+      setInvocationActivity((current) => bindInvocationActivity(current, result.invocation, earlyEvents));
     } catch (error) {
       setInvocationActivity(failInvocationActivity(pending.command, error));
     }

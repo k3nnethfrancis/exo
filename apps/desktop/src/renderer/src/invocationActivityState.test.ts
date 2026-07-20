@@ -6,10 +6,13 @@ import {
   acknowledgeInvocationActivity,
   applyInvocationActivityEvent,
   applyInvocationRecord,
+  bindInvocationActivity,
+  bufferEarlyInvocationActivityEvent,
   beginInvocationActivity,
   boundedInvocationErrorDetail,
   failActiveInvocationActivity,
   failInvocationActivity,
+  takeEarlyInvocationActivityEvents,
 } from "./invocationActivityState";
 
 const command = { handle: "claude", label: "Claude" };
@@ -55,7 +58,7 @@ describe("invocation activity state", () => {
   });
 
   it("moves through bounded activity and terminal states", () => {
-    const started = beginInvocationActivity(command);
+    const started = applyInvocationRecord(beginInvocationActivity(command), record("running"));
     const reading = applyInvocationActivityEvent(started, {
       invocationId: "invocation-1",
       kind: "reading",
@@ -80,6 +83,37 @@ describe("invocation activity state", () => {
     expect(applyInvocationRecord(current, { ...record("process-exited"), id: "other" })).toBe(current);
   });
 
+  it("does not let a delayed old event claim a new launch before its record returns", () => {
+    const waiting = beginInvocationActivity(command);
+    const oldEvent: InvocationActivityEvent = {
+      invocationId: "old-invocation",
+      kind: "editing",
+      label: "old.md",
+      emittedAt: "2026-07-20T00:00:01.000Z",
+    };
+    const nextEvent: InvocationActivityEvent = {
+      invocationId: "invocation-1",
+      kind: "reading",
+      label: "new.md",
+      emittedAt: "2026-07-20T00:00:02.000Z",
+    };
+    const buffered = new Map<string, InvocationActivityEvent[]>();
+    bufferEarlyInvocationActivityEvent(buffered, oldEvent);
+    bufferEarlyInvocationActivityEvent(buffered, nextEvent);
+
+    expect(applyInvocationActivityEvent(waiting, oldEvent)).toBe(waiting);
+    expect(bindInvocationActivity(
+      waiting,
+      record("running"),
+      takeEarlyInvocationActivityEvents(buffered, "invocation-1"),
+    )).toMatchObject({
+      invocationId: "invocation-1",
+      kind: "reading",
+      label: "new.md",
+    });
+    expect(buffered.size).toBe(0);
+  });
+
   it("never retains raw provider output, reasoning, or full paths", () => {
     const untrustedEvent = {
       invocationId: "invocation-1",
@@ -89,7 +123,10 @@ describe("invocation activity state", () => {
       rawOutput: "chain of thought",
       reasoning: "private reasoning",
     } as InvocationActivityEvent & { rawOutput: string; reasoning: string };
-    const next = applyInvocationActivityEvent(beginInvocationActivity(command), untrustedEvent);
+    const next = applyInvocationActivityEvent(
+      applyInvocationRecord(beginInvocationActivity(command), record("running")),
+      untrustedEvent,
+    );
 
     expect(next).toEqual({
       invocationId: "invocation-1",
