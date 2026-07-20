@@ -60,9 +60,9 @@ export function InvocationAuthorizationPopover({
     popoverRef.current?.querySelector<HTMLElement>("[data-autofocus]")?.focus();
   }, []);
 
-  const cancel = () => {
+  const close = (decision: () => void) => {
     const previousFocus = previousFocusRef.current;
-    onCancel();
+    decision();
     requestAnimationFrame(() => {
       if (onReturnFocus) {
         onReturnFocus();
@@ -71,6 +71,8 @@ export function InvocationAuthorizationPopover({
       }
     });
   };
+  const cancel = () => close(onCancel);
+  const authorize = (decision: InvocationAuthorizationDecision) => close(() => onAuthorize(decision));
 
   const style = position
     ? ({
@@ -129,14 +131,14 @@ export function InvocationAuthorizationPopover({
         <button
           className="invocation-ui-button"
           data-autofocus
-          onClick={() => onAuthorize("once")}
+          onClick={() => authorize("once")}
           type="button"
         >
           Run once
         </button>
         <button
           className="invocation-ui-button invocation-ui-button--primary"
-          onClick={() => onAuthorize("workspace")}
+          onClick={() => authorize("workspace")}
           type="button"
         >
           Always allow here

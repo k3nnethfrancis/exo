@@ -57,6 +57,20 @@ describe("invocation snapshot projection", () => {
     expect(invocationSnapshotFrontmatter(payload.afterText)).toBe("title: After\ntags:\n  - exo\nstatus: ready\n");
   });
 
+  it("falls back to the exact YAML block when complex and simple keys change together", () => {
+    const before = '"display name": Before\ntitle: Before\n';
+    const after = '"display name": After\ntitle: After\n';
+    const payload = {
+      beforeText: `---\n${before}---\nSame body\n`,
+      afterText: `---\n${after}---\nSame body\n`,
+      change: { before: { mode: 0o644 }, after: { mode: 0o644 } },
+    } as InvocationFileReviewPayload;
+
+    expect(invocationReviewMetadata(payload)).toEqual({
+      frontmatter: [{ key: "Frontmatter", before: before.trim(), after: after.trim() }],
+    });
+  });
+
   it("projects chmod-only changes even when file text is identical", () => {
     const payload = {
       beforeText: "Same body\n",

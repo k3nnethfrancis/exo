@@ -80,6 +80,7 @@ interface NoteEditorProps {
   agentCommands: AgentCommand[];
   onInvokeAgent: (draft: InlineAgentDraft) => void;
   invocationReview: NoteInvocationReview | null;
+  editingFrozen: boolean;
   historyAvailable: boolean;
   onOpenHistory: () => void;
   onFocus: () => void;
@@ -112,6 +113,7 @@ export function NoteEditor(props: NoteEditorProps) {
     agentCommands,
     onInvokeAgent,
     invocationReview,
+    editingFrozen,
     historyAvailable,
     onOpenHistory,
     onFocus,
@@ -693,9 +695,11 @@ export function NoteEditor(props: NoteEditorProps) {
     }
     const payload = invocationReview.payload;
     const original = invocationReviewOriginal(payload, document?.kind ?? "text");
+    // This effect reruns when the reviewed document or payload changes. Cache
+    // its offset between those changes; never rescan the full note on scroll.
+    const changedOffset = firstChangedOffset(original, view.state.doc.toString());
     const place = () => {
-      const position = firstChangedOffset(original, view.state.doc.toString());
-      const coords = view.coordsAtPos(clampPosition(position, view.state.doc.length));
+      const coords = view.coordsAtPos(clampPosition(changedOffset, view.state.doc.length));
       const surface = view.dom.closest<HTMLElement>(".editor-surface");
       const bounds = surface?.getBoundingClientRect();
       if (!coords || !bounds) return;
@@ -707,15 +711,24 @@ export function NoteEditor(props: NoteEditorProps) {
         : Math.max(bounds.top + 12, coords.top - 174);
       setReviewPosition({ left, top, maxWidth, origin: `${Math.round(coords.left)}px ${Math.round(coords.top)}px` });
     };
+    let frame: number | null = null;
+    const schedulePlacement = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        place();
+      });
+    };
     place();
     const scroller = view.scrollDOM;
-    scroller.addEventListener("scroll", place, { passive: true });
-    window.addEventListener("resize", place);
+    scroller.addEventListener("scroll", schedulePlacement, { passive: true });
+    window.addEventListener("resize", schedulePlacement);
     return () => {
-      scroller.removeEventListener("scroll", place);
-      window.removeEventListener("resize", place);
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      scroller.removeEventListener("scroll", schedulePlacement);
+      window.removeEventListener("resize", schedulePlacement);
     };
-  }, [document?.filePath, document?.kind, invocationReview?.payload]);
+  }, [document?.body, document?.filePath, document?.kind, invocationReview?.payload]);
 
   useEffect(() => {
     if (!document || !revealLineRequest || revealLineRequest.filePath !== document.filePath) {
@@ -1014,7 +1027,7 @@ export function NoteEditor(props: NoteEditorProps) {
             foldGutter: false,
             highlightSelectionMatches: false,
           }}
-          editable={!document.readOnly && !invocationReview?.decisionPending}
+          editable={!document.readOnly && !editingFrozen && !invocationReview?.decisionPending}
           onBlur={() => {
             const view = codeMirrorRef.current?.view;
             if (inlineComposerActive && view) startTransition(() => bodyChangeRef.current(view.state.doc.toString()));
@@ -1117,8 +1130,8 @@ interface NoteInvocationReview {
   onNavigate: (index: number) => void;
   onKeepCurrent: () => void;
   onRejectCurrent: () => void;
-  onKeepAll: () => void;
-  onRejectAll: () => void;
+  onKeepAll?: () => void;
+  onRejectAll?: () => void;
   onRefreshConflict: () => void;
   onOpenConflict: () => void;
   onDismiss?: () => void;

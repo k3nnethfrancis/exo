@@ -51,6 +51,7 @@ interface EditorPaneProps {
   agentCommands: AgentCommand[];
   onInvokeAgent: (draft: InlineAgentDraft) => void;
   invocationReview: EditorInvocationReview | null;
+  editingFrozen: boolean;
   historyAvailable: boolean;
   onOpenHistory: () => void;
   theme: ExoThemeVariant;
@@ -91,6 +92,7 @@ export function EditorPane(props: EditorPaneProps) {
     agentCommands,
     onInvokeAgent,
     invocationReview,
+    editingFrozen,
     historyAvailable,
     onOpenHistory,
     theme,
@@ -180,6 +182,7 @@ export function EditorPane(props: EditorPaneProps) {
         agentCommands={agentCommands}
         onInvokeAgent={onInvokeAgent}
         invocationReview={invocationReview}
+        editingFrozen={editingFrozen}
         historyAvailable={historyAvailable}
         onOpenHistory={onOpenHistory}
         onFocus={onFocusPane}
@@ -203,8 +206,8 @@ export interface EditorInvocationReview {
   onNavigate: (index: number) => void;
   onKeepCurrent: () => void;
   onRejectCurrent: () => void;
-  onKeepAll: () => void;
-  onRejectAll: () => void;
+  onKeepAll?: () => void;
+  onRejectAll?: () => void;
   onRefreshConflict: () => void;
   onOpenConflict: () => void;
   onDismiss?: () => void;

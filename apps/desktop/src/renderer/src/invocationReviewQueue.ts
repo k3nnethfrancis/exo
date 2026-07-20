@@ -20,12 +20,21 @@ export interface InvocationReviewQueueEntry {
 export interface InvocationReviewQueueState {
   entries: InvocationReviewQueueEntry[];
   activeInvocationId: string | null;
+  hydrationPending: boolean;
+  /** Settlements observed while the one-shot startup snapshot may still be stale. */
+  settledDuringHydration: string[];
 }
 
 export const EMPTY_INVOCATION_REVIEW_QUEUE: InvocationReviewQueueState = {
   entries: [],
   activeInvocationId: null,
+  hydrationPending: false,
+  settledDuringHydration: [],
 };
+
+export function beginInvocationReviewHydration(): InvocationReviewQueueState {
+  return { ...EMPTY_INVOCATION_REVIEW_QUEUE, hydrationPending: true };
+}
 
 export function invocationHistoryLoadDecision(
   document: { filePath: string; readOnly?: boolean } | null,
@@ -45,7 +54,7 @@ export function hydrateInvocationReviewQueue(items: readonly InvocationReviewLis
     source: "pending" as const,
     payloads: {},
   }));
-  return { entries, activeInvocationId: entries[0]?.invocationId ?? null };
+  return { entries, activeInvocationId: entries[0]?.invocationId ?? null, hydrationPending: false, settledDuringHydration: [] };
 }
 
 /**
@@ -57,14 +66,25 @@ export function mergeInvocationReviewHydration(
   items: readonly InvocationReviewListItem[],
 ): InvocationReviewQueueState {
   const hydrated = hydrateInvocationReviewQueue(items);
-  if (current.entries.length === 0) return hydrated;
+  const settled = new Set(current.settledDuringHydration);
+  const hydratedEntries = hydrated.entries.filter((entry) => !settled.has(entry.invocationId));
+  if (current.entries.length === 0) {
+    return {
+      entries: hydratedEntries,
+      activeInvocationId: hydratedEntries[0]?.invocationId ?? null,
+      hydrationPending: false,
+      settledDuringHydration: [],
+    };
+  }
   const currentIds = new Set(current.entries.map((entry) => entry.invocationId));
   return {
     entries: [
       ...current.entries,
-      ...hydrated.entries.filter((entry) => !currentIds.has(entry.invocationId)),
+      ...hydratedEntries.filter((entry) => !currentIds.has(entry.invocationId)),
     ],
-    activeInvocationId: current.activeInvocationId ?? hydrated.activeInvocationId,
+    activeInvocationId: current.activeInvocationId ?? hydratedEntries[0]?.invocationId ?? null,
+    hydrationPending: false,
+    settledDuringHydration: [],
   };
 }
 
@@ -85,6 +105,7 @@ export function openInvocationHistoryReview(
     payloads: {},
   };
   return {
+    ...state,
     entries: [historical, ...state.entries.filter((entry) => entry.invocationId !== item.invocationId)],
     activeInvocationId: item.invocationId,
   };
@@ -92,7 +113,7 @@ export function openInvocationHistoryReview(
 
 export function closeInvocationHistoryReview(state: InvocationReviewQueueState): InvocationReviewQueueState {
   const entries = state.entries.filter((entry) => entry.source !== "history");
-  return { entries, activeInvocationId: entries[0]?.invocationId ?? null };
+  return { ...state, entries, activeInvocationId: entries[0]?.invocationId ?? null };
 }
 
 export function activeInvocationReviewEntry(state: InvocationReviewQueueState): InvocationReviewQueueEntry | null {
@@ -138,7 +159,11 @@ export function applyInvocationReviewRecord(
   const unresolved = record.changeset?.files
     .filter((change) => change.decision.status === "pending" || change.decision.status === "conflict")
     .map((change) => change.id) ?? [];
-  if (!current && unresolved.length === 0) return state;
+  if (!current && unresolved.length === 0) {
+    return !state.hydrationPending || !record.changeset || state.settledDuringHydration.includes(record.id)
+      ? state
+      : { ...state, settledDuringHydration: [...state.settledDuringHydration, record.id] };
+  }
   if (!current) {
     const next = {
       invocationId: record.id,
@@ -149,7 +174,7 @@ export function applyInvocationReviewRecord(
       source: "pending" as const,
       payloads: {},
     };
-    return { entries: [...state.entries, next], activeInvocationId: state.activeInvocationId ?? record.id };
+    return { ...state, entries: [...state.entries, next], activeInvocationId: state.activeInvocationId ?? record.id };
   }
   if (current.source === "history") {
     return {
@@ -162,10 +187,14 @@ export function applyInvocationReviewRecord(
   if (unresolved.length === 0) {
     const entries = state.entries.filter((entry) => entry.invocationId !== record.id);
     return {
+      ...state,
       entries,
       activeInvocationId: state.activeInvocationId === record.id
         ? entries[0]?.invocationId ?? null
         : state.activeInvocationId,
+      settledDuringHydration: !state.hydrationPending || state.settledDuringHydration.includes(record.id)
+        ? state.settledDuringHydration
+        : [...state.settledDuringHydration, record.id],
     };
   }
   const previousId = current.changeIds[current.currentIndex];
@@ -242,6 +271,18 @@ export function invocationReviewMatchesPath(
   }
   const sourcePath = invocationReviewSourcePath(payload);
   return sourcePath !== null && invocationReviewPathIdentity(filePath) === invocationReviewPathIdentity(sourcePath);
+}
+
+/** Return the actual editor identities that a decision must freeze and flush. */
+export function invocationReviewAffectedOpenPaths(
+  payloads: readonly InvocationFileReviewPayload[],
+  openPaths: readonly string[],
+): string[] {
+  const affected = new Set(payloads.flatMap((payload) => [
+    payload.change.before?.path,
+    payload.change.after?.path,
+  ]).filter((value): value is string => Boolean(value)).map(invocationReviewPathIdentity));
+  return [...new Set(openPaths)].filter((filePath) => affected.has(invocationReviewPathIdentity(filePath)));
 }
 
 /**

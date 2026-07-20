@@ -134,7 +134,14 @@ test("keeps a complete multi-file changeset in one batch", async () => {
   const fixture = await launchInvocationFixture("multi");
   try {
     const record = await invokeAndWaitForSettlement(fixture);
-    const kept = await reviewAll(fixture.page, record.id, "keep");
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+    await review.getByText(/^All \d+ files$/).click();
+    await review.getByRole("button", { name: "Keep all" }).click();
+    const kept = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "kept",
+    );
 
     expect(kept.changeset.status).toBe("kept");
     await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toContain("Fixture multi-file content.");
@@ -143,6 +150,47 @@ test("keeps a complete multi-file changeset in one batch", async () => {
     await expect(access(fixture.paths.deleted)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(access(fixture.paths.renameBefore)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(readFile(fixture.paths.renameAfter, "utf8")).resolves.toBe(fixture.initial.renameBefore);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("freezes every affected open editor while bulk review drains dirty autosaves", async () => {
+  const fixture = await launchInvocationFixture("multi");
+  try {
+    await splitExplorerFileIntoEditor(fixture.page, "second, file");
+    await expect(fixture.page.locator(".workspace-shell__canvas .pane-leaf--editor")).toHaveCount(2);
+
+    await launchInvocation(fixture.page, fixture.paths.tagged);
+    const record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.status !== "pending" && candidate.status !== "running",
+    );
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+
+    await fixture.page.locator(".tab-strip__tab").filter({ hasText: "invocation-fixture" }).click();
+    await appendEditorText(fixture.page, "\nHuman tagged edit.", fixture.paths.tagged);
+    await fixture.page.locator(".tab-strip__tab").filter({ hasText: "second" }).click();
+    await appendEditorText(fixture.page, "\nHuman second edit.", fixture.paths.second);
+    await fixture.page.locator(".tab-strip__tab").filter({ hasText: "created" }).click();
+    await expect(review).toBeVisible();
+    await review.getByText(/^All \d+ files$/).click();
+    await review.getByRole("button", { name: "Reject all" }).click();
+
+    const conflicted = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "conflict",
+    );
+    const modifiedDecisions = conflicted.changeset.files
+      .filter((change: Record<string, any>) => change.operation === "modified")
+      .map((change: Record<string, any>) => change.decision.status);
+    expect(modifiedDecisions).toEqual(["conflict", "conflict"]);
+    await expect.poll(() => readFile(fixture.paths.tagged, "utf8")).toContain("Human tagged edit.");
+    await expect.poll(() => readFile(fixture.paths.second, "utf8")).toContain("Human second edit.");
+    await fixture.page.waitForTimeout(2_200);
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toContain("Human tagged edit.");
+    await expect(readFile(fixture.paths.second, "utf8")).resolves.toContain("Human second edit.");
   } finally {
     await fixture.cleanup();
   }
@@ -473,10 +521,10 @@ async function invokeAndWaitForSettlement(fixture: InvocationFixture): Promise<R
   );
 }
 
-async function launchInvocation(page: Page): Promise<void> {
+async function launchInvocation(page: Page, documentPath?: string): Promise<void> {
   // The fixture ends on an empty line. Compose in that existing space so the
   // protocol envelope can be removed byte-for-byte back to the original note.
-  await appendEditorText(page, "@fixture");
+  await appendEditorText(page, "@fixture", documentPath);
   await expect(page.getByTestId("agent-suggestion-fixture")).toBeVisible();
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("inline-agent-composer")).toHaveCount(1);
@@ -486,18 +534,45 @@ async function launchInvocation(page: Page): Promise<void> {
   await expect(authorization).toBeVisible();
   await authorization.getByRole("button", { name: "Run once" }).click();
   await expect(authorization).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => document.activeElement?.closest(".cm-editor") !== null)).toBe(true);
 }
 
-async function appendEditorText(page: Page, text: string): Promise<void> {
-  await page.locator(".cm-content").click();
-  await page.evaluate((insert) => {
-    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+async function appendEditorText(page: Page, text: string, documentPath?: string): Promise<void> {
+  const titles = page.locator(".editor-panel__title[title]");
+  const titleIndex = documentPath
+    ? await titles.evaluateAll((elements, targetPath) => {
+        const identity = (value: string) => value.replace(/^\/private\/(?=(?:var|tmp)\/)/u, "/");
+        return elements.findIndex((element) => identity((element as HTMLElement).title) === identity(targetPath));
+      }, documentPath)
+    : -1;
+  if (documentPath && titleIndex < 0) throw new Error(`Unable to find open editor for ${documentPath}`);
+  const content = documentPath
+    ? titles.nth(titleIndex).locator("xpath=ancestor::*[@data-testid='editor-panel']").locator(".cm-content")
+    : page.locator(".cm-content").first();
+  await content.click();
+  await page.evaluate(({ insert, documentPath }) => {
+    const identity = (value: string) => value.replace(/^\/private\/(?=(?:var|tmp)\/)/u, "/");
+    const title = documentPath
+      ? [...document.querySelectorAll<HTMLElement>(".editor-panel__title[title]")].find((candidate) => identity(candidate.title) === identity(documentPath))
+      : null;
+    const content = (title?.closest("[data-testid='editor-panel']") ?? document).querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
     const view = content?.cmView?.view;
     if (!view) throw new Error("Unable to resolve CodeMirror view");
     const position = view.state.doc.length + insert.length;
     view.dispatch({ changes: { from: view.state.doc.length, insert }, selection: { anchor: position } });
     view.focus();
-  }, text);
+  }, { insert: text, documentPath });
+}
+
+async function splitExplorerFileIntoEditor(page: Page, accessibleName: string): Promise<void> {
+  const source = await page.getByRole("button", { name: accessibleName }).first().boundingBox();
+  const editor = await page.locator(".workspace-shell__canvas .pane-leaf--editor").first().boundingBox();
+  expect(source).not.toBeNull();
+  expect(editor).not.toBeNull();
+  await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(editor!.x + editor!.width * 0.88, editor!.y + editor!.height / 2, { steps: 8 });
+  await page.mouse.up();
 }
 
 async function waitForInvocation(

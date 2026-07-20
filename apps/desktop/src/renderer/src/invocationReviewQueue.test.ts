@@ -5,6 +5,7 @@ import type { InvocationRecord } from "@exo/core";
 import {
   activeInvocationReviewChangeId,
   applyInvocationReviewRecord,
+  beginInvocationReviewHydration,
   cacheInvocationFileReview,
   closeInvocationHistoryReview,
   hydrateInvocationReviewQueue,
@@ -12,6 +13,7 @@ import {
   invocationReviewMatchesPath,
   invocationReviewNavigablePath,
   invocationHistoryLoadDecision,
+  invocationReviewAffectedOpenPaths,
   invocationReviewVirtualPath,
   mergeInvocationReviewHydration,
   navigateInvocationReview,
@@ -86,6 +88,21 @@ describe("invocation review queue", () => {
       .toEqual(["live", "older"]);
     expect(mergeInvocationReviewHydration(live, [listItem("live", ["stale-change"])]))
       .toEqual(live);
+  });
+
+  it("does not resurrect a review settled before stale startup hydration returns", () => {
+    const requestStarted = beginInvocationReviewHydration();
+    const afterSettlement = applyInvocationReviewRecord(
+      requestStarted,
+      record("settled-while-loading", [["change", "kept"]]),
+    );
+
+    const afterStaleResponse = mergeInvocationReviewHydration(afterSettlement, [
+      listItem("settled-while-loading", ["change"]),
+    ]);
+
+    expect(afterStaleResponse.entries).toEqual([]);
+    expect(afterStaleResponse.activeInvocationId).toBeNull();
   });
 
   it("advances after resolution and preserves a drift conflict", () => {
@@ -193,5 +210,36 @@ describe("invocation review queue", () => {
     expect(invocationReviewMatchesPath(payload, "/var/folders/workspace/note.md", "pending")).toBe(true);
     payload.invocation.noteRoots = ["/var/folders/workspace"];
     expect(invocationReviewNavigablePath(payload)).toBe("/var/folders/workspace/note.md");
+  });
+
+  it("finds every open before/after path affected by a bulk review", () => {
+    const invocation = record("bulk", [["rename", "pending"], ["modify", "pending"]]);
+    invocation.changeset!.files[0] = {
+      ...invocation.changeset!.files[0]!,
+      operation: "renamed",
+      before: { ...invocation.changeset!.files[0]!.before!, path: "/private/var/notes/before.md" },
+      after: { ...invocation.changeset!.files[0]!.after!, path: "/private/var/notes/after.md" },
+    };
+    invocation.changeset!.files[1] = {
+      ...invocation.changeset!.files[1]!,
+      operation: "modified",
+      before: { ...invocation.changeset!.files[1]!.before!, path: "/notes/second.md" },
+      after: { ...invocation.changeset!.files[1]!.after!, path: "/notes/second.md" },
+    };
+    const payloads = invocation.changeset!.files.map((change) => ({
+      invocation,
+      change,
+      beforeText: "before",
+      afterText: "after",
+      canKeep: true,
+      canReject: true,
+    })) as InvocationFileReviewPayload[];
+
+    expect(invocationReviewAffectedOpenPaths(payloads, [
+      "/var/notes/before.md",
+      "/var/notes/after.md",
+      "/notes/second.md",
+      "/notes/unrelated.md",
+    ])).toEqual(["/var/notes/before.md", "/var/notes/after.md", "/notes/second.md"]);
   });
 });

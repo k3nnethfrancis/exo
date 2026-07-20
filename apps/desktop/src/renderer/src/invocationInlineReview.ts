@@ -116,8 +116,17 @@ export function invocationSnapshotFrontmatter(snapshot: string | null): string |
 
 function diffFrontmatter(before: string | null, after: string | null): InvocationReviewMetadataChange[] {
   if (before === after) return [];
-  const beforeFields = frontmatterFields(before);
-  const afterFields = frontmatterFields(after);
+  const beforeProjection = frontmatterFields(before);
+  const afterProjection = frontmatterFields(after);
+  if (!beforeProjection.complete || !afterProjection.complete) {
+    return [{
+      key: "Frontmatter",
+      ...(before === null ? {} : { before: before.trim() }),
+      ...(after === null ? {} : { after: after.trim() }),
+    }];
+  }
+  const beforeFields = beforeProjection.fields;
+  const afterFields = afterProjection.fields;
   const keys = [...new Set([...beforeFields.keys(), ...afterFields.keys()])].sort((left, right) => left.localeCompare(right));
   const changes = keys.flatMap((key): InvocationReviewMetadataChange[] => {
     const previous = beforeFields.get(key);
@@ -137,12 +146,13 @@ function diffFrontmatter(before: string | null, after: string | null): Invocatio
  * Preserve each top-level YAML field as an immutable source slice. Nested
  * values remain exact without teaching the renderer a second YAML serializer.
  */
-function frontmatterFields(source: string | null): Map<string, string> {
-  if (source === null) return new Map();
+function frontmatterFields(source: string | null): { fields: Map<string, string>; complete: boolean } {
+  if (source === null) return { fields: new Map(), complete: true };
   const fields = new Map<string, string>();
   const lines = source.replace(/\r\n/g, "\n").split("\n");
   let currentKey: string | null = null;
   let currentValue: string[] = [];
+  let complete = true;
   const commit = () => {
     if (currentKey) fields.set(currentKey, currentValue.join("\n").trimEnd());
   };
@@ -152,12 +162,19 @@ function frontmatterFields(source: string | null): Map<string, string> {
       commit();
       currentKey = field[1]!;
       currentValue = [field[2] ?? ""];
+    } else if (/^[^\s#][^:]*:/.test(line) || /^\?\s/.test(line) || /^-\s/.test(line)) {
+      complete = false;
+      if (currentKey) currentValue.push(line);
     } else if (currentKey) {
       currentValue.push(line);
+    } else if (line.trim() !== "") {
+      // Leading comments/directives and other YAML forms are not represented by
+      // the structured rows, so review the exact block rather than concealing them.
+      complete = false;
     }
   }
   commit();
-  return fields;
+  return { fields, complete };
 }
 
 function formatUnixMode(mode: number): string {

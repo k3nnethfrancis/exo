@@ -81,10 +81,12 @@ import {
   activeInvocationReviewChangeId,
   activeInvocationReviewEntry,
   applyInvocationReviewRecord,
+  beginInvocationReviewHydration,
   cacheInvocationFileReview,
   closeInvocationHistoryReview,
   EMPTY_INVOCATION_REVIEW_QUEUE,
   invocationReviewProjection,
+  invocationReviewAffectedOpenPaths,
   invocationReviewMatchesPath,
   invocationReviewNavigablePath,
   invocationHistoryLoadDecision,
@@ -129,6 +131,7 @@ export function App() {
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const [invocationReviewQueue, setInvocationReviewQueue] = useState<InvocationReviewQueueState>(EMPTY_INVOCATION_REVIEW_QUEUE);
   const [invocationReviewDecisionPending, setInvocationReviewDecisionPending] = useState(false);
+  const [invocationReviewFrozenPaths, setInvocationReviewFrozenPaths] = useState<string[]>([]);
   const invocationReviewDecisionPendingRef = useRef(false);
   const [invocationHistory, setInvocationHistory] = useState<InvocationHistoryItem[]>([]);
   const [inspectorTabRequest, setInspectorTabRequest] = useState<{ tab: "history"; nonce: number } | null>(null);
@@ -260,6 +263,10 @@ export function App() {
   const activeReviewPayload = activeReviewEntry && activeReviewChangeId
     ? activeReviewEntry.payloads[activeReviewChangeId] ?? null
     : null;
+  const missingActiveReviewPayloadIds = activeReviewEntry
+    ? activeReviewEntry.changeIds.filter((changeId) => !activeReviewEntry.payloads[changeId])
+    : [];
+  const activeReviewPayloadsReady = Boolean(activeReviewEntry && missingActiveReviewPayloadIds.length === 0);
 
   useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
@@ -278,14 +285,17 @@ export function App() {
     }
     // The queue is workspace-scoped. Clear the prior workspace synchronously,
     // then merge hydration so live settlements from this workspace still win.
-    setInvocationReviewQueue(EMPTY_INVOCATION_REVIEW_QUEUE);
+    setInvocationReviewQueue(beginInvocationReviewHydration());
     void refreshFolderIndexStatus();
     let cancelled = false;
     void window.exo.workspace.listPendingInvocationReviews()
       .then((items) => {
         if (!cancelled) setInvocationReviewQueue((current) => mergeInvocationReviewHydration(current, items));
       })
-      .catch((error) => console.warn("[exo] failed to load pending invocation reviews", error));
+      .catch((error) => {
+        console.warn("[exo] failed to load pending invocation reviews", error);
+        if (!cancelled) setInvocationReviewQueue((current) => mergeInvocationReviewHydration(current, []));
+      });
     return () => { cancelled = true; };
   }, [workspaceModel]);
 
@@ -340,20 +350,27 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!activeReviewEntry || !activeReviewChangeId || activeReviewPayload) return;
+    if (!activeReviewEntry || missingActiveReviewPayloadIds.length === 0) return;
     let cancelled = false;
-    void window.exo.workspace.getInvocationFileReview({
-      invocationId: activeReviewEntry.invocationId,
-      changeId: activeReviewChangeId,
-    }).then((payload) => {
+    void Promise.allSettled(missingActiveReviewPayloadIds.map((changeId) =>
+      window.exo.workspace.getInvocationFileReview({
+        invocationId: activeReviewEntry.invocationId,
+        changeId,
+      }),
+    )).then((results) => {
       if (cancelled) return;
-      setInvocationReviewQueue((current) => cacheInvocationFileReview(current, payload));
-    }).catch((error) => {
-      console.warn("[exo] failed to load invocation file review", error);
-      setInvocationActivity(failInvocationActivity(activeReviewEntry.command, error));
+      const payloads = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
+      if (payloads.length > 0) {
+        setInvocationReviewQueue((current) => payloads.reduce(cacheInvocationFileReview, current));
+      }
+      const failure = results.find((result) => result.status === "rejected");
+      if (failure?.status === "rejected") {
+        console.warn("[exo] failed to load invocation file review", failure.reason);
+        setInvocationActivity(failInvocationActivity(activeReviewEntry.command, failure.reason));
+      }
     });
     return () => { cancelled = true; };
-  }, [activeReviewChangeId, activeReviewEntry?.invocationId, activeReviewPayload]);
+  }, [activeReviewEntry?.invocationId, missingActiveReviewPayloadIds.join("\0")]);
 
   useEffect(() => {
     if (activeReviewPayload) openInvocationReviewDocument(activeReviewPayload, activeReviewEntry?.source ?? "pending");
@@ -679,14 +696,13 @@ export function App() {
   }
 
   async function resolveInvocationReview(action: "keep" | "reject") {
-    if (!activeReviewEntry || !activeReviewChangeId || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
+    if (!activeReviewEntry || !activeReviewChangeId || !activeReviewPayload || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
     const entry = activeReviewEntry;
     const changeId = activeReviewChangeId;
     const payload = activeReviewPayload;
-    invocationReviewDecisionPendingRef.current = true;
-    flushSync(() => setInvocationReviewDecisionPending(true));
+    const frozenPaths = beginInvocationReviewDecision([payload]);
     try {
-      await prepareDocumentsForReview(payload ? invocationReviewDocumentPaths(payload) : []);
+      await prepareDocumentsForReview(frozenPaths);
       const record = await window.exo.workspace.reviewInvocationFile({
         invocationId: entry.invocationId,
         changeId,
@@ -700,28 +716,23 @@ export function App() {
       }
     } catch (error) {
       setInvocationActivity(failInvocationActivity(entry.command, error));
-      if (payload) {
-        const refreshed = await window.exo.workspace.getInvocationFileReview({
-          invocationId: entry.invocationId,
-          changeId,
-        }).catch(() => null);
-        if (refreshed) setInvocationReviewQueue((current) => cacheInvocationFileReview(current, refreshed));
-      }
+      const refreshed = await window.exo.workspace.getInvocationFileReview({
+        invocationId: entry.invocationId,
+        changeId,
+      }).catch(() => null);
+      if (refreshed) setInvocationReviewQueue((current) => cacheInvocationFileReview(current, refreshed));
     } finally {
-      invocationReviewDecisionPendingRef.current = false;
-      setInvocationReviewDecisionPending(false);
+      finishInvocationReviewDecision();
     }
   }
 
   async function resolveAllInvocationReviews(action: "keep" | "reject") {
-    if (!activeReviewEntry || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
+    if (!activeReviewEntry || !activeReviewPayloadsReady || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
     const entry = activeReviewEntry;
-    invocationReviewDecisionPendingRef.current = true;
-    flushSync(() => setInvocationReviewDecisionPending(true));
+    const payloads = entry.changeIds.map((changeId) => entry.payloads[changeId]!);
+    const frozenPaths = beginInvocationReviewDecision(payloads);
     try {
-      const payloads = await Promise.all(entry.changeIds.map((changeId) => entry.payloads[changeId] ??
-        window.exo.workspace.getInvocationFileReview({ invocationId: entry.invocationId, changeId })));
-      await prepareDocumentsForReview(payloads.flatMap(invocationReviewDocumentPaths));
+      await prepareDocumentsForReview(frozenPaths);
       const record = await window.exo.workspace.reviewInvocationAll({ invocationId: entry.invocationId, action });
       setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, record));
       await reloadTrees();
@@ -732,9 +743,26 @@ export function App() {
     } catch (error) {
       setInvocationActivity(failInvocationActivity(entry.command, error));
     } finally {
-      invocationReviewDecisionPendingRef.current = false;
-      setInvocationReviewDecisionPending(false);
+      finishInvocationReviewDecision();
     }
+  }
+
+  function beginInvocationReviewDecision(payloads: readonly InvocationFileReviewPayload[]): string[] {
+    const frozenPaths = invocationReviewAffectedOpenPaths(payloads, Object.keys(openDocuments));
+    invocationReviewDecisionPendingRef.current = true;
+    flushSync(() => {
+      setInvocationReviewDecisionPending(true);
+      setInvocationReviewFrozenPaths(frozenPaths);
+    });
+    return frozenPaths;
+  }
+
+  function finishInvocationReviewDecision() {
+    invocationReviewDecisionPendingRef.current = false;
+    flushSync(() => {
+      setInvocationReviewDecisionPending(false);
+      setInvocationReviewFrozenPaths([]);
+    });
   }
 
   async function refreshReviewAfterResolution(
@@ -1698,8 +1726,8 @@ export function App() {
                       onNavigate: (index) => setInvocationReviewQueue((current) => navigateInvocationReview(current, index)),
                       onKeepCurrent: () => void resolveInvocationReview("keep"),
                       onRejectCurrent: () => void resolveInvocationReview("reject"),
-                      onKeepAll: () => void resolveAllInvocationReviews("keep"),
-                      onRejectAll: () => void resolveAllInvocationReviews("reject"),
+                      onKeepAll: activeReviewPayloadsReady ? () => void resolveAllInvocationReviews("keep") : undefined,
+                      onRejectAll: activeReviewPayloadsReady ? () => void resolveAllInvocationReviews("reject") : undefined,
                       onRefreshConflict: () => {
                         setInvocationReviewQueue((current) => ({
                           ...current,
@@ -1715,6 +1743,7 @@ export function App() {
                     }
                   : null
               }
+              editingFrozen={Boolean(pane.activePath && invocationReviewFrozenPaths.includes(pane.activePath))}
               historyAvailable={invocationHistory.length > 0}
               onOpenHistory={() => {
                 openConnectionsSurface();
@@ -1892,8 +1921,4 @@ function getEditorScrollerForPath(filePath: string): HTMLElement | null {
 
 function fileName(filePath: string): string {
   return filePath.split(/[\\/]/u).filter(Boolean).at(-1) ?? "File";
-}
-
-function invocationReviewDocumentPaths(payload: InvocationFileReviewPayload): string[] {
-  return [...new Set([payload.change.before?.path, payload.change.after?.path].filter((value): value is string => Boolean(value)))];
 }
