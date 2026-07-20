@@ -47,6 +47,26 @@ export function hydrateInvocationReviewQueue(items: readonly InvocationReviewLis
   return { entries, activeInvocationId: entries[0]?.invocationId ?? null };
 }
 
+/**
+ * Reconcile the startup snapshot without overwriting a newer live settlement
+ * event that arrived while the pending-review IPC request was in flight.
+ */
+export function mergeInvocationReviewHydration(
+  current: InvocationReviewQueueState,
+  items: readonly InvocationReviewListItem[],
+): InvocationReviewQueueState {
+  const hydrated = hydrateInvocationReviewQueue(items);
+  if (current.entries.length === 0) return hydrated;
+  const currentIds = new Set(current.entries.map((entry) => entry.invocationId));
+  return {
+    entries: [
+      ...current.entries,
+      ...hydrated.entries.filter((entry) => !currentIds.has(entry.invocationId)),
+    ],
+    activeInvocationId: current.activeInvocationId ?? hydrated.activeInvocationId,
+  };
+}
+
 export function openInvocationHistoryReview(
   state: InvocationReviewQueueState,
   item: InvocationHistoryItem,
@@ -183,6 +203,20 @@ export function invocationReviewSourcePath(payload: InvocationFileReviewPayload)
   return payload.change.after?.path ?? payload.change.before?.path ?? null;
 }
 
+export function invocationReviewNavigablePath(payload: InvocationFileReviewPayload): string | null {
+  const sourcePath = invocationReviewSourcePath(payload);
+  if (!sourcePath) return null;
+  const sourceIdentity = invocationReviewPathIdentity(sourcePath);
+  for (const root of payload.invocation.noteRoots ?? []) {
+    const rootIdentity = invocationReviewPathIdentity(root).replace(/\/$/u, "");
+    if (sourceIdentity === rootIdentity) return root;
+    if (sourceIdentity.startsWith(`${rootIdentity}/`)) {
+      return `${root.replace(/\/$/u, "")}${sourceIdentity.slice(rootIdentity.length)}`;
+    }
+  }
+  return sourcePath;
+}
+
 export function invocationReviewVirtualPath(payload: InvocationFileReviewPayload): string | null {
   const sourcePath = invocationReviewSourcePath(payload);
   if (!sourcePath) return null;
@@ -199,7 +233,18 @@ export function invocationReviewMatchesPath(
   if (source === "history" || payload.change.operation === "deleted" || mediaType === "binary") {
     return filePath === invocationReviewVirtualPath(payload);
   }
-  return filePath === invocationReviewSourcePath(payload);
+  const sourcePath = invocationReviewSourcePath(payload);
+  return sourcePath !== null && invocationReviewPathIdentity(filePath) === invocationReviewPathIdentity(sourcePath);
+}
+
+/**
+ * macOS exposes the same temporary file through both /var and /private/var
+ * (likewise /tmp and /private/tmp). The main process canonicalizes artifacts,
+ * while an already-open editor may retain the user-visible alias.
+ */
+function invocationReviewPathIdentity(filePath: string): string {
+  const normalized = filePath.replaceAll("\\", "/");
+  return normalized.replace(/^\/private\/(?=(?:var|tmp)\/)/u, "/");
 }
 
 export function clampQueueIndex(index: number, length: number): number {

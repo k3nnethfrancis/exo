@@ -80,12 +80,13 @@ import {
   cacheInvocationFileReview,
   closeInvocationHistoryReview,
   EMPTY_INVOCATION_REVIEW_QUEUE,
-  hydrateInvocationReviewQueue,
   invocationReviewProjection,
   invocationReviewMatchesPath,
+  invocationReviewNavigablePath,
   invocationHistoryLoadDecision,
   invocationReviewSourcePath,
   invocationReviewVirtualPath,
+  mergeInvocationReviewHydration,
   navigateInvocationReview,
   openInvocationHistoryReview,
   type InvocationReviewQueueState,
@@ -266,10 +267,15 @@ export function App() {
       setInvocationReviewQueue(EMPTY_INVOCATION_REVIEW_QUEUE);
       return;
     }
+    // The queue is workspace-scoped. Clear the prior workspace synchronously,
+    // then merge hydration so live settlements from this workspace still win.
+    setInvocationReviewQueue(EMPTY_INVOCATION_REVIEW_QUEUE);
     void refreshFolderIndexStatus();
     let cancelled = false;
     void window.exo.workspace.listPendingInvocationReviews()
-      .then((items) => { if (!cancelled) setInvocationReviewQueue(hydrateInvocationReviewQueue(items)); })
+      .then((items) => {
+        if (!cancelled) setInvocationReviewQueue((current) => mergeInvocationReviewHydration(current, items));
+      })
       .catch((error) => console.warn("[exo] failed to load pending invocation reviews", error));
     return () => { cancelled = true; };
   }, [workspaceModel]);
@@ -629,7 +635,7 @@ export function App() {
     if (!path) return;
     const mediaType = payload.change.after?.mediaType ?? payload.change.before?.mediaType;
     if (source === "pending" && payload.change.operation !== "deleted" && mediaType !== "binary") {
-      void openFile(path);
+      void openFile(invocationReviewNavigablePath(payload) ?? path);
       return;
     }
     const virtualPath = invocationReviewVirtualPath(payload);

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { access, mkdir, readdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,10 +33,24 @@ test("reviews and keeps one deterministic invocation changeset end to end", asyn
       settledContains: "Fixture modified content.",
     });
 
-    const kept = await reviewAll(fixture.page, record.id, "keep");
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+    await review.getByRole("button", { name: "Keep", exact: true }).click();
+    const kept = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "kept",
+    );
     expect(kept.changeset.status).toBe("kept");
     await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toContain("Fixture modified content.");
     await expect.poll(() => listPendingReviews(fixture.page)).toEqual([]);
+
+    await expect(fixture.page.getByTestId("open-invocation-history")).toBeVisible();
+    await fixture.page.getByTestId("open-invocation-history").click();
+    await expect(fixture.page.getByTestId("invocation-history-panel")).toBeVisible();
+    await fixture.page.locator(".invocation-history__open").filter({ hasText: "@fixture" }).click();
+    await expect(review).toContainText("Kept");
+    await review.getByRole("button", { name: "Close review" }).click();
+    await expect(review).toHaveCount(0);
   } finally {
     await fixture.cleanup();
   }
@@ -47,7 +61,13 @@ test("rejects one deterministic invocation back to the exact clean base", async 
   try {
     const record = await invokeAndWaitForSettlement(fixture);
     const cleanBase = await readCleanBase(fixture, record.id);
-    const rejected = await reviewAll(fixture.page, record.id, "reject");
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+    await review.getByRole("button", { name: "Reject", exact: true }).click();
+    const rejected = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "rejected",
+    );
 
     expect(rejected.changeset.status).toBe("rejected");
     await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(cleanBase);
@@ -64,18 +84,35 @@ test("reviews a create, modify, delete, and proven rename per file and in a batc
     let record = await invokeAndWaitForSettlement(fixture);
     const cleanBase = await readCleanBase(fixture, record.id);
     expect(operationNames(record)).toEqual(["created", "deleted", "modified", "modified", "renamed"]);
-    const created = changeFor(record, "created");
-    const second = changeForPath(record, fixture.paths.second);
-
-    record = await reviewFile(fixture.page, record.id, created.id, "reject");
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+    await expect(review).toContainText("created.md");
+    await review.getByRole("button", { name: "Reject", exact: true }).click();
+    record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "partially-resolved",
+    );
     expect(record.changeset.status).toBe("partially-resolved");
     await expect(access(fixture.paths.created)).rejects.toMatchObject({ code: "ENOENT" });
 
-    record = await reviewFile(fixture.page, record.id, second.id, "keep");
+    await navigateReviewToFile(review, "second.md");
+    await review.getByRole("button", { name: "Keep", exact: true }).click();
+    record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id &&
+        candidate.changeset?.files.some((change: Record<string, any>) =>
+          (change.before?.path === fixture.paths.second || change.after?.path === fixture.paths.second) &&
+          change.decision.status === "kept"),
+    );
     expect(record.changeset.status).toBe("partially-resolved");
     await expect(readFile(fixture.paths.second, "utf8")).resolves.toContain("Fixture updated second note.");
 
-    record = await reviewAll(fixture.page, record.id, "reject");
+    await review.getByText(/^All \d+ files$/).click();
+    await review.getByRole("button", { name: "Reject all" }).click();
+    record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "resolved",
+    );
     expect(record.changeset.status).toBe("resolved");
     await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(cleanBase);
     await expect(readFile(fixture.paths.deleted, "utf8")).resolves.toBe(fixture.initial.deleted);
@@ -113,7 +150,13 @@ test("preserves newer human work when rejecting a drifted proposal", async () =>
     const drifted = `${await readFile(fixture.paths.tagged, "utf8")}\nNewer human work.\n`;
     await writeFile(fixture.paths.tagged, drifted, "utf8");
 
-    record = await reviewFile(fixture.page, record.id, change.id, "reject");
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+    await review.getByRole("button", { name: "Reject", exact: true }).click();
+    record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "conflict",
+    );
     expect(record.changeset.status).toBe("conflict");
     expect(changeFor(record, "modified").decision).toMatchObject({
       status: "conflict",
@@ -124,7 +167,12 @@ test("preserves newer human work when rejecting a drifted proposal", async () =>
       expect.objectContaining({ invocationId: record.id, pendingFileCount: 1 }),
     ]);
 
-    record = await reviewFile(fixture.page, record.id, change.id, "keep");
+    await expect(review).toContainText("Review changed");
+    await review.getByRole("button", { name: "Keep current" }).click();
+    record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "kept",
+    );
     expect(record.changeset.status).toBe("kept");
     await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(drifted);
     await expect.poll(() => listPendingReviews(fixture.page)).toEqual([]);
@@ -190,6 +238,27 @@ test("treats a no-response note invocation as a protocol failure without a propo
     });
     await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toContain("<exo-invocation");
     await expect.poll(() => listPendingReviews(fixture.page)).toEqual([]);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("resumes a failed provider session from the compact activity surface", async () => {
+  const fixture = await launchInvocationFixture("resume-failure", { adapter: "claude-code" });
+  try {
+    const record = await invokeAndWaitForSettlement(fixture);
+    expect(record).toMatchObject({
+      status: "failed",
+      providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
+      failureReason: "Claude could not edit the document because its write permission was denied.",
+    });
+
+    const activity = fixture.page.getByTestId("invocation-activity");
+    await expect(activity).toContainText("Failed");
+    await activity.getByRole("button", { name: "Resume in Terminal" }).click();
+    await expect.poll(() => readFile(path.join(fixture.controlRoot, "resumed-session.txt"), "utf8").catch(() => ""))
+      .toBe(record.providerSessionId);
+    await expect(fixture.page.getByTestId("utility-pane-terminal")).toHaveAttribute("aria-pressed", "true");
   } finally {
     await fixture.cleanup();
   }
@@ -290,7 +359,10 @@ interface InvocationFixture {
   };
 }
 
-async function launchInvocationFixture(scenario: string): Promise<InvocationFixture> {
+async function launchInvocationFixture(
+  scenario: string,
+  options: { adapter?: "generic" | "claude-code" } = {},
+): Promise<InvocationFixture> {
   let noteRoot = "";
   let command = "";
   const initial = {
@@ -348,8 +420,8 @@ async function launchInvocationFixture(scenario: string): Promise<InvocationFixt
           label: "Fixture",
           handle: "fixture",
           command,
-          adapter: "generic",
-          continuityPolicy: "fresh",
+          adapter: options.adapter ?? "generic",
+          continuityPolicy: options.adapter === "claude-code" ? "continuous" : "fresh",
           cwdPolicy: "workspace_root",
           promptDelivery: "stdin",
           version: 1,
@@ -466,6 +538,16 @@ async function reviewFile(
 
 async function listPendingReviews(page: Page): Promise<Array<Record<string, any>>> {
   return page.evaluate(() => window.exo.workspace.listPendingInvocationReviews());
+}
+
+async function navigateReviewToFile(review: Locator, fileName: string): Promise<void> {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if ((await review.textContent())?.includes(fileName)) return;
+    const next = review.getByRole("button", { name: "Next file" });
+    if (await next.isDisabled()) break;
+    await next.click();
+  }
+  await expect(review).toContainText(fileName);
 }
 
 function operationNames(record: Record<string, any>): string[] {

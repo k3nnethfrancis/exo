@@ -10,8 +10,10 @@ import {
   hydrateInvocationReviewQueue,
   invocationReviewProjection,
   invocationReviewMatchesPath,
+  invocationReviewNavigablePath,
   invocationHistoryLoadDecision,
   invocationReviewVirtualPath,
+  mergeInvocationReviewHydration,
   navigateInvocationReview,
   openInvocationHistoryReview,
 } from "./invocationReviewQueue";
@@ -77,6 +79,18 @@ describe("invocation review queue", () => {
     expect(state.entries).toHaveLength(2);
   });
 
+  it("does not let a stale startup snapshot erase a newer live settlement", () => {
+    const live = applyInvocationReviewRecord(
+      hydrateInvocationReviewQueue([]),
+      record("live", [["change", "pending"]]),
+    );
+    expect(mergeInvocationReviewHydration(live, [])).toEqual(live);
+    expect(mergeInvocationReviewHydration(live, [listItem("older", ["old-change"])]).entries.map((entry) => entry.invocationId))
+      .toEqual(["live", "older"]);
+    expect(mergeInvocationReviewHydration(live, [listItem("live", ["stale-change"])]))
+      .toEqual(live);
+  });
+
   it("advances after resolution and preserves a drift conflict", () => {
     let state = navigateInvocationReview(hydrateInvocationReviewQueue([listItem("one", ["a", "b"])]), 1);
     const pending = record("one", [["a", "pending"], ["b", "kept"]]);
@@ -125,5 +139,33 @@ describe("invocation review queue", () => {
       expect(virtualPath).toBeTruthy();
       expect(invocationReviewMatchesPath(payload, virtualPath!, "history")).toBe(true);
     }
+  });
+
+  it("matches canonical macOS paths to an already-open editor alias", () => {
+    const invocation = record("mac-path", [["modified", "pending"]]);
+    const change = {
+      ...invocation.changeset!.files[0]!,
+      operation: "modified" as const,
+      before: {
+        ...invocation.changeset!.files[0]!.before!,
+        path: "/private/var/folders/workspace/note.md",
+      },
+      after: {
+        ...invocation.changeset!.files[0]!.after!,
+        path: "/private/var/folders/workspace/note.md",
+      },
+    };
+    const payload = {
+      invocation,
+      change,
+      beforeText: "old",
+      afterText: "new",
+      canKeep: true,
+      canReject: true,
+    } as InvocationFileReviewPayload;
+
+    expect(invocationReviewMatchesPath(payload, "/var/folders/workspace/note.md", "pending")).toBe(true);
+    payload.invocation.noteRoots = ["/var/folders/workspace"];
+    expect(invocationReviewNavigablePath(payload)).toBe("/var/folders/workspace/note.md");
   });
 });

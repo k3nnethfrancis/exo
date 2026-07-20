@@ -10,8 +10,9 @@ if (!scenario || !noteRoot || !taggedNote) {
   throw new Error("Usage: invocation-fixture.mjs <scenario> <note-root> <tagged-note>");
 }
 
-const prompt = await readStdin();
-const invocation = invocationIdentity(prompt);
+const resumeIndex = process.argv.indexOf("--resume");
+const prompt = resumeIndex >= 0 ? "" : await readStdin();
+const invocation = resumeIndex >= 0 ? null : invocationIdentity(prompt);
 // Keep control/PID evidence outside the authorized Note Root so it cannot
 // accidentally become part of the invocation Changeset under test.
 const fixtureDir = path.join(path.dirname(noteRoot), ".invocation-fixture");
@@ -48,6 +49,9 @@ switch (scenario) {
     break;
   case "resume":
     await runResume();
+    break;
+  case "resume-failure":
+    await runResume(true);
     break;
   case "provider-activity":
     await emitProviderActivity();
@@ -86,10 +90,18 @@ async function runStopTree() {
   await waitForever();
 }
 
-async function runResume() {
-  const resumeIndex = process.argv.indexOf("--resume");
+async function runResume(fail = false) {
   if (resumeIndex >= 0) {
     await writeFile(path.join(fixtureDir, "resumed-session.txt"), process.argv[resumeIndex + 1] ?? "", "utf8");
+    return;
+  }
+  if (fail) {
+    process.stdout.write(`${JSON.stringify({
+      type: "result",
+      subtype: "success",
+      session_id: "ce4b9e26-2574-4433-a054-1110cd403792",
+      permission_denials: [{ tool_name: "Edit" }],
+    })}\n`);
     return;
   }
   await appendLinkedResponse("Created a resumable provider session.");
