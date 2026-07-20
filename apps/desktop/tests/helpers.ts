@@ -135,8 +135,10 @@ async function launchExoFixtureForJourney(
     delete launchEnv.EXO_RUNTIME_ROOT;
   }
 
+  const packagedAppPath = process.env.EXO_PACKAGED_APP_PATH;
   const electronApp = await electron.launch({
-    args: [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
+    ...(packagedAppPath ? { executablePath: packagedAppPath } : {}),
+    args: packagedAppPath ? [] : [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
     cwd: options?.cwd ?? repoRoot,
     env: launchEnv,
   });
@@ -277,8 +279,10 @@ async function relaunchExoFixtureForJourney(
     delete launchEnv.EXO_RUNTIME_ROOT;
   }
 
+  const packagedAppPath = process.env.EXO_PACKAGED_APP_PATH;
   const electronApp = await electron.launch({
-    args: [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
+    ...(packagedAppPath ? { executablePath: packagedAppPath } : {}),
+    args: packagedAppPath ? [] : [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
     cwd: options?.cwd ?? repoRoot,
     env: launchEnv,
   });

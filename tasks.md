@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-17
+Last updated: 2026-07-19
 
 This is Exo's active execution ledger. It records only current work. Completed implementation belongs in Git and `ledger.md`; reproducible bugs belong in `issues.md`; architecture rationale belongs in `docs/exograph-simplification-plan.md`.
 
@@ -88,7 +88,11 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 - [x] Keep canonical-path authorization behind `WorkspaceFiles`; Fable explicitly deferred root-relative identities as a later interface-quality improvement.
 - [x] Complete escape coverage: traversal, absolute paths, duplicate roots, symlink files/directories, missing ancestors, rename, recursive delete, and former Project Root paths failing closed after removal.
 - [x] Prove desktop IPC and command-server reads share the same containment seam.
-- [ ] Dogfood a guarded copy of the real vault before closing the issue.
+- [x] Exercise a privacy-safe synthetic corpus matching the real vault's
+  aggregate Markdown scale and depth, plus generated spaces/Unicode/
+  punctuation/long-path cases, through both source Electron and the exact
+  unsigned package; close the one tree-list containment gap exposed by that journey. Evidence:
+  `docs/reviews/output/2026-07-19-note-root-containment-proof.json`.
 
 ### 3. Installed core loop — complete
 

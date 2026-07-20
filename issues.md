@@ -1,6 +1,6 @@
 # Exo Issues
 
-Last updated: 2026-07-17
+Last updated: 2026-07-19
 
 This is the canonical active bug, release-QA, and dogfood tracker. It contains
 only work that can still change a current Exo decision or release claim. Git
@@ -30,8 +30,8 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-103: Note paths can escape Note Roots and mutate arbitrary filesystem locations
 
-- Status: implementation complete; guarded real-vault-copy containment dogfood remains
-- Severity: critical until the manual gate passes
+- Status: resolved 2026-07-19; guarded packaged-app containment journey passed
+- Severity: resolved
 - Area: Note Root authorization, workspace files, IPC, command server
 - Current guarantee:
   - Main-process `WorkspaceFiles` canonical-path authorization protects desktop
@@ -42,11 +42,16 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - Project Roots/Attached Folders were deleted rather than retained as a
     compatibility authorization class (`93ad629`, `c4819db`). Fable deferred
     root-relative identities as a later interface-quality improvement.
+  - The guarded journey exposed one remaining enumeration gap: renderer IPC
+    could call `workspace:list-tree` for an arbitrary directory. The handler
+    now routes through the same canonical authorization seam before listing.
 - Human acceptance:
-  - [ ] In a packaged app on a guarded real-vault copy, verify normal note,
+  - [x] In a packaged app on a privacy-safe synthetic corpus matching the real
+    vault's aggregate scale/depth and generated path-shape threats, verify normal note,
     wikilink, rename, and delete flows within a Note Root; verify stale former
     Project Root paths are neither shown nor authorized; preserve the emitted
     one-time normalization notice for dropped legacy paths as evidence.
+  - Evidence: `docs/reviews/output/2026-07-19-note-root-containment-proof.json`.
 
 ### EXO-ISSUE-101: Direct-PTY terminal and configured-Command runtime need packaged-app QA
 

@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-07-19",
+  "issue": "EXO-ISSUE-103",
+  "privacy": {
+    "source": "generated-only",
+    "liveVaultBodiesRead": false,
+    "liveVaultMutated": false,
+    "identities": "synthetic-labels-only"
+  },
+  "fixture": {
+    "description": "generated synthetic corpus matching aggregate scale and depth; not a vault copy",
+    "authorizedMarkdownFiles": 1567,
+    "authorizedDirectories": 613,
+    "maximumDepth": 9,
+    "escapeSymlinks": 2,
+    "pathShapeCases": ["spaces", "Unicode", "punctuation", "long-nested-segment"]
+  },
+  "normalOperations": {
+    "create": "passed",
+    "open": "passed",
+    "wikilinkCreate": "passed",
+    "rename": "passed",
+    "pathShapeListOpenRename": "passed",
+    "delete": "passed"
+  },
+  "failClosedAttempts": {
+    "outsideRead": "passed",
+    "traversalRead": "passed",
+    "symlinkFileRead": "passed",
+    "symlinkDirectoryRead": "passed",
+    "symlinkDirectoryWrite": "passed",
+    "outsideWrite": "passed",
+    "retiredRead": "passed",
+    "retiredWrite": "passed",
+    "retiredDelete": "passed",
+    "retiredTree": "passed",
+    "outsideTree": "passed",
+    "symlinkTree": "passed",
+    "escapedWikilink": "passed"
+  },
+  "legacyNormalization": {
+    "noticeFormat": "console-info-with-structured-dropped-paths",
+    "exactlyOnceUnitProof": "apps/desktop/src/main/workspace-config-store.test.ts",
+    "primarySettingsStripped": true,
+    "registrySettingsStripped": true,
+    "droppedPathLabels": ["retired-root"]
+  },
+  "sourceElectron": {
+    "result": "passed",
+    "command": "pnpm test:containment"
+  },
+  "packagedElectron": {
+    "result": "passed",
+    "package": "release/mac-arm64/Exo.app",
+    "appAsarSha256": "f31a649c80d283693e945565f793343eba6cc3514c10f2867a217782173906ce",
+    "command": "pnpm pack:mac && pnpm test:packaged:containment"
+  },
+  "repair": {
+    "boundary": "workspace:list-tree IPC",
+    "mechanism": "WorkspaceFiles.existing",
+    "publicContractChanged": false,
+    "authorizationSemanticsChanged": false
+  }
+}

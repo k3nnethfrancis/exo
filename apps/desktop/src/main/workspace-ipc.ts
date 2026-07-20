@@ -127,8 +127,10 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   );
   handleDesktopInvoke(
     "workspace:list-tree",
-    async (_event, rootPath, options) =>
-      handlers.listTree(rootPath, options),
+    async (_event, rootPath, options) => {
+      const authorizedRootPath = await workspaceFiles().existing(rootPath);
+      return handlers.listTree(authorizedRootPath, options);
+    },
   );
   handleDesktopInvoke("workspace:search-notes", async (_event, query) => handlers.searchNotes(query));
   handleDesktopInvoke("workspace:search-workspace", async (_event, query) => handlers.searchWorkspace(query));
