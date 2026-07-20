@@ -3,26 +3,15 @@
  * arrays; they do not choose graph meaning, interaction, labels, or layout.
  */
 
+import type { GraphTopology } from "@exo/core";
+
 export type Vec3 = readonly [number, number, number];
 
-export interface GraphTopologyArrays {
-  topologyHash: string;
-  layoutEpochId: string;
-  seed: number;
-  nodes: {
-    /** Interleaved low/high words of the stable 64-bit Concept identity. */
-    identityKeys: Uint32Array;
-    seeds: Uint32Array;
-    groups: Uint32Array;
-    degrees: Uint32Array;
-    visualClasses: Uint8Array;
-  };
-  edges: {
-    /** Interleaved source/target node indices. */
-    endpoints: Uint32Array;
-    visualClasses: Uint8Array;
-  };
-}
+/** The scene consumes the exact hot-array contract compiled by core. */
+export type GraphTopologyArrays = Pick<
+  GraphTopology,
+  "topologyHash" | "layoutEpochId" | "seed" | "nodes" | "edges"
+>;
 
 export interface GraphLayoutState {
   topologyHash: string;
