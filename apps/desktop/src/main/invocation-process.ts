@@ -5,7 +5,13 @@ import { commandEnvironment } from "./command-environment";
 export interface InvocationProcess {
   send(prompt: string): Promise<void>;
   onExit(handler: (event: InvocationProcessExit) => void): void;
+  onOutput?(handler: (event: InvocationProcessOutput) => void): void;
   kill(): void;
+}
+
+export interface InvocationProcessOutput {
+  channel: "stdout" | "stderr";
+  chunk: string;
 }
 
 export interface InvocationProcessExit {
@@ -39,15 +45,20 @@ class DirectInvocationProcess implements InvocationProcess {
   private stdout = "";
   private stderr = "";
   private spawnError: string | undefined;
+  private outputHandlers = new Set<(event: InvocationProcessOutput) => void>();
 
   constructor(private readonly child: ChildProcess) {
     // Output is retained only long enough to obtain structured provenance on
     // exit. It is deliberately not a chat/transcript surface.
     child.stdout?.on("data", (chunk: Buffer | string) => {
-      this.stdout = appendBounded(this.stdout, String(chunk));
+      const text = String(chunk);
+      this.stdout = appendBounded(this.stdout, text);
+      this.emitOutput({ channel: "stdout", chunk: text });
     });
     child.stderr?.on("data", (chunk: Buffer | string) => {
-      this.stderr = appendBounded(this.stderr, String(chunk));
+      const text = String(chunk);
+      this.stderr = appendBounded(this.stderr, text);
+      this.emitOutput({ channel: "stderr", chunk: text });
     });
     child.once("error", (error) => {
       this.spawnError = error.message;
@@ -81,8 +92,16 @@ class DirectInvocationProcess implements InvocationProcess {
     }));
   }
 
+  onOutput(handler: (event: InvocationProcessOutput) => void): void {
+    this.outputHandlers.add(handler);
+  }
+
   kill(): void {
     this.child.kill();
+  }
+
+  private emitOutput(event: InvocationProcessOutput): void {
+    for (const handler of this.outputHandlers) handler(event);
   }
 }
 

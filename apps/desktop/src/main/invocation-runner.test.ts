@@ -424,9 +424,9 @@ describe("InvocationRunner readiness parity", () => {
       { type: "result", session_id: sessionId, permission_denials: [] },
     ]))).toBe(sessionId);
     expect(commandForHeadlessInvocation(createDefaultClaudeAgentCommand()))
-      .toBe('claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep" --output-format json');
+      .toBe('claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep" --output-format stream-json --verbose');
     expect(commandForHeadlessInvocation({ ...createDefaultClaudeAgentCommand(), command: "claude -p --permission-mode bypassPermissions" }))
-      .toBe("claude -p --permission-mode bypassPermissions --output-format json");
+      .toBe("claude -p --permission-mode bypassPermissions --output-format stream-json --verbose");
   });
 
   it("reports structured Claude permission denials as failures instead of successful no-change runs", async () => {
