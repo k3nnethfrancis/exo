@@ -14,8 +14,8 @@ export interface InspectCliInstallationOptions {
 
 /**
  * Return only a real source checkout that can supply the repo-backed CLI.
- * Packaged Resources also contains `plugins/`, so that directory alone is not
- * evidence that `bin/exo` or the installer exists.
+ * Packaged Resources is not a source checkout. Require the actual launcher and
+ * installer instead of inferring source identity from an unrelated directory.
  */
 export function findSourceProjectRoot(candidates: string[]): string | undefined {
   return candidates.find((candidate) =>

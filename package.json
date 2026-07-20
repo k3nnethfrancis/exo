@@ -20,7 +20,7 @@
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "build": "pnpm --filter @exo/desktop build && pnpm --filter @exo/cli build",
     "pack:mac": "node scripts/pack-mac.mjs --mac dir",
-    "test:containment": "pnpm --filter @exo/desktop exec playwright test tests/e2e/note-root-containment.spec.ts",
+    "test:containment": "pnpm --filter @exo/desktop build && pnpm --filter @exo/desktop exec playwright test tests/e2e/note-root-containment.spec.ts",
     "test:packaged:containment": "node scripts/run-packaged-containment.mjs",
     "dist:mac": "node scripts/pack-mac.mjs --mac dmg zip",
     "typecheck": "pnpm -r typecheck",

@@ -116,7 +116,7 @@ separate list of supposed product features.
 | User-owned `ontology.yaml` and type-conformance UX | planned | no current loader/editor | none | product cleanup specs / roadmap | Launch Gate E blocker | Specify versioning, validation, migration, and profile compatibility before implementation. |
 | Ontology discovery/design and graph-maintenance Skills | planned | no user-reachable implementation; repo `skills/` are contributor workflows | none | roadmap/specs | Optional and eval-gated | Skills must remain inspectable instructions/data and route writes through normal review. |
 | Note Root Format compatibility rules | planned | legacy Knowledge Profile code contains partial interpretation only | profile/graph tests | product cleanup specs | Needed for portable ontologies | Separate format compatibility from ontology meaning without destructive namespace churn. |
-| Legacy plugin manifests in `plugins/` | stale | static manifests only; no loader, but the directory is still packaged and used as a source-root sentinel | packaging config only | superseded ADR 0001 | Remove after decoupling | Delete only after source-root detection and packaged resources stop depending on the directory. |
+| Legacy plugin manifests | stale | no loader or product caller | no test evidence | superseded ADR 0001 | Removed before launch | The static manifests and packaging copy were deleted after CLI source detection stopped depending on them. |
 | Future Plugin distribution bundle | planned | no runtime implementation | none | ADR 0003; extension architecture | Post-launch | A Plugin may package proven components later; it is not a runtime seam or capability system. |
 
 ## Protected public contract
@@ -138,7 +138,7 @@ Any change to those surfaces requires the repository's public-contract review pr
 | Current docs advertised removed `exo agents`, `exo spawn`, and `exo read` behavior | Corrected to the current compact CLI without changing its protected shape. |
 | Open-source guidance called the direct-PTY terminal tmux-backed | Corrected to direct `node-pty`. Historical records remain historical. |
 | Connections exposed Activity without a producer | Removed the tab, helper, prop, styles, and false test. |
-| `plugins/` manifests have no loader, but the directory is packaged and doubles as a source-root sentinel | Remains open; delete after the packaging/onboarding slice removes that coupling and proves no consumer. |
+| `plugins/` manifests had no loader but were packaged and used as a source-root sentinel | Removed after CLI source detection was changed to require the real launcher and installer. |
 | The old public-surface ledger reads like a current contract despite describing Wave 1 | Marked prominently as historical and linked here. |
 | The full graph is reachable while the renderer selects only `generic-markdown`, and 10k transport plus interaction issues remain | Remains a V1 blocker; keep the surface experimental until those gates pass. |
 | Current base docs/code use `KnowledgeProfile` and `authority` while accepted product vocabulary is moving toward Ontology, Format, and Origin | Requires a deliberate compatibility migration, not search-and-replace. |
@@ -149,7 +149,7 @@ Any change to those surfaces requires the repository's public-contract review pr
 | Candidate | Evidence | Audit action |
 | --- | --- | --- |
 | Connections Activity tab | `invocationHistory` is optional in `InspectorDock`, but the sole app composition does not pass it; no other producer exists | Remove the tab and dead rendering helper now; restore only with a real event model. |
-| `plugins/` legacy manifests | No loader imports them, but `electron-builder.yml` packages the directory and `resolveSourceProjectRoot()` uses its presence to locate CLI installation assets | Defer deletion until the packaging/onboarding slice replaces the sentinel and proves no remaining consumer. |
+| `plugins/` legacy manifests | No loader or product caller remained; packaging and CLI source detection were the final accidental consumers | Removed with the packaging copy and dead discovery environment helper. |
 | Preview workspace-command event triplet | `command:open-preview`, `command:focus-preview`, and `command:close-preview` had preload listeners and renderer handlers but no emitter or public route | Removed end-to-end by this audit; Preview's actual UI and pane model remain. |
 | `workspace:search-notes` IPC method | No renderer caller; current title search uses workspace search and indexed search uses the index surface | Safe follow-up cleanup after confirming no packaged preload consumer. |
 | `terminals:ensure-default` IPC method | No renderer caller; startup intentionally opens no terminal | Candidate only. Terminal contract changes require the terminal-stability process. |

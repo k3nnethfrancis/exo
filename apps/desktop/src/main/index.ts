@@ -341,14 +341,6 @@ async function completeWorkspaceOnboarding(): Promise<OnboardingStateStore> {
   return writeWorkspaceOnboardingState(markOnboardingComplete(base));
 }
 
-function pluginDiscoveryEnv(): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    EXO_PROJECT_ROOT: process.env.EXO_PROJECT_ROOT ?? sourceProjectRoot,
-    EXO_USER_DATA_PATH: app.getPath("userData"),
-  };
-}
-
 function resolveSourceProjectRoot(): string | undefined {
   const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
   return findSourceProjectRoot([

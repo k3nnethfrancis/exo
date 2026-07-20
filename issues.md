@@ -45,7 +45,7 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - The guarded journey exposed one remaining enumeration gap: renderer IPC
     could call `workspace:list-tree` for an arbitrary directory. The handler
     now routes through the same canonical authorization seam before listing.
-- Human acceptance:
+- Acceptance proof:
   - [x] In a packaged app on a privacy-safe synthetic corpus matching the real
     vault's aggregate scale/depth and generated path-shape threats, verify normal note,
     wikilink, rename, and delete flows within a Note Root; verify stale former

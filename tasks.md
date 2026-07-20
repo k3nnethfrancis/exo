@@ -25,7 +25,8 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
 - Explorer file lists have a scroll-safe lower edge: the floating workspace menu owns a reserved, content-free landing area and rows fade out before reaching it.
 - The direct-PTY terminal and configured Command readiness/Test flow are live.
 - Editor input now has a large-note sustained-typing and rapid multiline-backspace gate for ordinary Markdown and active `@agent` composition; invocation protocol and live-preview structural metadata avoid whole-note reparsing for unrelated edits.
-- `exo start` launches the resident packaged app; app-off `status`, `search`, and `read` remain useful through filesystem roots.
+- `exo start` launches the resident packaged app; app-off `status` and `search`
+  return workspace orientation plus path-first results for native filesystem use.
 - `pnpm check`, `pnpm check:repo`, and `pnpm stable:smoke` are green on the current branch.
 
 ## Loop 01 architectural ruling — 2026-07-12
@@ -97,7 +98,8 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 ### 3. Installed core loop — complete
 
 - [x] Rebuilt, installed, and relaunched the packaged app after the renderer-recovery fix and inline invocation work.
-- [x] Verified `exo` exposes resident-app `start` plus app-off `status`, `search`, and `read` modes; focused Electron journey coverage remains green.
+- [x] Verified `exo` exposes resident-app `start` plus app-off `status` and
+  `search`; focused Electron journey coverage remains green.
 - [x] The remaining terminal and first-launch observations are ordinary dogfood follow-ups, not a blocker for the shipped core loop.
 
 ### 4. Finish the editor and invocation loop

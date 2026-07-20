@@ -36,6 +36,8 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
   source E2E launches continue without reinstalling dependencies.
 - Replaces incomplete cached Electron distributions before recovery instead of
   extracting over a half-consumed app bundle.
+- Removes stale metadata-only plugin manifests and stops copying them into the
+  packaged app; future Plugins remain distribution bundles, not a dormant runtime.
 - Makes the graph interaction contract concrete in the desktop surface: the
   editor Graph action focuses the active Note, note-open double-click zooms
   instead of reopening, empty-space double-click is inert, and Connections now

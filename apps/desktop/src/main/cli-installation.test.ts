@@ -25,12 +25,12 @@ async function fixture() {
 }
 
 describe("CLI installation diagnosis", () => {
-  it("does not mistake packaged plugin resources for a source checkout", async () => {
+  it("does not mistake packaged resources for a source checkout", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-source-root-"));
     roots.push(root);
     const resources = path.join(root, "Exo.app", "Contents", "Resources");
     const project = path.join(root, "project");
-    await mkdir(path.join(resources, "plugins"), { recursive: true });
+    await mkdir(path.join(resources, "assets"), { recursive: true });
     await mkdir(path.join(project, "bin"), { recursive: true });
     await mkdir(path.join(project, "scripts"), { recursive: true });
     await writeFile(path.join(project, "package.json"), "{}\n", "utf8");
