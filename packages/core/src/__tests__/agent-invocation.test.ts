@@ -12,7 +12,12 @@ import {
   normalizeAgentHandle,
   normalizeInvocationRecord,
 } from "../agent-invocation";
-import { findDocumentAgentEnvelopes, formatDocumentAgentInvocation, formatDocumentAgentResponse } from "../document-agent-protocol";
+import {
+  findDocumentAgentEnvelopes,
+  formatDocumentAgentInvocation,
+  formatDocumentAgentResponse,
+  removeDocumentAgentInvocation,
+} from "../document-agent-protocol";
 
 describe("agent invocation model", () => {
   it("ships a headless Codex command suitable for a workspace invocation", () => {
@@ -358,6 +363,22 @@ describe("agent invocation model", () => {
       expect.objectContaining({ kind: "invocation", id: invocationId, agent: "claude", status: "sent" }),
       expect.objectContaining({ kind: "response", invocationId, agent: "claude" }),
     ]);
+  });
+
+  it("derives the clean base by removing only the exact invocation envelope", () => {
+    const invocationId = "11111111-1111-4111-8111-111111111111";
+    const before = "# Note\n\nHuman work before\n\n";
+    const after = "\n\nHuman work after\n";
+    const envelope = formatDocumentAgentInvocation({
+      id: invocationId,
+      agent: "claude",
+      message: "@claude inspect this note",
+    });
+    const launch = `${before}${envelope}${after}`;
+
+    expect(removeDocumentAgentInvocation(launch, invocationId, "claude")).toBe(`${before}${after}`);
+    expect(removeDocumentAgentInvocation(launch, invocationId, "codex")).toBeNull();
+    expect(removeDocumentAgentInvocation(launch, "not-an-id", "claude")).toBeNull();
   });
 
   it("normalizes invocation records with lifecycle and attribution placeholders", () => {

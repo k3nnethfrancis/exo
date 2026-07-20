@@ -18,6 +18,7 @@ export * from "./provider-session";
 export * from "./document-agent-protocol";
 export * from "./agent-command-trust-store";
 export * from "./invocation-store";
+export * from "./invocation-changeset";
 export * from "./invocation-continuity-store";
 export * from "./store-paths";
 export * from "./workspace-index";
