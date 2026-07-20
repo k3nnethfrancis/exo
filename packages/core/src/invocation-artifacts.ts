@@ -141,6 +141,24 @@ export interface InvocationLaunchArtifacts {
   launchManifest: InvocationWorkspaceManifest;
 }
 
+/** Input used only to upgrade the retired single-document review format. */
+export interface InvocationLegacyReviewArtifactsInput {
+  filePath: string;
+  noteRoots: readonly string[];
+  before: Uint8Array;
+  beforeSha256: string;
+  after: Uint8Array | null;
+  afterSha256: string | null;
+  capturedAt: string;
+  settledAt: string;
+}
+
+export interface InvocationLegacyReviewArtifacts {
+  noteRoots: string[];
+  before: InvocationFileState;
+  after: InvocationFileState | null;
+}
+
 interface InvocationArtifactLayout {
   invocationDir: string;
   objectsDir: string;
@@ -204,6 +222,103 @@ const IGNORED_CAPTURE_DIRECTORIES = new Set([
 /** Durable, invocation-scoped snapshots and recovery artifacts. */
 export class InvocationArtifactStore {
   constructor(private readonly invocationsDir: string) {}
+
+  /**
+   * Materialize the evidence needed by the current review engine from the
+   * retired before.md/after.md format. The caller makes record.json durable
+   * last, so every step here is deliberately idempotent after a crash.
+   */
+  async migrateLegacySingleFileReview(
+    invocationId: string,
+    input: InvocationLegacyReviewArtifactsInput,
+  ): Promise<InvocationLegacyReviewArtifacts> {
+    const filePath = path.resolve(input.filePath);
+    if (!path.isAbsolute(input.filePath) || filePath !== input.filePath) {
+      throw new Error("Legacy invocation review path is not absolute and normalized.");
+    }
+    const declaredBefore = input.beforeSha256.toLowerCase();
+    const declaredAfter = input.afterSha256?.toLowerCase() ?? null;
+    if (!/^[a-f0-9]{64}$/.test(declaredBefore) || declaredAfter !== null && !/^[a-f0-9]{64}$/.test(declaredAfter)) {
+      throw new Error("Legacy invocation review hashes are invalid.");
+    }
+    if ((input.after === null) !== (declaredAfter === null) || sha256(input.before) !== declaredBefore ||
+      input.after !== null && sha256(input.after) !== declaredAfter) {
+      throw new Error("Legacy invocation review artifacts do not match their recorded hashes.");
+    }
+
+    const layout = this.layout(invocationId);
+    const [existingCleanBase, existingLaunch, existingSettled] = await Promise.all([
+      this.readCleanBase(invocationId),
+      this.readManifest(invocationId, "launch"),
+      this.readManifest(invocationId, "settled"),
+    ]);
+    if (existingLaunch && existingSettled && !sameStrings(existingLaunch.noteRoots, existingSettled.noteRoots)) {
+      throw new Error("Legacy invocation review manifests disagree about their Note Roots.");
+    }
+    const noteRoots = existingLaunch?.noteRoots ?? existingSettled?.noteRoots ?? normalizeLegacyNoteRoots(input.noteRoots);
+    if (!noteRoots.some((root) => isWithin(root, filePath))) {
+      throw new Error("Legacy invocation review path is outside its Note Roots.");
+    }
+
+    const before: InvocationFileState = {
+      path: filePath,
+      sha256: declaredBefore,
+      byteLength: input.before.byteLength,
+      snapshotRef: snapshotRef(declaredBefore),
+      mediaType: classifyMediaType(filePath, input.before.subarray(0, 8192)),
+    };
+    const after: InvocationFileState | null = input.after && declaredAfter
+      ? {
+          path: filePath,
+          sha256: declaredAfter,
+          byteLength: input.after.byteLength,
+          snapshotRef: snapshotRef(declaredAfter),
+          mediaType: classifyMediaType(filePath, input.after.subarray(0, 8192)),
+        }
+      : null;
+    assertLegacyManifestState(existingLaunch, filePath, before, "launch");
+    assertLegacyManifestState(existingSettled, filePath, after, "settled");
+    if (existingCleanBase && !sameFileState(existingCleanBase.file, before)) {
+      throw new Error("Legacy invocation clean base disagrees with before.md.");
+    }
+
+    await mkdir(layout.objectsDir, { recursive: true });
+    await Promise.all([
+      this.captureBytes(layout, Buffer.from(input.before), filePath),
+      input.after ? this.captureBytes(layout, Buffer.from(input.after), filePath) : Promise.resolve(null),
+    ]);
+    const [storedBefore, storedAfter] = await Promise.all([
+      this.readSnapshot(invocationId, before),
+      after ? this.readSnapshot(invocationId, after) : Promise.resolve(null),
+    ]);
+    if (!storedBefore || after && !storedAfter) {
+      throw new Error("Legacy invocation review snapshots could not be verified after migration.");
+    }
+    if (!existingCleanBase) {
+      await writeJsonAtomically(layout.cleanBasePath, {
+        version: 1,
+        capturedAt: input.capturedAt,
+        file: before,
+      } satisfies InvocationCleanBaseRef);
+    }
+    if (!existingLaunch) {
+      await writeJsonAtomically(layout.launchManifestPath, legacySingleFileManifest(
+        noteRoots,
+        filePath,
+        before,
+        input.capturedAt,
+      ));
+    }
+    if (!existingSettled) {
+      await writeJsonAtomically(layout.settledManifestPath, legacySingleFileManifest(
+        noteRoots,
+        filePath,
+        after,
+        input.settledAt,
+      ));
+    }
+    return { noteRoots: [...noteRoots], before, after };
+  }
 
   async captureLaunchArtifacts(
     invocationId: string,
@@ -959,6 +1074,54 @@ function normalizeFileState(value: unknown): InvocationFileState | null {
     mediaType: candidate.mediaType,
     ...(candidate.mode === undefined ? {} : { mode: candidate.mode }),
   };
+}
+
+function normalizeLegacyNoteRoots(noteRoots: readonly string[]): string[] {
+  if (noteRoots.length === 0) throw new Error("Legacy invocation review has no Note Root authority.");
+  if (noteRoots.some((root) => !path.isAbsolute(root) || path.resolve(root) !== root)) {
+    throw new Error("Legacy invocation review Note Roots are invalid.");
+  }
+  const roots = [...new Set(noteRoots)].sort();
+  return roots
+    .sort((left, right) => left.length - right.length || left.localeCompare(right))
+    .filter((candidate, index, all) => !all.slice(0, index).some((parent) => isWithin(parent, candidate)))
+    .sort();
+}
+
+function legacySingleFileManifest(
+  noteRoots: readonly string[],
+  filePath: string,
+  state: InvocationFileState | null,
+  capturedAt: string,
+): InvocationWorkspaceManifest {
+  return {
+    version: INVOCATION_MANIFEST_VERSION,
+    capturedAt,
+    noteRoots: [...noteRoots],
+    files: state ? { [filePath]: state } : {},
+    directories: [...new Set([path.dirname(filePath), ...noteRoots])]
+      .filter((directory) => noteRoots.some((root) => isWithin(root, directory)))
+      .sort(),
+  };
+}
+
+function assertLegacyManifestState(
+  manifest: InvocationWorkspaceManifest | null,
+  filePath: string,
+  expected: InvocationFileState | null,
+  phase: InvocationManifestPhase,
+): void {
+  if (!manifest) return;
+  const actual = manifest.files[filePath] ?? null;
+  if (actual === null && expected === null) return;
+  if (!actual || !expected || !sameFileState(actual, expected)) {
+    throw new Error(`Legacy invocation ${phase} manifest disagrees with its Markdown artifact.`);
+  }
+}
+
+function sameFileState(left: InvocationFileState, right: InvocationFileState): boolean {
+  return left.path === right.path && left.sha256 === right.sha256 && left.byteLength === right.byteLength &&
+    left.snapshotRef === right.snapshotRef && left.mediaType === right.mediaType && left.mode === right.mode;
 }
 
 function normalizeReviewJournal(value: unknown): InvocationReviewJournal | null {

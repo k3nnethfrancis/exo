@@ -59,6 +59,8 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Upgrades pre-Changeset single-note invocation reviews into the exact review
+  model without losing pending, kept, or rejected decisions.
 - Makes the exact multi-file Changeset the sole invocation review model; new
   records no longer persist guessed likely/ambiguous attribution or a lossy
   representative-file review alongside it.

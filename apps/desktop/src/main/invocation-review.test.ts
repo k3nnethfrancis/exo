@@ -21,6 +21,62 @@ afterEach(async () => {
 });
 
 describe("InvocationReviewService", () => {
+  it("reviews and rejects a pending pre-Changeset invocation after its store migration", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-legacy-review-"));
+    temporaryRoots.push(workspaceRoot);
+    const noteRoot = path.join(workspaceRoot, "notes");
+    const notePath = path.join(noteRoot, "note.md");
+    const invocationId = "legacy-single-note-review";
+    const before = "human text\n";
+    const after = "human text\nagent edit\n";
+    const beforeSha256 = createHash("sha256").update(before).digest("hex");
+    const afterSha256 = createHash("sha256").update(after).digest("hex");
+    const invocationDir = path.join(workspaceRoot, ".exo", "invocations", invocationId);
+    await Promise.all([mkdir(invocationDir, { recursive: true }), mkdir(noteRoot, { recursive: true })]);
+    await Promise.all([
+      writeFile(notePath, after),
+      writeFile(path.join(invocationDir, "before.md"), before),
+      writeFile(path.join(invocationDir, "after.md"), after),
+      writeFile(path.join(invocationDir, "record.json"), `${JSON.stringify({
+        id: invocationId,
+        status: "process-exited",
+        context: "note",
+        taggedDocumentPath: notePath,
+        originalMentionText: "@claude edit",
+        mentionProvenance: "human-authored",
+        message: "edit",
+        promptDelivery: "stdin",
+        command: agentCommandSnapshot(createDefaultClaudeAgentCommand()),
+        cwd: noteRoot,
+        createdAt: "2026-07-08T00:00:00.000Z",
+        endedAt: "2026-07-08T00:00:01.000Z",
+        continuity: { policy: "fresh", outcome: "fresh" },
+        changedFileRefs: [{ path: notePath, kind: "modified", attribution: "likely" }],
+        diffRefs: [],
+        attribution: { status: "likely" },
+        review: { status: "pending", beforeSha256, afterSha256 },
+      }, null, 2)}\n`),
+    ]);
+    const store = new InvocationStore(workspaceRoot);
+    const migrated = (await store.readRecord(invocationId))!;
+    const change = migrated.changeset!.files[0]!;
+    const service = new InvocationReviewService(workspaceRoot);
+
+    await expect(service.getFilePayload(migrated, change.id)).resolves.toMatchObject({
+      beforeText: before,
+      afterText: after,
+      canKeep: true,
+      canReject: true,
+    });
+    const rejected = await service.resolve(migrated, [{ changeId: change.id, action: "reject" }]);
+
+    expect(rejected.changeset?.status).toBe("rejected");
+    await expect(readFile(notePath, "utf8")).resolves.toBe(before);
+    await expect(store.readRecord(invocationId)).resolves.toMatchObject({
+      changeset: { files: [{ decision: { status: "rejected" } }] },
+    });
+  });
+
   it("reverses multi-file create, modify, delete, and pure rename exactly", async () => {
     const fixture = await changesetFixture();
     const service = new InvocationReviewService(fixture.workspaceRoot);
