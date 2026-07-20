@@ -59,6 +59,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Makes the exact multi-file Changeset the sole invocation review model; new
+  records no longer persist guessed likely/ambiguous attribution or a lossy
+  representative-file review alongside it.
 - Keeps invocation recovery fail-closed when a durable record is missing or
   damaged, preserves same-process invocations across Workspace switches, and
   refuses to release a Command when its tagged Note changed during capture.

@@ -320,7 +320,6 @@ test("recovers exact changes from an invocation orphaned by a host crash", async
     expect(recovered).toMatchObject({
       status: "orphaned",
       changeset: { status: "pending-review", files: [expect.objectContaining({ operation: "modified" })] },
-      attribution: { status: "ambiguous" },
     });
     await expect.poll(() => listPendingReviews(relaunched!.page)).toEqual([
       expect.objectContaining({ invocationId: recovered.id, pendingFileCount: 1 }),

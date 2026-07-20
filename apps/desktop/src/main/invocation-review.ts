@@ -174,7 +174,7 @@ export class InvocationReviewService {
         changeset = resolveInvocationFileChange(changeset, change.id, { status: "conflict", reason, currentSha256 });
         await this.store.updateReviewJournalEntry(record.id, change.id, { status: "conflict", reason, completedAt: now });
       }
-      const next = withCompatibilityReview({ ...record, changeset });
+      const next: InvocationRecord = { ...record, changeset };
       await this.store.writeRecord(next);
       await this.store.clearReviewJournal(record.id);
       return next;
@@ -197,7 +197,7 @@ export class InvocationReviewService {
       : null;
     if (implicitCheck?.state === "conflict") {
       const changeset = withImplicitTaggedConflict(record.changeset, implicitTaggedRestore!, implicitCheck);
-      const next = withCompatibilityReview({ ...record, changeset });
+      const next: InvocationRecord = { ...record, changeset };
       await this.store.writeRecord(next);
       await this.store.updateReviewJournalEntry(record.id, IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, {
         status: "conflict",
@@ -256,7 +256,7 @@ export class InvocationReviewService {
         });
       }
     }
-    const next = withCompatibilityReview({ ...record, changeset });
+    const next: InvocationRecord = { ...record, changeset };
     await this.store.writeRecord(next);
     await this.store.clearReviewJournal(record.id);
     return next;
@@ -415,7 +415,7 @@ export class InvocationReviewService {
       await this.store.clearReviewJournal(record.id);
       return record;
     }
-    const next = withCompatibilityReview({ ...record, changeset });
+    const next: InvocationRecord = { ...record, changeset };
     await this.store.writeRecord(next);
     await this.store.clearReviewJournal(record.id);
     return next;
@@ -556,31 +556,6 @@ function implicitRestoreChange(restore: ImplicitTaggedRestore): InvocationFileCh
     before: restore.cleanBase,
     after: restore.proposal,
     decision: { status: "pending" },
-  };
-}
-
-export function withCompatibilityReview(record: InvocationRecord): InvocationRecord {
-  const changeset = record.changeset;
-  if (!changeset || changeset.files.length === 0) return { ...record, review: undefined };
-  const tagged = record.taggedDocumentPath
-    ? changeset.files.find((change) => change.before?.path === record.taggedDocumentPath || change.after?.path === record.taggedDocumentPath)
-    : undefined;
-  const representative = tagged ?? changeset.files[0]!;
-  const terminal = changeset.files.every((change) =>
-    change.decision.status === "kept" || change.decision.status === "rejected");
-  const allRejected = changeset.files.every((change) => change.decision.status === "rejected");
-  const reviewedAt = changeset.resolvedAt ?? changeset.files
-    .map((change) => "reviewedAt" in change.decision ? change.decision.reviewedAt : undefined)
-    .filter((value): value is string => Boolean(value))
-    .sort().at(-1);
-  return {
-    ...record,
-    review: {
-      status: terminal ? allRejected ? "rejected" : "kept" : "pending",
-      beforeSha256: representative.before?.sha256 ?? null,
-      afterSha256: representative.after?.sha256 ?? null,
-      ...(reviewedAt ? { reviewedAt } : {}),
-    },
   };
 }
 

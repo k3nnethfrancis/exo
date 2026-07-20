@@ -52,7 +52,7 @@ Planning docs:
 - `docs/exograph-completion-master-plan.md`
 - `docs/extension-architecture.md`
 - `docs/note-native-agent-invocation-pivot.md`
-- `docs/invocation-context-and-safety.md`
+- `docs/document-agent-protocol.md` (canonical replacement)
 - `tasks.md`
 - `issues.md`
 

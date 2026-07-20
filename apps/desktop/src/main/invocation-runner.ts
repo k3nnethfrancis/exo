@@ -28,7 +28,6 @@ import {
   isDocumentAgentProtocolId,
   type InvocationActivityEvent,
   type InvocationActivityKind,
-  type InvocationFileChange,
   type InvocationLaunchArtifacts,
   type InvocationWorkspaceManifest,
 } from "@exo/core";
@@ -55,7 +54,6 @@ import { InvocationActivityAdapter, type ParsedInvocationActivity } from "./invo
 import {
   InvocationReviewError,
   InvocationReviewService,
-  withCompatibilityReview,
   type InvocationFileReviewPayload,
 } from "./invocation-review";
 
@@ -218,7 +216,6 @@ export class InvocationRunner extends EventEmitter {
       continuity: { policy: command.continuityPolicy, outcome: "fresh" },
       promptDelivery: command.promptDelivery,
       command: agentCommandSnapshot(command), cwd, createdAt: now,
-      changedFileRefs: [], diffRefs: [], attribution: { status: "pending" },
     };
     let before = request.context === "note" ? await snapshotTextFile(request.documentPath!) : undefined;
     let cleanBaseContent: string | undefined;
@@ -325,7 +322,6 @@ export class InvocationRunner extends EventEmitter {
           status: "orphaned",
           endedAt: new Date().toISOString(),
           failureReason: error.message,
-          attribution: { status: "ambiguous", reason: "The invocation process may still be writing to this Note Root." },
         };
         await store.writeRecord(recoverable);
         observation.record = recoverable;
@@ -513,7 +509,6 @@ export class InvocationRunner extends EventEmitter {
             status: "orphaned",
             endedAt: new Date().toISOString(),
             failureReason: "Invocation launch failed and its process could not be stopped safely.",
-            attribution: { status: "ambiguous", reason: "The invocation process may still be writing to this Note Root." },
           };
           await store.writeRecord(recoverable);
           if (observation) observation.record = recoverable;
@@ -529,7 +524,6 @@ export class InvocationRunner extends EventEmitter {
             status: "failed",
             endedAt: new Date().toISOString(),
             failureReason,
-            attribution: { status: "unattributed", reason: "The document changed before the Command was allowed to execute." },
           };
           await store.writeRecord(failed);
           await store.clearProcessOwnership(prepared.id);
@@ -806,16 +800,12 @@ export class InvocationRunner extends EventEmitter {
         existingSettled ??= await recordStore.readManifest(record.id, "settled");
         const settled = existingSettled ?? await recordStore.captureManifest(record.id, "settled", noteRoots);
         const changeset = buildInvocationChangeset(launch, settled);
-        const next = withCompatibilityReview({
+        const next: InvocationRecord = {
           ...recovered,
           status: "orphaned",
           endedAt: new Date().toISOString(),
           changeset,
-          changedFileRefs: changedFileRefs(changeset.files, new Set()),
-          attribution: changeset.files.length
-            ? { status: "ambiguous", reason: "Exo recovered these exact file changes after restarting during the invocation." }
-            : { status: "unattributed", reason: "Exo restarted before this invocation changed a Note Root file." },
-        });
+        };
         await recordStore.writeRecord(next);
         await this.compactArtifacts(recordStore, next.id, changeset);
         await recordStore.clearProcessOwnership(record.id);
@@ -836,7 +826,6 @@ export class InvocationRunner extends EventEmitter {
           status: "orphaned",
           endedAt: new Date().toISOString(),
           failureReason: `Invocation recovery remains unresolved: ${reason}`,
-          attribution: { status: "ambiguous", reason: "Exo has not proved the prior writer is dead or reconstructed its exact changes. This Note Root remains blocked." },
         };
         try {
           await recordStore.writeRecord(blocked);
@@ -917,7 +906,6 @@ export class InvocationRunner extends EventEmitter {
       if (!launch) throw new InvocationRunnerError("review-unavailable", "The invocation launch manifest is unavailable.");
       const settled = await store.captureManifest(id, "settled", observation.noteRoots);
       const changeset = buildInvocationChangeset(launch, settled);
-      const changed = changeset.files.length > 0;
       const missingDurableResponse = status === "process-exited" &&
         isDocumentAgentProtocolId(observation.record.protocolInvocationId) &&
         !await hasDurableResponse(store, id, settled, observation.record.protocolInvocationId, observation.record.command.handle);
@@ -925,20 +913,14 @@ export class InvocationRunner extends EventEmitter {
       const settledFailureReason = missingDurableResponse
         ? `@${observation.record.command.handle} finished without writing its linked response into the note.`
         : failureReason;
-      const refs = changedFileRefs(changeset.files, observation.observedPaths);
-      const next = withCompatibilityReview({
+      const next: InvocationRecord = {
         ...observation.record,
         status: settledStatus,
         endedAt: new Date().toISOString(),
         ...(exitCode === undefined ? {} : { exitCode }),
         ...(settledStatus === "failed" ? { failureReason: settledFailureReason ?? `Command exited with code ${exitCode ?? "unknown"}.` } : {}),
-        changedFileRefs: refs,
-        diffRefs: [],
         changeset,
-        attribution: changed
-          ? { status: refs.some((entry) => entry.attribution === "ambiguous") ? "ambiguous" : "likely" }
-          : { status: "unattributed", reason: settledStatus === "failed" ? settledFailureReason ?? "The Command failed before changing a Note Root file." : "No Note Root changes observed." },
-      });
+      };
       await store.writeRecord(next);
       await this.compactArtifacts(store, id, changeset);
       await store.clearProcessOwnership(id);
@@ -952,7 +934,6 @@ export class InvocationRunner extends EventEmitter {
         status: "orphaned",
         endedAt: new Date().toISOString(),
         failureReason: `Invocation settlement failed: ${reason}`,
-        attribution: { status: "ambiguous", reason: "Exact settlement is incomplete and will be retried before this Note Root is unlocked." },
       };
       let settlementError = error;
       try {
@@ -1252,22 +1233,6 @@ async function requiredInvocation(store: InvocationStore, id: string): Promise<I
   const record = await store.readRecord(id);
   if (!record) throw new InvocationRunnerError("not-found", `Invocation ${id} was not found.`);
   return record;
-}
-
-function changedFileRefs(files: readonly InvocationFileChange[], observedPaths: ReadonlySet<string>): InvocationRecord["changedFileRefs"] {
-  const observedAt = new Date().toISOString();
-  return files.map((change) => {
-    const filePath = change.after?.path ?? change.before!.path;
-    const observed = [change.before?.path, change.after?.path]
-      .filter((candidate): candidate is string => Boolean(candidate))
-      .some((candidate) => observedPaths.has(path.resolve(candidate)));
-    return {
-      path: filePath,
-      kind: change.operation === "renamed" ? "unknown" : change.operation,
-      observedAt,
-      attribution: observed ? "likely" : "ambiguous",
-    };
-  });
 }
 
 async function hasDurableResponse(

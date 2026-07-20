@@ -2,7 +2,10 @@
 
 Last updated: 2026-07-09
 
-status: Fable-reviewed planning packet. No implementation has been done by this agent.
+status: historical Fable-reviewed planning packet. Its likely/ambiguous
+attribution, single-file review, and patch-reference model was not shipped and
+must not be used as current guidance. The exact Changeset contract in
+`docs/document-agent-protocol.md` supersedes this plan.
 
 ## Fable Amendments
 
@@ -68,7 +71,7 @@ Planning docs:
 - `docs/exograph-completion-orchestration-plan.md`
 - `docs/exograph-detailed-implementation-plans.md`
 - `docs/extension-architecture.md`
-- `docs/invocation-concurrency-and-attribution.md`
+- `docs/document-agent-protocol.md` (canonical replacement)
 - `tasks.md`
 - `issues.md`
 

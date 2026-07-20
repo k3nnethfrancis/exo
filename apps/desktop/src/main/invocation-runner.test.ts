@@ -334,7 +334,7 @@ describe("InvocationRunner readiness parity", () => {
     processFactory.process.exit(0, "done");
 
     const completed = await updated;
-    expect(completed).toMatchObject({ status: "process-exited", workspaceRoot: workspaceA, review: { status: "pending" } });
+    expect(completed).toMatchObject({ status: "process-exited", workspaceRoot: workspaceA });
     await expect(readFile(path.join(workspaceA, ".exo", "invocations", prepared.id, "record.json"), "utf8"))
       .resolves.toContain('"status": "process-exited"');
     await expect(readFile(path.join(workspaceB, ".exo", "invocations", prepared.id, "record.json"), "utf8"))
@@ -604,9 +604,9 @@ describe("InvocationRunner readiness parity", () => {
     expect(terminalManager.created).toBe(0);
     const completed = await updated as import("@exo/core").InvocationRecord;
     expect(completed).toMatchObject({ status: "process-exited" });
-    expect(completed.changedFileRefs).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "modified", path: expect.stringMatching(/note\.md$/) }),
-      expect.objectContaining({ kind: "created", path: expect.stringMatching(/received-prompt\.txt$/) }),
+    expect(completed.changeset?.files).toEqual(expect.arrayContaining([
+      expect.objectContaining({ operation: "modified", after: expect.objectContaining({ path: expect.stringMatching(/note\.md$/) }) }),
+      expect.objectContaining({ operation: "created", after: expect.objectContaining({ path: expect.stringMatching(/received-prompt\.txt$/) }) }),
     ]));
     await expect(readFile(promptPath, "utf8")).resolves.toContain("Replace the title.");
   });
@@ -667,7 +667,6 @@ describe("InvocationRunner readiness parity", () => {
       status: "failed",
       exitCode: 17,
       changeset: { status: "pending-review", files: [expect.objectContaining({ operation: "created" })] },
-      review: { status: "pending" },
     });
     await expect(runner.listHistoryForNote(createdPath)).resolves.toEqual([
       expect.objectContaining({ invocationId: failed.id, outcome: "pending", changedFileCount: 1, changeIds: [failed.changeset!.files[0]!.id] }),
@@ -710,14 +709,14 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const completed = await updated;
     expect(completed).toMatchObject({
       providerSessionId: sessionId,
-      review: { status: "pending" },
+      changeset: { status: "pending-review" },
     });
     const changedNote = completed.changeset!.files.find((change) => change.operation === "modified")!;
     const review = await runner.getInvocationFileReview(completed.id, changedNote.id);
     const cleanBase = removeDocumentAgentInvocation(documentBody, TEST_PROTOCOL_INVOCATION_ID, "claude");
     expect(review).toMatchObject({ canReject: true, beforeText: cleanBase, afterText: afterBody });
     const rejected = await runner.reviewInvocationFile(completed.id, changedNote.id, "reject");
-    expect(rejected.review).toMatchObject({ status: "rejected" });
+    expect(rejected.changeset).toMatchObject({ status: "rejected" });
     await expect(readFile(notePath, "utf8")).resolves.toBe(cleanBase);
     await expect(runner.listHistoryForNote(notePath)).resolves.toEqual([
       expect.objectContaining({ invocationId: completed.id, outcome: "rejected" }),
@@ -785,7 +784,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     await expect(updated).resolves.toMatchObject({
       status: "failed",
       failureReason: "@claude finished without writing its linked response into the note.",
-      changedFileRefs: [],
+      changeset: { files: [] },
     });
   });
 
@@ -1071,7 +1070,6 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     await expect(recovering.get(prepared.id)).resolves.toMatchObject({
       status: "orphaned",
       changeset: { status: "pending-review", files: [expect.objectContaining({ operation: "created" })] },
-      review: { status: "pending" },
     });
   });
 

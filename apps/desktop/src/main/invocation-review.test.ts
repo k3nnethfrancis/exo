@@ -230,7 +230,6 @@ describe("InvocationReviewService", () => {
     );
 
     expect(blocked.changeset?.status).toBe("conflict");
-    expect(blocked.review?.status).toBe("pending");
     const taggedConflict = blocked.changeset!.files.find((change) => change.decision.status === "conflict")!;
     await expect(service.getFilePayload(blocked, taggedConflict.id)).resolves.toMatchObject({
       canKeep: true,
@@ -529,7 +528,6 @@ describe("InvocationReviewService", () => {
       status: "conflict",
       reason: "Simulated crash after conflict journaling.",
     });
-    expect(recovered.review?.status).toBe("pending");
     await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
   });
 });
@@ -661,9 +659,6 @@ function invocationRecord(
     createdAt: "2026-07-20T10:00:00.000Z",
     endedAt: "2026-07-20T10:01:00.000Z",
     continuity: { policy: "fresh", outcome: "fresh" },
-    changedFileRefs: [],
-    diffRefs: [],
-    attribution: { status: "likely" },
     changeset,
   };
 }

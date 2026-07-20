@@ -381,7 +381,7 @@ describe("agent invocation model", () => {
     expect(removeDocumentAgentInvocation(launch, "not-an-id", "claude")).toBeNull();
   });
 
-  it("normalizes invocation records with lifecycle and attribution placeholders", () => {
+  it("normalizes exact invocation records and ignores obsolete attribution fields", () => {
     const record = normalizeInvocationRecord({
       id: "inv-1",
       status: "pending",
@@ -422,14 +422,15 @@ describe("agent invocation model", () => {
       context: "note",
       promptDelivery: "stdin",
       command: { id: "claude", handle: "claude", version: 1, executableFingerprint: expect.any(String) },
-      changedFileRefs: [{ path: "/tmp/note.md", kind: "modified", attribution: "ambiguous", diffRefId: "diff-1" }],
-      attribution: { status: "ambiguous" },
       providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
       continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: "inv-0" },
-      review: { status: "pending" },
       noteRoots: ["/tmp/notes"],
       changeset: { status: "pending-review", files: [{ operation: "modified" }] },
     });
+    expect(record).not.toHaveProperty("changedFileRefs");
+    expect(record).not.toHaveProperty("diffRefs");
+    expect(record).not.toHaveProperty("attribution");
+    expect(record).not.toHaveProperty("review");
   });
 
   it("drops malformed persisted review hashes and session provenance", () => {
@@ -439,7 +440,7 @@ describe("agent invocation model", () => {
       providerSessionId: "made-up", review: { status: "pending", beforeSha256: "invalid", afterSha256: "also-invalid" },
     });
     expect(record?.providerSessionId).toBeUndefined();
-    expect(record?.review).toBeUndefined();
+    expect(record).not.toHaveProperty("review");
     expect(record?.continuity).toEqual({ policy: "fresh", outcome: "fresh" });
   });
 

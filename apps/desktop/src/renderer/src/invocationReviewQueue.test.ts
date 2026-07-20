@@ -44,9 +44,6 @@ function record(invocationId: string, decisions: Array<[string, "pending" | "kep
     cwd: "/notes",
     createdAt: "2026-07-20T00:00:00.000Z",
     continuity: { policy: "fresh", outcome: "fresh" },
-    changedFileRefs: [],
-    diffRefs: [],
-    attribution: { status: "pending" },
     changeset: {
       version: 1,
       status: decisions.some(([, status]) => status === "conflict") ? "conflict" : "pending-review",

@@ -41,9 +41,6 @@ function record(status: InvocationRecord["status"]): InvocationRecord {
     cwd: "/private/wiki",
     createdAt: "2026-07-20T00:00:00.000Z",
     continuity: { policy: "continuous", outcome: "fresh" },
-    changedFileRefs: [],
-    diffRefs: [],
-    attribution: { status: "pending" },
   };
 }
 
