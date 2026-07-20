@@ -10,7 +10,6 @@ import {
   deleteWorkspacePath,
   listRootTree,
   emptyOnboardingStateStore,
-  ensureFolderIndex,
   inspectFolderIndexes,
   markOnboardingComplete,
   markOnboardingWorkspaceBasicsSaved,
@@ -257,7 +256,7 @@ function registerIpcHandlers() {
     getIndexStatus: () => indexingService.getMeasuredStatus(),
     getFolderIndexStatus: () => inspectFolderIndexes(workspaceModel.noteRoots.map((root) => root.path)),
     getFolderOverview: (directoryPath) => workspaceNotesService.getFolderOverview(directoryPath),
-    ensureFolderIndex,
+    ensureFolderIndex: (directoryPath) => workspaceNotesService.ensureFolderIndex(directoryPath),
     launchAgentInvocation: async (input) => invocationRunner.authorizeAndStart(await invocationRunner.prepare({
       context: "note", handle: input.handle, documentPath: input.documentPath,
       mentionText: input.mentionText, message: input.message,

@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import {
   createWorkspaceFile,
+  ensureFolderIndex,
   listMarkdownFiles,
   readWorkspaceDocument,
   type SearchResult,
@@ -303,6 +304,13 @@ export class WorkspaceNotesService {
     };
     this.folderOverviewCache.set(authorizedDirectory, overview);
     return overview;
+  }
+
+  async ensureFolderIndex(directoryPath: string) {
+    const authorizedDirectory = await this.workspaceFiles().existing(directoryPath);
+    const result = await ensureFolderIndex(authorizedDirectory);
+    this.invalidateFolderOverviewsForPath(result.indexPath);
+    return result;
   }
 
   private workspaceGraph(): WorkspaceGraph {

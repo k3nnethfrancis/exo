@@ -1,6 +1,7 @@
 import { expect, test, type Locator } from "@playwright/test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { launchExoWorkspaceFixture } from "../helpers";
 
@@ -8,6 +9,7 @@ const onePixelPng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z7KkAAAAASUVORK5CYII=",
   "base64",
 );
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 test("loads a root-relative site image through the Electron notes resolver", async ({}, testInfo) => {
   let notePath = "";
@@ -30,7 +32,7 @@ test("loads a root-relative site image through the Electron notes resolver", asy
         "utf8",
       );
       const visibleFixturePng = await readFile(
-        path.resolve("apps/desktop/tests/visual/shell.visual.spec.ts-snapshots/workspace-default-darwin.png"),
+        path.join(repoRoot, "apps/desktop/tests/visual/shell.visual.spec.ts-snapshots/workspace-default-darwin.png"),
       );
       await writeFile(imagePath, visibleFixturePng);
       await writeFile(relativeImagePath, onePixelPng);

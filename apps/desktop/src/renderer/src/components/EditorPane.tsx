@@ -34,6 +34,7 @@ interface EditorPaneProps {
   onActivateFolder: (directoryPath: string) => void;
   onCloseFolder: (directoryPath: string) => void;
   onOpenFolder: (directoryPath: string) => void;
+  onOpenFile: (filePath: string) => void;
   /** Close this entire pane (merge back into parent split). Null when this is the only pane. */
   onClosePane: (() => void) | null;
   dragManager: DragManager;
@@ -72,6 +73,7 @@ export function EditorPane(props: EditorPaneProps) {
     onActivateFolder,
     onCloseFolder,
     onOpenFolder,
+    onOpenFile,
     onClosePane,
     dragManager,
     onToggleProperties,
@@ -156,7 +158,7 @@ export function EditorPane(props: EditorPaneProps) {
         ) : null}
       </div>
 
-      {pane.activeFolderPath ? <FolderOverviewPane directoryPath={pane.activeFolderPath} onOpenFolder={onOpenFolder} onOpenFile={onActivateTab} onClose={() => onCloseFolder(pane.activeFolderPath!)} /> : <NoteEditor
+      {pane.activeFolderPath ? <FolderOverviewPane directoryPath={pane.activeFolderPath} onOpenFolder={onOpenFolder} onOpenFile={onOpenFile} onClose={() => onCloseFolder(pane.activeFolderPath!)} /> : <NoteEditor
         document={activeDocument}
         graphContext={activeGraphContext}
         saveStatus={pane.activePath ? saveStatuses[pane.activePath] ?? "idle" : "idle"}

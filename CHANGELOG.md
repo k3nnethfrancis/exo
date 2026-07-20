@@ -59,6 +59,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Makes Folder Overview open previously unloaded child Notes and newly created
+  Folder Indexes through the canonical file-open transaction, while
+  synchronously refreshing cached index state after explicit creation.
 - Repairs a cached Electron runtime whose host binary exists but whose required
   `path.txt` metadata is missing, and fails setup clearly if upstream install
   still leaves the runtime incomplete.

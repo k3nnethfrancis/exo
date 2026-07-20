@@ -670,6 +670,7 @@ export function App() {
             return {
               ...content,
               activePath: filePath,
+              activeFolderPath: null,
               openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
             };
           });
@@ -1445,6 +1446,7 @@ export function App() {
               onActivateFolder={(directoryPath) => openFolderOverview(directoryPath, leaf.id)}
               onCloseFolder={(directoryPath) => closeFolderOverview(leaf.id, directoryPath)}
               onOpenFolder={(directoryPath) => openFolderOverview(directoryPath, leaf.id)}
+              onOpenFile={(filePath) => void openFile(filePath, leaf.id)}
               onClosePane={collectLeaves(canvasTree).length > 1 ? () => canvasActions.removeLeaf(leaf.id) : null}
               dragManager={dragManager}
               onToggleProperties={() => setPropertiesCollapsed((current) => !current)}

@@ -204,6 +204,13 @@ describe("WorkspaceNotesService", () => {
     const unindexed = await service.getFolderOverview(emptyFolder);
     expect(unindexed).toMatchObject({ indexExists: false, title: "empty", children: [] });
     await expect(access(path.join(emptyFolder, "index.md"))).rejects.toThrow();
+
+    await expect(service.ensureFolderIndex(emptyFolder)).resolves.toMatchObject({ created: true });
+    await expect(service.getFolderOverview(emptyFolder)).resolves.toMatchObject({
+      indexExists: true,
+      title: "empty",
+      children: [],
+    });
   });
 
   it("invalidates cached folder and graph data after workspace changes", async () => {

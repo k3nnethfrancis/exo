@@ -59,6 +59,12 @@ export function FolderOverviewPane({ directoryPath, onOpenFolder, onOpenFile, on
   const loadedOverview = overview?.directoryPath === directoryPath ? overview : null;
   const title = loadedOverview?.title ?? directoryTitle(directoryPath);
   const graph = graphContext;
+  async function createIndex() {
+    const result = await window.exo.workspace.ensureFolderIndex(directoryPath);
+    folderOverviewCache.delete(directoryPath);
+    onOpenFile(result.indexPath);
+  }
+
   return (
     <section className="folder-overview" data-testid="folder-overview" data-folder-loaded={loadedOverview ? "true" : "false"}>
       <header className="folder-overview__header">
@@ -71,7 +77,7 @@ export function FolderOverviewPane({ directoryPath, onOpenFolder, onOpenFile, on
           {loadedOverview ? loadedOverview.indexExists ? (
             <button onClick={() => onOpenFile(loadedOverview.indexPath)} type="button">Open index</button>
           ) : (
-            <button onClick={async () => onOpenFile((await window.exo.workspace.ensureFolderIndex(loadedOverview.directoryPath)).indexPath)} type="button"><Plus size={14} /> Create index</button>
+            <button onClick={() => void createIndex()} type="button"><Plus size={14} /> Create index</button>
           ) : null}
           <button aria-label="Close folder overview" className="folder-overview__close" onClick={onClose} type="button">×</button>
         </div>
