@@ -45,11 +45,11 @@ describe("direct invocation process", () => {
 import { spawn } from "node:child_process";
 const child = spawn(process.execPath, ["-e", ${JSON.stringify(`
   const { writeFileSync } = require("node:fs");
-  writeFileSync(${JSON.stringify(childReadyPath)}, String(process.pid));
   process.on("SIGTERM", () => {
     writeFileSync(${JSON.stringify(childStoppedPath)}, "stopped");
     process.exit(0);
   });
+  writeFileSync(${JSON.stringify(childReadyPath)}, String(process.pid));
   setInterval(() => {}, 1000);
 `)}], { stdio: "inherit" });
 child.on("exit", () => process.exit(0));
@@ -63,6 +63,44 @@ setInterval(() => {}, 1000);
 
     await expect(exited).resolves.toMatchObject({ exitCode: null });
     await expect(readFile(childStoppedPath, "utf8")).resolves.toBe("stopped");
+  });
+
+  it.runIf(process.platform !== "win32")("reaps stdio-detached descendants before publishing natural exit", async () => {
+    const root = await temporaryRoot("exo-invocation-process-natural-descendant-");
+    const childReadyPath = path.join(root, "child-ready");
+    const childStoppedPath = path.join(root, "child-stopped");
+    const childScriptPath = path.join(root, "child.mjs");
+    const parentScriptPath = path.join(root, "parent.mjs");
+    await writeFile(childScriptPath, `
+import { writeFileSync } from "node:fs";
+process.on("SIGTERM", () => {
+  writeFileSync(${JSON.stringify(childStoppedPath)}, "stopped");
+  process.exit(0);
+});
+writeFileSync(${JSON.stringify(childReadyPath)}, String(process.pid));
+setInterval(() => {}, 1000);
+`, "utf8");
+    await writeFile(parentScriptPath, `
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+const child = spawn(process.execPath, [${JSON.stringify(childScriptPath)}], { stdio: "ignore" });
+child.unref();
+const ready = setInterval(() => {
+  if (!existsSync(${JSON.stringify(childReadyPath)})) return;
+  clearInterval(ready);
+}, 5);
+`, "utf8");
+    const invocation = launch(
+      `${shellQuote(globalThis.process.execPath)} ${shellQuote(parentScriptPath)}`,
+      new DirectInvocationProcessFactory({ stopGraceMs: 100 }),
+    );
+
+    const result = await exitOf(invocation);
+
+    const childPid = Number(await readFile(childReadyPath, "utf8"));
+    expect(result.exitCode).toBe(0);
+    await expect(readFile(childStoppedPath, "utf8")).resolves.toBe("stopped");
+    expect(processExists(childPid)).toBe(false);
   });
 
   it("settles stop against natural exit exactly once", async () => {
@@ -164,6 +202,16 @@ async function waitForFile(filePath: string): Promise<void> {
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function processExists(pid: number): boolean {
+  try {
+    globalThis.process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ESRCH") return false;
+    throw error;
+  }
 }
 
 function processCwd(): string {

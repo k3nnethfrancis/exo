@@ -6,12 +6,6 @@ export interface InvocationProcess {
   send(prompt: string): Promise<void>;
   onExit(handler: (event: InvocationProcessExit) => void): void;
   onOutput?(handler: (event: InvocationProcessOutput) => void): void;
-  /** @deprecated Use StoppableInvocationProcess.stop(). Remove when InvocationRunner migrates. */
-  kill(): void;
-}
-
-/** Transitional direct-process contract; InvocationRunner will adopt it next. */
-export interface StoppableInvocationProcess extends InvocationProcess {
   stop(): Promise<void>;
 }
 
@@ -43,7 +37,7 @@ export interface DirectInvocationProcessFactoryOptions {
 export class DirectInvocationProcessFactory implements InvocationProcessFactory {
   constructor(private readonly options: DirectInvocationProcessFactoryOptions = {}) {}
 
-  launch(input: { command: string; cwd: string; env: NodeJS.ProcessEnv }): StoppableInvocationProcess {
+  launch(input: { command: string; cwd: string; env: NodeJS.ProcessEnv }): InvocationProcess {
     const child = spawn("/bin/sh", ["-lc", input.command], {
       cwd: input.cwd,
       env: commandEnvironment(input.env),
@@ -56,7 +50,7 @@ export class DirectInvocationProcessFactory implements InvocationProcessFactory 
   }
 }
 
-class DirectInvocationProcess implements StoppableInvocationProcess {
+class DirectInvocationProcess implements InvocationProcess {
   private stdout = "";
   private stderr = "";
   private spawnError: string | undefined;
@@ -66,6 +60,7 @@ class DirectInvocationProcess implements StoppableInvocationProcess {
   private readonly closed: Promise<void>;
   private resolveClosed!: () => void;
   private stopPromise: Promise<void> | null = null;
+  private finalizationError: Error | null = null;
 
   constructor(
     private readonly child: ChildProcess,
@@ -100,11 +95,10 @@ class DirectInvocationProcess implements StoppableInvocationProcess {
         stderr: this.stderr,
         ...(this.spawnError ? { spawnError: this.spawnError } : {}),
       };
-      this.exitEvent = event;
-      this.resolveClosed();
-      for (const handler of this.exitHandlers) handler(event);
-      this.exitHandlers.clear();
-      this.outputHandlers.clear();
+      void this.finishAfterProcessGroupExit(event).catch((error) => {
+        this.finalizationError = asError(error);
+        console.error("[exo] invocation process-group finalization failed", this.finalizationError);
+      });
     });
   }
 
@@ -141,21 +135,30 @@ class DirectInvocationProcess implements StoppableInvocationProcess {
     return this.stopPromise;
   }
 
-  /** @deprecated Temporary synchronous shim until InvocationRunner awaits stop(). */
-  kill(): void {
-    void this.stop().catch(() => undefined);
-  }
-
   private emitOutput(event: InvocationProcessOutput): void {
     for (const handler of this.outputHandlers) handler(event);
   }
 
   private async stopProcessGroup(): Promise<void> {
     if (this.exitEvent) return;
+    if (this.finalizationError) throw this.finalizationError;
     signalProcessGroup(this.child, "SIGTERM");
     if (await closesWithin(this.closed, this.stopGraceMs)) return;
+    if (this.finalizationError) throw this.finalizationError;
     signalProcessGroup(this.child, "SIGKILL");
-    await this.closed;
+    if (!await closesWithin(this.closed, this.stopGraceMs)) {
+      if (this.finalizationError) throw this.finalizationError;
+      throw new Error("Invocation process group did not exit after forced termination.");
+    }
+  }
+
+  private async finishAfterProcessGroupExit(event: InvocationProcessExit): Promise<void> {
+    await terminateResidualProcessGroup(this.child, this.stopGraceMs);
+    this.exitEvent = event;
+    this.resolveClosed();
+    for (const handler of this.exitHandlers) handler(event);
+    this.exitHandlers.clear();
+    this.outputHandlers.clear();
   }
 }
 
@@ -179,6 +182,36 @@ function signalProcessGroup(child: ChildProcess, signal: NodeJS.Signals): void {
   }
 }
 
+async function terminateResidualProcessGroup(child: ChildProcess, graceMs: number): Promise<void> {
+  if (!processGroupExists(child)) return;
+  signalProcessGroup(child, "SIGTERM");
+  if (await processGroupExitsWithin(child, graceMs)) return;
+  signalProcessGroup(child, "SIGKILL");
+  if (!await processGroupExitsWithin(child, graceMs)) {
+    throw new Error("Invocation descendants remained after forced process-group termination.");
+  }
+}
+
+function processGroupExists(child: ChildProcess): boolean {
+  if (process.platform === "win32" || !child.pid) return false;
+  try {
+    process.kill(-child.pid, 0);
+    return true;
+  } catch (error) {
+    if (isMissingProcess(error)) return false;
+    throw error;
+  }
+}
+
+async function processGroupExitsWithin(child: ChildProcess, graceMs: number): Promise<boolean> {
+  const deadline = Date.now() + Math.max(0, graceMs);
+  do {
+    if (!processGroupExists(child)) return true;
+    await delay(Math.min(10, Math.max(1, deadline - Date.now())));
+  } while (Date.now() < deadline);
+  return !processGroupExists(child);
+}
+
 async function closesWithin(closed: Promise<void>, graceMs: number): Promise<boolean> {
   let timer: NodeJS.Timeout | undefined;
   try {
@@ -196,4 +229,12 @@ async function closesWithin(closed: Promise<void>, graceMs: number): Promise<boo
 
 function isMissingProcess(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && "code" in error && error.code === "ESRCH");
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }

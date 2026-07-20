@@ -35,7 +35,7 @@ import { commandForClaudeResume as buildClaudeResumeCommand } from "@exo/core/pr
 import type { TerminalSessionInfo } from "../shared/api";
 import type { AgentCommandContinuityStatus, AgentCommandLaunchFacts, AgentInvocationAuthorizationFacts } from "../shared/api";
 import { inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
-import { DirectInvocationProcessFactory, type InvocationProcessFactory, type StoppableInvocationProcess } from "./invocation-process";
+import { DirectInvocationProcessFactory, type InvocationProcess, type InvocationProcessFactory } from "./invocation-process";
 import {
   commandForHeadlessInvocation as buildHeadlessInvocationCommand,
   extractClaudeSessionId as extractStructuredClaudeSessionId,
@@ -138,7 +138,7 @@ interface ActiveObservation {
   noteRoots: string[];
   continuityLockKey?: string;
   observedPaths: Set<string>;
-  process?: StoppableInvocationProcess;
+  process?: InvocationProcess;
   requestedStatus?: "user-ended" | "failed";
   lastWorkspaceChangeAtMs: number;
   finalizing: boolean;
@@ -295,7 +295,7 @@ export class InvocationRunner extends EventEmitter {
       this.continuityLocks.set(continuityLockKey, { invocationId: prepared.id, workspaceRoot: prepared.workspaceRoot, commandId: prepared.command.id });
     }
     let terminal: TerminalSessionInfo | undefined;
-    let invocationProcess: StoppableInvocationProcess | undefined;
+    let invocationProcess: InvocationProcess | undefined;
     let continuityHead: InvocationConversationHead | null = null;
     let startCommitted = false;
     const queuedExitRef: { current: { event: Parameters<typeof inspectInvocationAdapterResult>[1]; attemptedHead: InvocationConversationHead | null; fallback: boolean } | null } = { current: null };
@@ -385,11 +385,11 @@ export class InvocationRunner extends EventEmitter {
       };
       const launchHeadless = async (head: InvocationConversationHead | null, fallback: boolean): Promise<void> => {
         const activityAdapter = new InvocationActivityAdapter(prepared.command.adapter);
-        invocationProcess = requireStoppableProcess((this.options.invocationProcessFactory ?? new DirectInvocationProcessFactory()).launch({
+        invocationProcess = (this.options.invocationProcessFactory ?? new DirectInvocationProcessFactory()).launch({
           command: buildHeadlessInvocationCommand(prepared.command, head),
           cwd: prepared.cwd,
           env: globalThis.process.env,
-        }));
+        });
         const observation = this.active.get(prepared.id);
         if (observation) observation.process = invocationProcess;
         this.emitActivity(prepared.id, { kind: "working" });
@@ -917,13 +917,6 @@ async function snapshotTextFile(filePath: string): Promise<FileSnapshot> {
   }
 }
 function wholeFileDiff(before: FileSnapshot, after: FileSnapshot): string { return [`--- a/${path.basename(before.path)}`, `+++ b/${path.basename(after.path)}`, `@@ -1 +1 @@`, ...before.content.split("\n").map((line) => `-${line}`), ...after.content.split("\n").map((line) => `+${line}`), ""].join("\n"); }
-
-function requireStoppableProcess(process: ReturnType<InvocationProcessFactory["launch"]>): StoppableInvocationProcess {
-  if (!("stop" in process) || typeof process.stop !== "function") {
-    throw new InvocationRunnerError("process-contract", "The invocation process cannot be stopped safely.");
-  }
-  return process as StoppableInvocationProcess;
-}
 
 async function requiredInvocation(store: InvocationStore, id: string): Promise<InvocationRecord> {
   const record = await store.readRecord(id);
