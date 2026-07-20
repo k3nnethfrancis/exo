@@ -11,6 +11,9 @@ import {
   type SearchResult,
   type FolderOverview,
   type GraphConceptDetail,
+  type GraphConceptDetailByIndexResult,
+  type GraphConceptSummaryResult,
+  type GraphTopology,
   type GraphViewBundle,
   type WorkspaceSearchResults,
   WorkspaceFiles,
@@ -259,6 +262,43 @@ export class WorkspaceNotesService {
       );
     }
     return this.workspaceGraph().graphView(profileId);
+  }
+
+  async getGraphTopology(profileId?: string | null): Promise<GraphTopology> {
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.graphTopology(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        profileId,
+      );
+    }
+    return this.workspaceGraph().graphTopology(profileId);
+  }
+
+  async getGraphConceptSummaries(indexes: number[], sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptSummaryResult> {
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.graphConceptSummaries(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        indexes,
+        sourceSnapshotId,
+        profileId,
+      );
+    }
+    return this.workspaceGraph().graphConceptSummaries(indexes, sourceSnapshotId, profileId);
+  }
+
+  async getGraphConceptDetailByIndex(index: number, sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptDetailByIndexResult> {
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.graphConceptDetailByIndex(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        index,
+        sourceSnapshotId,
+        profileId,
+      );
+    }
+    return this.workspaceGraph().graphConceptDetailByIndex(index, sourceSnapshotId, profileId);
   }
 
   async getGraphConceptDetail(conceptId: string, sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptDetail | null> {

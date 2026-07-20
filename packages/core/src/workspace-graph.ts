@@ -12,7 +12,25 @@ import {
   type RelationEdge,
 } from "./knowledge-graph";
 import { knowledgeProfile } from "./knowledge-profile";
-import { compileGraphView, type GraphConceptDetail, type GraphViewBundle } from "./graph-projection";
+import {
+  GRAPH_CONCEPT_DETAIL_MAX_BYTES,
+  GRAPH_CONCEPT_DETAIL_MAX_EVIDENCE,
+  GRAPH_CONCEPT_DETAIL_MAX_FINDINGS,
+  GRAPH_CONCEPT_DETAIL_MAX_PROPERTIES,
+  GRAPH_CONCEPT_DETAIL_MAX_RELATIONS,
+  GRAPH_CONCEPT_SUMMARY_MAX_BYTES,
+  GRAPH_CONCEPT_SUMMARY_MAX_ITEMS,
+  compileGraphTopology,
+  compileGraphView,
+  type BoundedGraphConceptDetail,
+  type GraphConceptDetail,
+  type GraphConceptDetailByIndexResult,
+  type GraphConceptRelationDetail,
+  type GraphConceptSummaryResult,
+  type GraphTopology,
+  type GraphTopologyCompilation,
+  type GraphViewBundle,
+} from "./graph-projection";
 import type { WorkspaceModel, NoteDocument } from "./types";
 import { listMarkdownFiles, WorkspaceFiles } from "./workspace";
 
@@ -68,6 +86,12 @@ interface ResolvedGraphEpoch {
   incomingByConcept: ReadonlyMap<NoteId, readonly WorkspaceGraphLink[]>;
 }
 
+interface KnowledgeDetailIndex {
+  concepts: ReadonlyMap<string, ConceptNode>;
+  findings: ReadonlyMap<string, readonly GraphFinding[]>;
+  relations: ReadonlyMap<string, readonly GraphConceptRelationDetail[]>;
+}
+
 /** The one graph boundary for note relationships. It owns indexing and resolution. */
 export class WorkspaceGraph {
   private snapshot: Map<string, GraphEntry> | null = null;
@@ -76,6 +100,8 @@ export class WorkspaceGraph {
   private buildInFlight: { generation: number; promise: Promise<Map<string, GraphEntry>> } | null = null;
   private readonly refreshVersions = new Map<string, number>();
   private readonly knowledgeSnapshotCache = new Map<string, KnowledgeGraphSnapshot>();
+  private readonly topologyCache = new Map<string, GraphTopologyCompilation>();
+  private readonly knowledgeDetailIndexes = new Map<string, KnowledgeDetailIndex>();
   private resolvedEpoch: ResolvedGraphEpoch | null = null;
 
   constructor(private readonly model: WorkspaceModel) {}
@@ -262,6 +288,79 @@ export class WorkspaceGraph {
     return { projection: compileGraphView(snapshot) };
   }
 
+  async graphTopology(profileId?: string | null): Promise<GraphTopology> {
+    const snapshot = await this.knowledgeSnapshot(profileId);
+    return this.topologyForSnapshot(snapshot, profileId).topology;
+  }
+
+  async graphConceptSummaries(
+    indexes: readonly number[],
+    sourceSnapshotId: string,
+    profileId?: string | null,
+  ): Promise<GraphConceptSummaryResult> {
+    if (indexes.length > GRAPH_CONCEPT_SUMMARY_MAX_ITEMS) {
+      throw new Error(`Graph concept summary requests are limited to ${GRAPH_CONCEPT_SUMMARY_MAX_ITEMS} nodes.`);
+    }
+    const normalizedIndexes = [...new Set(indexes)];
+    if (normalizedIndexes.some((index) => !Number.isSafeInteger(index) || index < 0)) {
+      throw new Error("Graph concept summary indices must be non-negative safe integers.");
+    }
+    const snapshot = await this.knowledgeSnapshot(profileId);
+    if (snapshot.snapshotId !== sourceSnapshotId) {
+      return boundedSummaryResult({ status: "stale", sourceSnapshotId: snapshot.snapshotId, summaries: [] });
+    }
+    const conceptIds = this.conceptIdsForSnapshot(snapshot, profileId);
+    if (normalizedIndexes.some((index) => index >= conceptIds.length)) {
+      return boundedSummaryResult({ status: "missing", sourceSnapshotId: snapshot.snapshotId, summaries: [] });
+    }
+    const detailIndex = this.detailIndex(snapshot);
+    const summaries = normalizedIndexes.map((index) => {
+      const concept = detailIndex.concepts.get(conceptIds[index] ?? "");
+      if (!concept) return null;
+      return {
+        index,
+        label: concept.label,
+        ...(concept.filePath ? { filePath: concept.filePath } : {}),
+        ...(concept.relativePath ? { relativePath: concept.relativePath } : {}),
+      };
+    });
+    if (summaries.some((summary) => summary === null)) {
+      return boundedSummaryResult({ status: "missing", sourceSnapshotId: snapshot.snapshotId, summaries: [] });
+    }
+    const result = boundedSummaryResult({
+      status: "ok",
+      sourceSnapshotId: snapshot.snapshotId,
+      summaries: summaries.filter((summary): summary is NonNullable<typeof summary> => summary !== null),
+    });
+    if (result.payloadBytes <= GRAPH_CONCEPT_SUMMARY_MAX_BYTES) return result;
+    return boundedSummaryResult({ status: "too-large", sourceSnapshotId: snapshot.snapshotId, summaries: [] });
+  }
+
+  async graphConceptDetailByIndex(
+    index: number,
+    sourceSnapshotId: string,
+    profileId?: string | null,
+  ): Promise<GraphConceptDetailByIndexResult> {
+    if (!Number.isSafeInteger(index) || index < 0) throw new Error("Graph concept detail index must be a non-negative safe integer.");
+    const snapshot = await this.knowledgeSnapshot(profileId);
+    if (snapshot.snapshotId !== sourceSnapshotId) {
+      return boundedDetailResult({ status: "stale", sourceSnapshotId: snapshot.snapshotId, index });
+    }
+    const conceptIds = this.conceptIdsForSnapshot(snapshot, profileId);
+    const conceptId = conceptIds[index];
+    if (!conceptId) return boundedDetailResult({ status: "missing", sourceSnapshotId: snapshot.snapshotId, index });
+    const detailIndex = this.detailIndex(snapshot);
+    const concept = detailIndex.concepts.get(conceptId);
+    if (!concept) return boundedDetailResult({ status: "missing", sourceSnapshotId: snapshot.snapshotId, index });
+    return boundedConceptDetailResult(
+      snapshot,
+      index,
+      concept,
+      detailIndex.relations.get(conceptId) ?? [],
+      detailIndex.findings.get(conceptId) ?? [],
+    );
+  }
+
   async graphConceptDetail(conceptId: string, sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptDetail | null> {
     const snapshot = await this.knowledgeSnapshot(profileId);
     if (snapshot.snapshotId !== sourceSnapshotId) return null;
@@ -289,6 +388,8 @@ export class WorkspaceGraph {
     this.snapshot = null;
     this.resolvedEpoch = null;
     this.knowledgeSnapshotCache.clear();
+    this.topologyCache.clear();
+    this.knowledgeDetailIndexes.clear();
     this.state = "stale";
     this.generation += 1;
   }
@@ -320,6 +421,8 @@ export class WorkspaceGraph {
     else this.snapshot.delete(resolvedPath);
     this.resolvedEpoch = null;
     this.knowledgeSnapshotCache.clear();
+    this.topologyCache.clear();
+    this.knowledgeDetailIndexes.clear();
     this.state = "ready";
   }
 
@@ -444,6 +547,47 @@ export class WorkspaceGraph {
   }
 
   private idForPath(filePath: string): NoteId { return `note:unknown:${canonicalPath(path.basename(filePath))}` as NoteId; }
+
+  private conceptIdsForSnapshot(snapshot: KnowledgeGraphSnapshot, profileId?: string | null): readonly string[] {
+    return this.topologyForSnapshot(snapshot, profileId).conceptIds;
+  }
+
+  private topologyForSnapshot(snapshot: KnowledgeGraphSnapshot, profileId?: string | null): GraphTopologyCompilation {
+    const cacheKey = profileCacheKey(profileId);
+    const cached = this.topologyCache.get(cacheKey);
+    if (cached?.topology.sourceSnapshotId === snapshot.snapshotId) return cached;
+    const compilation = compileGraphTopology(snapshot);
+    this.topologyCache.set(cacheKey, compilation);
+    return compilation;
+  }
+
+  private detailIndex(snapshot: KnowledgeGraphSnapshot): KnowledgeDetailIndex {
+    const cached = this.knowledgeDetailIndexes.get(snapshot.snapshotId);
+    if (cached) return cached;
+    const findings = new Map<string, GraphFinding[]>();
+    for (const finding of snapshot.findings) {
+      for (const conceptId of finding.conceptIds) {
+        const current = findings.get(conceptId);
+        if (current) current.push(finding);
+        else findings.set(conceptId, [finding]);
+      }
+    }
+    const relations = new Map<string, GraphConceptRelationDetail[]>();
+    for (const relation of snapshot.relations) {
+      appendRelation(relations, relation.source, { direction: "outgoing", relation });
+      if (relation.target !== relation.source) appendRelation(relations, relation.target, { direction: "incoming", relation });
+    }
+    for (const values of relations.values()) {
+      values.sort((left, right) => left.relation.id.localeCompare(right.relation.id) || left.direction.localeCompare(right.direction));
+    }
+    const index = {
+      concepts: new Map(snapshot.concepts.map((concept) => [concept.id, concept])),
+      findings,
+      relations,
+    };
+    this.knowledgeDetailIndexes.set(snapshot.snapshotId, index);
+    return index;
+  }
 }
 
 function normalize(value: string): string { return value.split(path.sep).join("/").replace(/^\.\//, "").toLowerCase(); }
@@ -454,6 +598,116 @@ export function workspaceNoteId(rootId: string, relativePath: string): NoteId {
 function isWithin(parent: string, candidate: string): boolean { const rel = path.relative(parent, candidate); return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel)); }
 function byPath(left: WorkspaceGraphNote, right: WorkspaceGraphNote): number { return left.relativePath.localeCompare(right.relativePath); }
 function byId(left: { id: string }, right: { id: string }): number { return left.id.localeCompare(right.id); }
+function profileCacheKey(profileId?: string | null): string { return profileId?.trim() || "generic-markdown"; }
+
+function boundedSummaryResult(input: Omit<GraphConceptSummaryResult, "payloadBytes">): GraphConceptSummaryResult {
+  const result = { ...input, payloadBytes: 0 };
+  result.payloadBytes = stableJsonBytes(result);
+  return result;
+}
+
+function boundedConceptDetailResult(
+  snapshot: KnowledgeGraphSnapshot,
+  index: number,
+  concept: ConceptNode,
+  incidentRelations: readonly GraphConceptRelationDetail[],
+  conceptFindings: readonly GraphFinding[],
+): GraphConceptDetailByIndexResult {
+  const { properties: propertyRecord, ...conceptMetadata } = concept;
+  const allProperties = Object.entries(propertyRecord)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => ({ key, value }));
+  const properties = allProperties.slice(0, GRAPH_CONCEPT_DETAIL_MAX_PROPERTIES);
+  const relations: GraphConceptRelationDetail[] = [];
+  const findings: GraphFinding[] = [];
+  let evidenceCount = 0;
+  let omittedEvidence = incidentRelations
+    .slice(GRAPH_CONCEPT_DETAIL_MAX_RELATIONS)
+    .reduce((total, item) => total + item.relation.evidence.length, 0)
+    + conceptFindings
+      .slice(GRAPH_CONCEPT_DETAIL_MAX_FINDINGS)
+      .reduce((total, item) => total + item.evidence.length, 0);
+
+  for (const relation of incidentRelations.slice(0, GRAPH_CONCEPT_DETAIL_MAX_RELATIONS)) {
+    const evidence = relation.relation.evidence.length;
+    if (evidenceCount + evidence > GRAPH_CONCEPT_DETAIL_MAX_EVIDENCE) {
+      omittedEvidence += evidence;
+      continue;
+    }
+    relations.push(relation);
+    evidenceCount += evidence;
+  }
+  for (const finding of conceptFindings.slice(0, GRAPH_CONCEPT_DETAIL_MAX_FINDINGS)) {
+    const evidence = finding.evidence.length;
+    if (evidenceCount + evidence > GRAPH_CONCEPT_DETAIL_MAX_EVIDENCE) {
+      omittedEvidence += evidence;
+      continue;
+    }
+    findings.push(finding);
+    evidenceCount += evidence;
+  }
+
+  const detail: BoundedGraphConceptDetail = {
+    concept: conceptMetadata,
+    properties,
+    relations,
+    findings,
+    profile: snapshot.activeProfile,
+    omitted: {
+      properties: allProperties.length - properties.length,
+      relations: incidentRelations.length - relations.length,
+      findings: conceptFindings.length - findings.length,
+      evidence: omittedEvidence,
+    },
+  };
+  let result = boundedDetailResult({ status: "ok", sourceSnapshotId: snapshot.snapshotId, index, detail });
+  while (result.payloadBytes > GRAPH_CONCEPT_DETAIL_MAX_BYTES) {
+    const finding = findings.pop();
+    if (finding) {
+      detail.omitted.findings += 1;
+      detail.omitted.evidence += finding.evidence.length;
+    } else {
+      const relation = relations.pop();
+      if (relation) {
+        detail.omitted.relations += 1;
+        detail.omitted.evidence += relation.relation.evidence.length;
+      } else if (properties.pop()) {
+        detail.omitted.properties += 1;
+      } else {
+        return boundedDetailResult({ status: "too-large", sourceSnapshotId: snapshot.snapshotId, index });
+      }
+    }
+    result = boundedDetailResult({ status: "ok", sourceSnapshotId: snapshot.snapshotId, index, detail });
+  }
+  return result;
+}
+
+function boundedDetailResult(input: Omit<GraphConceptDetailByIndexResult, "payloadBytes">): GraphConceptDetailByIndexResult {
+  const result = { ...input, payloadBytes: 0 };
+  result.payloadBytes = stableJsonBytes(result);
+  return result;
+}
+
+function stableJsonBytes(value: { payloadBytes: number }): number {
+  let bytes = Buffer.byteLength(JSON.stringify(value), "utf8");
+  for (let iteration = 0; iteration < 3; iteration += 1) {
+    value.payloadBytes = bytes;
+    const next = Buffer.byteLength(JSON.stringify(value), "utf8");
+    if (next === bytes) break;
+    bytes = next;
+  }
+  return bytes;
+}
+
+function appendRelation(
+  relations: Map<string, GraphConceptRelationDetail[]>,
+  conceptId: string,
+  relation: GraphConceptRelationDetail,
+): void {
+  const current = relations.get(conceptId);
+  if (current) current.push(relation);
+  else relations.set(conceptId, [relation]);
+}
 function conceptIdForLink(sourceId: string, target: string, resolution: GraphResolution): string {
   if (resolution === "external") return `external:${target}`;
   return `unresolved:${encodeURIComponent(`${sourceId}:${target}`)}`;

@@ -54,6 +54,9 @@ export interface DesktopInvokeHandlers {
   "notes:stat": NotesApi["stat"];
   "notes:get-graph-context": NotesApi["getGraphContext"];
   "notes:get-graph-view": NotesApi["getGraphView"];
+  "notes:get-graph-topology": NotesApi["getGraphTopology"];
+  "notes:get-graph-concept-summaries": NotesApi["getGraphConceptSummaries"];
+  "notes:get-graph-concept-detail-by-index": NotesApi["getGraphConceptDetailByIndex"];
   "notes:get-graph-concept-detail": NotesApi["getGraphConceptDetail"];
   "notes:resolve-target": NotesApi["resolveTarget"];
   "notes:resolve-markdown-image": NotesApi["resolveMarkdownImage"];

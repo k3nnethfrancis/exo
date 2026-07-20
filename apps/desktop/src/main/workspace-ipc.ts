@@ -39,6 +39,9 @@ export interface WorkspaceIpcHandlers {
   resolvePreviewTarget: WorkspaceApi["resolvePreviewTarget"];
   getGraphContext: NotesApi["getGraphContext"];
   getGraphView: NotesApi["getGraphView"];
+  getGraphTopology: NotesApi["getGraphTopology"];
+  getGraphConceptSummaries: NotesApi["getGraphConceptSummaries"];
+  getGraphConceptDetailByIndex: NotesApi["getGraphConceptDetailByIndex"];
   getGraphConceptDetail: NotesApi["getGraphConceptDetail"];
   getMainWindow: () => BrowserWindow | null;
   getModel: () => WorkspaceModel;
@@ -201,6 +204,13 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     return handlers.getGraphContext(authorizedPath);
   });
   handleDesktopInvoke("notes:get-graph-view", async (_event, profileId) => handlers.getGraphView(profileId));
+  handleDesktopInvoke("notes:get-graph-topology", async (_event, profileId) => handlers.getGraphTopology(profileId));
+  handleDesktopInvoke("notes:get-graph-concept-summaries", async (_event, indexes, sourceSnapshotId, profileId) =>
+    handlers.getGraphConceptSummaries(indexes, sourceSnapshotId, profileId),
+  );
+  handleDesktopInvoke("notes:get-graph-concept-detail-by-index", async (_event, index, sourceSnapshotId, profileId) =>
+    handlers.getGraphConceptDetailByIndex(index, sourceSnapshotId, profileId),
+  );
   handleDesktopInvoke("notes:get-graph-concept-detail", async (_event, conceptId, sourceSnapshotId, profileId) =>
     handlers.getGraphConceptDetail(conceptId, sourceSnapshotId, profileId),
   );

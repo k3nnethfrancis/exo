@@ -224,6 +224,80 @@ describe("WorkspaceGraph", () => {
 
     await expect(graph.graphConceptDetail(conceptId, first.projection.sourceSnapshotId)).resolves.toBeNull();
   });
+
+  it("serves cold summaries and bounded evidenced detail by topology index", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    const properties = Array.from({ length: 70 }, (_, index) => `property_${String(index).padStart(2, "0")}: value-${index}`);
+    const links = [
+      ...Array.from({ length: 140 }, () => "[[target]]"),
+      ...Array.from({ length: 70 }, () => "[[missing]]"),
+    ].join(" ");
+    const focusPath = path.join(notes, "focus.md");
+    await writeFile(focusPath, ["---", "title: Focus", "type: Document", ...properties, "---", links].join("\n"));
+    await writeFile(path.join(notes, "target.md"), "# Target\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+
+    const firstTopology = await graph.graphTopology("okf");
+    const secondTopology = await graph.graphTopology("okf");
+    expect(firstTopology.nodes.identityKeys.byteLength).toBeGreaterThan(0);
+    expect(firstTopology.nodes.identityKeys).toBe(secondTopology.nodes.identityKeys);
+    expect(firstTopology.transportHash).toBe(secondTopology.transportHash);
+    const summaries = await graph.graphConceptSummaries(
+      Array.from({ length: firstTopology.nodeCount }, (_, index) => index),
+      firstTopology.sourceSnapshotId,
+      "okf",
+    );
+    expect(summaries.status).toBe("ok");
+    const focusIndex = summaries.summaries.find((summary) => summary.label === "Focus")?.index;
+    expect(focusIndex).toBeTypeOf("number");
+    const detail = await graph.graphConceptDetailByIndex(focusIndex ?? -1, firstTopology.sourceSnapshotId, "okf");
+
+    expect(detail.status).toBe("ok");
+    expect(detail.payloadBytes).toBeLessThanOrEqual(256 * 1024);
+    expect(detail.detail?.profile).toMatchObject({ id: "okf", version: "0.1" });
+    expect(detail.detail?.properties).toHaveLength(64);
+    expect(detail.detail?.relations).toHaveLength(128);
+    expect(detail.detail?.findings).toHaveLength(64);
+    expect(detail.detail?.omitted).toMatchObject({ properties: 8, relations: 82, findings: 6, evidence: 88 });
+    expect(detail.detail?.relations[0]).toMatchObject({
+      direction: "outgoing",
+      relation: {
+        authority: "authored",
+        evidence: [expect.objectContaining({ kind: "source-span", noteId: "note:notes:focus.md" })],
+      },
+    });
+
+    await expect(graph.graphConceptSummaries([999], firstTopology.sourceSnapshotId, "okf")).resolves.toMatchObject({ status: "missing" });
+    await expect(graph.graphConceptSummaries(Array.from({ length: 65 }, (_, index) => index), firstTopology.sourceSnapshotId, "okf"))
+      .rejects.toThrow("limited to 64 nodes");
+
+    await writeFile(focusPath, "# Changed\n");
+    await graph.refreshFile(focusPath);
+    await expect(graph.graphConceptDetailByIndex(focusIndex ?? -1, firstTopology.sourceSnapshotId, "okf"))
+      .resolves.toMatchObject({ status: "stale" });
+    await expect(graph.graphConceptSummaries([focusIndex ?? -1], firstTopology.sourceSnapshotId, "okf"))
+      .resolves.toMatchObject({ status: "stale" });
+  });
+
+  it("reports an oversized cold summary explicitly without leaking it into topology", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    const hugeTitle = `secret-${"x".repeat(70 * 1024)}`;
+    await writeFile(path.join(notes, "huge.md"), `---\ntitle: ${hugeTitle}\n---\n`);
+    const graph = new WorkspaceGraph(model(workspace, notes));
+    const topology = await graph.graphTopology();
+
+    expect(JSON.stringify(topology)).not.toContain("secret-");
+    await expect(graph.graphConceptSummaries([0], topology.sourceSnapshotId)).resolves.toMatchObject({
+      status: "too-large",
+      summaries: [],
+    });
+  });
 });
 
 function model(workspaceRoot: string, notes: string): WorkspaceModel {

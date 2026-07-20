@@ -6,6 +6,9 @@ import type {
   IndexStatus,
   IndexSyncResult,
   GraphConceptDetail,
+  GraphConceptDetailByIndexResult,
+  GraphConceptSummaryResult,
+  GraphTopology,
   GraphViewBundle,
   WorkspaceGraphContext,
   WorkspaceIndexSearchResponse,
@@ -38,6 +41,9 @@ export interface DerivedIndexClient {
   sync(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<IndexSyncResult>;
   graphContext(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<WorkspaceGraphContext | null>;
   graphView(model: WorkspaceModel, runtimeRoot: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphViewBundle>;
+  graphTopology(model: WorkspaceModel, runtimeRoot: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphTopology>;
+  graphConceptSummaries(model: WorkspaceModel, runtimeRoot: string, indexes: number[], sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptSummaryResult>;
+  graphConceptDetailByIndex(model: WorkspaceModel, runtimeRoot: string, index: number, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptDetailByIndexResult>;
   graphConceptDetail(model: WorkspaceModel, runtimeRoot: string, conceptId: string, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptDetail | null>;
   graphRefresh(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<void>;
   graphInvalidate(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<void>;
@@ -134,6 +140,37 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
     signal?: AbortSignal,
   ): Promise<GraphViewBundle> {
     return this.request({ operation: "graph-view", context: { model, runtimeRoot }, profileId }, signal);
+  }
+
+  graphTopology(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    profileId?: string | null,
+    signal?: AbortSignal,
+  ): Promise<GraphTopology> {
+    return this.request({ operation: "graph-topology", context: { model, runtimeRoot }, profileId }, signal);
+  }
+
+  graphConceptSummaries(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    indexes: number[],
+    sourceSnapshotId: string,
+    profileId?: string | null,
+    signal?: AbortSignal,
+  ): Promise<GraphConceptSummaryResult> {
+    return this.request({ operation: "graph-concept-summaries", context: { model, runtimeRoot }, indexes, sourceSnapshotId, profileId }, signal);
+  }
+
+  graphConceptDetailByIndex(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    index: number,
+    sourceSnapshotId: string,
+    profileId?: string | null,
+    signal?: AbortSignal,
+  ): Promise<GraphConceptDetailByIndexResult> {
+    return this.request({ operation: "graph-concept-detail-by-index", context: { model, runtimeRoot }, index, sourceSnapshotId, profileId }, signal);
   }
 
   graphConceptDetail(
