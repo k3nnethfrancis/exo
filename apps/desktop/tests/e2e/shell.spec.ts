@@ -75,6 +75,25 @@ async function dragBy(page: import("@playwright/test").Page, locator: import("@p
   await page.waitForTimeout(50);
 }
 
+async function selectFocusedGraphNode(
+  page: import("@playwright/test").Page,
+  canvas: import("@playwright/test").Locator,
+  detailTitle: import("@playwright/test").Locator,
+  expectedTitle: string,
+) {
+  const offsets = [0, -12, 12, -24, 24, -36, 36];
+  for (const dy of offsets) {
+    for (const dx of offsets) {
+      const box = await canvas.boundingBox();
+      expect(box).not.toBeNull();
+      const point = { x: box!.x + box!.width / 2 + dx, y: box!.y + box!.height / 2 + dy };
+      await page.mouse.click(point.x, point.y);
+      if ((await detailTitle.textContent()) === expectedTitle) return point;
+    }
+  }
+  throw new Error(`Could not select focused graph node ${expectedTitle}`);
+}
+
 function runGit(cwd: string, args: string[]) {
   const result = spawnSync("git", args, { cwd, encoding: "utf8" });
   if (result.status !== 0) {
@@ -130,6 +149,7 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
       const notes = path.join(workspaceRoot, "notes/test-notes");
       await writeFile(path.join(notes, "graph-target.md"), "# Graph Target\n\nA backlink-only target.\n", "utf8");
       await writeFile(path.join(notes, "graph-source.md"), "# Graph Source\n\n[[graph-target]]\n", "utf8");
+      await writeFile(path.join(notes, "graph-unopened.md"), "# Graph Unopened\n\nA target opened from the graph.\n", "utf8");
     },
   });
 
@@ -143,6 +163,7 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
 
     await page.getByTestId("sidebar").getByRole("button", { name: "graph-source" }).click();
     await expect(page.getByTestId("editor-title")).toHaveText("graph-source");
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Source");
 
     const canvasBox = await graphCanvas.boundingBox();
     expect(canvasBox).not.toBeNull();
@@ -150,10 +171,59 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
       x: canvasBox!.x + canvasBox!.width / 2,
       y: canvasBox!.y + canvasBox!.height / 2,
     };
-    await page.mouse.dblclick(focusPoint.x, focusPoint.y);
-    await expect(page.getByTestId("editor-title")).toHaveText("graph-target");
+    await page.mouse.click(focusPoint.x, focusPoint.y);
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
+    await expect(page.getByTestId("editor-title")).toHaveText("graph-source");
 
-    await page.mouse.dblclick(focusPoint.x, focusPoint.y);
+    await graphCanvas.focus();
+    await page.keyboard.press("Escape");
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Source");
+    const reselectedCanvasBox = await graphCanvas.boundingBox();
+    expect(reselectedCanvasBox).not.toBeNull();
+    const reselectedFocusPoint = {
+      x: reselectedCanvasBox!.x + reselectedCanvasBox!.width / 2,
+      y: reselectedCanvasBox!.y + reselectedCanvasBox!.height / 2,
+    };
+    await page.mouse.click(reselectedFocusPoint.x, reselectedFocusPoint.y);
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
+
+    const editorTabCount = await page.locator(".tab-strip__tab").count();
+    await page.mouse.dblclick(reselectedFocusPoint.x, reselectedFocusPoint.y);
+    await expect(page.getByTestId("editor-title")).toHaveText("graph-target");
+    await expect(page.locator(".tab-strip__tab")).toHaveCount(editorTabCount);
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
+
+    await page.mouse.dblclick(reselectedFocusPoint.x, reselectedFocusPoint.y);
+    await expect(page.getByTestId("editor-title")).toHaveText("graph-target");
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
+
+    await page.getByTestId("sidebar").getByRole("button", { name: "graph-unopened" }).click();
+    await expect(page.getByTestId("editor-title")).toHaveText("graph-unopened");
+    await page.getByTestId("editor-panel").hover();
+    await page.getByTestId("open-note-graph").click();
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Unopened");
+    const tabCountWithUnopened = await page.locator(".tab-strip__tab").count();
+    await page.getByRole("button", { name: "Close graph-unopened", exact: true }).click();
+    await expect(page.locator(".tab-strip__tab")).toHaveCount(tabCountWithUnopened - 1);
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Source");
+    const unopenedPoint = await selectFocusedGraphNode(
+      page,
+      graphCanvas,
+      graphPane.locator(".spatial-graph__detail-title"),
+      "Graph Unopened",
+    );
+    await expect(page.getByTestId("editor-title")).toHaveText("graph-source");
+    await page.mouse.dblclick(unopenedPoint.x, unopenedPoint.y);
+    await expect(page.getByTestId("editor-title")).toHaveText("graph-unopened");
+    await expect(page.locator(".tab-strip__tab")).toHaveCount(tabCountWithUnopened);
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Unopened");
+
+    await graphPane.getByRole("button", { name: "Frame graph" }).click();
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Unopened");
+    await page.mouse.dblclick(canvasBox!.x + 4, canvasBox!.y + 4);
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Unopened");
+
+    await page.locator(".tab-strip__tab").filter({ hasText: "graph-target" }).click();
     await expect(page.getByTestId("editor-title")).toHaveText("graph-target");
     await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
 
@@ -172,8 +242,7 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
 
     await graphPane.getByRole("button", { name: "Close graph" }).click();
     await expect(graphPane).toHaveCount(0);
-    await page.locator(".tab-strip__tab").filter({ hasText: "graph-source" }).click();
-    await expect(page.getByTestId("editor-title")).toHaveText("graph-source");
+    await expect(page.getByTestId("editor-title")).toHaveText("graph-target");
   } finally {
     await cleanup();
   }

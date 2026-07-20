@@ -3,6 +3,11 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 import type { GraphConceptDetail, GraphViewBundle, GraphViewProjection } from "@exo/core";
 
 import {
+  graphEscapeDecision,
+  graphNodeClickDecision,
+  graphNodeDoubleClickDecision,
+} from "../graphInteraction";
+import {
   DEFAULT_GRAPH_CAMERA,
   frameGraphCamera,
   focusGraphNodeCamera,
@@ -14,11 +19,22 @@ import {
   type GraphCamera,
   type ProjectedGraphNode,
 } from "../graphScene";
+import {
+  graphNodeIndexForConcept,
+  type GraphFocusRequest,
+  type InspectedConcept,
+} from "../hooks/useInspectedConcept";
 
 interface SpatialGraphViewProps {
   refreshKey?: string;
-  focusPath?: string | null;
-  activePath?: string | null;
+  inspectedConcept: InspectedConcept | null;
+  focusRequest: GraphFocusRequest | null;
+  activeEditorPath?: string | null;
+  isTargetOpen: (target: string) => boolean;
+  onInspectConcept: (concept: InspectedConcept) => void;
+  onFocusConcept: (concept: InspectedConcept) => void;
+  onRestoreEditorConcept: (filePath: string) => void;
+  onActivateOpenTarget: (filePath: string) => void;
   onOpenTarget: (target: string) => void;
 }
 
@@ -33,17 +49,35 @@ interface PointerGesture {
   moved: boolean;
 }
 
+interface RecentGraphPick {
+  concept: InspectedConcept;
+  clientX: number;
+  clientY: number;
+  at: number;
+}
+
 const PALETTE = ["#3f7d72", "#bf6840", "#78699c", "#8a7b4e", "#52779c", "#9b5f6c", "#65825b", "#8d684c"];
 
-export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarget }: SpatialGraphViewProps) {
+export function SpatialGraphView({
+  refreshKey,
+  inspectedConcept,
+  focusRequest,
+  activeEditorPath,
+  isTargetOpen,
+  onInspectConcept,
+  onFocusConcept,
+  onRestoreEditorConcept,
+  onActivateOpenTarget,
+  onOpenTarget,
+}: SpatialGraphViewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const gestureRef = useRef<PointerGesture | null>(null);
+  const recentPickRef = useRef<RecentGraphPick | null>(null);
   const bundleRef = useRef<GraphViewBundle | null>(null);
   const profileId = "generic-markdown" as const;
   const [bundle, setBundle] = useState<GraphViewBundle | null>(null);
   const [positions, setPositions] = useState<Float32Array>(new Float32Array());
   const [camera, setCamera] = useState<GraphCamera>({ ...DEFAULT_GRAPH_CAMERA, target: [...DEFAULT_GRAPH_CAMERA.target] });
-  const [selected, setSelected] = useState(-1);
   const [selectedDetail, setSelectedDetail] = useState<GraphConceptDetail | null>(null);
   const [pathTarget, setPathTarget] = useState(-1);
   const [size, setSize] = useState({ width: 1, height: 1 });
@@ -51,6 +85,10 @@ export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarg
   const [error, setError] = useState<string | null>(null);
   const [reloadNonce, setReloadNonce] = useState(0);
   const projection = bundle?.projection ?? null;
+  const selected = useMemo(
+    () => graphNodeIndexForConcept(projection, inspectedConcept),
+    [inspectedConcept, projection],
+  );
 
   useEffect(() => {
     bundleRef.current = bundle;
@@ -74,7 +112,6 @@ export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarg
         const seeded = seededGraphPositions(next.projection);
         setPositions(seeded);
         setCamera(frameGraphCamera(seeded));
-        setSelected(-1);
         setSelectedDetail(null);
         setPathTarget(-1);
       }
@@ -100,13 +137,12 @@ export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarg
   }, [bundle?.projection.sourceSnapshotId]);
 
   useEffect(() => {
-    if (!focusPath || !projection || positions.length === 0) return;
-    const index = projection.nodes.findIndex((node) => node.path === focusPath);
+    if (!focusRequest || !projection || positions.length === 0) return;
+    const index = graphNodeIndexForConcept(projection, focusRequest.concept);
     if (index < 0) return;
-    setSelected(index);
     setPathTarget(-1);
     setCamera(focusGraphNodeCamera(positions, index));
-  }, [focusPath, positions, projection]);
+  }, [focusRequest?.sequence, positions, projection]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -198,26 +234,46 @@ export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarg
     if (!gesture || gesture.pointerId !== event.pointerId || gesture.moved) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const picked = pickGraphNode(projected, event.clientX - rect.left, event.clientY - rect.top);
-    if (picked < 0) {
-      setSelected(-1);
+    const recentPick = recentPickRef.current;
+    const pickedConcept = conceptForNode(projection, picked);
+    if (pickedConcept) {
+      recentPickRef.current = { concept: pickedConcept, clientX: event.clientX, clientY: event.clientY, at: performance.now() };
+    } else if (!recentPick || performance.now() - recentPick.at > 600 || Math.hypot(event.clientX - recentPick.clientX, event.clientY - recentPick.clientY) > 6) {
+      recentPickRef.current = null;
+    }
+    const decision = graphNodeClickDecision(picked, selected, event.shiftKey);
+    if (decision.kind === "clear-route") {
       setPathTarget(-1);
-    } else if (selected >= 0 && picked !== selected) {
-      setPathTarget(picked);
+    } else if (decision.kind === "route") {
+      setPathTarget(decision.index);
     } else {
-      setSelected(picked);
       setPathTarget(-1);
+      const concept = conceptForNode(projection, decision.index);
+      if (concept) onInspectConcept(concept);
     }
   }
 
   function onDoubleClick(event: ReactPointerEvent<HTMLCanvasElement>) {
     const rect = event.currentTarget.getBoundingClientRect();
-    const picked = pickGraphNode(projected, event.clientX - rect.left, event.clientY - rect.top);
-    const target = picked >= 0 ? projection?.nodes[picked]?.path : null;
-    if (target && target === activePath) {
-      setSelected(picked);
-      setPathTarget(-1);
-      setCamera(focusGraphNodeCamera(positions, picked, 220));
-    } else if (target) onOpenTarget(target);
+    let picked = pickGraphNode(projected, event.clientX - rect.left, event.clientY - rect.top);
+    const recentPick = recentPickRef.current;
+    if (picked < 0 && recentPick && performance.now() - recentPick.at <= 600 && Math.hypot(event.clientX - recentPick.clientX, event.clientY - recentPick.clientY) <= 6) {
+      // Selecting a node reveals its detail row, which can resize the canvas
+      // between the two clicks of a double-click. Preserve the physical target
+      // of that gesture instead of interpreting the shifted second hit as
+      // empty space.
+      picked = graphNodeIndexForConcept(projection, recentPick.concept);
+    }
+    recentPickRef.current = null;
+    const concept = conceptForNode(projection, picked);
+    const target = concept?.filePath ?? null;
+    const decision = graphNodeDoubleClickDecision(target, Boolean(target && isTargetOpen(target)));
+    if (concept) onInspectConcept(concept);
+    if (decision === "focus" && concept && target) {
+      onFocusConcept(concept);
+      onActivateOpenTarget(target);
+    }
+    if (decision === "open" && target) onOpenTarget(target);
     // Empty-space double click is intentionally inert. Resetting the camera
     // here made a navigation gesture destructive and diverged from the canvas.
   }
@@ -243,7 +299,11 @@ export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarg
           onContextMenu={(event) => event.preventDefault()}
           onDoubleClick={onDoubleClick}
           onKeyDown={(event) => {
-            if (event.key === "Escape") { setSelected(-1); setPathTarget(-1); }
+            if (event.key === "Escape") {
+              const decision = graphEscapeDecision(pathTarget >= 0, activeEditorPath, inspectedConcept?.filePath);
+              if (decision === "clear-route") setPathTarget(-1);
+              if (decision === "restore-editor" && activeEditorPath) onRestoreEditorConcept(activeEditorPath);
+            }
             if (event.key === "+" || event.key === "=") setCamera((value) => ({ ...value, distance: value.distance * 0.86 }));
             if (event.key === "-") setCamera((value) => ({ ...value, distance: value.distance * 1.16 }));
           }}
@@ -259,6 +319,15 @@ export function SpatialGraphView({ refreshKey, focusPath, activePath, onOpenTarg
       <GraphConceptDetailPanel detail={selectedDetail} projection={projection} selected={selected} onOpenTarget={onOpenTarget} />
     </div>
   );
+}
+
+function conceptForNode(projection: GraphViewProjection | null, index: number): InspectedConcept | null {
+  const node = index >= 0 ? projection?.nodes[index] : null;
+  if (!node) return null;
+  return {
+    conceptId: node.id,
+    filePath: node.path || undefined,
+  };
 }
 
 export function shouldPreserveGraphScene(

@@ -31,6 +31,7 @@ import { AgentInvocationPromptEditor } from "./components/AgentInvocationPromptE
 import { AgentIcon } from "./components/AgentIcon";
 import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments, type OpenEditorDocument } from "./hooks/useOpenDocuments";
+import { useInspectedConcept, type InspectedConcept } from "./hooks/useInspectedConcept";
 import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
@@ -44,7 +45,7 @@ import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { applyTheme } from "./theme/applyTheme";
 import { DEFAULT_COLOR_THEME_ID, resolveTheme } from "./theme/registry";
 import type { ColorThemeId } from "./theme/types";
-import { collectLeaves, findEditorLeaf, findNode, mapLeaves, paneId, pruneEmptyLeaves, removeNode, type PaneLeaf, type PaneNodeId } from "./hooks/usePaneTree";
+import { collectLeaves, findEditorLeaf, findEditorLeafByPath, findNode, mapLeaves, paneId, pruneEmptyLeaves, removeNode, type PaneLeaf, type PaneNodeId } from "./hooks/usePaneTree";
 import { collectOpenEditorPaths, findActiveEditorPath } from "./paneTreeSelectors";
 import {
   clampNumber,
@@ -117,7 +118,7 @@ export function App() {
   const [qmdSearchSelected, setQmdSearchSelected] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter, qmdSelected: qmdSearchSelected });
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
-  const [graphFocusPath, setGraphFocusPath] = useState<string | null>(null);
+  const graphInspection = useInspectedConcept();
   const [onboardingMcp, setOnboardingMcp] = useState({
     providers: ["claude", "codex"] as Array<"claude" | "codex">,
     status: "idle" as "idle" | "saving" | "done" | "error",
@@ -222,7 +223,6 @@ export function App() {
     documentSaveStatuses,
     activeDocumentPath,
     activeDocument,
-    activeGraphContext,
     scrollRestoreRequest: editorScrollRestoreRequest,
     setActiveDocumentPath,
     ensureDocumentLoaded,
@@ -234,6 +234,12 @@ export function App() {
     prepareDocumentsForReview,
     discardAndReloadDocument,
   } = openDocumentsState;
+  const openEditorPaths = useMemo(() => collectOpenEditorPaths(canvasTree), [canvasTree]);
+  const inspectedPath = graphInspection.state.concept
+    ? graphInspection.state.concept.filePath ?? null
+    : activeDocumentPath;
+  const inspectedDocument = inspectedPath ? openDocuments[inspectedPath] ?? null : null;
+  const inspectedGraphContext = inspectedPath ? graphContextByPath[inspectedPath] ?? null : null;
   const workspaceMutations = useWorkspaceMutations({
     workspaceModel,
     activeDocumentPath,
@@ -273,9 +279,16 @@ export function App() {
   }, [terminalRuntimeScrollbackLines]);
 
   useEffect(() => {
-    const openPaths = collectOpenEditorPaths(canvasTree);
+    const openPaths = new Set(openEditorPaths);
+    if (inspectedPath) openPaths.add(inspectedPath);
     openDocumentsState.pruneToOpenPaths(openPaths);
-  }, [canvasTree]);
+  }, [inspectedPath, openEditorPaths]);
+
+  useEffect(() => {
+    if (activeDocumentPath) {
+      graphInspection.inspect({ filePath: activeDocumentPath }, "editor");
+    }
+  }, [activeDocumentPath, graphInspection.inspect]);
 
   useEffect(() => {
     if (!workspaceModel) {
@@ -300,7 +313,7 @@ export function App() {
   }, [workspaceModel]);
 
   useEffect(() => {
-    const decision = invocationHistoryLoadDecision(activeDocument);
+    const decision = invocationHistoryLoadDecision(inspectedDocument);
     const request = ++invocationHistoryRequestRef.current;
     if (decision.kind === "clear") {
       setInvocationHistory([]);
@@ -312,7 +325,7 @@ export function App() {
       .then((items) => { if (!cancelled && request === invocationHistoryRequestRef.current) setInvocationHistory(items); })
       .catch(() => { if (!cancelled && request === invocationHistoryRequestRef.current) setInvocationHistory([]); });
     return () => { cancelled = true; };
-  }, [activeDocument?.filePath, activeDocument?.readOnly]);
+  }, [inspectedDocument?.filePath, inspectedDocument?.readOnly]);
 
   useEffect(() => {
     return window.exo.workspace.onInvocationUpdated((record) => {
@@ -326,7 +339,7 @@ export function App() {
       if (record.context === "note") {
         setInvocationActivity((current) => applyInvocationRecord(current, record));
       }
-      if (record.taggedDocumentPath === activeDocumentPath) {
+      if (record.taggedDocumentPath === inspectedPath) {
         const request = ++invocationHistoryRequestRef.current;
         void window.exo.workspace.listInvocationHistory(record.taggedDocumentPath)
           .then((items) => {
@@ -335,7 +348,7 @@ export function App() {
           .catch(() => undefined);
       }
     });
-  }, [activeDocumentPath, scheduleOpenDocumentRefresh, workspaceModel?.workspaceRoot]);
+  }, [inspectedPath, scheduleOpenDocumentRefresh, workspaceModel?.workspaceRoot]);
 
   useEffect(() => {
     return window.exo.workspace.onInvocationActivity((event) => {
@@ -947,14 +960,20 @@ export function App() {
   }
 
   async function openKnowledgeTarget(target: string) {
-    if (!activeDocumentPath) {
-      return;
-    }
-
     if (/^https?:\/\//.test(target)) {
       await window.exo.shell.openExternal(target);
       return;
     }
+
+    if (/^(?:\/|[A-Za-z]:[\\/])/.test(target)) {
+      // Graph and Connections can own focus while navigating. Route an
+      // absolute Concept path to an editor leaf explicitly instead of treating
+      // the currently focused graph/utility surface as the file destination.
+      await openFile(target, findEditorLeaf(canvasTree)?.id);
+      return;
+    }
+
+    if (!activeDocumentPath) return;
 
     const resolved = target.endsWith(".md") || target.includes("/")
       ? await window.exo.notes.resolveTarget(activeDocumentPath, target)
@@ -1037,8 +1056,31 @@ export function App() {
     selectUtilitySurface("connections");
   }
 
+  function inspectGraphConcept(concept: InspectedConcept) {
+    graphInspection.inspect(concept, "graph");
+    if (concept.filePath && !openDocuments[concept.filePath]) {
+      void ensureDocumentLoaded(concept.filePath);
+    }
+  }
+
+  function focusGraphConcept(concept: InspectedConcept) {
+    graphInspection.focus(concept, "graph");
+    if (concept.filePath && !openDocuments[concept.filePath]) {
+      void ensureDocumentLoaded(concept.filePath);
+    }
+  }
+
+  function restoreEditorInspection(filePath: string) {
+    graphInspection.inspect({ filePath }, "editor");
+  }
+
+  function activateOpenGraphTarget(filePath: string) {
+    const targetLeaf = findEditorLeafByPath(canvasTree, filePath) ?? findEditorLeaf(canvasTree);
+    activateEditorDocument(filePath, targetLeaf?.id);
+  }
+
   function openGraphCanvas(focusPath?: string) {
-    setGraphFocusPath(focusPath ?? null);
+    if (focusPath) graphInspection.focus({ filePath: focusPath }, "editor");
     const existing = collectLeaves(canvasTree).find((leaf) => leaf.content.kind === "graph");
     if (existing) {
       canvasActions.focusLeaf(existing.id);
@@ -1614,7 +1656,18 @@ export function App() {
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "graph") {
-          return <GraphPane focusPath={graphFocusPath} activePath={activeDocumentPath} onClose={() => canvasActions.removeLeaf(leaf.id)} onOpenTarget={(target) => void openKnowledgeTarget(target)} />;
+          return <GraphPane
+            inspectedConcept={graphInspection.state.concept}
+            focusRequest={graphInspection.state.focusRequest}
+            activeEditorPath={activeDocumentPath}
+            isTargetOpen={(target) => openEditorPaths.has(target)}
+            onInspectConcept={inspectGraphConcept}
+            onFocusConcept={focusGraphConcept}
+            onRestoreEditorConcept={restoreEditorInspection}
+            onActivateOpenTarget={activateOpenGraphTarget}
+            onClose={() => canvasActions.removeLeaf(leaf.id)}
+            onOpenTarget={(target) => void openKnowledgeTarget(target)}
+          />;
         }
         if (leaf.content.kind === "terminal") {
           const terminalId = leaf.content.terminalId;
@@ -1760,7 +1813,7 @@ export function App() {
           </>
         );
       }}
-      connections={<InspectorDock document={activeDocument} graphContext={activeGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={activeTag} tagResults={tagResults} invocationHistory={invocationHistory} requestedTab={inspectorTabRequest} onOpenInvocationHistory={(item) => {
+      connections={<InspectorDock document={inspectedDocument} graphContext={inspectedGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={activeTag} tagResults={tagResults} invocationHistory={invocationHistory} requestedTab={inspectorTabRequest} onOpenInvocationHistory={(item) => {
         setInvocationReviewQueue((current) => openInvocationHistoryReview(current, item));
       }} onResumeInvocation={(id) => {
         const item = invocationHistory.find((candidate) => candidate.invocationId === id);
