@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { NoteDocument } from "@exo/core";
 
-import { InspectorDock } from "./InspectorDock";
+import { InspectorDock, InvocationHistoryTab } from "./InspectorDock";
 
 const note: NoteDocument = {
   filePath: "/notes/alpha.md",
@@ -59,5 +59,18 @@ describe("Connections", () => {
       />,
     );
     expect(html).toContain("connections-tab-history");
+  });
+
+  it("renders failed zero-change History as status with Resume but no dead Open action", () => {
+    const html = renderToStaticMarkup(
+      <InvocationHistoryTab
+        items={[{ invocationId: "i-failed", createdAt: new Date().toISOString(), command: { handle: "claude", label: "Claude" }, outcome: "failed", changedFileCount: 0, changeIds: [], providerSessionId: "session" }]}
+        onOpen={() => {}}
+        onResume={() => {}}
+      />,
+    );
+    expect(html).toContain("invocation-history__open--status");
+    expect(html).not.toContain("<button class=\"invocation-history__open\"");
+    expect(html).toContain("Resume Claude in Terminal");
   });
 });

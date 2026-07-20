@@ -73,6 +73,12 @@ test("rejects one deterministic invocation back to the exact clean base", async 
     await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(cleanBase);
     expect(await readFile(fixture.paths.tagged, "utf8")).not.toContain("exo-invocation");
     await expect.poll(() => listPendingReviews(fixture.page)).toEqual([]);
+
+    await expect(fixture.page.getByTestId("open-invocation-history")).toBeVisible();
+    await fixture.page.getByTestId("open-invocation-history").click();
+    await fixture.page.locator(".invocation-history__open").filter({ hasText: "@fixture" }).click();
+    await expect(review).toContainText("Rejected");
+    await expect(fixture.page.locator(".cm-content")).toContainText("Fixture modified content.");
   } finally {
     await fixture.cleanup();
   }

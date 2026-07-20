@@ -179,7 +179,7 @@ function moveConnectionTab(event: KeyboardEvent<HTMLButtonElement>, index: numbe
   requestAnimationFrame(() => document.getElementById(`${(event.currentTarget.parentElement as HTMLElement).id}-${tabs[next].id}`)?.focus());
 }
 
-function InvocationHistoryTab({ items, onOpen, onResume }: {
+export function InvocationHistoryTab({ items, onOpen, onResume }: {
   items: InvocationHistoryItem[];
   onOpen: (item: InvocationHistoryItem) => void;
   onResume: (invocationId: string) => void;
@@ -188,7 +188,7 @@ function InvocationHistoryTab({ items, onOpen, onResume }: {
     <section className="invocation-history" data-testid="invocation-history-panel">
       {items.map((item) => (
         <div className="invocation-history__row" key={item.invocationId}>
-          <button className="invocation-history__open" onClick={() => onOpen(item)} type="button">
+          {item.changeIds.length > 0 ? <button className="invocation-history__open" onClick={() => onOpen(item)} type="button">
             <span className={`invocation-history__status invocation-history__status--${item.outcome}`} aria-hidden="true" />
             <span className="invocation-history__agent" aria-hidden="true">
               {item.command.handle === "claude" || item.command.handle === "codex"
@@ -199,7 +199,18 @@ function InvocationHistoryTab({ items, onOpen, onResume }: {
               <strong>@{item.command.handle}</strong>
               <small>{relativeInvocationTime(item.endedAt ?? item.createdAt)} · {item.outcome}{item.changedFileCount > 1 ? ` · ${item.changedFileCount} files` : ""}</small>
             </span>
-          </button>
+          </button> : <div className="invocation-history__open invocation-history__open--status">
+            <span className={`invocation-history__status invocation-history__status--${item.outcome}`} aria-hidden="true" />
+            <span className="invocation-history__agent" aria-hidden="true">
+              {item.command.handle === "claude" || item.command.handle === "codex"
+                ? <AgentIcon kind={item.command.handle} size={14} />
+                : <Bot size={14} />}
+            </span>
+            <span>
+              <strong>@{item.command.handle}</strong>
+              <small>{relativeInvocationTime(item.endedAt ?? item.createdAt)} · {item.outcome}</small>
+            </span>
+          </div>}
           {item.providerSessionId ? (
             <button aria-label={`Resume ${item.command.label} in Terminal`} className="invocation-history__resume" onClick={() => onResume(item.invocationId)} title="Resume in Terminal" type="button"><ArrowUpRight size={14} /></button>
           ) : null}

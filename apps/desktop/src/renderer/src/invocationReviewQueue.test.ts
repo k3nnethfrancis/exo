@@ -125,6 +125,35 @@ describe("invocation review queue", () => {
     expect(state.activeInvocationId).toBeNull();
   });
 
+  it("activates an existing pending review instead of replacing it with read-only History", () => {
+    const pending = hydrateInvocationReviewQueue([listItem("live", ["a"]), listItem("other", ["b"])]);
+    const history: InvocationHistoryItem = {
+      invocationId: "other",
+      createdAt: "2026-07-20T00:00:00.000Z",
+      command,
+      outcome: "pending",
+      changedFileCount: 1,
+      changeIds: ["b"],
+    };
+
+    const opened = openInvocationHistoryReview(pending, history);
+    expect(opened.activeInvocationId).toBe("other");
+    expect(opened.entries.find((entry) => entry.invocationId === "other")?.source).toBe("pending");
+  });
+
+  it("does not create a dead review entry for zero-change History", () => {
+    const state = hydrateInvocationReviewQueue([]);
+    const history: InvocationHistoryItem = {
+      invocationId: "failed",
+      createdAt: "2026-07-20T00:00:00.000Z",
+      command,
+      outcome: "failed",
+      changedFileCount: 0,
+      changeIds: [],
+    };
+    expect(openInvocationHistoryReview(state, history)).toEqual(state);
+  });
+
   it("uses one exact virtual identity for created and renamed History files", () => {
     const historical = record("old", [["created", "kept"], ["renamed", "kept"]]);
     historical.changeset!.files[0] = {

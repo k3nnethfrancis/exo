@@ -71,6 +71,9 @@ export function openInvocationHistoryReview(
   state: InvocationReviewQueueState,
   item: InvocationHistoryItem,
 ): InvocationReviewQueueState {
+  const pending = state.entries.find((entry) => entry.invocationId === item.invocationId && entry.source === "pending");
+  if (pending) return { ...state, activeInvocationId: pending.invocationId };
+  if (item.changeIds.length === 0) return state;
   const historical: InvocationReviewQueueEntry = {
     invocationId: item.invocationId,
     command: item.command,

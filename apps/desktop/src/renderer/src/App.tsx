@@ -142,6 +142,7 @@ export function App() {
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
   const terminalRuntimeScrollbackLinesRef = useRef(DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES);
+  const invocationHistoryRequestRef = useRef(0);
   const latestPaneNavigationRef = useRef(new LatestPaneNavigation());
   const shellLayout = useShellLayout();
   const { tree: canvasTree, focusedLeafId: focusedPaneId, actions: canvasActions } = shellLayout.canvasPaneTree;
@@ -282,6 +283,7 @@ export function App() {
 
   useEffect(() => {
     const decision = invocationHistoryLoadDecision(activeDocument);
+    const request = ++invocationHistoryRequestRef.current;
     if (decision.kind === "clear") {
       setInvocationHistory([]);
       return;
@@ -289,8 +291,8 @@ export function App() {
     if (decision.kind === "preserve") return;
     let cancelled = false;
     void window.exo.workspace.listInvocationHistory(decision.filePath)
-      .then((items) => { if (!cancelled) setInvocationHistory(items); })
-      .catch(() => { if (!cancelled) setInvocationHistory([]); });
+      .then((items) => { if (!cancelled && request === invocationHistoryRequestRef.current) setInvocationHistory(items); })
+      .catch(() => { if (!cancelled && request === invocationHistoryRequestRef.current) setInvocationHistory([]); });
     return () => { cancelled = true; };
   }, [activeDocument?.filePath, activeDocument?.readOnly]);
 
@@ -307,8 +309,11 @@ export function App() {
         setInvocationActivity((current) => applyInvocationRecord(current, record));
       }
       if (record.taggedDocumentPath === activeDocumentPath) {
+        const request = ++invocationHistoryRequestRef.current;
         void window.exo.workspace.listInvocationHistory(record.taggedDocumentPath)
-          .then(setInvocationHistory)
+          .then((items) => {
+            if (request === invocationHistoryRequestRef.current) setInvocationHistory(items);
+          })
           .catch(() => undefined);
       }
     });
