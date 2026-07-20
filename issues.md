@@ -464,4 +464,21 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - [x] Add a packaged-app E2E covering editor → focused graph → Note open →
     repeated-node focus → Properties/Links/Outline consistency → back navigation.
 
--- Shoshin | 2026-07-17
+### EXO-ISSUE-122: Index history repeats the pending-embedding policy warning
+
+- Status: open; non-blocking status-surface cleanup
+- Severity: low
+- Area: QMD update results, IndexingService status presentation, recent jobs
+- Observed: the final packaged real-model Gate B run recorded both “document
+  hashes need embeddings and are waiting for automatic catch-up” and
+  “embeddings are waiting for automatic catch-up” on the same completed update
+  job. The state is truthful, but the repeated policy is noisy and makes
+  provider versus desktop status ownership look ambiguous.
+- Required:
+  - [ ] Give each user-facing maintenance fact one owner and one rendering.
+  - [ ] Preserve provider diagnostics, desktop scheduling policy, retry
+    exhaustion, Manual mode, and bounded-slice warnings without semantic
+    duplicates in `recentJobs` or the active status.
+  - [ ] Add a focused test for the completed-update job warning list.
+
+-- Shoshin | 2026-07-20

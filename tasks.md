@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-19
+Last updated: 2026-07-20
 
 This is Exo's active execution ledger. It records only current work. Completed implementation belongs in Git and `ledger.md`; reproducible bugs belong in `issues.md`; architecture rationale belongs in `docs/exograph-simplification-plan.md`.
 
@@ -39,6 +39,22 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 - Keep P3 deliberate: no save-triggered or arbitrary-mention invocation; real-work dogfood closes the loop.
 
 ## Now — Trust Before Features
+
+### Launch Gate B — complete
+
+- [x] Keep Folder Overview, Explorer, Search, backlinks, breadcrumbs, Graph,
+  and CLI opens on one canonical Note transaction, including unloaded children
+  and already-open background tabs.
+- [x] Hold trusted typing, rapid Backspace, active invocation input, navigation,
+  and structured Markdown edits inside their existing frame-ready budgets with
+  exact sample/content/liveness assertions and no renderer long tasks.
+- [x] Isolate QMD foreground work, QMD maintenance, and WorkspaceGraph; prove
+  1,200-Note concurrent responsiveness plus source and packaged real-model
+  convergence.
+- [x] Build the exact unsigned macOS app and dogfood a guarded 1,555-Note copy:
+  Settings preservation, contained images, Properties, direct/Search opens,
+  deliberate save/restart durability, and byte-identical non-control files all
+  passed. Evidence: `docs/reviews/output/2026-07-20-launch-gate-b.md`.
 
 ### Embedding sync strategy — research complete
 
@@ -262,7 +278,7 @@ Start only after the trust gates above pass.
 - [ ] Publish the reviewed `dev` candidate only after the full stable smoke,
   installed-app durability, and editor latency suite are green. Keep `main`
   unchanged until then (`EXO-ISSUE-120`).
-- [ ] Resolve `EXO-ISSUE-118`: reproduce the breadcrumb Folder-contents and
+- [x] Resolve `EXO-ISSUE-118`: reproduce the breadcrumb Folder-contents and
   active-invocation throughput regressions in a clean worktree before accepting
   the graph foundation; do not weaken the existing latency budgets.
 - [ ] Investigate `EXO-ISSUE-116`: capture and reduce the non-reproducible
