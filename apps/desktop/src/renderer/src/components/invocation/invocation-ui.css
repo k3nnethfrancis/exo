@@ -1,11 +1,199 @@
 .invocation-authorization-popover,
-.invocation-activity {
+.invocation-activity,
+.invocation-review-controls {
   --invocation-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   border: 1px solid var(--surface-border-strong);
   background: color-mix(in srgb, var(--panel-strong) 95%, transparent);
   box-shadow: 0 14px 34px color-mix(in srgb, #000 17%, transparent);
   backdrop-filter: blur(18px) saturate(1.08);
   color: var(--text);
+}
+
+.invocation-review-controls {
+  z-index: 88;
+  display: grid;
+  box-sizing: border-box;
+  width: min(420px, calc(100vw - 24px));
+  max-width: var(--invocation-review-max-width, 420px);
+  gap: 9px;
+  padding: 9px;
+  border-radius: 12px;
+  transform-origin: var(--invocation-review-origin, top left);
+}
+
+.invocation-review-controls[data-positioned="true"] {
+  position: fixed;
+  left: var(--invocation-review-left);
+  top: var(--invocation-review-top);
+}
+
+.invocation-review-controls--conflict { border-color: var(--danger-border); }
+
+.invocation-review-controls__header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.invocation-review-controls__operation-icon {
+  display: inline-grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+.invocation-review-controls--conflict .invocation-review-controls__operation-icon {
+  background: color-mix(in srgb, var(--danger-strong) 10%, transparent);
+  color: var(--danger-strong);
+}
+
+.invocation-review-controls__identity {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.invocation-review-controls__eyebrow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.invocation-review-controls__eyebrow strong {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 670;
+  letter-spacing: -0.01em;
+}
+
+.invocation-review-controls__media {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--text-secondary);
+}
+
+.invocation-review-controls__eyebrow > :last-child:not(:first-child) { margin-left: auto; }
+
+.invocation-review-controls__path,
+.invocation-review-controls__summary {
+  overflow: hidden;
+  color: var(--text-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invocation-review-controls__path { font: 10px/1.35 var(--mono); }
+.invocation-review-controls__summary { margin: 0; font-size: 11px; line-height: 1.35; }
+
+.invocation-review-controls__navigation,
+.invocation-review-controls__decisions,
+.invocation-review-controls__bulk > div,
+.invocation-review-controls__conflict > div {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.invocation-review-controls__navigation { gap: 1px; }
+.invocation-review-controls__decisions { justify-content: flex-end; }
+
+.invocation-review-decision {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: 650 11px/1.2 var(--sans);
+  transition: background-color 120ms ease, transform 100ms var(--invocation-ease-out);
+}
+
+.invocation-review-decision--reject { color: var(--danger-strong); }
+.invocation-review-decision--keep { background: var(--accent); color: var(--accent-contrast, white); }
+
+.invocation-review-controls__bulk {
+  justify-self: end;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.invocation-review-controls__bulk summary {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.invocation-review-controls__bulk summary::-webkit-details-marker { display: none; }
+.invocation-review-controls__bulk summary svg { transition: transform 140ms var(--invocation-ease-out); }
+.invocation-review-controls__bulk[open] summary svg { transform: rotate(180deg); }
+.invocation-review-controls__bulk > div { justify-content: flex-end; padding-top: 3px; }
+
+.invocation-review-controls__conflict {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger-strong) 7%, transparent);
+  color: var(--danger-strong);
+}
+
+.invocation-review-controls__conflict p {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+  margin: 0;
+}
+
+.invocation-review-controls__conflict strong { color: var(--text); font-size: 11px; line-height: 1.25; }
+.invocation-review-controls__conflict span {
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.invocation-review-controls[data-narrow="true"] .invocation-review-controls__header {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.invocation-review-controls[data-narrow="true"] .invocation-review-controls__navigation {
+  grid-column: 2;
+  justify-self: end;
+}
+
+.invocation-review-controls[data-narrow="true"] .invocation-review-controls__decisions,
+.invocation-review-controls[data-narrow="true"] .invocation-review-decision { width: 100%; }
+
+.invocation-review-controls[data-narrow="true"] .invocation-review-controls__conflict {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.invocation-review-controls[data-narrow="true"] .invocation-review-controls__conflict > div {
+  grid-column: 2;
+  justify-self: end;
 }
 
 .invocation-authorization-popover {
@@ -225,37 +413,54 @@
   font: 600 10px/1.2 var(--sans);
 }
 
+.invocation-icon-action:disabled {
+  cursor: default;
+  opacity: 0.28;
+  transform: none;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .invocation-ui-button:hover,
   .invocation-icon-action:hover,
-  .invocation-activity__details:hover { background: var(--surface-hover); }
+  .invocation-activity__details:hover,
+  .invocation-review-decision--reject:hover { background: var(--surface-hover); }
   .invocation-ui-button--primary:hover { background: color-mix(in srgb, var(--accent) 90%, white); }
+  .invocation-review-decision--keep:hover { background: color-mix(in srgb, var(--accent) 90%, white); }
+  .invocation-icon-action:disabled:hover { background: transparent; }
 }
 
 .invocation-ui-button:active,
 .invocation-icon-action:active,
-.invocation-activity__details:active { transform: scale(0.97); }
+.invocation-activity__details:active,
+.invocation-review-decision:active { transform: scale(0.97); }
 
 .invocation-ui-button:focus-visible,
 .invocation-icon-action:focus-visible,
 .invocation-activity__details:focus-visible,
-.invocation-authorization-popover__details summary:focus-visible {
+.invocation-authorization-popover__details summary:focus-visible,
+.invocation-review-decision:focus-visible,
+.invocation-review-controls__bulk summary:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 76%, white);
   outline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .invocation-authorization-popover__details summary svg,
+  .invocation-review-controls__bulk summary svg,
   .invocation-activity,
   .invocation-ui-button,
   .invocation-icon-action,
-  .invocation-activity__details { transition: opacity 100ms ease; }
+  .invocation-activity__details,
+  .invocation-review-decision { transition: opacity 100ms ease; }
   .invocation-activity__state--working { animation: none; }
+  .invocation-review-controls__bulk[open] summary svg,
+  .invocation-review-decision:active { transform: none; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
   .invocation-authorization-popover,
-  .invocation-activity {
+  .invocation-activity,
+  .invocation-review-controls {
     background: var(--panel-strong);
     backdrop-filter: none;
   }
@@ -263,7 +468,8 @@
 
 @media (prefers-contrast: more) {
   .invocation-authorization-popover,
-  .invocation-activity {
+  .invocation-activity,
+  .invocation-review-controls {
     border-color: var(--text);
     background: var(--panel-strong);
   }
@@ -273,4 +479,14 @@
   .invocation-authorization-popover__actions { flex-wrap: wrap; }
   .invocation-ui-button--quiet { order: 3; width: 100%; margin-right: 0; }
   .invocation-activity { left: 10px; bottom: 10px; width: calc(100vw - 20px); }
+  .invocation-review-controls { width: calc(100vw - 20px); }
+}
+
+@media (max-width: 380px) {
+  .invocation-review-controls__header { grid-template-columns: auto minmax(0, 1fr); }
+  .invocation-review-controls__navigation { grid-column: 2; justify-self: end; }
+  .invocation-review-controls__decisions,
+  .invocation-review-decision { width: 100%; }
+  .invocation-review-controls__conflict { grid-template-columns: auto minmax(0, 1fr); }
+  .invocation-review-controls__conflict > div { grid-column: 2; justify-self: end; }
 }
