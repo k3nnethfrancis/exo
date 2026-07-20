@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import { writeFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -141,6 +142,39 @@ describe("InvocationRunner readiness parity", () => {
 
     expect(processFactory.process.releaseCalls).toBe(1);
     expect(processFactory.process.prompts).toHaveLength(1);
+  });
+
+  it("revalidates tagged bytes after whole-root capture and preserves a concurrent edit without executing", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-pre-exec-drift-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const documentBody = protocolNoteBody("# Gate\n", command.handle, "Do not overwrite this edit.");
+    await writeFile(notePath, documentBody, "utf8");
+    const processFactory = new FakeInvocationProcessFactory();
+    const concurrentEdit = "# Human edit during capture\n";
+    processFactory.onLaunch = () => writeFileSync(notePath, concurrentEdit, "utf8");
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+    const prepared = await runner.prepare(invocationRequest(notePath, documentBody));
+
+    await expect(runner.authorizeAndStart(prepared, authorizationFor(prepared))).rejects.toMatchObject({
+      code: "document-drift",
+    });
+
+    expect(processFactory.process.releaseCalls).toBe(0);
+    expect(processFactory.process.prompts).toHaveLength(0);
+    expect(processFactory.process.stopCalls).toBe(1);
+    await expect(readFile(notePath, "utf8")).resolves.toBe(concurrentEdit);
+    await expect(new InvocationStore(root).readProcessOwnership(prepared.id)).resolves.toBeNull();
+    const failed = await runner.get(prepared.id);
+    expect(failed).toMatchObject({
+      status: "failed",
+      failureReason: expect.stringContaining("Command was not run"),
+    });
+    expect(failed?.changeset).toBeUndefined();
+
+    await runner.recoverWorkspace(settings(root, command));
+    await expect(readFile(notePath, "utf8")).resolves.toBe(concurrentEdit);
   });
 
   it("coalesces structured provider activity into bounded renderer events", async () => {
@@ -1084,6 +1118,93 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     });
   });
 
+  it("enumerates a missing record, proves its owned process absent, and keeps the Note Root blocked", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-missing-record-recovery-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const body = protocolNoteBody("# Missing record\n", command.handle, "Do not unlock this root.");
+    await writeFile(notePath, body);
+    const store = new InvocationStore(root);
+    await store.writeProcessOwnership("missing-record", absentProcessOwnership(2_000_000_000));
+    const runner = createRunner(settings(root, command));
+
+    await expect(runner.recoverWorkspace(settings(root, command))).resolves.toBeUndefined();
+
+    const prepared = await runner.prepare(invocationRequest(notePath, body));
+    await expect(runner.authorizeAndStart(prepared, authorizationFor(prepared))).rejects.toMatchObject({
+      code: "review-busy",
+      message: expect.stringContaining("record is missing or semantically invalid"),
+    });
+    await expect(store.readProcessOwnership("missing-record")).resolves.toEqual(absentProcessOwnership(2_000_000_000));
+  });
+
+  it("enumerates a semantically invalid record and keeps its Note Root blocked", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-invalid-record-recovery-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const body = protocolNoteBody("# Invalid record\n", command.handle, "Do not unlock this root.");
+    await writeFile(notePath, body);
+    const invocationDir = path.join(root, ".exo", "invocations", "invalid-record");
+    await mkdir(invocationDir, { recursive: true });
+    await writeFile(path.join(invocationDir, "record.json"), JSON.stringify({ id: "invalid-record" }), "utf8");
+    const runner = createRunner(settings(root, command));
+
+    await expect(runner.recoverWorkspace(settings(root, command))).resolves.toBeUndefined();
+
+    const prepared = await runner.prepare(invocationRequest(notePath, body));
+    await expect(runner.authorizeAndStart(prepared, authorizationFor(prepared))).rejects.toMatchObject({
+      code: "review-busy",
+      message: expect.stringContaining("record is missing or semantically invalid"),
+    });
+  });
+
+  it("does not recover or settle an active invocation twice across an A to B to A switch", async () => {
+    const workspaceA = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-active-switch-a-"));
+    const workspaceB = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-active-switch-b-"));
+    temporaryRoots.push(workspaceA, workspaceB);
+    const notePath = path.join(workspaceA, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const body = protocolNoteBody("# Active switch\n", command.handle, "Stay active across the switch.");
+    await writeFile(notePath, body);
+    let activeSettings = settings(workspaceA, command);
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = new InvocationRunner({
+      getWorkspaceSettings: () => activeSettings,
+      trustStateRoot: workspaceA,
+      terminalManager: new FakeTerminalManager() as unknown as TerminalManager,
+      invocationProcessFactory: processFactory,
+      workspaceWatcherService: { subscribe: () => () => undefined } as unknown as WorkspaceWatcherService,
+      settlementQuietMs: 0,
+      settlementMaxWaitMs: 0,
+    });
+    const prepared = await runner.prepare(invocationRequest(notePath, body));
+    await runner.authorizeAndStart(prepared, authorizationFor(prepared));
+
+    activeSettings = settings(workspaceB, command);
+    await runner.recoverWorkspace(activeSettings);
+    activeSettings = settings(workspaceA, command);
+    await runner.recoverWorkspace(activeSettings);
+
+    expect(processFactory.process.stopCalls).toBe(0);
+    expect(processFactory.process.releaseCalls).toBe(1);
+    const updates: import("@exo/core").InvocationRecord[] = [];
+    runner.on("updated", (record) => updates.push(record));
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    await writeFile(notePath, `${removeDocumentAgentInvocation(body, TEST_PROTOCOL_INVOCATION_ID, command.handle)}${formatDocumentAgentResponse({
+      invocationId: TEST_PROTOCOL_INVOCATION_ID,
+      agent: command.handle,
+      message: "Finished after returning to Workspace A.",
+    })}\n`);
+    processFactory.process.exit(0, "done");
+    const completed = await updated;
+
+    expect(updates).toHaveLength(1);
+    expect(completed).toMatchObject({ status: "process-exited", changeset: { status: "pending-review" } });
+    await expect(runner.get(prepared.id)).resolves.toMatchObject({ status: "process-exited" });
+  });
+
   it("resets the settlement quiet window when a late watcher event arrives", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-quiet-window-"));
     temporaryRoots.push(root);
@@ -1238,6 +1359,7 @@ class FakeInvocationProcessFactory implements InvocationProcessFactory {
   readonly inputs: Array<{ command: string; cwd: string; env: NodeJS.ProcessEnv }> = [];
   nextSendError: Error | null = null;
   nextStopError: Error | null = null;
+  onLaunch?: () => void;
   onRelease?: (process: FakeInvocationProcess) => Promise<void>;
 
   get process(): FakeInvocationProcess {
@@ -1248,6 +1370,7 @@ class FakeInvocationProcessFactory implements InvocationProcessFactory {
 
   launch(input: { command: string; cwd: string; env: NodeJS.ProcessEnv }): InvocationProcess {
     this.inputs.push(input);
+    this.onLaunch?.();
     const process = new FakeInvocationProcess(this.processes.length + 100, this.nextSendError, this.nextStopError, this.onRelease);
     this.nextSendError = null;
     this.nextStopError = null;
@@ -1350,4 +1473,15 @@ function settings(workspaceRoot: string, command: ReturnType<typeof createDefaul
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'"'"'`)}'`;
+}
+
+function absentProcessOwnership(pid: number) {
+  return {
+    version: 1 as const,
+    kind: "posix-process-group" as const,
+    pid,
+    processGroupId: pid,
+    ownerToken: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    launchedAt: "2026-07-20T00:00:00.000Z",
+  };
 }

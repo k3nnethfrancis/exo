@@ -17,6 +17,7 @@ import {
   InvocationStore,
   readWorkspaceDocument,
   removeDocumentAgentInvocation,
+  safeStoreSegment,
   normalizeAgentHandle,
   type AgentCommand,
   type InvocationRecord,
@@ -28,6 +29,7 @@ import {
   type InvocationActivityEvent,
   type InvocationActivityKind,
   type InvocationFileChange,
+  type InvocationLaunchArtifacts,
   type InvocationWorkspaceManifest,
 } from "@exo/core";
 import { commandForClaudeResume as buildClaudeResumeCommand } from "@exo/core/provider-session";
@@ -152,6 +154,7 @@ interface FileSnapshot {
   exists: boolean;
   content: string;
   sha256: string | null;
+  mode: number | null;
 }
 
 const DEFAULT_SETTLEMENT_QUIET_MS = 240;
@@ -301,6 +304,7 @@ export class InvocationRunner extends EventEmitter {
     }
     let terminal: TerminalSessionInfo | undefined;
     let invocationProcess: InvocationProcess | undefined;
+    let launchArtifacts: InvocationLaunchArtifacts | undefined;
     let continuityHead: InvocationConversationHead | null = null;
     let startCommitted = false;
     const queuedExitRef: { current: { event: Parameters<typeof inspectInvocationAdapterResult>[1]; attemptedHead: InvocationConversationHead | null; fallback: boolean } | null } = { current: null };
@@ -335,7 +339,7 @@ export class InvocationRunner extends EventEmitter {
         if (prepared.cleanBaseContent === undefined) {
           throw new InvocationRunnerError("protocol-invalid", "The exact clean invocation base is unavailable.");
         }
-        await store.captureLaunchArtifacts(prepared.id, {
+        launchArtifacts = await store.captureLaunchArtifacts(prepared.id, {
           noteRoots: prepared.noteRoots,
           cleanBase: { path: prepared.before.path, content: prepared.cleanBaseContent },
         });
@@ -446,6 +450,9 @@ export class InvocationRunner extends EventEmitter {
           // is durable. Recovery can therefore always stop or block before it
           // captures a settled workspace.
           await store.writeProcessOwnership(prepared.id, invocationProcess.ownership);
+          if (prepared.before && launchArtifacts) {
+            await assertLaunchDocumentStillCurrent(prepared, launchArtifacts);
+          }
           await invocationProcess.release();
           await invocationProcess.send(prompt);
         } catch (error) {
@@ -516,6 +523,21 @@ export class InvocationRunner extends EventEmitter {
       this.clearActivity(prepared.id);
       const failureReason = error instanceof Error ? error.message : String(error);
       if (observation) {
+        if (error instanceof InvocationRunnerError && error.code === "document-drift" && !observation.record.startedAt) {
+          const failed: InvocationRecord = {
+            ...observation.record,
+            status: "failed",
+            endedAt: new Date().toISOString(),
+            failureReason,
+            attribution: { status: "unattributed", reason: "The document changed before the Command was allowed to execute." },
+          };
+          await store.writeRecord(failed);
+          await store.clearProcessOwnership(prepared.id);
+          observation.record = failed;
+          this.emit("updated", failed);
+          this.releaseObservation(observation);
+          throw error;
+        }
         try {
           await this.settle(prepared.id, "failed", undefined, failureReason);
         } catch (settlementError) {
@@ -706,9 +728,9 @@ export class InvocationRunner extends EventEmitter {
   /** Recover a workspace completely before callers expose it as active. */
   async recoverWorkspace(settings: WorkspaceSettings): Promise<void> {
     const store = new InvocationStore(settings.workspaceRoot);
-    let records: InvocationRecord[];
+    let invocationIds: string[];
     try {
-      records = await store.listRecords();
+      invocationIds = await store.listInvocationIds();
       this.recoveryBlocks.delete(settings.workspaceRoot);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -719,22 +741,51 @@ export class InvocationRunner extends EventEmitter {
       console.error("[exo] invocation workspace recovery remains blocked", { workspaceRoot: settings.workspaceRoot, error });
       return;
     }
-    for (const record of records) {
-      const workspaceRoot = record.workspaceRoot ?? settings.workspaceRoot;
-      const noteRoots = record.noteRoots?.length ? [...record.noteRoots] : [...settings.noteRoots];
-      this.invocationScopes.set(record.id, { workspaceRoot, noteRoots });
-      const recordStore = workspaceRoot === settings.workspaceRoot ? store : new InvocationStore(workspaceRoot);
-      let recovered = record;
+    const workspaceBlockReasons: string[] = [];
+    for (const artifactId of invocationIds) {
+      const activeObservation = this.active.get(artifactId);
+      if (activeObservation?.workspaceRoot === settings.workspaceRoot) {
+        // A Workspace can be switched away from and back to while its command
+        // is still active in this runner. Its in-memory observation and locks
+        // remain authoritative; recovery must not kill or settle it twice.
+        this.invocationScopes.set(artifactId, {
+          workspaceRoot: activeObservation.workspaceRoot,
+          noteRoots: [...activeObservation.noteRoots],
+        });
+        continue;
+      }
+
+      let record: InvocationRecord | null = null;
+      let recordStore = store;
+      let noteRoots = [...settings.noteRoots];
+      let workspaceRoot = settings.workspaceRoot;
+      let recovered: InvocationRecord | null = null;
       try {
+        // Ownership is inspected before record parsing. A missing or damaged
+        // record must never hide a still-running writer.
+        const ownership = await store.readProcessOwnership(artifactId);
+        if (ownership) await terminateOwnedInvocationProcessGroup(ownership);
+
+        record = await store.readRecord(artifactId);
+        if (!record) {
+          throw new Error("Invocation record is missing or semantically invalid.");
+        }
+        if (safeStoreSegment(record.id) !== artifactId) {
+          throw new Error("Invocation record id does not match its artifact directory.");
+        }
+        workspaceRoot = record.workspaceRoot ?? settings.workspaceRoot;
+        if (path.resolve(workspaceRoot) !== path.resolve(settings.workspaceRoot)) {
+          throw new Error("Invocation record Workspace does not match its artifact directory.");
+        }
+        noteRoots = record.noteRoots?.length ? [...record.noteRoots] : [...settings.noteRoots];
+        this.invocationScopes.set(record.id, { workspaceRoot, noteRoots });
+        recordStore = store;
+        recovered = record;
+
         const requiresFromRecord = record.status === "pending" || record.status === "running" ||
           record.status === "orphaned" && !record.changeset;
-        const ownership = await recordStore.readProcessOwnership(record.id);
         let existingSettled = null as InvocationWorkspaceManifest | null;
-        if (ownership) {
-          // Stop and prove the writer dead before journal replay, artifact
-          // interpretation, or any new settled capture.
-          await terminateOwnedInvocationProcessGroup(ownership);
-        } else if (requiresFromRecord) {
+        if (!ownership && requiresFromRecord) {
           existingSettled = await recordStore.readManifest(record.id, "settled");
           if (!existingSettled) {
             throw new Error("Durable invocation process ownership is missing; Exo cannot prove the writer is dead.");
@@ -742,8 +793,10 @@ export class InvocationRunner extends EventEmitter {
         }
         recovered = await this.reviewService(workspaceRoot).recoverJournal(record);
         const launch = await recordStore.readManifest(record.id, "launch");
+        const failedBeforeExecution = recovered.status === "failed" && !recovered.startedAt;
         const requiresExactRecovery = recovered.status === "pending" || recovered.status === "running" ||
-          (recovered.status === "orphaned" && !recovered.changeset) || Boolean(launch && !recovered.changeset);
+          (recovered.status === "orphaned" && !recovered.changeset) ||
+          Boolean(launch && !recovered.changeset && !failedBeforeExecution);
         if (!requiresExactRecovery) {
           if (ownership) await recordStore.clearProcessOwnership(record.id);
           continue;
@@ -767,8 +820,17 @@ export class InvocationRunner extends EventEmitter {
         this.emit("updated", next);
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
+        workspaceBlockReasons.push(`Invocation ${record?.id ?? artifactId}: ${reason}`);
+        if (!record) {
+          console.error("[exo] invocation artifact recovery remains blocked", {
+            workspaceRoot: settings.workspaceRoot,
+            invocationId: artifactId,
+            error,
+          });
+          continue;
+        }
         const blocked: InvocationRecord = {
-          ...recovered,
+          ...(recovered ?? record),
           status: "orphaned",
           endedAt: new Date().toISOString(),
           failureReason: `Invocation recovery remains unresolved: ${reason}`,
@@ -778,13 +840,19 @@ export class InvocationRunner extends EventEmitter {
           await recordStore.writeRecord(blocked);
           this.emit("updated", blocked);
         } catch (persistenceError) {
-          this.recoveryBlocks.set(workspaceRoot, {
-            noteRoots: noteRoots.map((root) => path.resolve(root)),
-            reason: `Invocation ${record.id} recovery and failure-state persistence both failed.`,
+          console.error("[exo] invocation recovery state could not be persisted", {
+            invocationId: record.id,
+            error,
+            persistenceError,
           });
-          console.error("[exo] invocation recovery state could not be persisted", { invocationId: record.id, error, persistenceError });
         }
       }
+    }
+    if (workspaceBlockReasons.length > 0) {
+      this.recoveryBlocks.set(settings.workspaceRoot, {
+        noteRoots: settings.noteRoots.map((root) => path.resolve(root)),
+        reason: `Invocation recovery remains blocked. ${workspaceBlockReasons.join(" ")}`,
+      });
     }
   }
 
@@ -1121,14 +1189,43 @@ const INVOCATION_ACTIVITY_INTERVAL_MS = 200;
 
 async function snapshotTextFile(filePath: string): Promise<FileSnapshot> {
   try {
-    await stat(filePath);
+    const info = await stat(filePath);
     const content = await readFile(filePath, "utf8");
-    return { path: filePath, exists: true, content, sha256: createHash("sha256").update(content).digest("hex") };
+    return {
+      path: filePath,
+      exists: true,
+      content,
+      sha256: createHash("sha256").update(content).digest("hex"),
+      mode: info.mode & 0o777,
+    };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return { path: filePath, exists: false, content: "", sha256: null };
+      return { path: filePath, exists: false, content: "", sha256: null, mode: null };
     }
     throw error;
+  }
+}
+
+async function assertLaunchDocumentStillCurrent(
+  prepared: PreparedInvocation,
+  artifacts: InvocationLaunchArtifacts,
+): Promise<void> {
+  if (!prepared.before || prepared.cleanBaseContent === undefined) return;
+  const taggedPath = artifacts.cleanBase.file.path;
+  const launchState = artifacts.launchManifest.files[taggedPath];
+  const cleanBaseSha256 = createHash("sha256").update(prepared.cleanBaseContent).digest("hex");
+  const current = await snapshotTextFile(taggedPath);
+  const matchesPrepared = launchState?.sha256 === prepared.before.sha256 &&
+    launchState?.mode === prepared.before.mode;
+  const matchesCleanBase = artifacts.cleanBase.file.sha256 === cleanBaseSha256 &&
+    artifacts.cleanBase.file.mode === prepared.before.mode;
+  const matchesCurrent = current.exists && current.sha256 === launchState?.sha256 &&
+    current.mode === launchState?.mode;
+  if (!matchesPrepared || !matchesCleanBase || !matchesCurrent) {
+    throw new InvocationRunnerError(
+      "document-drift",
+      "The document changed while Exo prepared the invocation. The Command was not run; your edit was preserved.",
+    );
   }
 }
 async function requiredInvocation(store: InvocationStore, id: string): Promise<InvocationRecord> {

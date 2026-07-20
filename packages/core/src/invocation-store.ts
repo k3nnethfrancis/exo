@@ -66,16 +66,7 @@ export class InvocationStore {
   }
 
   async listRecords(): Promise<InvocationRecord[]> {
-    let entries: string[];
-    try {
-      const dirents = await readdir(this.layout.invocationsDir, { withFileTypes: true });
-      entries = dirents.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
-    } catch (error) {
-      if (isNodeErrorCode(error, "ENOENT")) {
-        return [];
-      }
-      throw error;
-    }
+    const entries = await this.listInvocationIds();
 
     const records = await Promise.all(
       entries.map((entry) => readJsonOrNull(path.join(this.layout.invocationsDir, entry, "record.json"))),
@@ -87,6 +78,19 @@ export class InvocationStore {
         const byCreatedAt = left.createdAt.localeCompare(right.createdAt);
         return byCreatedAt === 0 ? left.id.localeCompare(right.id) : byCreatedAt;
       });
+  }
+
+  /** Enumerate the durable boundary, not just records that still normalize.
+   * Recovery uses this so a missing or damaged record cannot hide process
+   * ownership or other invocation artifacts. */
+  async listInvocationIds(): Promise<string[]> {
+    try {
+      const dirents = await readdir(this.layout.invocationsDir, { withFileTypes: true });
+      return dirents.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+    } catch (error) {
+      if (isNodeErrorCode(error, "ENOENT")) return [];
+      throw error;
+    }
   }
 
   captureManifest(

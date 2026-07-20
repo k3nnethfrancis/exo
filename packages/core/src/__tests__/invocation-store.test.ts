@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -66,6 +66,24 @@ describe("invocation store", () => {
         { id: "c", createdAt: "2026-07-08T00:00:01.000Z" },
         { id: "b", createdAt: "2026-07-08T00:00:02.000Z" },
       ]);
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("enumerates every durable invocation directory even when its record is missing or invalid", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-invocations-"));
+    const store = new InvocationStore(workspaceRoot);
+
+    try {
+      await store.writeRecord(invocationRecord("valid", "2026-07-08T00:00:00.000Z"));
+      const invocationsDir = resolveInvocationStoreLayout(workspaceRoot).invocationsDir;
+      await mkdir(path.join(invocationsDir, "missing"), { recursive: true });
+      await mkdir(path.join(invocationsDir, "invalid"), { recursive: true });
+      await writeFile(path.join(invocationsDir, "invalid", "record.json"), "{}\n", "utf8");
+
+      await expect(store.listInvocationIds()).resolves.toEqual(["invalid", "missing", "valid"]);
+      await expect(store.listRecords()).resolves.toMatchObject([{ id: "valid" }]);
     } finally {
       await rm(workspaceRoot, { recursive: true, force: true });
     }
