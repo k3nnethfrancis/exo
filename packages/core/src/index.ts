@@ -20,6 +20,7 @@ export * from "./agent-command-trust-store";
 export * from "./invocation-store";
 export * from "./invocation-changeset";
 export * from "./invocation-activity";
+export * from "./invocation-artifacts";
 export * from "./invocation-continuity-store";
 export * from "./store-paths";
 export * from "./workspace-index";

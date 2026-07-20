@@ -3,6 +3,19 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import { normalizeInvocationRecord, type InvocationRecord } from "./agent-invocation";
+import {
+  InvocationArtifactStore,
+  type InvocationArtifactRecovery,
+  type InvocationCleanBaseInput,
+  type InvocationCleanBaseRef,
+  type InvocationManifestCaptureOptions,
+  type InvocationManifestPhase,
+  type InvocationLaunchArtifactInput,
+  type InvocationLaunchArtifacts,
+  type InvocationReviewJournal,
+  type InvocationReviewJournalInput,
+} from "./invocation-artifacts";
+import type { InvocationFileState, InvocationWorkspaceManifest } from "./invocation-changeset";
 import { safeStoreSegment } from "./store-paths";
 
 export interface InvocationStoreLayout {
@@ -26,9 +39,11 @@ export function invocationRecordPath(layout: InvocationStoreLayout, invocationId
 
 export class InvocationStore {
   readonly layout: InvocationStoreLayout;
+  private readonly artifacts: InvocationArtifactStore;
 
   constructor(workspaceRoot: string) {
     this.layout = resolveInvocationStoreLayout(workspaceRoot);
+    this.artifacts = new InvocationArtifactStore(this.layout.invocationsDir);
   }
 
   async writeRecord(record: InvocationRecord): Promise<string> {
@@ -70,6 +85,67 @@ export class InvocationStore {
         const byCreatedAt = left.createdAt.localeCompare(right.createdAt);
         return byCreatedAt === 0 ? left.id.localeCompare(right.id) : byCreatedAt;
       });
+  }
+
+  captureManifest(
+    invocationId: string,
+    phase: InvocationManifestPhase,
+    noteRoots: readonly string[],
+    options?: InvocationManifestCaptureOptions,
+  ): Promise<InvocationWorkspaceManifest> {
+    return this.artifacts.captureManifest(invocationId, phase, noteRoots, options);
+  }
+
+  captureLaunchArtifacts(invocationId: string, input: InvocationLaunchArtifactInput): Promise<InvocationLaunchArtifacts> {
+    return this.artifacts.captureLaunchArtifacts(invocationId, input);
+  }
+
+  readManifest(invocationId: string, phase: InvocationManifestPhase): Promise<InvocationWorkspaceManifest | null> {
+    return this.artifacts.readManifest(invocationId, phase);
+  }
+
+  captureCleanBase(invocationId: string, input: InvocationCleanBaseInput): Promise<InvocationCleanBaseRef> {
+    return this.artifacts.captureCleanBase(invocationId, input);
+  }
+
+  readCleanBase(invocationId: string): Promise<InvocationCleanBaseRef | null> {
+    return this.artifacts.readCleanBase(invocationId);
+  }
+
+  readSnapshot(invocationId: string, state: InvocationFileState): Promise<Buffer | null> {
+    return this.artifacts.readSnapshot(invocationId, state);
+  }
+
+  beginReviewJournal(
+    invocationId: string,
+    inputs: readonly InvocationReviewJournalInput[],
+    createdAt?: string,
+  ): Promise<InvocationReviewJournal> {
+    return this.artifacts.beginReviewJournal(invocationId, inputs, createdAt);
+  }
+
+  updateReviewJournalEntry(
+    invocationId: string,
+    changeId: string,
+    outcome: { status: "applied"; completedAt?: string } | { status: "conflict"; reason: string; completedAt?: string },
+  ): Promise<InvocationReviewJournal> {
+    return this.artifacts.updateReviewJournalEntry(invocationId, changeId, outcome);
+  }
+
+  readReviewJournal(invocationId: string): Promise<InvocationReviewJournal | null> {
+    return this.artifacts.readReviewJournal(invocationId);
+  }
+
+  clearReviewJournal(invocationId: string): Promise<void> {
+    return this.artifacts.clearReviewJournal(invocationId);
+  }
+
+  readArtifactRecovery(invocationId: string): Promise<InvocationArtifactRecovery> {
+    return this.artifacts.readRecovery(invocationId);
+  }
+
+  listArtifactRecoveries(): Promise<InvocationArtifactRecovery[]> {
+    return this.artifacts.listRecoverable();
   }
 }
 

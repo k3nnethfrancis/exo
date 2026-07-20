@@ -23,6 +23,8 @@ export interface InvocationFileState {
   byteLength: number;
   snapshotRef: string;
   mediaType: "text" | "binary";
+  /** POSIX permission bits retained so a deleted file can be recreated faithfully. */
+  mode?: number;
 }
 
 export interface InvocationWorkspaceManifest {
