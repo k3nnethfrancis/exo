@@ -1,4 +1,4 @@
-import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { cp, chmod, mkdir, mkdtemp, readFile, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -259,6 +259,32 @@ describe("InvocationReviewService", () => {
     await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
   });
 
+  it("recovers an implicit tagged clean-base restore after quarantining the proposal", async () => {
+    const fixture = await unchangedTaggedFixture(1);
+    const store = new InvocationStore(fixture.workspaceRoot);
+    const visible = fixture.record.changeset!.files[0]!;
+    const changeId = "implicit:tagged-clean-base";
+    const proposalPath = (await store.readManifest(fixture.record.id, "settled"))!.files;
+    const canonicalNotePath = Object.keys(proposalPath).find((candidate) => path.basename(candidate) === "note.md")!;
+    const quarantinePath = testQuarantinePath(fixture.record.id, changeId, canonicalNotePath);
+    await store.beginReviewJournal(fixture.record.id, [
+      { changeId: visible.id, action: "reject" },
+      { changeId, action: "reject" },
+    ]);
+    await rm(fixture.createdPaths[0]!);
+    await store.updateReviewJournalEntry(fixture.record.id, visible.id, { status: "applied" });
+    await store.updateReviewJournalMutation(fixture.record.id, changeId, { phase: "planned", quarantinePath });
+    await rename(canonicalNotePath, quarantinePath);
+    await store.updateReviewJournalMutation(fixture.record.id, changeId, { phase: "quarantined", quarantinePath });
+
+    const recovered = await new InvocationReviewService(fixture.workspaceRoot).recoverJournal(fixture.record);
+
+    expect(recovered.changeset?.status).toBe("rejected");
+    await expect(readFile(fixture.notePath, "utf8")).resolves.toBe(fixture.clean);
+    await expect(stat(quarantinePath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
+  });
+
   it("reconciles applied visible Rejects and exposes tagged drift after restart", async () => {
     const fixture = await unchangedTaggedFixture(1);
     const store = new InvocationStore(fixture.workspaceRoot);
@@ -344,6 +370,64 @@ describe("InvocationReviewService", () => {
     expect(recovered.changeset?.files.find((change) => change.id === rename.id)?.decision.status).toBe("rejected");
     await expect(readFile(fixture.paths.renamedFrom, "utf8")).resolves.toBe("rename\n");
     await expect(stat(fixture.paths.renamedTo)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
+  });
+
+  it.each([
+    { operation: "created" as const, phase: "planned" as const },
+    { operation: "created" as const, phase: "quarantined" as const },
+    { operation: "modified" as const, phase: "planned" as const },
+    { operation: "modified" as const, phase: "quarantined" as const },
+    { operation: "modified" as const, phase: "replacement-installed" as const },
+    { operation: "deleted" as const, phase: "planned" as const },
+    { operation: "deleted" as const, phase: "replacement-installed" as const },
+    { operation: "renamed" as const, phase: "planned" as const },
+    { operation: "renamed" as const, phase: "quarantined" as const },
+    { operation: "renamed" as const, phase: "replacement-installed" as const },
+  ])("recovers a $operation rejection after the $phase crash point", async ({ operation, phase }) => {
+    const fixture = await changesetFixture();
+    const store = new InvocationStore(fixture.workspaceRoot);
+    const change = fixture.record.changeset!.files.find((candidate) => candidate.operation === operation)!;
+    const proposalPath = change.after?.path;
+    const quarantinePath = proposalPath
+      ? testQuarantinePath(fixture.record.id, change.id, proposalPath)
+      : undefined;
+    await store.beginReviewJournal(fixture.record.id, [{ changeId: change.id, action: "reject" }]);
+    await store.updateReviewJournalMutation(fixture.record.id, change.id, {
+      phase: "planned",
+      ...(quarantinePath ? { quarantinePath } : {}),
+    });
+    if (phase !== "planned") {
+      if (quarantinePath) {
+        await rename(proposalPath!, quarantinePath!);
+        await store.updateReviewJournalMutation(fixture.record.id, change.id, { phase: "quarantined", quarantinePath });
+      }
+    }
+    if (phase === "replacement-installed") {
+      const restorePath = change.before!.path;
+      await writeFile(restorePath, operation === "modified" ? "before\n" : operation === "deleted" ? "delete\n" : "rename\n");
+      if (operation === "modified") await chmod(restorePath, 0o640);
+      await store.updateReviewJournalMutation(fixture.record.id, change.id, {
+        phase: "replacement-installed",
+        ...(quarantinePath ? { quarantinePath } : {}),
+      });
+    }
+
+    const recovered = await new InvocationReviewService(fixture.workspaceRoot).recoverJournal(fixture.record);
+
+    expect(recovered.changeset?.files.find((candidate) => candidate.id === change.id)?.decision.status).toBe("rejected");
+    if (quarantinePath) await expect(stat(quarantinePath)).rejects.toMatchObject({ code: "ENOENT" });
+    if (operation === "created") {
+      await expect(stat(fixture.paths.created)).rejects.toMatchObject({ code: "ENOENT" });
+    } else if (operation === "modified") {
+      await expect(readFile(fixture.paths.modified, "utf8")).resolves.toBe("before\n");
+      expect((await stat(fixture.paths.modified)).mode & 0o777).toBe(0o640);
+    } else if (operation === "deleted") {
+      await expect(readFile(fixture.paths.deleted, "utf8")).resolves.toBe("delete\n");
+    } else {
+      await expect(readFile(fixture.paths.renamedFrom, "utf8")).resolves.toBe("rename\n");
+      await expect(stat(fixture.paths.renamedTo)).rejects.toMatchObject({ code: "ENOENT" });
+    }
     await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
   });
 
@@ -500,4 +584,9 @@ function invocationRecord(
     attribution: { status: "likely" },
     changeset,
   };
+}
+
+function testQuarantinePath(invocationId: string, changeId: string, target: string): string {
+  const transaction = createHash("sha256").update(`${invocationId}\0${changeId}`).digest("hex").slice(0, 20);
+  return path.join(path.dirname(target), `.${path.basename(target)}.exo-review-${transaction}.quarantine`);
 }

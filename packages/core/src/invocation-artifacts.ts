@@ -23,6 +23,12 @@ import { safeStoreSegment } from "./store-paths";
 export type InvocationManifestPhase = "launch" | "settled";
 export type InvocationReviewAction = "keep" | "reject";
 export type InvocationReviewJournalEntryStatus = "pending" | "applied" | "conflict";
+export type InvocationReviewMutationPhase = "planned" | "quarantined" | "replacement-installed";
+
+export interface InvocationReviewMutation {
+  quarantinePath?: string;
+  phase: InvocationReviewMutationPhase;
+}
 
 export interface InvocationCleanBaseRef {
   version: 1;
@@ -37,6 +43,7 @@ export interface InvocationReviewJournalEntry {
   completedAt?: string;
   reason?: string;
   acceptedSha256?: string | null;
+  mutation?: InvocationReviewMutation;
 }
 
 export interface InvocationReviewJournal {
@@ -363,8 +370,9 @@ export class InvocationArtifactStore {
         if (sameOutcome) return entry;
         throw new Error(`Invocation review change ${changeId} is already ${entry.status}.`);
       }
+      const { mutation: _mutation, ...terminalEntry } = entry;
       return {
-        ...entry,
+        ...terminalEntry,
         status: outcome.status,
         completedAt,
         ...(outcome.status === "conflict" ? { reason: outcome.reason } : {}),
@@ -375,6 +383,36 @@ export class InvocationArtifactStore {
     });
     if (!found) throw new Error(`Invocation review change ${changeId} was not found.`);
     const journal = { ...current, updatedAt: completedAt, entries };
+    await writeJsonAtomically(this.layout(invocationId).reviewJournalPath, journal);
+    return journal;
+  }
+
+  async updateReviewJournalMutation(
+    invocationId: string,
+    changeId: string,
+    mutation: InvocationReviewMutation,
+    updatedAt = new Date().toISOString(),
+  ): Promise<InvocationReviewJournal> {
+    const current = await this.readReviewJournal(invocationId);
+    if (!current) throw new Error(`Invocation ${invocationId} has no review journal.`);
+    let found = false;
+    const entries = current.entries.map((entry) => {
+      if (entry.changeId !== changeId) return entry;
+      found = true;
+      if (entry.status !== "pending" || entry.action !== "reject") {
+        throw new Error(`Invocation review change ${changeId} cannot record a rejection mutation.`);
+      }
+      if (entry.mutation?.quarantinePath !== undefined &&
+        mutation.quarantinePath !== entry.mutation.quarantinePath) {
+        throw new Error(`Invocation review change ${changeId} cannot change its quarantine path.`);
+      }
+      if (entry.mutation && mutationPhaseRank(mutation.phase) < mutationPhaseRank(entry.mutation.phase)) {
+        throw new Error(`Invocation review change ${changeId} cannot regress its mutation phase.`);
+      }
+      return { ...entry, mutation };
+    });
+    if (!found) throw new Error(`Invocation review change ${changeId} was not found.`);
+    const journal = { ...current, updatedAt, entries };
     await writeJsonAtomically(this.layout(invocationId).reviewJournalPath, journal);
     return journal;
   }
@@ -836,6 +874,15 @@ function normalizeReviewJournal(value: unknown): InvocationReviewJournal | null 
       (typeof entry.acceptedSha256 !== "string" || !/^[a-f0-9]{64}$/.test(entry.acceptedSha256))) {
       throw new Error("Invocation review accepted hash is invalid.");
     }
+    const mutation = entry.mutation;
+    if (mutation !== undefined && (
+      entry.action !== "reject" || entry.status !== "pending" ||
+      (mutation.phase !== "planned" && mutation.phase !== "quarantined" && mutation.phase !== "replacement-installed") ||
+      (mutation.quarantinePath !== undefined &&
+        (typeof mutation.quarantinePath !== "string" || !path.isAbsolute(mutation.quarantinePath)))
+    )) {
+      throw new Error("Invocation review mutation is invalid.");
+    }
     seen.add(entry.changeId);
     return {
       changeId: entry.changeId,
@@ -846,6 +893,7 @@ function normalizeReviewJournal(value: unknown): InvocationReviewJournal | null 
       ...(entry.status === "applied" && (typeof entry.acceptedSha256 === "string" || entry.acceptedSha256 === null)
         ? { acceptedSha256: entry.acceptedSha256 }
         : {}),
+      ...(mutation === undefined ? {} : { mutation: { ...mutation } }),
     } satisfies InvocationReviewJournalEntry;
   });
   return { version: 1, createdAt: candidate.createdAt, updatedAt: candidate.updatedAt, entries };
@@ -853,6 +901,10 @@ function normalizeReviewJournal(value: unknown): InvocationReviewJournal | null 
 
 function snapshotRef(digest: string): string {
   return path.posix.join("files", "objects", digest);
+}
+
+function mutationPhaseRank(phase: InvocationReviewMutationPhase): number {
+  return phase === "planned" ? 0 : phase === "quarantined" ? 1 : 2;
 }
 
 function sha256(bytes: Uint8Array): string {

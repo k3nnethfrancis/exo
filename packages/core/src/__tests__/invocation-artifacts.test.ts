@@ -134,6 +134,15 @@ describe("invocation artifacts", () => {
       { changeId: "modified:note", action: "reject" },
       { changeId: "created:other", action: "keep" },
     ], "later-is-ignored")).resolves.toMatchObject({ createdAt: "2026-07-20T01:00:00.000Z" });
+    const quarantinePath = path.join(noteRoot, ".note.md.exo-review-test.quarantine");
+    const planned = await first.updateReviewJournalMutation("recover-me", "modified:note", {
+      phase: "planned",
+      quarantinePath,
+    });
+    expect(planned.entries[0]).toMatchObject({
+      changeId: "modified:note",
+      mutation: { phase: "planned", quarantinePath },
+    });
     await first.updateReviewJournalEntry("recover-me", "modified:note", {
       status: "applied",
       completedAt: "2026-07-20T01:00:01.000Z",
@@ -146,6 +155,7 @@ describe("invocation artifacts", () => {
       changeId: "modified:note",
       completedAt: "2026-07-20T01:00:01.000Z",
     });
+    expect(idempotentUpdate.entries[0]?.mutation).toBeUndefined();
     await first.updateReviewJournalEntry("recover-me", "created:other", {
       status: "applied",
       acceptedSha256: "a".repeat(64),

@@ -12,9 +12,10 @@ import {
   type InvocationManifestPhase,
   type InvocationLaunchArtifactInput,
   type InvocationLaunchArtifacts,
+  type InvocationProcessOwnership,
   type InvocationReviewJournal,
   type InvocationReviewJournalInput,
-  type InvocationProcessOwnership,
+  type InvocationReviewMutation,
 } from "./invocation-artifacts";
 import type { InvocationFileState, InvocationWorkspaceManifest } from "./invocation-changeset";
 import { safeStoreSegment } from "./store-paths";
@@ -131,6 +132,15 @@ export class InvocationStore {
     outcome: { status: "applied"; completedAt?: string; acceptedSha256?: string | null } | { status: "conflict"; reason: string; completedAt?: string },
   ): Promise<InvocationReviewJournal> {
     return this.artifacts.updateReviewJournalEntry(invocationId, changeId, outcome);
+  }
+
+  updateReviewJournalMutation(
+    invocationId: string,
+    changeId: string,
+    mutation: InvocationReviewMutation,
+    updatedAt?: string,
+  ): Promise<InvocationReviewJournal> {
+    return this.artifacts.updateReviewJournalMutation(invocationId, changeId, mutation, updatedAt);
   }
 
   readReviewJournal(invocationId: string): Promise<InvocationReviewJournal | null> {

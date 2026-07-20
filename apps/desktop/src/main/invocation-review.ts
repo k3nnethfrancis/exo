@@ -12,6 +12,7 @@ import {
   type InvocationFileState,
   type InvocationRecord,
   type InvocationReviewAction,
+  type InvocationReviewMutation,
 } from "@exo/core";
 
 export interface InvocationFileReviewPayload {
@@ -220,8 +221,20 @@ export class InvocationReviewService {
     const implicitTaggedRestore = implicitEntry
       ? await this.getImplicitTaggedRestore(record, cleanBase)
       : null;
+    const implicitTransactionResolved = implicitEntry?.status === "pending" && implicitEntry.mutation && implicitTaggedRestore
+      ? await recoverRejectTransaction(
+          this.store,
+          authority,
+          record.id,
+          implicitRestoreChange(implicitTaggedRestore),
+          implicitTaggedRestore.cleanBase,
+          implicitEntry.mutation,
+        )
+      : false;
     const implicitCheck = implicitEntry?.status === "pending" && implicitTaggedRestore
-      ? await preflightImplicitTaggedRestore(authority, implicitTaggedRestore)
+      ? implicitTransactionResolved
+        ? { state: "resolved" as const, currentSha256: implicitTaggedRestore.cleanBase.sha256 }
+        : await preflightImplicitTaggedRestore(authority, implicitTaggedRestore)
       : null;
     const persistedImplicitConflict = implicitEntry?.status === "conflict" && implicitTaggedRestore
       ? await implicitConflict(
@@ -250,7 +263,14 @@ export class InvocationReviewService {
         continue;
       }
       const reviewBefore = rejectionBeforeState(record, change, cleanBase);
-      const check = await preflightChange(authority, change, entry.action, reviewBefore);
+      const transactionResolved = entry.action === "reject" && entry.status === "pending" && entry.mutation
+        ? await recoverRejectTransaction(
+            this.store, authority, record.id, change, reviewBefore, entry.mutation,
+          )
+        : false;
+      const check: ReviewPreflight = transactionResolved
+        ? { state: "resolved", currentSha256: reviewBefore?.sha256 ?? null }
+        : await preflightChange(authority, change, entry.action, reviewBefore);
       if (entry.status === "conflict") {
         changeset = resolveInvocationFileChange(changeset, change.id, {
           status: "conflict",
@@ -261,8 +281,15 @@ export class InvocationReviewService {
         hasConflict = true;
         continue;
       }
-      if (entry.action === "reject" && check.state === "partial") {
-        await rejectChange(this.store, authority, record.id, change, reviewBefore, true);
+      if (entry.action === "reject" && (check.state === "proposal" || check.state === "partial")) {
+        await rejectChange(
+          this.store,
+          authority,
+          record.id,
+          change,
+          reviewBefore,
+          check.state === "partial",
+        );
         await this.store.updateReviewJournalEntry(record.id, change.id, { status: "applied", completedAt });
         changeset = resolveInvocationFileChange(changeset, change.id, { status: "rejected", reviewedAt: completedAt });
         changed = true;
@@ -407,7 +434,15 @@ async function restoreImplicitTaggedCleanBase(
   restore: ImplicitTaggedRestore,
 ): Promise<void> {
   const bytes = await requiredSnapshot(store, invocationId, restore.cleanBase);
-  await replaceVerifiedProposal(authority, restore.proposal, restore.cleanBase, bytes);
+  await replaceProposalTransaction(
+    store,
+    authority,
+    invocationId,
+    IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID,
+    restore.proposal,
+    restore.cleanBase,
+    bytes,
+  );
 }
 
 async function implicitConflictFromError(
@@ -460,6 +495,16 @@ function withImplicitTaggedConflict(
     ...unresolved,
     status: "conflict",
     files: [...changeset.files.filter((change) => change.id !== id), synthetic],
+  };
+}
+
+function implicitRestoreChange(restore: ImplicitTaggedRestore): InvocationFileChange {
+  return {
+    id: IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID,
+    operation: "modified",
+    before: restore.cleanBase,
+    after: restore.proposal,
+    decision: { status: "pending" },
   };
 }
 
@@ -555,33 +600,94 @@ async function rejectChange(
   finishPartialRename: boolean,
 ): Promise<void> {
   if (change.operation === "created") {
-    await removeVerifiedProposal(authority, change.after!);
+    await removeProposalTransaction(store, authority, invocationId, change.id, change.after!);
     return;
   }
   if (change.operation === "modified" || change.operation === "deleted") {
     if (!rejectionBefore) throw new InvocationReviewError("review-unavailable", "The rejection base is unavailable.");
     const bytes = await requiredSnapshot(store, invocationId, rejectionBefore);
     if (change.operation === "modified") {
-      await replaceVerifiedProposal(authority, change.after!, rejectionBefore, bytes);
+      await replaceProposalTransaction(
+        store, authority, invocationId, change.id, change.after!, rejectionBefore, bytes,
+      );
     } else {
+      await store.updateReviewJournalMutation(invocationId, change.id, { phase: "planned" });
       await installSnapshotNoClobber(authority, rejectionBefore, bytes);
+      await store.updateReviewJournalMutation(invocationId, change.id, { phase: "replacement-installed" });
     }
     return;
   }
   if (!finishPartialRename) {
     if (!rejectionBefore) throw new InvocationReviewError("review-unavailable", "The rejection base is unavailable.");
     const bytes = await requiredSnapshot(store, invocationId, rejectionBefore);
-    const quarantine = await quarantineVerifiedProposal(authority, change.after!);
-    try {
-      await installSnapshotNoClobber(authority, rejectionBefore, bytes);
-      await rm(quarantine);
-    } catch (error) {
-      await restoreQuarantine(authority, quarantine, change.after!.path);
-      throw error;
-    }
+    await replaceProposalTransaction(
+      store, authority, invocationId, change.id, change.after!, rejectionBefore, bytes,
+    );
     return;
   }
-  await removeVerifiedProposal(authority, change.after!);
+  await removeProposalTransaction(store, authority, invocationId, change.id, change.after!);
+}
+
+async function recoverRejectTransaction(
+  store: InvocationStore,
+  authority: ReviewPathAuthority,
+  invocationId: string,
+  change: InvocationFileChange,
+  rejectionBefore: InvocationFileState | undefined,
+  mutation: InvocationReviewMutation,
+): Promise<boolean> {
+  const expectedQuarantine = change.after
+    ? deterministicQuarantinePath(invocationId, change.id, change.after.path)
+    : undefined;
+  if (mutation.quarantinePath !== expectedQuarantine) {
+    throw new InvocationReviewError("review-unavailable", "The review quarantine does not match its durable transaction.");
+  }
+  if (expectedQuarantine) await assertAuthorizedPath(authority, expectedQuarantine);
+  const beforePath = change.before?.path;
+  const afterPath = change.after?.path;
+  const beforeCurrent = beforePath ? await probeFile(authority, beforePath) : absentProbe();
+  const afterCurrent = afterPath && afterPath !== beforePath
+    ? await probeFile(authority, afterPath)
+    : beforeCurrent;
+  const quarantineCurrent = expectedQuarantine
+    ? await probeFile(authority, expectedQuarantine)
+    : absentProbe();
+
+  if (matchesRejected(change, beforeCurrent, afterCurrent, rejectionBefore)) {
+    if (quarantineCurrent.exists) {
+      if (!matchesState(quarantineCurrent, change.after)) return false;
+      await removeQuarantine(expectedQuarantine!);
+    }
+    return true;
+  }
+  if (!quarantineCurrent.exists) {
+    return false;
+  }
+  if (!matchesState(quarantineCurrent, change.after)) {
+    if (afterPath && !afterCurrent.exists) {
+      await restoreQuarantine(authority, expectedQuarantine!, afterPath);
+    }
+    return false;
+  }
+
+  if (change.operation === "created") {
+    await removeQuarantine(expectedQuarantine!);
+    return true;
+  }
+  if (change.operation === "modified" || change.operation === "renamed") {
+    if (!rejectionBefore) {
+      throw new InvocationReviewError("review-unavailable", "The rejection base is unavailable.");
+    }
+    const bytes = await requiredSnapshot(store, invocationId, rejectionBefore);
+    await installSnapshotNoClobber(authority, rejectionBefore, bytes);
+    await store.updateReviewJournalMutation(invocationId, change.id, {
+      phase: "replacement-installed",
+      quarantinePath: expectedQuarantine,
+    });
+    await removeQuarantine(expectedQuarantine!);
+    return true;
+  }
+  return false;
 }
 
 async function requiredSnapshot(store: InvocationStore, invocationId: string, state: InvocationFileState): Promise<Buffer> {
@@ -620,35 +726,57 @@ async function installSnapshotNoClobber(
     throw error;
   }
   await rm(temporaryPath);
+  await syncDirectory(path.dirname(state.path));
 }
 
-async function replaceVerifiedProposal(
+async function replaceProposalTransaction(
+  store: InvocationStore,
   authority: ReviewPathAuthority,
+  invocationId: string,
+  changeId: string,
   proposal: InvocationFileState,
   replacement: InvocationFileState,
   replacementBytes: Buffer,
 ): Promise<void> {
-  const quarantine = await quarantineVerifiedProposal(authority, proposal);
-  try {
-    await installSnapshotNoClobber(authority, replacement, replacementBytes);
-    await rm(quarantine);
-  } catch (error) {
-    await restoreQuarantine(authority, quarantine, proposal.path);
-    throw error;
-  }
+  const quarantine = deterministicQuarantinePath(invocationId, changeId, proposal.path);
+  await store.updateReviewJournalMutation(invocationId, changeId, { phase: "planned", quarantinePath: quarantine });
+  await quarantineVerifiedProposal(authority, proposal, quarantine);
+  await store.updateReviewJournalMutation(invocationId, changeId, { phase: "quarantined", quarantinePath: quarantine });
+  await installSnapshotNoClobber(authority, replacement, replacementBytes);
+  await store.updateReviewJournalMutation(invocationId, changeId, {
+    phase: "replacement-installed",
+    quarantinePath: quarantine,
+  });
+  await removeQuarantine(quarantine);
 }
 
-async function removeVerifiedProposal(authority: ReviewPathAuthority, proposal: InvocationFileState): Promise<void> {
-  const quarantine = await quarantineVerifiedProposal(authority, proposal);
-  await rm(quarantine);
+async function removeProposalTransaction(
+  store: InvocationStore,
+  authority: ReviewPathAuthority,
+  invocationId: string,
+  changeId: string,
+  proposal: InvocationFileState,
+): Promise<void> {
+  const quarantine = deterministicQuarantinePath(invocationId, changeId, proposal.path);
+  await store.updateReviewJournalMutation(invocationId, changeId, { phase: "planned", quarantinePath: quarantine });
+  await quarantineVerifiedProposal(authority, proposal, quarantine);
+  await store.updateReviewJournalMutation(invocationId, changeId, { phase: "quarantined", quarantinePath: quarantine });
+  await removeQuarantine(quarantine);
 }
 
-async function quarantineVerifiedProposal(authority: ReviewPathAuthority, proposal: InvocationFileState): Promise<string> {
+async function quarantineVerifiedProposal(
+  authority: ReviewPathAuthority,
+  proposal: InvocationFileState,
+  quarantine: string,
+): Promise<void> {
   await assertAuthorizedPath(authority, proposal.path);
-  const quarantine = path.join(path.dirname(proposal.path), `.${path.basename(proposal.path)}.exo-review-${randomUUID()}.quarantine`);
   await assertAuthorizedPath(authority, quarantine);
+  if ((await probeFile(authority, quarantine)).exists) {
+    throw new InvocationReviewError("review-unavailable", "The deterministic review quarantine is already occupied.");
+  }
   try {
     await rename(proposal.path, quarantine);
+    await syncDirectory(path.dirname(quarantine));
   } catch (error) {
     if (isNodeErrorCode(error, "ENOENT")) {
       throw new InvocationReviewError("review-drift", "The file changed during review. Exo did not delete it.");
@@ -660,7 +788,11 @@ async function quarantineVerifiedProposal(authority: ReviewPathAuthority, propos
     await restoreQuarantine(authority, quarantine, proposal.path);
     throw new InvocationReviewError("review-drift", "The file changed during review. Exo restored it without applying Reject.");
   }
-  return quarantine;
+}
+
+function deterministicQuarantinePath(invocationId: string, changeId: string, target: string): string {
+  const transaction = createHash("sha256").update(`${invocationId}\0${changeId}`).digest("hex").slice(0, 20);
+  return path.join(path.dirname(target), `.${path.basename(target)}.exo-review-${transaction}.quarantine`);
 }
 
 async function restoreQuarantine(authority: ReviewPathAuthority, quarantine: string, target: string): Promise<void> {
@@ -669,6 +801,7 @@ async function restoreQuarantine(authority: ReviewPathAuthority, quarantine: str
   try {
     await link(quarantine, target);
     await rm(quarantine);
+    await syncDirectory(path.dirname(target));
   } catch (error) {
     if (isNodeErrorCode(error, "EEXIST")) {
       throw new InvocationReviewError(
@@ -677,6 +810,22 @@ async function restoreQuarantine(authority: ReviewPathAuthority, quarantine: str
       );
     }
     throw error;
+  }
+}
+
+async function removeQuarantine(quarantine: string): Promise<void> {
+  await rm(quarantine);
+  await syncDirectory(path.dirname(quarantine));
+}
+
+async function syncDirectory(directory: string): Promise<void> {
+  const handle = await open(directory, "r");
+  try {
+    await handle.sync();
+  } catch (error) {
+    if (!isNodeErrorCode(error, "EINVAL") && !isNodeErrorCode(error, "ENOTSUP")) throw error;
+  } finally {
+    await handle.close();
   }
 }
 
