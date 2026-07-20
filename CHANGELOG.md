@@ -48,6 +48,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Repairs a cached Electron runtime whose host binary exists but whose required
+  `path.txt` metadata is missing, and fails setup clearly if upstream install
+  still leaves the runtime incomplete.
 - Keeps backlink-only Notes coherent across Links and the local Graph, opens
   the full Graph at the inspected Note without leaking click events into graph
   state, and preserves settled layout and camera state across unchanged
