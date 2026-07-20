@@ -290,9 +290,6 @@ export function App() {
   useWorkspaceCommandHandlers({
     workspaceModel,
     openFile,
-    openPreview: createBrowserPane,
-    focusPreview: focusBrowserPane,
-    closePreview: closeBrowserPane,
     openSettings: workspaceSettingsController.openDialog,
     reloadTrees,
     scheduleOpenDocumentRefresh,

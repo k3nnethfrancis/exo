@@ -1,31 +1,28 @@
 # Invocation Context And Safety
 
-Last updated: 2026-07-08
+Last updated: 2026-07-19
 
-status: planning. Blocks mention detection shipping.
+status: Current safety contract for shipped note-native invocation.
 
 ## Problem
 
-The V1 prompt is intentionally thin:
+The provider-neutral invocation prompt is editable in Agent settings. Exo renders a
+protected protocol plus the Workspace root, configured Note Roots, working-note path,
+explicit message, and a bounded note snapshot. The exact default lives in
+`packages/core/src/agent-invocation-prompt.ts`.
 
-```text
-You have been tagged in the following document:
-<path>
-
-Message:
-<mention text>
-
-Open the document to see its full contents.
-```
-
-But a thin prompt does not mean a thin safety model. The invoked command may have access to the workspace, note roots, project roots, global agent context, MCP tools, network, and local credentials.
+The invoked command is still a native local process. It may have access to files and
+credentials available to that process, plus network or external tools supplied by its
+provider. Prompt context does not create a sandbox.
 
 ## V1 Context Policy
 
 V1 should be explicit and conservative:
 
-- The user confirms every invocation.
-- Exo shows the command label and cwd before launch.
+- Invocation requires an explicit editor gesture; saving a note never launches it.
+- The first or changed executable requires one-shot authorization or persisted trust.
+- Persisted trust is bound to the Workspace and executable fingerprint.
+- Exo shows the command label and cwd before an untrusted launch.
 - Exo does not promise sandboxing.
 - Exo does not enforce private zones yet.
 - Exo records the cwd and command version in the invocation record.
@@ -39,9 +36,8 @@ Supported V1 policies:
 - `note_dir`: run from the directory containing the tagged document.
 - `fixed`: run from a configured absolute path.
 
-Default for Kenneth's Exo dogfooding should likely be `workspace_root`, because agents need repo and notes context. For general users, `note_dir` may be safer.
-
-The choice should be visible in the confirm affordance.
+The shipped defaults use `workspace_root`. The choice remains editable per Command and
+is shown in the authorization details when approval is required.
 
 ## Prompt Injection Through Notes
 
@@ -57,7 +53,7 @@ Risk examples:
 V1 mitigations:
 
 - strict mention syntax;
-- explicit user confirmation;
+- explicit user gesture and fingerprinted Command trust;
 - show source document path;
 - show command and cwd;
 - record invocation metadata and diffs;
@@ -77,17 +73,9 @@ Potential future policies:
 
 V1 does not enforce these. The confirm UI should not imply it does.
 
-## Global Context Contamination
-
-Applying Exo context globally can help general agents understand the workspace, but it can also contaminate narrow subagents and unrelated projects.
-
-The context UI should say:
-
-> Applying Exo context globally helps agents running on this machine understand Exo, your exograph, and your workspace conventions. It can also contaminate narrow or unrelated agent sessions with Exo-specific assumptions. Use global context when you want most local agents to understand Exo by default.
-
 ## Confirmation Copy Requirements
 
-Before launch, show:
+When a Command is not already trusted, show:
 
 - mention handle and label;
 - document path;

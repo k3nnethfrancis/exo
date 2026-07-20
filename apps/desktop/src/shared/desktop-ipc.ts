@@ -72,9 +72,6 @@ export interface DesktopEventPayloads {
   "workspace:index-sync-state": IndexSyncStateEvent;
   "workspace:invocation-updated": InvocationRecord;
   "command:open-file": string;
-  "command:open-preview": { url: string };
-  "command:focus-preview": undefined;
-  "command:close-preview": undefined;
   "command:open-settings": { section: WorkspaceSettingsSection };
   "terminal:created": TerminalSessionInfo;
   "terminal:updated": TerminalSessionInfo;

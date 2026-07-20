@@ -26,11 +26,11 @@ The goal is not public-release polish. The goal is a stable local app that can s
 
 ## Ready Means
 
-- Note editing, save feedback, settings, panes, preview, terminals, CLI search/read/status, configured-Command invocation, and hidden-window runtime work in the installed app.
+- Note editing, save feedback, settings, panes, preview, terminals, CLI search/status, configured-Command invocation, and hidden-window runtime work in the installed app.
 - Terminal typing, tab switching, long output, and ordinary scrollback are responsive enough for actual daily work.
 - The menu bar icon is visible after launching the installed app and exposes Show Exo, Settings, status/recovery, and Quit.
 - Closing the window hides Exo; quitting from the menu bar is the explicit operation that stops live agents.
-- `exo status`, `exo search`, and `exo read` remain useful while the window is hidden or the app is off; `exo open` and `exo spawn` connect to the resident app when it is available.
+- `exo status` and `exo search` remain useful while the window is hidden or the app is off; `exo open` and `exo invoke` connect to the resident app when it is available.
 - Dev QA can run with `pnpm dev:qa` while installed Exo remains available for monitoring.
 - Open critical usability issues are either resolved or explicitly moved into the live bug-bash backlog with a workaround.
 

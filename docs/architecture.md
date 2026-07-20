@@ -136,7 +136,7 @@ The future Skill flow adds a reviewed, bounded proposal step; it is not claimed 
 | Terminal | `TerminalManager`, direct `node-pty`, xterm | Live terminal with bounded reload tail; no durable session history | terminal suite; `terminal-runtime-decision.md` |
 | Commands and invocation | `AgentCommand`, `InvocationRunner`, invocation records | Explicit inline invocation, headless document work, optional session handoff, observed-change review | invocation E2E; `../issues.md#exo-issue-106` |
 | Exo MCP discovery | `packages/cli/src/mcp-server.ts`, `provider-mcp-setup.ts` | Optional provider-owned MCP for tool-capable clients; caller cwd resolves scope, ambiguous scope refuses retrieval, and app retrieval is used only for that exact Workspace. Shell-capable clients keep the Exo CLI path. | MCP + provider-setup tests; `provider-mcp-onboarding.md`, `reviews/2026-07-13-fable-mcp-agent-context-packet.md` |
-| Command server and CLI | `command-protocol.ts`, `CommandServerLifecycle` | Resident-app commands plus app-off read/search/status where supported | command-server tests; `public-contract-reviews.md` |
+| Command server and CLI | `command-protocol.ts`, `CommandServerLifecycle` | Resident-app commands plus app-off search/status | command-server tests; `public-contract-reviews.md` |
 
 This is the maintained pointer index. `tasks.md` decides what is next; it must not be used to imply implementation.
 

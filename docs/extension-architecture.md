@@ -74,12 +74,12 @@ Vanilla Exo owns:
 
 - Markdown editor, explorer, and notes-on-disk.
 - Pane composition, terminal panes, web viewer panes, and bounded in-memory terminal replay/read tails.
-- CLI search/read/status.
+- CLI search/status with native filesystem reads from returned paths.
 - Graph read path: links, backlinks, tags, frontmatter/properties, graph context, and neighborhoods.
 - QMD provider plus core fallback provider behind a provider-neutral search contract.
 - `AgentCommand` config.
 - Note-native invocation.
-- CLI `exo spawn @handle`.
+- CLI `exo invoke @handle`.
 - Monitor view for command sessions.
 - Invocation records under `.exo/invocations/`.
 - Observed-change review and dirty-buffer protection.

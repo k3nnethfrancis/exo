@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { NoteDocument } from "@exo/core";
 
-import { InspectorDock, hasMeaningfulInvocationActivity } from "./InspectorDock";
+import { InspectorDock } from "./InspectorDock";
 
 const note: NoteDocument = {
   filePath: "/notes/alpha.md",
@@ -32,16 +32,8 @@ describe("Connections", () => {
     expect(html).toContain("Properties");
     expect(html).toContain('role="tablist"');
     expect(html).toContain("connections-tab-outline");
-    expect(html).toContain("connections-tab-activity");
+    expect(html).not.toContain("connections-tab-activity");
     expect(html).toContain("Heading");
     expect(html).toContain("outline-panel");
-    expect(html).not.toContain("No activity yet");
-  });
-
-  it("does not surface Activity without meaningful invocation evidence", () => {
-    expect(hasMeaningfulInvocationActivity({ status: "running", changedFileRefs: [], diffRefs: [] })).toBe(false);
-    expect(hasMeaningfulInvocationActivity({ status: "process-exited", changedFileRefs: [], diffRefs: [] })).toBe(false);
-    expect(hasMeaningfulInvocationActivity({ status: "failed", changedFileRefs: [], diffRefs: [] })).toBe(true);
-    expect(hasMeaningfulInvocationActivity({ status: "process-exited", changedFileRefs: [{ path: "x", kind: "modified", attribution: "likely" }], diffRefs: [] })).toBe(true);
   });
 });

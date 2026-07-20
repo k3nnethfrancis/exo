@@ -1,58 +1,21 @@
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import type { WorkspaceModel } from "@exo/core";
 import type { WorkspaceSettingsSection } from "../../../shared/api";
 
 interface UseWorkspaceCommandHandlersOptions {
   workspaceModel: WorkspaceModel | null;
   openFile: (filePath: string) => Promise<void>;
-  openPreview: (url: string) => void;
-  focusPreview: () => void;
-  closePreview: () => void;
   openSettings: (section: WorkspaceSettingsSection) => Promise<void>;
   reloadTrees: () => Promise<void>;
   scheduleOpenDocumentRefresh: (filePath: string) => void;
 }
 
 export function useWorkspaceCommandHandlers(options: UseWorkspaceCommandHandlersOptions) {
-  const openPreviewRef = useRef(options.openPreview);
-  const focusPreviewRef = useRef(options.focusPreview);
-  const closePreviewRef = useRef(options.closePreview);
-
-  useEffect(() => {
-    openPreviewRef.current = options.openPreview;
-  }, [options.openPreview]);
-
-  useEffect(() => {
-    focusPreviewRef.current = options.focusPreview;
-  }, [options.focusPreview]);
-
-  useEffect(() => {
-    closePreviewRef.current = options.closePreview;
-  }, [options.closePreview]);
-
   useEffect(() => {
     return window.exo.workspace.onCommandOpenFile((filePath: string) => {
       void options.openFile(filePath);
     });
   }, [options.openFile]);
-
-  useEffect(() => {
-    return window.exo.workspace.onCommandOpenPreview((event) => {
-      openPreviewRef.current(event.url);
-    });
-  }, []);
-
-  useEffect(() => {
-    return window.exo.workspace.onCommandFocusPreview(() => {
-      focusPreviewRef.current();
-    });
-  }, []);
-
-  useEffect(() => {
-    return window.exo.workspace.onCommandClosePreview(() => {
-      closePreviewRef.current();
-    });
-  }, []);
 
   useEffect(() => {
     return window.exo.workspace.onCommandOpenSettings((event) => {

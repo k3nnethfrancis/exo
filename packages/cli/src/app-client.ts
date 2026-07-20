@@ -189,20 +189,6 @@ export class AppClient {
     }
   }
 
-  private async delete(path: string): Promise<any> {
-    try {
-      const res = await fetch(`${this.baseUrl}${path}`, {
-        method: "DELETE",
-        headers: this.authHeaders(),
-        signal: AbortSignal.timeout(this.requestTimeoutMs),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-      return res.json();
-    } catch (error) {
-      throw enhanceTimeoutError(error, "DELETE", path, this.requestTimeoutMs);
-    }
-  }
-
   private authHeaders(): Record<string, string> {
     return {
       Authorization: `Bearer ${this.token}`,

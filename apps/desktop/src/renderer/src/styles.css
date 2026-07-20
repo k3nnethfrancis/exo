@@ -1927,18 +1927,6 @@ button svg,
   outline: none;
 }
 
-.connections-activity {
-  align-items: baseline;
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
-}
-
-.connections-activity span {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-}
-
 .subagent-list {
   display: grid;
   gap: 10px;

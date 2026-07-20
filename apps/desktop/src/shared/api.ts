@@ -230,9 +230,6 @@ export interface DesktopApi {
     onDidChange: (callback: (event: { rootPath: string; eventType: string; filePath: string | null }) => void) => () => void;
     onIndexSyncState: (callback: (event: IndexSyncStateEvent) => void) => () => void;
     onCommandOpenFile: (callback: (filePath: string) => void) => () => void;
-    onCommandOpenPreview: (callback: (event: { url: string }) => void) => () => void;
-    onCommandFocusPreview: (callback: () => void) => () => void;
-    onCommandClosePreview: (callback: () => void) => () => void;
     onCommandOpenSettings: (callback: (event: { section: WorkspaceSettingsSection }) => void) => () => void;
   };
   notes: {

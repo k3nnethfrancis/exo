@@ -669,6 +669,7 @@ test("renders inspector content when expanded", async () => {
   await page.getByTestId("utility-pane-connections").click();
 
   await expect(page.getByTestId("inspector-panel")).toContainText("Connections");
+  await expect(page.getByTestId("connections-tab-activity")).toHaveCount(0);
   await page.getByTestId("connections-tab-links").click();
   await expect(page.getByTestId("connections-panel-links")).toContainText(/Related Note|agent-memory|research/);
   await page.getByTestId("connections-tab-graph").click();

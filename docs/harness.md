@@ -92,7 +92,7 @@ If any preflight failure remains after one clean relaunch or foreground retry, s
 Fallback evidence is acceptable only as a labeled substitute while the visual blocker is tracked. Capture all of the following:
 
 - the preflight failure class, attempted target, retry count, and whether the desktop was locked, hidden, blank, or timed out
-- process or command-server evidence such as `./bin/exo status`, `./bin/exo agents list`, or relevant app launch logs
+- process or command-server evidence such as `./bin/exo status`, `./bin/exo search`, or relevant app launch logs
 - an alternate visual artifact when possible, such as a Playwright screenshot/video, a macOS screenshot, or a CDP screenshot from the real Electron renderer
 - focused automated coverage for the affected surface, such as a named Playwright/e2e/visual spec or package test
 - a remaining-risk note that says Computer Use did not inspect the app and names the missing human-visible workflow
@@ -170,15 +170,17 @@ Until import-boundary checks exist, reviews should explicitly look for boundary 
 
 ## CLI And Agent Harness
 
-Exo's agent bridge is itself part of the harness:
+Exo's compact operator CLI is part of the harness:
 
 ```bash
-./bin/exo agents list
-./bin/exo agents read <id> --tail 20000
-./bin/exo agents send <id> "message"
+./bin/exo status
+./bin/exo search "query"
+./bin/exo invoke @handle "task"
 ```
 
-The legacy `exo agents` terminal lifecycle commands remain operator/debug coverage for current terminal sessions. User-facing note invocation should use configured `AgentCommand` records and `exo spawn @handle` rather than reintroducing MCP or a harness-manager product surface.
+`exo invoke` creates a visible terminal task through a configured Command. Note-native
+invocation remains a separate editor flow with document context and review. Removed
+`exo agents` and `exo spawn` command families are not compatibility aliases.
 
 ## Release Hygiene
 

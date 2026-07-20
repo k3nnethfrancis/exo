@@ -1,5 +1,9 @@
 # Exo Public Surface Ledger
 
+> Historical Wave-1 keep/delete decision record. For the current code-grounded launch
+> inventory, use [`launch-surface-ledger.md`](launch-surface-ledger.md). Rows below
+> must not be treated as the current CLI, MCP, or command-server contract.
+
 Status: Wave 1 decision record, 2026-07-10. This is a **keep/delete decision ledger**, not an approval to refresh protected hashes. Route and CLI removals land together in Wave 2 and receive one contract review before the guard is updated.
 
 Exo is a local Markdown exocortex. Its operator surface supports workspace retrieval, indexing, ordinary terminals, and explicitly configured commands. It does not expose harness control planes, terminal implementation diagnostics, transcript/trace systems, or hidden maintenance operations as product concepts.

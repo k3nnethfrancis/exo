@@ -1,16 +1,15 @@
 import { ExternalLink, X } from "lucide-react";
 import { useId, useState, type KeyboardEvent } from "react";
-import type { InvocationRecord, NoteDocument, SearchResult, WorkspaceGraphContext } from "@exo/core";
+import type { NoteDocument, SearchResult, WorkspaceGraphContext } from "@exo/core";
 
 import { buildNoteGraphContext } from "../graphAffordances";
 import { GraphNeighborhoodView } from "./GraphNeighborhoodView";
 
-type ConnectionTab = "outline" | "links" | "graph" | "activity";
+type ConnectionTab = "outline" | "links" | "graph";
 const CONNECTION_TABS: readonly { id: ConnectionTab; label: string }[] = [
   { id: "outline", label: "Outline" },
   { id: "links", label: "Links" },
   { id: "graph", label: "Graph" },
-  { id: "activity", label: "Activity" },
 ];
 
 interface InspectorDockProps {
@@ -19,8 +18,6 @@ interface InspectorDockProps {
   open: boolean;
   activeTag: string | null;
   tagResults: SearchResult[];
-  /** U1 can provide reviewed invocation history when the Canvas owns that stream. */
-  invocationHistory?: readonly InvocationRecord[];
   onToggle: () => void;
   onOpenTarget: (target: string) => void;
   onOpenExternal: (target: string) => void;
@@ -35,7 +32,6 @@ export function InspectorDock(props: InspectorDockProps) {
     open,
     activeTag,
     tagResults,
-    invocationHistory = [],
     onToggle,
     onOpenTarget,
     onOpenExternal,
@@ -52,7 +48,6 @@ export function InspectorDock(props: InspectorDockProps) {
   const tags = isMarkdown ? graphContext?.tags ?? [] : [];
   const outline = isMarkdown ? extractOutline(document?.body ?? "") : [];
   const propertyEntries = Object.entries(document?.frontmatter ?? {}).filter(([key]) => !key.startsWith("branch_"));
-  const meaningfulActivity = invocationHistory.filter(hasMeaningfulInvocationActivity);
 
   if (!open) {
     return null;
@@ -117,11 +112,7 @@ export function InspectorDock(props: InspectorDockProps) {
             <LinksTab isMarkdown={isMarkdown} backlinks={backlinks} references={referenceLinks} externalLinks={externalLinks} tags={tags} activeTag={activeTag} tagResults={tagResults} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
           ) : activeTab === "graph" ? (
             <GraphNeighborhoodView neighborhood={graphContext?.neighborhood ?? null} onOpenCanvas={onOpenGraphCanvas} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
-          ) : meaningfulActivity.length ? (
-            <ActivityTab records={meaningfulActivity} />
-          ) : (
-            <div className="footer-empty" data-testid="connections-activity-empty">No activity yet</div>
-          )}
+          ) : null}
         </div>
       </div>
       </div>
@@ -169,14 +160,6 @@ function LinksTab(props: {
 
 function ConnectionList(props: { title: string; items: Array<{ label: string; target: string }>; onOpen: (target: string) => void; empty: string; external?: boolean }) {
   return <section className="connections-panel__section"><div className="connections-panel__section-title">{props.title}</div>{props.items.length ? props.items.map((item) => <button key={`${item.label}-${item.target}`} className="footer-item" onClick={() => props.onOpen(item.target)} type="button">{item.label}{props.external ? <ExternalLink size={12} /> : null}</button>) : <div className="footer-empty">{props.empty}</div>}</section>;
-}
-
-function ActivityTab({ records }: { records: readonly InvocationRecord[] }) {
-  return <section className="connections-panel__section">{records.map((record) => <div className="connections-activity" key={record.id}><strong>@{record.command.handle}</strong><span>{record.changedFileRefs.length} changed file{record.changedFileRefs.length === 1 ? "" : "s"}</span></div>)}</section>;
-}
-
-export function hasMeaningfulInvocationActivity(record: Pick<InvocationRecord, "status" | "changedFileRefs" | "diffRefs">): boolean {
-  return record.changedFileRefs.length > 0 || record.diffRefs.length > 0 || record.status === "failed" || record.status === "orphaned";
 }
 
 function moveConnectionTab(event: KeyboardEvent<HTMLButtonElement>, index: number, setTab: (tab: ConnectionTab) => void) {
