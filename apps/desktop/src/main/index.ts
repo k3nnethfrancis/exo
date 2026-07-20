@@ -499,6 +499,9 @@ app.whenReady().then(async () => {
   invocationRunner.on("updated", (record) => {
     sendToRenderer("workspace:invocation-updated", record);
   });
+  invocationRunner.on("activity", (event) => {
+    sendToRenderer("workspace:invocation-activity", event);
+  });
   void invocationRunner.markOrphanedRunningInvocations().catch((error) => {
     console.warn("[exo] failed to mark orphaned invocations", error);
   });

@@ -57,6 +57,11 @@ const api: DesktopApi = {
       ipcRenderer.on("workspace:invocation-updated", listener);
       return () => ipcRenderer.removeListener("workspace:invocation-updated", listener);
     },
+    onInvocationActivity: (callback) => {
+      const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
+      ipcRenderer.on("workspace:invocation-activity", listener);
+      return () => ipcRenderer.removeListener("workspace:invocation-activity", listener);
+    },
     syncIndex: () => invokeDesktop("workspace:index-sync"),
     updateIndex: () => invokeDesktop("workspace:index-update"),
     embedIndex: () => invokeDesktop("workspace:index-embed"),

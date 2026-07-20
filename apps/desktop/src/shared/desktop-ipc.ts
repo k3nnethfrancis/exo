@@ -1,5 +1,5 @@
 import type { DesktopApi, IndexSyncStateEvent, TerminalDataEvent, TerminalSessionInfo, WorkspaceSettingsSection } from "./api";
-import type { InvocationRecord } from "@exo/core";
+import type { InvocationActivityEvent, InvocationRecord } from "@exo/core";
 
 type WorkspaceApi = DesktopApi["workspace"];
 type NotesApi = DesktopApi["notes"];
@@ -73,6 +73,7 @@ export interface DesktopEventPayloads {
   "workspace:changed": { rootPath: string; eventType: string; filePath: string | null };
   "workspace:index-sync-state": IndexSyncStateEvent;
   "workspace:invocation-updated": InvocationRecord;
+  "workspace:invocation-activity": InvocationActivityEvent;
   "command:open-file": string;
   "command:open-settings": { section: WorkspaceSettingsSection };
   "terminal:created": TerminalSessionInfo;

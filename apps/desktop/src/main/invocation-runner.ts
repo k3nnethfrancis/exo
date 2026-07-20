@@ -26,6 +26,8 @@ import {
   type InvocationAuthorizationDecision,
   type WorkspaceSettings,
   isDocumentAgentProtocolId,
+  type InvocationActivityEvent,
+  type InvocationActivityKind,
 } from "@exo/core";
 import { commandForClaudeResume as buildClaudeResumeCommand } from "@exo/core/provider-session";
 
@@ -41,6 +43,7 @@ import {
 } from "./invocation-adapter";
 import type { TerminalManager } from "./terminal-manager";
 import type { WorkspaceChangeEvent, WorkspaceWatcherService } from "./workspace-watchers";
+import { InvocationActivityAdapter, type ParsedInvocationActivity } from "./invocation-activity-adapter";
 
 export interface InvocationRequest {
   context: "cli" | "note";
@@ -125,6 +128,12 @@ export class InvocationRunner extends EventEmitter {
   private readonly byTerminal = new Map<string, string>();
   private readonly continuityLocks = new Map<string, { invocationId: string; workspaceRoot: string; commandId: string }>();
   private readonly invocationScopes = new Map<string, { workspaceRoot: string; noteRoots: string[] }>();
+  private readonly activityState = new Map<string, {
+    lastKey: string;
+    emittedAtMs: number;
+    pending?: ParsedInvocationActivity;
+    timer?: NodeJS.Timeout;
+  }>();
 
   constructor(private readonly options: {
     getWorkspaceSettings: () => WorkspaceSettings;
@@ -321,12 +330,21 @@ export class InvocationRunner extends EventEmitter {
         settleHeadlessProcess(event.exitCode, result.failureReason);
       };
       const launchHeadless = async (head: InvocationConversationHead | null, fallback: boolean): Promise<void> => {
+        const activityAdapter = new InvocationActivityAdapter(prepared.command.adapter);
         invocationProcess = (this.options.invocationProcessFactory ?? new DirectInvocationProcessFactory()).launch({
           command: buildHeadlessInvocationCommand(prepared.command, head),
           cwd: prepared.cwd,
           env: globalThis.process.env,
         });
+        this.emitActivity(prepared.id, { kind: "working" });
+        invocationProcess.onOutput?.((output) => {
+          for (const activity of activityAdapter.push(output.channel, output.chunk)) {
+            this.emitActivity(prepared.id, activity);
+          }
+        });
         invocationProcess.onExit((event) => {
+          for (const activity of activityAdapter.finish()) this.emitActivity(prepared.id, activity, true);
+          this.emitActivity(prepared.id, { kind: "finishing" }, true);
           if (!observationReady) {
             queuedExitRef.current = { event, attemptedHead: head, fallback };
             return;
@@ -368,6 +386,7 @@ export class InvocationRunner extends EventEmitter {
       if (terminal) await this.options.terminalManager.kill(terminal.id).catch(() => undefined);
       invocationProcess?.kill();
       if (continuityLockKey) this.continuityLocks.delete(continuityLockKey);
+      this.clearActivity(prepared.id);
       const failed: InvocationRecord = { ...prepared.pending, status: "failed", endedAt: new Date().toISOString(), failureReason: error instanceof Error ? error.message : String(error) };
       await store.writeRecord(failed).catch(() => undefined);
       throw error;
@@ -608,10 +627,62 @@ export class InvocationRunner extends EventEmitter {
       this.emit("updated", next);
       return next;
     } finally {
+      this.clearActivity(id);
       this.active.delete(id);
       if (observation.record.terminalSessionId) this.byTerminal.delete(observation.record.terminalSessionId);
       if (observation.continuityLockKey) this.continuityLocks.delete(observation.continuityLockKey);
     }
+  }
+
+  private emitActivity(id: string, activity: ParsedInvocationActivity, immediate = false): void {
+    const key = `${activity.kind}:${activity.label ?? ""}`;
+    const now = Date.now();
+    const state = this.activityState.get(id) ?? { lastKey: "", emittedAtMs: 0 };
+    if (state.lastKey === key && !state.pending) return;
+    const elapsed = now - state.emittedAtMs;
+    if (!immediate && elapsed < INVOCATION_ACTIVITY_INTERVAL_MS) {
+      state.pending = activity;
+      if (!state.timer) {
+        state.timer = setTimeout(() => {
+          const current = this.activityState.get(id);
+          if (!current?.pending) return;
+          const pending = current.pending;
+          current.pending = undefined;
+          current.timer = undefined;
+          this.publishActivity(id, pending, current);
+        }, INVOCATION_ACTIVITY_INTERVAL_MS - elapsed);
+        state.timer.unref?.();
+      }
+      this.activityState.set(id, state);
+      return;
+    }
+    if (state.timer) clearTimeout(state.timer);
+    state.timer = undefined;
+    state.pending = undefined;
+    this.publishActivity(id, activity, state);
+  }
+
+  private publishActivity(
+    id: string,
+    activity: { kind: InvocationActivityKind; label?: string },
+    state: { lastKey: string; emittedAtMs: number; pending?: ParsedInvocationActivity; timer?: NodeJS.Timeout },
+  ): void {
+    state.lastKey = `${activity.kind}:${activity.label ?? ""}`;
+    state.emittedAtMs = Date.now();
+    this.activityState.set(id, state);
+    const event: InvocationActivityEvent = {
+      invocationId: id,
+      kind: activity.kind,
+      emittedAt: new Date(state.emittedAtMs).toISOString(),
+      ...(activity.label ? { label: activity.label } : {}),
+    };
+    this.emit("activity", event);
+  }
+
+  private clearActivity(id: string): void {
+    const state = this.activityState.get(id);
+    if (state?.timer) clearTimeout(state.timer);
+    this.activityState.delete(id);
   }
 
   private resolveCommand(settings: WorkspaceSettings, handleInput: string): AgentCommand {
@@ -646,6 +717,8 @@ export class InvocationRunner extends EventEmitter {
     }
   }
 }
+
+const INVOCATION_ACTIVITY_INTERVAL_MS = 200;
 
 async function snapshotTextFile(filePath: string): Promise<FileSnapshot> {
   try {

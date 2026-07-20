@@ -122,6 +122,36 @@ describe("InvocationRunner readiness parity", () => {
     await expect(new AgentCommandTrustStore(root, root).status(command)).resolves.toMatchObject({ trusted: false });
   });
 
+  it("coalesces structured provider activity into bounded renderer events", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-activity-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const documentBody = protocolNoteBody("# Note\n", command.handle, "Review this.");
+    await writeFile(notePath, documentBody, "utf8");
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+    const events: import("@exo/core").InvocationActivityEvent[] = [];
+    runner.on("activity", (event) => events.push(event));
+
+    const result = await startPrepared(runner, invocationRequest(notePath, documentBody));
+    processFactory.process.output("stdout", `${JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "tool_use", name: "Read", input: { file_path: "/private/wiki/essay.md" } }] },
+    })}\n`);
+    processFactory.process.output("stdout", `${JSON.stringify({
+      type: "assistant",
+      message: { content: [{ type: "tool_use", name: "Edit", input: { file_path: "/private/wiki/essay.md" } }] },
+    })}\n`);
+    await new Promise((resolve) => setTimeout(resolve, 230));
+
+    expect(events).toEqual([
+      expect.objectContaining({ invocationId: result.invocation.id, kind: "working" }),
+      expect.objectContaining({ invocationId: result.invocation.id, kind: "editing", label: "essay.md" }),
+    ]);
+    expect(JSON.stringify(events)).not.toContain("/private/wiki");
+  });
+
   it("persists trust only for the exact always-allowed Command fingerprint", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-always-allow-"));
     temporaryRoots.push(root);
@@ -681,6 +711,7 @@ class FakeInvocationProcessFactory implements InvocationProcessFactory {
 class FakeInvocationProcess implements InvocationProcess {
   prompts: string[] = [];
   private exitHandler: ((event: InvocationProcessExit) => void) | null = null;
+  private outputHandler: ((event: import("./invocation-process").InvocationProcessOutput) => void) | null = null;
 
   async send(prompt: string): Promise<void> {
     this.prompts.push(prompt);
@@ -688,6 +719,14 @@ class FakeInvocationProcess implements InvocationProcess {
 
   onExit(handler: (event: InvocationProcessExit) => void): void {
     this.exitHandler = handler;
+  }
+
+  onOutput(handler: (event: import("./invocation-process").InvocationProcessOutput) => void): void {
+    this.outputHandler = handler;
+  }
+
+  output(channel: "stdout" | "stderr", chunk: string): void {
+    this.outputHandler?.({ channel, chunk });
   }
 
   exit(exitCode: number | null, stdout: string, stderr = ""): void {

@@ -21,6 +21,7 @@ import type {
   AgentCommandTrustStatus,
   AgentCommand,
   InvocationAuthorizationDecision,
+  InvocationActivityEvent,
 } from "@exo/core";
 
 export type TerminalKind = "shell";
@@ -218,6 +219,7 @@ export interface DesktopApi {
     rejectInvocationReview: (input: { invocationId: string; expectedAfterSha256: string | null }) => Promise<InvocationRecord>;
     resumeInvocationInTerminal: (invocationId: string) => Promise<TerminalSessionInfo>;
     onInvocationUpdated: (callback: (record: InvocationRecord) => void) => () => void;
+    onInvocationActivity: (callback: (event: InvocationActivityEvent) => void) => () => void;
     syncIndex: () => Promise<IndexSyncResult>;
     updateIndex: () => Promise<IndexStatus>;
     embedIndex: () => Promise<IndexStatus>;
