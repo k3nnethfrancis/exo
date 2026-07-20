@@ -280,7 +280,8 @@ Runtime files live under `.exo/` inside the workspace root:
 
 - `.exo/server.json` - command server discovery
 - `.exo/qmd/index.sqlite` - Exo-managed QMD notes index when indexing is enabled
-- `.exo/invocations/` - note-native agent-command invocation records and diff refs
+- `.exo/invocations/` - invocation records, clean bases, exact Changesets, and
+  compact content-addressed before/after snapshots required for restart-safe review
 - `.exo/artifacts/` - local generated artifacts when needed
 
 `.exo/` is derived local state, never canonical notes. Add `.exo/` to `.gitignore` when the Workspace root is in a Git repository; Exo warns about an unignored runtime directory rather than modifying your repository. Moving or copying a Workspace intentionally requires re-authorizing configured Commands.

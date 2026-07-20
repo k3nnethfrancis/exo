@@ -117,13 +117,17 @@ The detailed gates and type direction are canonical in
 - Close the remaining save/trust/dirty-document acceptance evidence.
 - Ship **Find and connect relevant context** as the first provider-neutral, editable skill delivered through a configured Command and reviewed Markdown changes.
 
-### WP5: Direct-Write Review
+### WP5: Exact Changeset Review — implemented in Launch Gate C
 
-- Observe changed files during invocation windows.
-- Attribute changes as `likely` or `ambiguous`, not line-perfect authorship.
-- Refresh open notes safely without overwriting dirty buffers.
-- Reuse or adapt existing changed-file/diff surfaces for invocation review.
-- Show a diff/attribution banner and detail view.
+- Derive one exact multi-file Changeset from immutable launch and settled
+  manifests across the authorized Note Roots.
+- Review created, modified, deleted, and conservatively proven-renamed files
+  with serialized, hash-guarded per-file or batch Keep/Reject decisions.
+- Drain and freeze affected editor buffers during a decision; preserve newer
+  bytes as an explicit conflict rather than inferring authorship or overwriting.
+- Keep pending review, clean base, History, restart recovery, and compact
+  content-addressed snapshots durable under `.exo/invocations/`.
+- Use `docs/document-agent-protocol.md` as the canonical contract.
 
 ## Superseded Or Deletion-Audit Targets
 
