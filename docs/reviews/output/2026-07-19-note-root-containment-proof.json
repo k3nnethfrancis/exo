@@ -53,7 +53,7 @@
   "packagedElectron": {
     "result": "passed",
     "package": "release/mac-arm64/Exo.app",
-    "appAsarSha256": "f31a649c80d283693e945565f793343eba6cc3514c10f2867a217782173906ce",
+    "appAsarSha256": "5c9b54b72d74bb1807c800e56f1e4fcba2c45bdd3348d95ec922fd44f0ff5ff8",
     "command": "pnpm pack:mac && pnpm test:packaged:containment"
   },
   "repair": {
