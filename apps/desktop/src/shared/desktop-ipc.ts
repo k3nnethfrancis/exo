@@ -31,6 +31,11 @@ export interface DesktopInvokeHandlers {
   "workspace:get-invocation-review": WorkspaceApi["getInvocationReview"];
   "workspace:keep-invocation-review": WorkspaceApi["keepInvocationReview"];
   "workspace:reject-invocation-review": WorkspaceApi["rejectInvocationReview"];
+  "workspace:list-pending-invocation-reviews": WorkspaceApi["listPendingInvocationReviews"];
+  "workspace:list-invocation-history": WorkspaceApi["listInvocationHistory"];
+  "workspace:get-invocation-file-review": WorkspaceApi["getInvocationFileReview"];
+  "workspace:review-invocation-file": WorkspaceApi["reviewInvocationFile"];
+  "workspace:review-invocation-all": WorkspaceApi["reviewInvocationAll"];
   "workspace:resume-invocation-in-terminal": WorkspaceApi["resumeInvocationInTerminal"];
   "workspace:index-sync": WorkspaceApi["syncIndex"];
   "workspace:index-update": WorkspaceApi["updateIndex"];

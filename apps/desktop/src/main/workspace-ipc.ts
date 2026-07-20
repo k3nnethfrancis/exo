@@ -33,6 +33,11 @@ export interface WorkspaceIpcHandlers {
   getInvocationReview: WorkspaceApi["getInvocationReview"];
   keepInvocationReview: WorkspaceApi["keepInvocationReview"];
   rejectInvocationReview: WorkspaceApi["rejectInvocationReview"];
+  listPendingInvocationReviews: WorkspaceApi["listPendingInvocationReviews"];
+  listInvocationHistory: WorkspaceApi["listInvocationHistory"];
+  getInvocationFileReview: WorkspaceApi["getInvocationFileReview"];
+  reviewInvocationFile: WorkspaceApi["reviewInvocationFile"];
+  reviewInvocationAll: WorkspaceApi["reviewInvocationAll"];
   resumeInvocationInTerminal: WorkspaceApi["resumeInvocationInTerminal"];
   resolvePreviewTarget: WorkspaceApi["resolvePreviewTarget"];
   getGraphContext: NotesApi["getGraphContext"];
@@ -99,6 +104,18 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:get-invocation-review", async (_event, invocationId) => handlers.getInvocationReview(invocationId));
   handleDesktopInvoke("workspace:keep-invocation-review", async (_event, invocationId) => handlers.keepInvocationReview(invocationId));
   handleDesktopInvoke("workspace:reject-invocation-review", async (_event, input) => handlers.rejectInvocationReview(input));
+  handleDesktopInvoke("workspace:list-pending-invocation-reviews", async () => handlers.listPendingInvocationReviews());
+  handleDesktopInvoke("workspace:list-invocation-history", async (_event, notePath) =>
+    handlers.listInvocationHistory(await workspaceFiles().writable(notePath)));
+  handleDesktopInvoke("workspace:get-invocation-file-review", async (_event, input) => handlers.getInvocationFileReview(input));
+  handleDesktopInvoke("workspace:review-invocation-file", async (_event, input) => {
+    assertReviewAction(input.action);
+    return handlers.reviewInvocationFile(input);
+  });
+  handleDesktopInvoke("workspace:review-invocation-all", async (_event, input) => {
+    assertReviewAction(input.action);
+    return handlers.reviewInvocationAll(input);
+  });
   handleDesktopInvoke("workspace:resume-invocation-in-terminal", async (_event, invocationId) => handlers.resumeInvocationInTerminal(invocationId));
   handleDesktopInvoke("workspace:index-sync", async () => handlers.syncIndex());
   handleDesktopInvoke("workspace:index-update", async () => handlers.updateIndex());
@@ -205,4 +222,8 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     window?.focus();
     window?.webContents.focus();
   });
+}
+
+function assertReviewAction(action: unknown): asserts action is "keep" | "reject" {
+  if (action !== "keep" && action !== "reject") throw new Error("Invocation review action must be keep or reject.");
 }

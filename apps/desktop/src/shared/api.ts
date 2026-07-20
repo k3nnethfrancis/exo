@@ -22,6 +22,7 @@ import type {
   AgentCommand,
   InvocationAuthorizationDecision,
   InvocationActivityEvent,
+  InvocationFileChange,
 } from "@exo/core";
 
 export type TerminalKind = "shell";
@@ -136,6 +137,35 @@ export interface InvocationReviewPayload {
   canReject: boolean;
 }
 
+export interface InvocationFileReviewPayload {
+  invocation: InvocationRecord;
+  change: InvocationFileChange;
+  beforeText: string | null;
+  afterText: string | null;
+  canKeep: boolean;
+  canReject: boolean;
+}
+
+export interface InvocationReviewListItem {
+  invocationId: string;
+  createdAt: string;
+  endedAt?: string;
+  command: Pick<InvocationRecord["command"], "handle" | "label">;
+  changedFileCount: number;
+  pendingFileCount: number;
+  status: InvocationRecord["status"];
+}
+
+export interface InvocationHistoryItem {
+  invocationId: string;
+  createdAt: string;
+  endedAt?: string;
+  command: Pick<InvocationRecord["command"], "handle" | "label">;
+  outcome: "kept" | "rejected" | "pending" | "failed";
+  changedFileCount: number;
+  providerSessionId?: string;
+}
+
 export interface AgentCommandLaunchFacts {
   commandId: string;
   handle: string;
@@ -217,6 +247,11 @@ export interface DesktopApi {
     getInvocationReview: (invocationId: string) => Promise<InvocationReviewPayload | null>;
     keepInvocationReview: (invocationId: string) => Promise<InvocationRecord | null>;
     rejectInvocationReview: (input: { invocationId: string; expectedAfterSha256: string | null }) => Promise<InvocationRecord>;
+    listPendingInvocationReviews: () => Promise<InvocationReviewListItem[]>;
+    listInvocationHistory: (notePath: string) => Promise<InvocationHistoryItem[]>;
+    getInvocationFileReview: (input: { invocationId: string; changeId: string }) => Promise<InvocationFileReviewPayload>;
+    reviewInvocationFile: (input: { invocationId: string; changeId: string; action: "keep" | "reject" }) => Promise<InvocationRecord>;
+    reviewInvocationAll: (input: { invocationId: string; action: "keep" | "reject" }) => Promise<InvocationRecord>;
     resumeInvocationInTerminal: (invocationId: string) => Promise<TerminalSessionInfo>;
     onInvocationUpdated: (callback: (record: InvocationRecord) => void) => () => void;
     onInvocationActivity: (callback: (event: InvocationActivityEvent) => void) => () => void;

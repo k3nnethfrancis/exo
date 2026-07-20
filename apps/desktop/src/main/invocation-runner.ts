@@ -1,5 +1,5 @@
 import { randomUUID, createHash } from "node:crypto";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 import { EventEmitter } from "node:events";
 
@@ -120,7 +120,7 @@ export interface InvocationHistoryItem {
   createdAt: string;
   endedAt?: string;
   command: Pick<InvocationRecord["command"], "handle" | "label">;
-  outcome: InvocationRecord["status"];
+  outcome: "kept" | "rejected" | "pending" | "failed";
   changedFileCount: number;
   providerSessionId?: string;
 }
@@ -129,6 +129,10 @@ export class InvocationRunnerError extends Error {
   constructor(readonly code: string, message: string, readonly details: Record<string, unknown> = {}) {
     super(message);
   }
+}
+
+class InvocationProcessStopError extends Error {
+  constructor(message: string, readonly cause: unknown) { super(message); }
 }
 
 interface ActiveObservation {
@@ -141,7 +145,7 @@ interface ActiveObservation {
   process?: InvocationProcess;
   requestedStatus?: "user-ended" | "failed";
   lastWorkspaceChangeAtMs: number;
-  finalizing: boolean;
+  settlementPromise?: Promise<InvocationRecord | null>;
 }
 
 interface FileSnapshot {
@@ -181,7 +185,7 @@ export class InvocationRunner extends EventEmitter {
     options.workspaceWatcherService.subscribe((event) => this.onWorkspaceChange(event));
     options.terminalManager.on("exit", (event: { id: string; exitCode?: number }) => {
       const id = this.byTerminal.get(event.id);
-      if (id) void this.settle(id, "process-exited", event.exitCode);
+      if (id) this.settleFromEvent(id, "process-exited", event.exitCode);
     });
   }
 
@@ -302,7 +306,27 @@ export class InvocationRunner extends EventEmitter {
     const settleHeadlessProcess = (exitCode: number | null, failureReason: string | null) => {
       const status = exitCode !== 0 || failureReason ? "failed" : "process-exited";
       const requested = this.active.get(prepared.id)?.requestedStatus;
-      void this.settle(prepared.id, requested ?? status, exitCode ?? undefined, failureReason ?? undefined);
+      this.settleFromEvent(prepared.id, requested ?? status, exitCode ?? undefined, failureReason ?? undefined);
+    };
+    const handleHeadlessControlError = async (error: unknown, exitCode: number | null): Promise<void> => {
+      if (!(error instanceof InvocationProcessStopError)) {
+        settleHeadlessProcess(exitCode, error instanceof Error ? error.message : String(error));
+        return;
+      }
+      const observation = this.active.get(prepared.id);
+      if (observation) {
+        const recoverable: InvocationRecord = {
+          ...observation.record,
+          status: "orphaned",
+          endedAt: new Date().toISOString(),
+          failureReason: error.message,
+          attribution: { status: "ambiguous", reason: "The invocation process may still be writing to this Note Root." },
+        };
+        await store.writeRecord(recoverable);
+        observation.record = recoverable;
+        this.emit("updated", recoverable);
+      }
+      this.emit("settlement-error", { invocationId: prepared.id, error });
     };
     try {
       if (prepared.before) {
@@ -343,14 +367,19 @@ export class InvocationRunner extends EventEmitter {
       ): Promise<void> => {
         const result = inspectInvocationAdapterResult(prepared.command, event, attemptedHead);
         const observation = this.active.get(prepared.id);
-        if (result.staleResumeRejected && attemptedHead && !fallback && prepared.continuityLane && observation) {
+        if (result.staleResumeRejected && attemptedHead && !fallback && prepared.continuityLane && observation && !observation.requestedStatus) {
           const current = await snapshotTextFile(observation.before.path);
           if (current.sha256 === observation.before.sha256 && observation.observedPaths.size === 0) {
             await new InvocationContinuityStore(prepared.workspaceRoot).clearHead(prepared.continuityLane);
+            if (observation.requestedStatus) {
+              settleHeadlessProcess(event.exitCode, result.failureReason);
+              return;
+            }
             try {
               await launchHeadless(null, true);
               return;
             } catch (error) {
+              if (error instanceof InvocationProcessStopError) throw error;
               const reason = error instanceof Error ? error.message : String(error);
               settleHeadlessProcess(null, reason);
               return;
@@ -406,10 +435,24 @@ export class InvocationRunner extends EventEmitter {
             return;
           }
           void handleHeadlessExit(event, head, fallback).catch((error) => {
-            settleHeadlessProcess(event.exitCode, error instanceof Error ? error.message : String(error));
+            void handleHeadlessControlError(error, event.exitCode).catch((controlError) => {
+              this.emit("settlement-error", { invocationId: prepared.id, error: controlError });
+            });
           });
         });
-        await invocationProcess.send(prompt);
+        try {
+          await invocationProcess.send(prompt);
+        } catch (error) {
+          try {
+            await invocationProcess.stop();
+          } catch (stopError) {
+            throw new InvocationProcessStopError(
+              "Invocation prompt delivery failed and its process could not be stopped safely.",
+              new AggregateError([error, stopError]),
+            );
+          }
+          throw error;
+        }
       };
       if (prepared.request.context === "note") {
         await launchHeadless(continuityHead, false);
@@ -437,7 +480,9 @@ export class InvocationRunner extends EventEmitter {
         if (exit) {
           queuedExitRef.current = null;
           void handleHeadlessExit(exit.event, exit.attemptedHead, exit.fallback).catch((error) => {
-            settleHeadlessProcess(exit.event.exitCode, error instanceof Error ? error.message : String(error));
+            void handleHeadlessControlError(error, exit.event.exitCode).catch((controlError) => {
+              this.emit("settlement-error", { invocationId: prepared.id, error: controlError });
+            });
           });
         }
       }
@@ -446,11 +491,30 @@ export class InvocationRunner extends EventEmitter {
       if (terminal) await this.options.terminalManager.kill(terminal.id).catch(() => undefined);
       const observation = this.active.get(prepared.id);
       if (observation) observation.requestedStatus = "failed";
-      await invocationProcess?.stop().catch(() => undefined);
+      if (invocationProcess) {
+        try {
+          await invocationProcess.stop();
+        } catch (stopError) {
+          const recoverable: InvocationRecord = {
+            ...(observation?.record ?? prepared.pending),
+            status: "orphaned",
+            endedAt: new Date().toISOString(),
+            failureReason: "Invocation launch failed and its process could not be stopped safely.",
+            attribution: { status: "ambiguous", reason: "The invocation process may still be writing to this Note Root." },
+          };
+          await store.writeRecord(recoverable);
+          if (observation) observation.record = recoverable;
+          throw new AggregateError([error, stopError], "Invocation launch failed and its process could not be stopped safely.");
+        }
+      }
       this.clearActivity(prepared.id);
       const failureReason = error instanceof Error ? error.message : String(error);
       if (observation) {
-        await this.settle(prepared.id, "failed", undefined, failureReason).catch(() => undefined);
+        try {
+          await this.settle(prepared.id, "failed", undefined, failureReason);
+        } catch (settlementError) {
+          throw new AggregateError([error, settlementError], "Invocation launch and settlement both failed.");
+        }
       } else {
         if (continuityLockKey) this.continuityLocks.delete(continuityLockKey);
         this.releaseChangesetLock(prepared.id);
@@ -553,8 +617,20 @@ export class InvocationRunner extends EventEmitter {
   async stopAll(): Promise<void> {
     const observations = [...this.active.values()];
     for (const observation of observations) observation.requestedStatus = "user-ended";
-    await Promise.all(observations.map((observation) => observation.process?.stop().catch(() => undefined)));
-    await Promise.all(observations.map((observation) => this.settle(observation.record.id, "user-ended")));
+    const failures: unknown[] = [];
+    const stopped: ActiveObservation[] = [];
+    await Promise.all(observations.map(async (observation) => {
+      try {
+        await observation.process?.stop();
+        stopped.push(observation);
+      } catch (error) {
+        failures.push(error);
+      }
+    }));
+    await Promise.all(stopped.map((observation) => this.settle(observation.record.id, "user-ended")));
+    if (failures.length > 0) {
+      throw new AggregateError(failures, `Failed to stop ${failures.length} invocation process${failures.length === 1 ? "" : "es"}.`);
+    }
   }
 
   async get(id: string): Promise<InvocationRecord | null> {
@@ -591,7 +667,7 @@ export class InvocationRunner extends EventEmitter {
 
   async listHistoryForNote(notePath: string): Promise<InvocationHistoryItem[]> {
     const settings = this.options.getWorkspaceSettings();
-    const exactPath = path.resolve(notePath);
+    const exactPath = await canonicalPathOrResolved(notePath);
     return (await new InvocationStore(settings.workspaceRoot).listRecords())
       .filter((record) => record.changeset?.files.some((change) =>
         change.before?.path === exactPath || change.after?.path === exactPath))
@@ -601,7 +677,7 @@ export class InvocationRunner extends EventEmitter {
         createdAt: record.createdAt,
         ...(record.endedAt ? { endedAt: record.endedAt } : {}),
         command: { handle: record.command.handle, label: record.command.label },
-        outcome: record.status,
+        outcome: invocationHistoryOutcome(record),
         changedFileCount: record.changeset?.files.length ?? 0,
         ...(record.providerSessionId ? { providerSessionId: record.providerSessionId } : {}),
       }));
@@ -663,11 +739,14 @@ export class InvocationRunner extends EventEmitter {
       this.invocationScopes.set(record.id, { workspaceRoot, noteRoots });
       const recordStore = workspaceRoot === settings.workspaceRoot ? store : new InvocationStore(workspaceRoot);
       const recovered = await this.reviewService(workspaceRoot).recoverJournal(record);
-      if (record.status !== "pending" && record.status !== "running") continue;
       const launch = await recordStore.readManifest(record.id, "launch");
-      const changeset = launch
-        ? buildInvocationChangeset(launch, await recordStore.captureManifest(record.id, "settled", noteRoots))
-        : recovered.changeset;
+      const requiresExactRecovery = recovered.status === "pending" || recovered.status === "running" ||
+        Boolean(launch && !recovered.changeset);
+      if (!requiresExactRecovery) continue;
+      const settled = launch
+        ? await recordStore.readManifest(record.id, "settled") ?? await recordStore.captureManifest(record.id, "settled", noteRoots)
+        : null;
+      const changeset = launch && settled ? buildInvocationChangeset(launch, settled) : recovered.changeset;
       const next = withCompatibilityReview({
         ...recovered,
         status: "orphaned",
@@ -705,7 +784,6 @@ export class InvocationRunner extends EventEmitter {
       ...(continuityLockKey ? { continuityLockKey } : {}),
       observedPaths: new Set(),
       lastWorkspaceChangeAtMs: Date.now(),
-      finalizing: false,
     });
   }
 
@@ -719,9 +797,22 @@ export class InvocationRunner extends EventEmitter {
     }
   }
 
-  private async settle(id: string, status: "process-exited" | "user-ended" | "failed", exitCode?: number, failureReason?: string): Promise<InvocationRecord | null> {
-    const observation = this.active.get(id); if (!observation || observation.finalizing) return null;
-    observation.finalizing = true;
+  private settle(id: string, status: "process-exited" | "user-ended" | "failed", exitCode?: number, failureReason?: string): Promise<InvocationRecord | null> {
+    const observation = this.active.get(id);
+    if (!observation) return Promise.resolve(null);
+    if (observation.settlementPromise) return observation.settlementPromise;
+    const settlement = this.captureSettlement(observation, status, exitCode, failureReason);
+    observation.settlementPromise = settlement;
+    return settlement;
+  }
+
+  private async captureSettlement(
+    observation: ActiveObservation,
+    status: "process-exited" | "user-ended" | "failed",
+    exitCode?: number,
+    failureReason?: string,
+  ): Promise<InvocationRecord | null> {
+    const id = observation.record.id;
     try {
       const store = new InvocationStore(observation.workspaceRoot);
       await this.waitForSettlementQuiet(observation);
@@ -753,14 +844,52 @@ export class InvocationRunner extends EventEmitter {
       });
       await store.writeRecord(next);
       this.emit("updated", next);
+      this.releaseObservation(observation);
       return next;
-    } finally {
-      this.clearActivity(id);
-      this.active.delete(id);
-      if (observation.record.terminalSessionId) this.byTerminal.delete(observation.record.terminalSessionId);
-      if (observation.continuityLockKey) this.continuityLocks.delete(observation.continuityLockKey);
-      this.releaseChangesetLock(id);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      const recoverable: InvocationRecord = {
+        ...observation.record,
+        status: "orphaned",
+        endedAt: new Date().toISOString(),
+        failureReason: `Invocation settlement failed: ${reason}`,
+        attribution: { status: "ambiguous", reason: "Exact settlement is incomplete and will be retried before this Note Root is unlocked." },
+      };
+      let settlementError = error;
+      try {
+        await new InvocationStore(observation.workspaceRoot).writeRecord(recoverable);
+        observation.record = recoverable;
+        this.emit("updated", recoverable);
+      } catch (recoveryError) {
+        settlementError = new AggregateError(
+          [error, recoveryError],
+          "Invocation settlement failed and its recoverable record could not be persisted.",
+        );
+      } finally {
+        observation.settlementPromise = undefined;
+      }
+      throw settlementError;
     }
+  }
+
+  private settleFromEvent(
+    id: string,
+    status: "process-exited" | "user-ended" | "failed",
+    exitCode?: number,
+    failureReason?: string,
+  ): void {
+    void this.settle(id, status, exitCode, failureReason).catch((error) => {
+      this.emit("settlement-error", { invocationId: id, error });
+    });
+  }
+
+  private releaseObservation(observation: ActiveObservation): void {
+    const id = observation.record.id;
+    this.clearActivity(id);
+    this.active.delete(id);
+    if (observation.record.terminalSessionId) this.byTerminal.delete(observation.record.terminalSessionId);
+    if (observation.continuityLockKey) this.continuityLocks.delete(observation.continuityLockKey);
+    this.releaseChangesetLock(id);
   }
 
   private async waitForSettlementQuiet(observation: ActiveObservation): Promise<void> {
@@ -916,8 +1045,6 @@ async function snapshotTextFile(filePath: string): Promise<FileSnapshot> {
     throw error;
   }
 }
-function wholeFileDiff(before: FileSnapshot, after: FileSnapshot): string { return [`--- a/${path.basename(before.path)}`, `+++ b/${path.basename(after.path)}`, `@@ -1 +1 @@`, ...before.content.split("\n").map((line) => `-${line}`), ...after.content.split("\n").map((line) => `+${line}`), ""].join("\n"); }
-
 async function requiredInvocation(store: InvocationStore, id: string): Promise<InvocationRecord> {
   const record = await store.readRecord(id);
   if (!record) throw new InvocationRunnerError("not-found", `Invocation ${id} was not found.`);
@@ -995,6 +1122,16 @@ function newestRecordFirst(left: InvocationRecord, right: InvocationRecord): num
   return right.createdAt.localeCompare(left.createdAt) || right.id.localeCompare(left.id);
 }
 
+function invocationHistoryOutcome(record: InvocationRecord): InvocationHistoryItem["outcome"] {
+  const changesetStatus = record.changeset?.status;
+  if (changesetStatus === "pending-review" || changesetStatus === "partially-resolved" || changesetStatus === "conflict" ||
+      record.status === "pending" || record.status === "running") return "pending";
+  if (changesetStatus === "rejected") return "rejected";
+  if (changesetStatus === "resolved") return "kept";
+  if (record.status === "failed" || record.status === "orphaned") return "failed";
+  return "kept";
+}
+
 function rootsOverlap(left: readonly string[], right: readonly string[]): boolean {
   return left.some((leftRoot) => right.some((rightRoot) =>
     isWithinPath(leftRoot, rightRoot) || isWithinPath(rightRoot, leftRoot)));
@@ -1007,6 +1144,19 @@ function isWithinPath(root: string, candidate: string): boolean {
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function canonicalPathOrResolved(filePath: string): Promise<string> {
+  try {
+    return await realpath(filePath);
+  } catch {
+    const resolved = path.resolve(filePath);
+    try {
+      return path.join(await realpath(path.dirname(resolved)), path.basename(resolved));
+    } catch {
+      return resolved;
+    }
+  }
 }
 
 /** Claude's documented print JSON exposes its real session_id. Generic Commands

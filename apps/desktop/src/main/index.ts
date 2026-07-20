@@ -30,6 +30,7 @@ import {
 import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import type { WorkspaceSettingsSaveOutcome } from "../shared/api";
 import { InvocationRunner } from "./invocation-runner";
+import { awaitInvocationAwareQuit } from "./invocation-quit";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
 import { CommandServerLifecycle } from "./command-server-lifecycle";
@@ -287,6 +288,11 @@ function registerIpcHandlers() {
     getInvocationReview: (invocationId) => invocationRunner.getReview(invocationId),
     keepInvocationReview: (invocationId) => invocationRunner.keepReview(invocationId),
     rejectInvocationReview: (input) => invocationRunner.rejectReview(input.invocationId, input.expectedAfterSha256),
+    listPendingInvocationReviews: () => invocationRunner.listPendingReviews(),
+    listInvocationHistory: (notePath) => invocationRunner.listHistoryForNote(notePath),
+    getInvocationFileReview: (input) => invocationRunner.getInvocationFileReview(input.invocationId, input.changeId),
+    reviewInvocationFile: (input) => invocationRunner.reviewInvocationFile(input.invocationId, input.changeId, input.action),
+    reviewInvocationAll: (input) => invocationRunner.reviewInvocationAll(input.invocationId, input.action),
     resumeInvocationInTerminal: (invocationId) => invocationRunner.resumeInTerminal(invocationId),
     getGraphContext: (filePath) => workspaceNotesService.getGraphContext(filePath),
     getGraphView: (profileId) => workspaceNotesService.getGraphView(profileId),
@@ -502,9 +508,15 @@ app.whenReady().then(async () => {
   invocationRunner.on("activity", (event) => {
     sendToRenderer("workspace:invocation-activity", event);
   });
-  void invocationRunner.markOrphanedRunningInvocations().catch((error) => {
-    console.warn("[exo] failed to mark orphaned invocations", error);
+  invocationRunner.on("settlement-error", (event: { invocationId: string; error: unknown }) => {
+    logMain("invocation settlement failed", { invocationId: event.invocationId, error: serializeError(event.error) });
   });
+  try {
+    await invocationRunner.markOrphanedRunningInvocations();
+  } catch (error) {
+    logMain("invocation recovery failed", serializeError(error));
+    throw error;
+  }
   workspaceNotesService = new WorkspaceNotesService({
     getWorkspaceModel: () => workspaceModel,
     getRuntimeRoot: () => resolveRuntimeRoot(),
@@ -573,19 +585,25 @@ function resolveRuntimeRoot(): string {
 
 app.on("before-quit", (event) => {
   const mainWindow = appLifecycle?.getMainWindow();
-  if (!quitFlushComplete && mainWindow && !mainWindow.isDestroyed() && appLifecycle.isRendererReady()) {
+  if (!quitFlushComplete) {
     event.preventDefault();
     if (quitFlushStarted) return;
     quitFlushStarted = true;
-    void Promise.race([
-      mainWindow.webContents.executeJavaScript("globalThis.__exoFlushDirtyDocuments?.()", true),
-      new Promise((resolve) => setTimeout(resolve, 5_000)),
-    ]).catch((error) => {
-      logMain("renderer document flush failed during quit", serializeError(error));
-    }).finally(() => {
+    void awaitInvocationAwareQuit({
+      flushDirtyDocuments: () => mainWindow && !mainWindow.isDestroyed() && appLifecycle.isRendererReady()
+        ? mainWindow.webContents.executeJavaScript("globalThis.__exoFlushDirtyDocuments?.()", true)
+        : Promise.resolve(),
+      stopInvocations: () => typeof invocationRunner === "undefined" ? Promise.resolve() : invocationRunner.stopAll(),
+      onError: (phase, error) => {
+        logMain(`${phase} failed during quit`, serializeError(error));
+      },
+    }).then(() => {
       quitFlushComplete = true;
-      appLifecycle.prepareToQuit();
+      appLifecycle?.prepareToQuit();
       app.quit();
+    }).catch((error) => {
+      quitFlushStarted = false;
+      logMain("quit blocked because invocation Stop did not settle", serializeError(error));
     });
     return;
   }
