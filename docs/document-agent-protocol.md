@@ -46,6 +46,14 @@ The protocol is data, not authority.
 - Exo's filesystem observer and stored before/after snapshots remain the
   authority for reviewable changes. A response block is useful durable prose,
   not evidence that an edit happened.
+- Configured Commands are explicitly authorized native processes, not sandboxed
+  plugins. They run with the current user's filesystem authority. Changeset
+  review is therefore an exact user-recovery boundary, not a security sandbox
+  against a concurrently malicious same-user process. Exo pins review to the
+  immutable launch Note Roots, rejects observed symlink ancestors, and
+  revalidates paths around every mutation; Node/Electron on macOS does not
+  expose directory-handle-relative mutation APIs that could make that check and
+  mutation atomic.
 
 ## Agent instruction contract
 

@@ -6,6 +6,7 @@ import { normalizeInvocationRecord, type InvocationRecord } from "./agent-invoca
 import {
   InvocationArtifactStore,
   type InvocationArtifactRecovery,
+  type InvocationArtifactCompactionReport,
   type InvocationCleanBaseInput,
   type InvocationCleanBaseRef,
   type InvocationManifestCaptureOptions,
@@ -17,7 +18,7 @@ import {
   type InvocationReviewJournalInput,
   type InvocationReviewMutation,
 } from "./invocation-artifacts";
-import type { InvocationFileState, InvocationWorkspaceManifest } from "./invocation-changeset";
+import type { InvocationChangeset, InvocationFileState, InvocationWorkspaceManifest } from "./invocation-changeset";
 import { safeStoreSegment } from "./store-paths";
 
 export interface InvocationStoreLayout {
@@ -173,6 +174,10 @@ export class InvocationStore {
 
   listArtifactRecoveries(): Promise<InvocationArtifactRecovery[]> {
     return this.artifacts.listRecoverable();
+  }
+
+  compactArtifacts(invocationId: string, changeset: InvocationChangeset): Promise<InvocationArtifactCompactionReport> {
+    return this.artifacts.compact(invocationId, changeset);
   }
 }
 

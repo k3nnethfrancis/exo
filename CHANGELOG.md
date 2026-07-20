@@ -62,6 +62,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Keeps invocation recovery fail-closed when a durable record is missing or
   damaged, preserves same-process invocations across Workspace switches, and
   refuses to release a Command when its tagged Note changed during capture.
+- Replays interrupted Reject transactions before retry preflight and compacts
+  settled invocation snapshots to the exact Changeset and History payload,
+  preserving recovery bytes while removing unrelated full-Workspace captures.
 - Serializes per-file and bulk invocation review decisions so concurrent Keep
   and Reject actions cannot lose a decision or overwrite the accepted file state.
 - Makes invocation review drain editor autosaves before an exact decision, so

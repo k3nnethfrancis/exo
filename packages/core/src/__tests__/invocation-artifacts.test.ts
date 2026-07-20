@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildInvocationChangeset } from "../invocation-changeset";
-import { InvocationCaptureBudgetError } from "../invocation-artifacts";
+import { InvocationArtifactCompactionError, InvocationCaptureBudgetError } from "../invocation-artifacts";
 import { InvocationStore } from "../invocation-store";
 
 const temporaryRoots: string[] = [];
@@ -91,6 +91,30 @@ describe("invocation artifacts", () => {
     const objectFiles = await readdir(path.join(workspaceRoot, ".exo", "invocations", invocationId, "files", "objects"));
     expect(objectFiles.every((entry) => /^[a-f0-9]{64}$/.test(entry))).toBe(true);
     expect(objectFiles.filter((entry) => entry === launch.launchManifest.files[canonicalLargeBinary]?.sha256)).toHaveLength(1);
+
+    const report = await store.compactArtifacts(invocationId, changeset);
+    expect(report).toMatchObject({
+      beforeObjectCount: 7,
+      retainedObjectCount: 6,
+      removedObjectCount: 1,
+      removedBytes: binary.byteLength,
+    });
+    const compactLaunch = await store.readManifest(invocationId, "launch");
+    const compactSettled = await store.readManifest(invocationId, "settled");
+    expect(Object.keys(compactLaunch!.files).sort()).toEqual([
+      path.join(canonicalRootA, "modified.md"),
+      path.join(canonicalRootA, "old-name.md"),
+      path.join(canonicalRootB, "deleted.md"),
+    ].sort());
+    expect(Object.keys(compactSettled!.files).sort()).toEqual([
+      path.join(canonicalRootA, "modified.md"),
+      path.join(canonicalRootA, "new-name.md"),
+      path.join(canonicalRootB, "created.md"),
+    ].sort());
+    await expect(store.readSnapshot(invocationId, changeset.files.find((entry) => entry.operation === "deleted")!.before!))
+      .resolves.toEqual(Buffer.from("delete me\n"));
+    expect(await readdir(path.join(workspaceRoot, ".exo", "invocations", invocationId, "files", "objects")))
+      .not.toContain(launch.launchManifest.files[canonicalLargeBinary]?.sha256);
   });
 
   it("leaves duplicate-content moves as create/delete and never follows nested symlinks", async () => {
@@ -258,6 +282,48 @@ describe("invocation artifacts", () => {
     }
     const objectsDir = path.join(workspaceRoot, ".exo", "invocations", "budget-elapsed", "files", "objects");
     await expect(readdir(objectsDir)).resolves.toEqual([]);
+  });
+
+  it("surfaces stale-artifact cleanup failures without deleting referenced History snapshots", async () => {
+    const workspaceRoot = await temporaryRoot();
+    const noteRoot = path.join(workspaceRoot, "notes");
+    const notePath = path.join(noteRoot, "note.md");
+    const unrelatedPath = path.join(noteRoot, "unrelated.md");
+    await mkdir(noteRoot);
+    await writeFile(notePath, "before\n");
+    await writeFile(unrelatedPath, "large unrelated snapshot\n");
+    const store = new InvocationStore(workspaceRoot);
+    const invocationId = "compaction-failure";
+    await store.captureCleanBase(invocationId, { path: notePath, content: "before\n" });
+    const launch = await store.captureManifest(invocationId, "launch", [noteRoot]);
+    await writeFile(notePath, "after\n");
+    const settled = await store.captureManifest(invocationId, "settled", [noteRoot]);
+    const changeset = buildInvocationChangeset(launch, settled);
+    const objectsDir = path.join(workspaceRoot, ".exo", "invocations", invocationId, "files", "objects");
+    const malformedStaleArtifact = path.join(objectsDir, "stale-directory");
+    await mkdir(malformedStaleArtifact);
+
+    let failure: unknown;
+    try {
+      await store.compactArtifacts(invocationId, changeset);
+    } catch (error) {
+      failure = error;
+    }
+    expect(failure).toBeInstanceOf(InvocationArtifactCompactionError);
+    expect(failure).toMatchObject({
+      code: "invocation-artifact-compaction-failed",
+      report: { removedObjectCount: 1, retainedObjectCount: 2 },
+      failures: [expect.stringContaining("stale-directory")],
+    });
+    await expect(store.readSnapshot(invocationId, changeset.files[0]!.before!)).resolves.toEqual(Buffer.from("before\n"));
+    await expect(store.readSnapshot(invocationId, changeset.files[0]!.after!)).resolves.toEqual(Buffer.from("after\n"));
+    expect(Object.keys((await store.readManifest(invocationId, "launch"))!.files)).toEqual([await realpath(notePath)]);
+
+    await rm(malformedStaleArtifact, { recursive: true });
+    await expect(store.compactArtifacts(invocationId, changeset)).resolves.toMatchObject({
+      retainedObjectCount: 2,
+      removedObjectCount: 0,
+    });
   });
 });
 

@@ -798,6 +798,7 @@ export class InvocationRunner extends EventEmitter {
           (recovered.status === "orphaned" && !recovered.changeset) ||
           Boolean(launch && !recovered.changeset && !failedBeforeExecution);
         if (!requiresExactRecovery) {
+          if (recovered.changeset) await this.compactArtifacts(recordStore, recovered.id, recovered.changeset);
           if (ownership) await recordStore.clearProcessOwnership(record.id);
           continue;
         }
@@ -816,6 +817,7 @@ export class InvocationRunner extends EventEmitter {
             : { status: "unattributed", reason: "Exo restarted before this invocation changed a Note Root file." },
         });
         await recordStore.writeRecord(next);
+        await this.compactArtifacts(recordStore, next.id, changeset);
         await recordStore.clearProcessOwnership(record.id);
         this.emit("updated", next);
       } catch (error) {
@@ -938,6 +940,7 @@ export class InvocationRunner extends EventEmitter {
           : { status: "unattributed", reason: settledStatus === "failed" ? settledFailureReason ?? "The Command failed before changing a Note Root file." : "No Note Root changes observed." },
       });
       await store.writeRecord(next);
+      await this.compactArtifacts(store, id, changeset);
       await store.clearProcessOwnership(id);
       this.emit("updated", next);
       this.releaseObservation(observation);
@@ -1078,6 +1081,7 @@ export class InvocationRunner extends EventEmitter {
 
       try {
         const next = await this.reviewService(scope.workspaceRoot).resolve(record, pending);
+        if (next.changeset) await this.compactArtifacts(store, next.id, next.changeset);
         this.emit("updated", next);
         return next;
       } catch (error) {
@@ -1098,6 +1102,22 @@ export class InvocationRunner extends EventEmitter {
     } finally {
       release();
       if (this.reviewDecisionTails.get(id) === current) this.reviewDecisionTails.delete(id);
+    }
+  }
+
+  private async compactArtifacts(
+    store: InvocationStore,
+    invocationId: string,
+    changeset: NonNullable<InvocationRecord["changeset"]>,
+  ): Promise<void> {
+    try {
+      const report = await store.compactArtifacts(invocationId, changeset);
+      this.emit("artifacts-compacted", { invocationId, report });
+    } catch (error) {
+      // Compaction is deliberately post-commit. A cleanup failure may retain
+      // extra immutable snapshots, but it must never turn a valid Changeset
+      // into an orphan or block the user's Keep/Reject decision.
+      this.emit("artifact-compaction-error", { invocationId, error });
     }
   }
 

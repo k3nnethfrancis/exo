@@ -519,6 +519,12 @@ app.whenReady().then(async () => {
   invocationRunner.on("settlement-error", (event: { invocationId: string; error: unknown }) => {
     logMain("invocation settlement failed", { invocationId: event.invocationId, error: serializeError(event.error) });
   });
+  invocationRunner.on("artifact-compaction-error", (event: { invocationId: string; error: unknown }) => {
+    logMain("invocation artifact compaction retained stale snapshots", {
+      invocationId: event.invocationId,
+      error: serializeError(event.error),
+    });
+  });
   try {
     await invocationRunner.markOrphanedRunningInvocations();
   } catch (error) {

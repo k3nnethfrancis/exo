@@ -15,6 +15,7 @@ import path from "node:path";
 
 import {
   INVOCATION_MANIFEST_VERSION,
+  type InvocationChangeset,
   type InvocationFileState,
   type InvocationWorkspaceManifest,
 } from "./invocation-changeset";
@@ -93,6 +94,27 @@ export class InvocationCaptureBudgetError extends Error {
   ) {
     super(`Invocation capture exceeded its ${budget} budget (${observed} > ${limit}).`);
     this.name = "InvocationCaptureBudgetError";
+  }
+}
+
+export interface InvocationArtifactCompactionReport {
+  beforeObjectCount: number;
+  beforeBytes: number;
+  retainedObjectCount: number;
+  retainedBytes: number;
+  removedObjectCount: number;
+  removedBytes: number;
+}
+
+export class InvocationArtifactCompactionError extends Error {
+  readonly code = "invocation-artifact-compaction-failed";
+
+  constructor(
+    readonly report: InvocationArtifactCompactionReport,
+    readonly failures: readonly string[],
+  ) {
+    super(`Invocation artifact compaction retained all required snapshots but could not remove ${failures.length} stale artifact(s).`);
+    this.name = "InvocationArtifactCompactionError";
   }
 }
 
@@ -460,6 +482,93 @@ export class InvocationArtifactStore {
     const invocationIds = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
     const recoveries = await Promise.all(invocationIds.map((invocationId) => this.readRecovery(invocationId)));
     return recoveries.filter((entry) => entry.launchManifest || entry.settledManifest || entry.reviewJournal || entry.cleanBase);
+  }
+
+  /**
+   * Collapse full-root capture artifacts once an exact Changeset is durable.
+   * History and unresolved review need only the clean base, every Changeset
+   * before/after state, and the tagged document's launch/settled proposal.
+   * Manifest roots remain immutable review authority; unrelated file snapshots
+   * are never retained as an accidental second workspace history.
+   */
+  async compact(invocationId: string, changeset: InvocationChangeset): Promise<InvocationArtifactCompactionReport> {
+    const layout = this.layout(invocationId);
+    const [cleanBase, launch, settled] = await Promise.all([
+      this.readCleanBase(invocationId),
+      this.readManifest(invocationId, "launch"),
+      this.readManifest(invocationId, "settled"),
+    ]);
+    if (!launch || !settled) {
+      throw new Error(`Invocation ${invocationId} cannot compact before launch and settled manifests are durable.`);
+    }
+
+    const requiredStates = [
+      ...(cleanBase ? [cleanBase.file] : []),
+      ...changeset.files.flatMap((change) => [change.before, change.after].filter(
+        (state): state is InvocationFileState => Boolean(state),
+      )),
+      ...(cleanBase?.file.path && launch.files[cleanBase.file.path] ? [launch.files[cleanBase.file.path]!] : []),
+      ...(cleanBase?.file.path && settled.files[cleanBase.file.path] ? [settled.files[cleanBase.file.path]!] : []),
+    ];
+    const retainedHashes = new Set(requiredStates.map((state) => state.sha256));
+    for (const state of requiredStates) {
+      if (!await this.readSnapshot(invocationId, state)) {
+        throw new Error(`Invocation snapshot ${state.sha256} is unavailable; artifacts were not compacted.`);
+      }
+    }
+
+    const launchPaths = new Set(changeset.files.flatMap((change) => change.before ? [change.before.path] : []));
+    const settledPaths = new Set(changeset.files.flatMap((change) => change.after ? [change.after.path] : []));
+    if (cleanBase) {
+      launchPaths.add(cleanBase.file.path);
+      settledPaths.add(cleanBase.file.path);
+    }
+    const compactLaunch = compactManifest(launch, launchPaths);
+    const compactSettled = compactManifest(settled, settledPaths);
+    await writeJsonAtomically(layout.launchManifestPath, compactLaunch);
+    await writeJsonAtomically(layout.settledManifestPath, compactSettled);
+
+    let objectEntries: string[];
+    try {
+      objectEntries = await readdir(layout.objectsDir);
+    } catch (error) {
+      if (isNodeErrorCode(error, "ENOENT")) objectEntries = [];
+      else throw error;
+    }
+    const measurements = await Promise.all(objectEntries.map(async (entry) => {
+      const target = path.join(layout.objectsDir, entry);
+      try {
+        return { entry, target, bytes: (await lstat(target)).size };
+      } catch (error) {
+        if (isNodeErrorCode(error, "ENOENT")) return { entry, target, bytes: 0 };
+        throw error;
+      }
+    }));
+    const retained = measurements.filter(({ entry }) => retainedHashes.has(entry));
+    const stale = measurements.filter(({ entry }) => !retainedHashes.has(entry));
+    let removedObjectCount = 0;
+    let removedBytes = 0;
+    const failures: string[] = [];
+    for (const artifact of stale) {
+      try {
+        await rm(artifact.target, { force: true });
+        removedObjectCount += 1;
+        removedBytes += artifact.bytes;
+      } catch (error) {
+        failures.push(`${artifact.entry}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    if (removedObjectCount > 0) await syncDirectory(layout.objectsDir);
+    const report: InvocationArtifactCompactionReport = {
+      beforeObjectCount: measurements.length,
+      beforeBytes: measurements.reduce((total, entry) => total + entry.bytes, 0),
+      retainedObjectCount: retained.length,
+      retainedBytes: retained.reduce((total, entry) => total + entry.bytes, 0),
+      removedObjectCount,
+      removedBytes,
+    };
+    if (failures.length > 0) throw new InvocationArtifactCompactionError(report, failures);
+    return report;
   }
 
   private layout(invocationId: string): InvocationArtifactLayout {
@@ -923,6 +1032,19 @@ function isWithin(root: string, target: string): boolean {
 
 function sameStrings(left: readonly string[], right: readonly string[]): boolean {
   return left.length === right.length && left.every((entry, index) => entry === right[index]);
+}
+
+function compactManifest(
+  manifest: InvocationWorkspaceManifest,
+  retainedPaths: ReadonlySet<string>,
+): InvocationWorkspaceManifest {
+  const files = Object.fromEntries(Object.entries(manifest.files).filter(([filePath]) => retainedPaths.has(filePath)));
+  const filePaths = Object.keys(files);
+  return {
+    ...manifest,
+    files,
+    directories: manifest.directories.filter((directory) => filePaths.some((filePath) => isWithin(directory, filePath))),
+  };
 }
 
 async function mapLimited<Input, Output>(

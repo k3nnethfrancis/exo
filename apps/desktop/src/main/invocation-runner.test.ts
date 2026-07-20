@@ -1241,6 +1241,39 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     expect(completed).toMatchObject({ status: "process-exited", changeset: { status: "pending-review" } });
   });
 
+  it("keeps settlement reviewable and reports artifact cleanup failure after the exact record is durable", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-compaction-error-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const unrelatedPath = path.join(root, "unrelated.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const body = protocolNoteBody("# Context\n", command.handle, "Change this note.");
+    await writeFile(notePath, body);
+    await writeFile(unrelatedPath, "unchanged and not History\n");
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+    const prepared = await runner.prepare(invocationRequest(notePath, body));
+    await runner.authorizeAndStart(prepared, authorizationFor(prepared));
+    await writeFile(notePath, `${removeDocumentAgentInvocation(body, TEST_PROTOCOL_INVOCATION_ID, command.handle)}${formatDocumentAgentResponse({
+      invocationId: TEST_PROTOCOL_INVOCATION_ID,
+      agent: command.handle,
+      message: "Durable response.",
+    })}\n`);
+    const invocationDir = path.join(root, ".exo", "invocations", prepared.id);
+    await mkdir(path.join(invocationDir, "files", "objects", "stale-directory"));
+    const compactionError = new Promise<{ invocationId: string; error: unknown }>((resolve) =>
+      runner.once("artifact-compaction-error", resolve));
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+
+    processFactory.process.exit(0, "done");
+
+    await expect(compactionError).resolves.toMatchObject({ invocationId: prepared.id });
+    await expect(updated).resolves.toMatchObject({ status: "process-exited", changeset: { status: "pending-review" } });
+    await expect(runner.get(prepared.id)).resolves.toMatchObject({ status: "process-exited" });
+    const compactLaunch = JSON.parse(await readFile(path.join(invocationDir, "launch-manifest.json"), "utf8"));
+    expect(compactLaunch.files).not.toHaveProperty(unrelatedPath);
+  });
+
   it("resumes with the configured Claude executable, not an assumed global binary", () => {
     const command = { ...createDefaultClaudeAgentCommand(), command: '"/Applications/Claude/bin/claude" -p --output-format json' };
     expect(commandForClaudeResume(command, "ce4b9e26-2574-4433-a054-1110cd403792"))

@@ -431,6 +431,88 @@ describe("InvocationReviewService", () => {
     await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
   });
 
+  it.each([
+    { operation: "created" as const, phase: "quarantined" as const },
+    { operation: "modified" as const, phase: "quarantined" as const },
+    { operation: "modified" as const, phase: "replacement-installed" as const },
+    { operation: "deleted" as const, phase: "planned" as const },
+    { operation: "deleted" as const, phase: "replacement-installed" as const },
+    { operation: "renamed" as const, phase: "quarantined" as const },
+    { operation: "renamed" as const, phase: "replacement-installed" as const },
+  ])("retries a $operation Reject in-process after the $phase crash point", async ({ operation, phase }) => {
+    const fixture = await changesetFixture();
+    const service = new InvocationReviewService(fixture.workspaceRoot);
+    const store = new InvocationStore(fixture.workspaceRoot);
+    const change = fixture.record.changeset!.files.find((candidate) => candidate.operation === operation)!;
+    const proposalPath = change.after?.path;
+    const quarantinePath = proposalPath
+      ? testQuarantinePath(fixture.record.id, change.id, proposalPath)
+      : undefined;
+    await store.beginReviewJournal(fixture.record.id, [{ changeId: change.id, action: "reject" }]);
+    await store.updateReviewJournalMutation(fixture.record.id, change.id, {
+      phase: "planned",
+      ...(quarantinePath ? { quarantinePath } : {}),
+    });
+    if (phase !== "planned" && quarantinePath) {
+      await rename(proposalPath!, quarantinePath);
+      await store.updateReviewJournalMutation(fixture.record.id, change.id, { phase: "quarantined", quarantinePath });
+    }
+    if (phase === "replacement-installed") {
+      const restorePath = change.before!.path;
+      await writeFile(restorePath, operation === "modified" ? "before\n" : operation === "deleted" ? "delete\n" : "rename\n");
+      if (operation === "modified") await chmod(restorePath, 0o640);
+      await store.updateReviewJournalMutation(fixture.record.id, change.id, {
+        phase: "replacement-installed",
+        ...(quarantinePath ? { quarantinePath } : {}),
+      });
+    }
+
+    const resolved = await service.resolve(fixture.record, [{ changeId: change.id, action: "reject" }]);
+
+    expect(resolved.changeset?.files.find((candidate) => candidate.id === change.id)?.decision.status).toBe("rejected");
+    if (quarantinePath) await expect(stat(quarantinePath)).rejects.toMatchObject({ code: "ENOENT" });
+    if (operation === "created") {
+      await expect(stat(fixture.paths.created)).rejects.toMatchObject({ code: "ENOENT" });
+    } else if (operation === "modified") {
+      await expect(readFile(fixture.paths.modified, "utf8")).resolves.toBe("before\n");
+      expect((await stat(fixture.paths.modified)).mode & 0o777).toBe(0o640);
+    } else if (operation === "deleted") {
+      await expect(readFile(fixture.paths.deleted, "utf8")).resolves.toBe("delete\n");
+    } else {
+      await expect(readFile(fixture.paths.renamedFrom, "utf8")).resolves.toBe("rename\n");
+      await expect(stat(fixture.paths.renamedTo)).rejects.toMatchObject({ code: "ENOENT" });
+    }
+    await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
+  });
+
+  it("persists a replayed Reject before clearing a batch journal for a later conflict", async () => {
+    const fixture = await changesetFixture();
+    const service = new InvocationReviewService(fixture.workspaceRoot);
+    const store = new InvocationStore(fixture.workspaceRoot);
+    const created = fixture.record.changeset!.files.find((candidate) => candidate.operation === "created")!;
+    const modified = fixture.record.changeset!.files.find((candidate) => candidate.operation === "modified")!;
+    const quarantinePath = testQuarantinePath(fixture.record.id, created.id, created.after!.path);
+    await store.beginReviewJournal(fixture.record.id, [
+      { changeId: created.id, action: "reject" },
+      { changeId: modified.id, action: "reject" },
+    ]);
+    await store.updateReviewJournalMutation(fixture.record.id, created.id, { phase: "planned", quarantinePath });
+    await rename(created.after!.path, quarantinePath);
+    await store.updateReviewJournalMutation(fixture.record.id, created.id, { phase: "quarantined", quarantinePath });
+    await writeFile(fixture.paths.modified, "newer human work\n");
+
+    const resolved = await service.resolve(fixture.record, [
+      { changeId: created.id, action: "reject" },
+      { changeId: modified.id, action: "reject" },
+    ]);
+
+    expect(resolved.changeset?.files.find((candidate) => candidate.id === created.id)?.decision.status).toBe("rejected");
+    expect(resolved.changeset?.files.find((candidate) => candidate.id === modified.id)?.decision.status).toBe("conflict");
+    await expect(stat(fixture.paths.created)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(stat(quarantinePath)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(store.readReviewJournal(fixture.record.id)).resolves.toBeNull();
+  });
+
   it("materializes a journaled conflict instead of clearing an unresolved decision", async () => {
     const fixture = await changesetFixture();
     const store = new InvocationStore(fixture.workspaceRoot);

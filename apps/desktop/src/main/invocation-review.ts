@@ -119,17 +119,55 @@ export class InvocationReviewService {
     );
     const existingJournal = await this.store.readReviewJournal(record.id);
     const resumedJournal = existingJournal !== null;
-    await this.store.beginReviewJournal(record.id, implicitTaggedRestore
+    const journal = await this.store.beginReviewJournal(record.id, implicitTaggedRestore
       ? [...plan, { changeId: IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, action: "reject" }]
       : plan);
 
-    const checks = await Promise.all(changes.map((change, index) =>
-      preflightChange(authority, change, plan[index]!.action, rejectionBeforeState(record, change, cleanBase))));
+    // A failed Reject can leave the proposal safely quarantined while the
+    // public path is absent. Replay that durable transaction before ordinary
+    // preflight; otherwise a same-process retry would misclassify Exo's own
+    // in-flight mutation as user drift and discard the only recovery locator.
+    const replayed = await Promise.all(changes.map(async (change, index) => {
+      const action = plan[index]!.action;
+      const reviewBefore = rejectionBeforeState(record, change, cleanBase);
+      const entry = journal.entries.find((candidate) => candidate.changeId === change.id);
+      const transactionResolved = action === "reject" && entry?.status === "pending" && entry.mutation
+        ? await recoverRejectTransaction(this.store, authority, record.id, change, reviewBefore, entry.mutation)
+        : false;
+      return {
+        transactionResolved,
+        check: transactionResolved
+          ? { state: "resolved" as const, currentSha256: reviewBefore?.sha256 ?? null }
+          : await preflightChange(authority, change, action, reviewBefore),
+      };
+    }));
+    const checks = replayed.map((entry) => entry.check);
     const conflicts = checks.map((check, index) => ({ check, change: changes[index]! }))
       .filter(({ check }) => check.state === "conflict" || check.state === "partial" && !resumedJournal);
     if (conflicts.length > 0) {
       let changeset = record.changeset;
       const now = new Date().toISOString();
+      // Recovery may have completed an earlier file before another batch item
+      // drifted. Persist those exact completed decisions before clearing the
+      // journal so disk and record cannot diverge.
+      for (let index = 0; index < changes.length; index += 1) {
+        const change = changes[index]!;
+        const entry = journal.entries.find((candidate) => candidate.changeId === change.id);
+        if (!replayed[index]!.transactionResolved && entry?.status !== "applied") continue;
+        const action = plan[index]!.action;
+        if (entry?.status !== "applied") {
+          await this.store.updateReviewJournalEntry(record.id, change.id, { status: "applied", completedAt: now });
+        }
+        changeset = resolveInvocationFileChange(changeset, change.id, action === "keep"
+          ? {
+              status: "kept",
+              reviewedAt: entry?.completedAt ?? now,
+              acceptedSha256: entry?.acceptedSha256 !== undefined
+                ? entry.acceptedSha256
+                : checks[index]!.currentSha256,
+            }
+          : { status: "rejected", reviewedAt: entry?.completedAt ?? now });
+      }
       for (const { check, change } of conflicts) {
         const reason = check.state === "conflict" ? check.reason : "The rename no longer has one exact current state.";
         const currentSha256 = check.currentSha256;
@@ -141,8 +179,21 @@ export class InvocationReviewService {
       await this.store.clearReviewJournal(record.id);
       return next;
     }
+    const implicitEntry = journal.entries.find((entry) => entry.changeId === IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID);
+    const implicitTransactionResolved = implicitTaggedRestore && implicitEntry?.status === "pending" && implicitEntry.mutation
+      ? await recoverRejectTransaction(
+          this.store,
+          authority,
+          record.id,
+          implicitRestoreChange(implicitTaggedRestore),
+          implicitTaggedRestore.cleanBase,
+          implicitEntry.mutation,
+        )
+      : false;
     const implicitCheck = implicitTaggedRestore
-      ? await preflightImplicitTaggedRestore(authority, implicitTaggedRestore)
+      ? implicitTransactionResolved
+        ? { state: "resolved" as const, currentSha256: implicitTaggedRestore.cleanBase.sha256 }
+        : await preflightImplicitTaggedRestore(authority, implicitTaggedRestore)
       : null;
     if (implicitCheck?.state === "conflict") {
       const changeset = withImplicitTaggedConflict(record.changeset, implicitTaggedRestore!, implicitCheck);
@@ -656,7 +707,7 @@ async function recoverRejectTransaction(
   if (matchesRejected(change, beforeCurrent, afterCurrent, rejectionBefore)) {
     if (quarantineCurrent.exists) {
       if (!matchesState(quarantineCurrent, change.after)) return false;
-      await removeQuarantine(expectedQuarantine!);
+      await removeQuarantine(authority, expectedQuarantine!);
     }
     return true;
   }
@@ -666,12 +717,23 @@ async function recoverRejectTransaction(
   if (!matchesState(quarantineCurrent, change.after)) {
     if (afterPath && !afterCurrent.exists) {
       await restoreQuarantine(authority, expectedQuarantine!, afterPath);
+      return false;
     }
+    throw new InvocationReviewError(
+      "review-unavailable",
+      "The durable review quarantine no longer contains the exact proposal. Exo preserved it for inspection.",
+    );
+  }
+  if (afterCurrent.exists) {
+    // A newer file won the public path while Exo held the exact proposal in
+    // quarantine. The proposal remains durable in the invocation CAS, so the
+    // hidden working copy can be removed before surfacing ordinary drift.
+    await removeQuarantine(authority, expectedQuarantine!);
     return false;
   }
 
   if (change.operation === "created") {
-    await removeQuarantine(expectedQuarantine!);
+    await removeQuarantine(authority, expectedQuarantine!);
     return true;
   }
   if (change.operation === "modified" || change.operation === "renamed") {
@@ -684,7 +746,7 @@ async function recoverRejectTransaction(
       phase: "replacement-installed",
       quarantinePath: expectedQuarantine,
     });
-    await removeQuarantine(expectedQuarantine!);
+    await removeQuarantine(authority, expectedQuarantine!);
     return true;
   }
   return false;
@@ -717,6 +779,7 @@ async function installSnapshotNoClobber(
   await handle.close();
   if (state.mode !== undefined) await chmod(temporaryPath, state.mode);
   try {
+    await assertAuthorizedPath(authority, state.path);
     await link(temporaryPath, state.path);
   } catch (error) {
     await rm(temporaryPath, { force: true });
@@ -747,7 +810,7 @@ async function replaceProposalTransaction(
     phase: "replacement-installed",
     quarantinePath: quarantine,
   });
-  await removeQuarantine(quarantine);
+  await removeQuarantine(authority, quarantine);
 }
 
 async function removeProposalTransaction(
@@ -761,7 +824,7 @@ async function removeProposalTransaction(
   await store.updateReviewJournalMutation(invocationId, changeId, { phase: "planned", quarantinePath: quarantine });
   await quarantineVerifiedProposal(authority, proposal, quarantine);
   await store.updateReviewJournalMutation(invocationId, changeId, { phase: "quarantined", quarantinePath: quarantine });
-  await removeQuarantine(quarantine);
+  await removeQuarantine(authority, quarantine);
 }
 
 async function quarantineVerifiedProposal(
@@ -775,6 +838,8 @@ async function quarantineVerifiedProposal(
     throw new InvocationReviewError("review-unavailable", "The deterministic review quarantine is already occupied.");
   }
   try {
+    await assertAuthorizedPath(authority, proposal.path);
+    await assertAuthorizedPath(authority, quarantine);
     await rename(proposal.path, quarantine);
     await syncDirectory(path.dirname(quarantine));
   } catch (error) {
@@ -799,7 +864,10 @@ async function restoreQuarantine(authority: ReviewPathAuthority, quarantine: str
   await assertAuthorizedPath(authority, quarantine);
   await assertAuthorizedPath(authority, target);
   try {
+    await assertAuthorizedPath(authority, quarantine);
+    await assertAuthorizedPath(authority, target);
     await link(quarantine, target);
+    await assertAuthorizedPath(authority, quarantine);
     await rm(quarantine);
     await syncDirectory(path.dirname(target));
   } catch (error) {
@@ -813,7 +881,8 @@ async function restoreQuarantine(authority: ReviewPathAuthority, quarantine: str
   }
 }
 
-async function removeQuarantine(quarantine: string): Promise<void> {
+async function removeQuarantine(authority: ReviewPathAuthority, quarantine: string): Promise<void> {
+  await assertAuthorizedPath(authority, quarantine);
   await rm(quarantine);
   await syncDirectory(path.dirname(quarantine));
 }
@@ -871,6 +940,12 @@ async function assertAuthorizedPath(authority: ReviewPathAuthority, filePath: st
   if (!root) {
     throw new InvocationReviewError("review-unavailable", "The review path is outside the immutable launch Note Roots.");
   }
+  // Node's macOS filesystem API does not expose openat/renameat-style dirfd
+  // mutations, so this is defense-in-depth rather than an atomic sandbox
+  // boundary. Exo revalidates every observed ancestor immediately around each
+  // mutation; the explicitly authorized native Command already runs with the
+  // same user's direct filesystem authority. Immutable launch roots still
+  // prevent accidental or stale review records from naming a different root.
   const relative = path.relative(root, path.dirname(filePath));
   const segments = relative === "" ? [] : relative.split(path.sep);
   let current = root;
