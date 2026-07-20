@@ -1,6 +1,6 @@
 # Launch Surface Ledger
 
-Last verified: 2026-07-19 at `7a34ec1`
+Last verified: 2026-07-20 at `ddd2fe9`
 
 This is the code-grounded launch inventory for Exo. It records surfaces a user,
 installer, or external agent can actually reach. Preload and main-process IPC are
@@ -72,12 +72,12 @@ separate list of supposed product features.
 
 | Surface | Class | Implementation owner | Test evidence | Public docs | Launch relevance | Gap / next action |
 | --- | --- | --- | --- | --- | --- | --- |
-| Configured provider-neutral Commands | shipped | `agent-invocation.ts`; invocation adapters; Settings/onboarding | invocation adapter/launch facts/core tests | `README.md`; invocation safety doc | Required | Claude and Codex are defaults, not hard-coded product boundaries. |
-| Inline `@agent` compose and Cmd+Enter invocation | shipped | `NoteEditor.tsx`; inline composer; desktop invocation runner | composer unit tests; `agent-invocation.spec.ts` | `README.md`; invocation safety doc | Required | Preserve editor responsiveness and explicit user invocation only. |
-| Executable trust, workspace scope, and continuity | shipped | trust/continuity stores; invocation runner | trust, continuity, invocation e2e | invocation safety doc | Required | Trust remains bound to the actual executable fingerprint. |
-| Single-note tagged review: keep or reject | shipped | inline review model/UI; invocation store/runner | inline review tests; agent invocation e2e | `README.md` | Required | Launch contract is invocation-wide keep/reject for the tagged note. |
-| Failure/orphan state and resume in terminal | shipped | invocation runner/store; inline status UI | failure, relaunch orphan, terminal handoff e2e | invocation safety doc | Required | Keep normal success UI compact; errors may carry diagnostic detail. |
-| Multi-file create/delete/rename Changeset review | planned | specified in product cleanup specs; no complete product surface | none | roadmap/specs | Launch Gate C blocker | Requires per-file state plus accept/reject-all; do not imply current single-note review covers it. |
+| Configured provider-neutral Commands | shipped | `agent-invocation.ts`; invocation adapters; Settings/onboarding | invocation adapter/launch facts/core tests | `README.md`; `docs/document-agent-protocol.md` | Required | Claude and Codex are defaults, not hard-coded product boundaries. |
+| Inline `@agent` compose and Cmd+Enter invocation | shipped | `NoteEditor.tsx`; inline composer; desktop invocation runner | composer unit tests; `agent-invocation.spec.ts` | `README.md`; `docs/document-agent-protocol.md` | Required | Preserve editor responsiveness and explicit user invocation only. |
+| Executable trust, process ownership, workspace scope, and continuity | shipped | trust/continuity stores; invocation runner | trust, process-tree Stop, continuity, and invocation e2e | `docs/document-agent-protocol.md` | Required | Trust is bound to the executable fingerprint; Stop and recovery prove the owned process group dead before settlement. |
+| Exact multi-file Changeset review | shipped | invocation store/runner; inline review model and queue | inline review tests; 12 source and packaged `agent-invocation.spec.ts` journeys | `README.md`; `docs/document-agent-protocol.md`; roadmap WP5 | Required | Created, modified, deleted, mode-only, and proven-renamed files support serialized, hash-guarded per-file or batch Keep/Reject. Drift remains an explicit conflict. |
+| Failure/orphan recovery, History, and resume in Terminal | shipped | invocation runner/store; activity and inline status UI | failure, relaunch, host-crash, recovery, and terminal-handoff e2e | `docs/document-agent-protocol.md` | Required | Pending review survives restart; normal success stays compact and errors may carry diagnostic detail. |
+| Pre-Changeset single-note review migration | migration-only | invocation store migration | legacy pending/kept/rejected migration tests | changelog | Upgrade safety | Validate legacy before/after hashes, materialize the exact one-file Changeset, and fail closed on damaged evidence. |
 | CLI `exo invoke` visible-terminal task | shipped | CLI `index.ts`; command route `/agent-commands/spawn` | CLI and command-server tests | CLI help; `README.md` | Supporting | This is deliberately distinct from inline note invocation and does not create a reviewed note diff. |
 
 ## CLI

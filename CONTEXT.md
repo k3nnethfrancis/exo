@@ -114,7 +114,7 @@ A future installable, versioned distribution bundle that may package Skills, ont
 _Avoid_: capability interface, core module, dynamic UI injection
 
 **Invocation**
-One explicitly authorized Command run, including its intent, trust decision, lifecycle, observed file changes, attribution confidence, and review references.
+One explicitly authorized Command run, including its intent, executable-bound trust decision, owned process lifecycle, provider-session provenance, and one exact Changeset with durable review decisions.
 _Avoid_: session, trace
 
 **Trust Decision**

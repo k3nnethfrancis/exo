@@ -56,23 +56,24 @@ Fable approved the execution order: decide P0, then run Settings preservation an
   deliberate save/restart durability, and byte-identical non-control files all
   passed. Evidence: `docs/reviews/output/2026-07-20-launch-gate-b.md`.
 
-### Launch Gate C — Invocation Changeset — in progress
+### Launch Gate C — Invocation Changeset — complete
 
 - [x] Audit the current invocation lifecycle, trust boundary, persistence, and
   review UI against the aligned Gate C product specs.
 - [x] Define the provider-neutral Changeset contract: exact file operations,
   per-file decisions, aggregate review state, conservative rename proof, and
   clean-base derivation.
-- [ ] Persist clean base, launch and settled manifests, content-addressed file
+- [x] Persist clean base, launch and settled manifests, content-addressed file
   snapshots, and restart-safe review state beneath `.exo/invocations/`.
-- [ ] Close authorization fingerprint drift, implement a real process Stop,
+- [x] Close authorization fingerprint drift, implement a real process Stop,
   and add bounded provider-neutral activity events without streaming reasoning.
-- [ ] Capture every changed file inside authorized Note Roots and implement
+- [x] Capture every changed file inside authorized Note Roots and implement
   hash-guarded per-file and batch Keep/Reject with conflict handling.
-- [ ] Replace invocation modals/banners with page-native authorization,
+- [x] Replace invocation modals/banners with page-native authorization,
   activity, inline review controls, a multi-file queue, and conditional History.
-- [ ] Prove packaged single/multi-file review, create/delete/rename reversal,
+- [x] Prove packaged single/multi-file review, create/delete/rename reversal,
   drift conflict, restart recovery, and Gate B latency preservation.
+  Evidence: `docs/reviews/output/2026-07-20-launch-gate-c.md`.
 
 ### Embedding sync strategy — research complete
 

@@ -1,7 +1,6 @@
 # Exo Document-Agent Protocol
 
-**Status:** V1 envelope grammar shipped; exact Changeset review is the active
-launch gate.
+**Status:** V1 envelope grammar and exact Changeset review shipped.
 
 Exo keeps Markdown as the canonical user document. It adds two inert, XML-like
 envelopes so a human request and an agent's durable result can be identified

@@ -1,22 +1,43 @@
 # Exo Ledger
 
-Last updated: 2026-07-04
+Last updated: 2026-07-20
 
 This is the shipped-history handoff for Exo. Active bugs and QA findings live in root
 `issues.md`; active tasks live in `tasks.md`; future systems live in `roadmap.md`; the
 current product and architecture live in `README.md`, `CONTEXT.md`, and
 `docs/architecture.md`.
 
-## Note-native current handoff — 2026-07-12
+## Launch Gate C handoff — 2026-07-20
+
+- Inline Commands now settle one exact multi-file Changeset across authorized
+  Note Roots. Created, modified, deleted, mode-only, and conservatively proven
+  renamed files support serialized, hash-guarded per-file or batch Keep/Reject.
+- Clean base, launch/settled manifests, content-addressed snapshots, review
+  decisions, and compact History survive restart under `.exo/invocations/`.
+  Legacy single-note reviews migrate only after their stored evidence validates.
+- Trust remains Workspace- and executable-fingerprint-bound. A pre-exec gate,
+  owned process group, real Stop, fail-closed recovery, and bounded activity
+  states define the native-process lifecycle without claiming a sandbox.
+- The review surface is page-native: dirty affected editors drain and freeze,
+  inline diffs and a deterministic file queue expose exact operations, and
+  newer human bytes remain an explicit conflict rather than being overwritten.
+- Source and packaged Electron journeys prove Keep/Reject, multi-file and batch
+  decisions, create/delete/rename reversal, mode-only review, drift, failures,
+  provider resume, ordinary relaunch, and host-crash recovery while preserving
+  Gate B navigation and editor latency budgets. Evidence:
+  `docs/reviews/output/2026-07-20-launch-gate-c.md`.
+
+## Superseded note-native handoff — 2026-07-12
 
 - Exo is a Note-Root-only local Markdown exocortex: Markdown/frontmatter are canonical,
   filesystem and QMD are concrete search adapters, Connections is the graph read model,
   and configured Commands run explicit inline invocations with reviewable changes.
 - The production terminal is one direct `node-pty` lifecycle rendered by xterm; Exo does
   not own tmux persistence or durable transcripts.
-- Project Roots/Attached Folders, MCP, routines, harness management, profiles, and a
-  Plugin Manager are retired product surfaces. A future Plugin is only a distribution
-  bundle after a concrete lower-rung seam earns it.
+- Project Roots/Attached Folders, routines, harness management, profiles, and a
+  Plugin Manager are retired product surfaces. The later launch baseline restored only
+  the narrow read-only Workspace status/Search MCP; a future Plugin is only a
+  distribution bundle after a concrete lower-rung seam earns it.
 - Current work and acceptance gates are in `tasks.md`; dated architectural rulings are
   retained under `docs/reviews/`.
 
