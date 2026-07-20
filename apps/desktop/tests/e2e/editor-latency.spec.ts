@@ -235,7 +235,10 @@ test("keeps sustained Markdown typing within the input-to-frame-ready budget", a
     expect(await editorBody(page)).toBe(expectedAfterTyping);
     await expectSavedBody(page, notePath, expectedAfterTyping);
 
-    const deletionFixture = Array.from({ length: 8 }, (_, index) => `- trusted deletion line ${index}\n`).join("");
+    // Keep the deletion corpus valid Markdown. Appending `- item` directly to
+    // the preceding digit line makes the fixture's intended structure
+    // ambiguous and can turn a timing probe into a content-normalization test.
+    const deletionFixture = `\n${Array.from({ length: 8 }, (_, index) => `- trusted deletion line ${index}\n`).join("")}`;
     await page.evaluate((fixture) => {
       const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
       const view = content?.cmView?.view;
@@ -246,6 +249,7 @@ test("keeps sustained Markdown typing within the input-to-frame-ready budget", a
       });
       view.focus();
     }, deletionFixture);
+    expect(await editorBody(page)).toBe(`${expectedAfterTyping}${deletionFixture}`);
     await expectSavedBody(page, notePath, `${expectedAfterTyping}${deletionFixture}`);
     await nextPaint(page);
     await resetInputToFrameReadyProbe(page);
