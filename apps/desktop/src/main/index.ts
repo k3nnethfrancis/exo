@@ -211,6 +211,10 @@ function broadcastTerminalData() {
 }
 
 function sendToRenderer<C extends DesktopEventChannel>(channel: C, payload: DesktopEventPayloads[C]) {
+  // Recovery can publish invocation updates before the window lifecycle is
+  // constructed. Those records are durable and the renderer hydrates them on
+  // startup, so there is intentionally nothing to send in this phase.
+  if (typeof appLifecycle === "undefined") return;
   const mainWindow = appLifecycle.getMainWindow();
   if (!appLifecycle.isRendererReady() || !mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
     return;
