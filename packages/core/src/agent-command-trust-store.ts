@@ -67,6 +67,18 @@ export class AgentCommandTrustStore {
     return trustedCommand;
   }
 
+  async revoke(command: Pick<AgentCommand, "id" | "handle">): Promise<boolean> {
+    const data = await this.read();
+    const trustedCommands = data.trustedCommands.filter(
+      (entry) => !(entry.workspaceRoot === this.workspaceRoot && entry.commandId === command.id && entry.handle === command.handle),
+    );
+    if (trustedCommands.length === data.trustedCommands.length) {
+      return false;
+    }
+    await this.write({ trustedCommands });
+    return true;
+  }
+
   private async read(): Promise<AgentCommandTrustStoreData> {
     try {
       return normalizeTrustStoreData(JSON.parse(await readFile(resolveAgentCommandTrustStorePath(this.appStateRoot), "utf8")));

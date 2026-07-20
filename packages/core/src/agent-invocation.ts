@@ -22,6 +22,10 @@ export type AgentCommandCwdPolicy = (typeof AGENT_COMMAND_CWD_POLICIES)[number];
 export type AgentCommandAdapter = (typeof AGENT_COMMAND_ADAPTERS)[number];
 export type InvocationContinuityPolicy = "continuous" | "fresh";
 export type InvocationContinuityOutcome = "fresh" | "resumed" | "resume-failed" | "resume-failed-fresh";
+export type InvocationAuthorizationDecision =
+  | { kind: "trusted" }
+  | { kind: "run-once" }
+  | { kind: "always-allow" };
 
 export interface AgentCommand {
   id: string;

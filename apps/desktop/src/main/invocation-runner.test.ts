@@ -1,10 +1,10 @@
 import { EventEmitter } from "node:events";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { agentCommandExecutableFingerprint, createDefaultClaudeAgentCommand, formatDocumentAgentInvocation, InvocationContinuityStore, type WorkspaceSettings } from "@exo/core";
+import { AgentCommandTrustStore, agentCommandExecutableFingerprint, createDefaultClaudeAgentCommand, formatDocumentAgentInvocation, InvocationContinuityStore, type WorkspaceSettings } from "@exo/core";
 
 import type { TerminalManager } from "./terminal-manager";
 import { commandForClaudeResume, commandForHeadlessInvocation, extractClaudeSessionId, InvocationRunner, InvocationRunnerError } from "./invocation-runner";
@@ -80,6 +80,102 @@ describe("InvocationRunner readiness parity", () => {
     });
   });
 
+  it("derives note authorization facts and trust from the exact main-process context", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-authorization-"));
+    temporaryRoots.push(root);
+    const noteDirectory = path.join(root, "notes");
+    const notePath = path.join(noteDirectory, "note.md");
+    await mkdir(noteDirectory);
+    await writeFile(notePath, "# Note\n", "utf8");
+    const command = {
+      ...createDefaultClaudeAgentCommand(),
+      command: process.execPath,
+      cwdPolicy: "note_dir" as const,
+    };
+    const runner = createRunner(settings(root, command));
+
+    await expect(runner.getInvocationAuthorization(command.handle, notePath)).resolves.toMatchObject({
+      command,
+      cwd: noteDirectory,
+      fingerprint: agentCommandExecutableFingerprint(command),
+      launchable: true,
+      trusted: false,
+    });
+    await new AgentCommandTrustStore(root, root).trust(command);
+    await expect(runner.getInvocationAuthorization(command.handle, notePath)).resolves.toMatchObject({ trusted: true });
+  });
+
+  it("runs once without persisting Command trust", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-run-once-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const documentBody = protocolNoteBody("# Note\n", command.handle, "Review this.");
+    await writeFile(notePath, documentBody, "utf8");
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+    const prepared = await runner.prepare(invocationRequest(notePath, documentBody));
+
+    await runner.authorizeAndStart(prepared, authorizationFor(prepared, "run-once"));
+
+    expect(processFactory.processes).toHaveLength(1);
+    await expect(new AgentCommandTrustStore(root, root).status(command)).resolves.toMatchObject({ trusted: false });
+  });
+
+  it("persists trust only for the exact always-allowed Command fingerprint", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-always-allow-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const documentBody = protocolNoteBody("# Note\n", command.handle, "Review this.");
+    await writeFile(notePath, documentBody, "utf8");
+    const runner = createRunner(settings(root, command));
+    const prepared = await runner.prepare(invocationRequest(notePath, documentBody));
+
+    await runner.authorizeAndStart(prepared, authorizationFor(prepared, "always-allow"));
+
+    const store = new AgentCommandTrustStore(root, root);
+    await expect(store.status(command)).resolves.toMatchObject({
+      trusted: true,
+      executableFingerprint: agentCommandExecutableFingerprint(command),
+    });
+    await expect(store.status({ ...command, command: "/bin/echo" })).resolves.toMatchObject({ trusted: false });
+    await expect(runner.resetCommandTrust(command.handle)).resolves.toEqual({ revoked: true });
+    await expect(store.status(command)).resolves.toMatchObject({ trusted: false });
+  });
+
+  it.each(["run-once", "always-allow"] as const)(
+    "rejects %s after Command drift without launching or persisting trust",
+    async (kind) => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-fingerprint-drift-"));
+      temporaryRoots.push(root);
+      const notePath = path.join(root, "note.md");
+      const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+      const documentBody = protocolNoteBody("# Note\n", command.handle, "Review this.");
+      await writeFile(notePath, documentBody, "utf8");
+      let currentSettings = settings(root, command);
+      const processFactory = new FakeInvocationProcessFactory();
+      const runner = new InvocationRunner({
+        getWorkspaceSettings: () => currentSettings,
+        trustStateRoot: root,
+        terminalManager: new FakeTerminalManager() as unknown as TerminalManager,
+        invocationProcessFactory: processFactory,
+        workspaceWatcherService: { subscribe: () => () => undefined } as unknown as WorkspaceWatcherService,
+      });
+      const prepared = await runner.prepare(invocationRequest(notePath, documentBody));
+      const changed = { ...command, command: "/bin/echo" };
+      currentSettings = { ...currentSettings, agentCommands: [changed] };
+
+      await expect(runner.authorizeAndStart(prepared, authorizationFor(prepared, kind))).rejects.toMatchObject({
+        code: "fingerprint-drift",
+      });
+      expect(processFactory.processes).toHaveLength(0);
+      const store = new AgentCommandTrustStore(root, root);
+      await expect(store.status(command)).resolves.toMatchObject({ trusted: false });
+      await expect(store.status(changed)).resolves.toMatchObject({ trusted: false });
+    },
+  );
+
   it("runs inline invocations headlessly and delivers the current note body and frontmatter once", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);
@@ -102,10 +198,9 @@ describe("InvocationRunner readiness parity", () => {
       protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID,
       documentFrontmatter: { tags: ["project"] },
       documentBody,
-      allowUntrustedOneShot: true,
     });
 
-    const result = await runner.authorizeAndStart(prepared);
+    const result = await runner.authorizeAndStart(prepared, authorizationFor(prepared));
 
     expect(result.terminal).toBeUndefined();
     expect(terminalManager.created).toBe(0);
@@ -141,11 +236,10 @@ describe("InvocationRunner readiness parity", () => {
       message: "Update this note.",
       protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID,
       documentBody,
-      allowUntrustedOneShot: true,
     });
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
-    await runner.authorizeAndStart(prepared);
+    await runner.authorizeAndStart(prepared, authorizationFor(prepared));
     activeSettings = settings(workspaceB, command);
     await writeFile(notePath, "# Changed in Workspace A\n", "utf8");
     processFactory.process.exit(0, "done");
@@ -177,14 +271,14 @@ describe("InvocationRunner readiness parity", () => {
 
     const firstUpdated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     const firstPrepared = await runner.prepare(invocationRequest(notePath, documentBody));
-    await runner.authorizeAndStart(firstPrepared);
+    await runner.authorizeAndStart(firstPrepared, authorizationFor(firstPrepared));
     processFactory.process.exit(0, JSON.stringify({ session_id: "ce4b9e26-2574-4433-a054-1110cd403792" }));
     const first = await firstUpdated;
     expect(first.continuity).toEqual({ policy: "continuous", outcome: "fresh" });
 
     const secondUpdated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     const secondPrepared = await runner.prepare(invocationRequest(notePath, documentBody));
-    await runner.authorizeAndStart(secondPrepared);
+    await runner.authorizeAndStart(secondPrepared, authorizationFor(secondPrepared));
     expect(processFactory.inputs.at(-1)?.command).toContain("--resume 'ce4b9e26-2574-4433-a054-1110cd403792'");
     processFactory.process.exit(0, JSON.stringify({ session_id: "ce4b9e26-2574-4433-a054-1110cd403792" }));
     await expect(secondUpdated).resolves.toMatchObject({
@@ -214,7 +308,7 @@ describe("InvocationRunner readiness parity", () => {
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     const prepared = await runner.prepare(invocationRequest(notePath, documentBody));
-    await runner.authorizeAndStart(prepared);
+    await runner.authorizeAndStart(prepared, authorizationFor(prepared));
     processFactory.process.exit(1, "", `No conversation found with session ID: ${staleId}\n`);
     await expect.poll(() => processFactory.processes.length).toBe(2);
     expect(processFactory.inputs.at(-1)?.command).not.toContain("--resume");
@@ -247,7 +341,8 @@ describe("InvocationRunner readiness parity", () => {
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
-    await runner.authorizeAndStart(await runner.prepare(invocationRequest(notePath, documentBody)));
+    const prepared = await runner.prepare(invocationRequest(notePath, documentBody));
+    await runner.authorizeAndStart(prepared, authorizationFor(prepared));
     processFactory.process.exit(1, "", "Authentication failed\n");
 
     await expect(updated).resolves.toMatchObject({
@@ -271,16 +366,16 @@ describe("InvocationRunner readiness parity", () => {
     const processFactory = new FakeInvocationProcessFactory();
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
     const first = await runner.prepare(invocationRequest(notePath, documentBody));
-    await runner.authorizeAndStart(first);
+    await runner.authorizeAndStart(first, authorizationFor(first));
 
     const second = await runner.prepare(invocationRequest(notePath, documentBody));
-    await expect(runner.authorizeAndStart(second)).rejects.toMatchObject({ code: "continuity-busy" });
+    await expect(runner.authorizeAndStart(second, authorizationFor(second))).rejects.toMatchObject({ code: "continuity-busy" });
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     processFactory.process.exit(0, JSON.stringify({ session_id: "ce4b9e26-2574-4433-a054-1110cd403792" }));
     await updated;
 
     const third = await runner.prepare(invocationRequest(notePath, documentBody));
-    await expect(runner.authorizeAndStart(third)).resolves.toMatchObject({ ok: true });
+    await expect(runner.authorizeAndStart(third, authorizationFor(third))).resolves.toMatchObject({ ok: true });
   });
 
   it("reports and resets only the current Workspace Command context", async () => {
@@ -345,10 +440,10 @@ describe("InvocationRunner readiness parity", () => {
     const runner = createRunner(settings(root, command), terminalManager, new DirectInvocationProcessFactory());
     const updated = new Promise<unknown>((resolve) => runner.once("updated", resolve));
 
-    const result = await runner.authorizeAndStart(await runner.prepare({
+    const result = await startPrepared(runner, {
       context: "note", handle: command.handle, documentPath: notePath, mentionText: "@fake-headless",
-      message: "Replace the title.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody, allowUntrustedOneShot: true,
-    }));
+      message: "Replace the title.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody,
+    });
 
     expect(result.terminal).toBeUndefined();
     expect(terminalManager.created).toBe(0);
@@ -371,10 +466,10 @@ describe("InvocationRunner readiness parity", () => {
     const runner = createRunner(settings(root, command), terminalManager, new DirectInvocationProcessFactory());
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
-    await runner.authorizeAndStart(await runner.prepare({
+    await startPrepared(runner, {
       context: "note", handle: command.handle, documentPath: notePath, mentionText: "@fails",
-      message: "Test failure.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody, allowUntrustedOneShot: true,
-    }));
+      message: "Test failure.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody,
+    });
 
     await expect(updated).resolves.toMatchObject({
       status: "failed",
@@ -397,9 +492,9 @@ describe("InvocationRunner readiness parity", () => {
     const terminalManager = new FakeTerminalManager();
     const runner = createRunner(settings(root, command), terminalManager, new DirectInvocationProcessFactory());
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
-    await runner.authorizeAndStart(await runner.prepare({
-      context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude", message: "Update this.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody, allowUntrustedOneShot: true,
-    }));
+    await startPrepared(runner, {
+      context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude", message: "Update this.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody,
+    });
     const completed = await updated;
     expect(completed).toMatchObject({
       providerSessionId: sessionId,
@@ -443,10 +538,10 @@ describe("InvocationRunner readiness parity", () => {
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
-    await runner.authorizeAndStart(await runner.prepare({
+    await startPrepared(runner, {
       context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude",
-      message: "Update this.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody, allowUntrustedOneShot: true,
-    }));
+      message: "Update this.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody,
+    });
     processFactory.process.exit(0, JSON.stringify([{ type: "result", subtype: "success", permission_denials: [{ tool_name: "Edit" }] }]));
 
     await expect(updated).resolves.toMatchObject({
@@ -465,10 +560,10 @@ describe("InvocationRunner readiness parity", () => {
     const runner = createRunner(settings(root, { ...createDefaultClaudeAgentCommand(), command: process.execPath }), new FakeTerminalManager(), processFactory);
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
-    await runner.authorizeAndStart(await runner.prepare({
+    await startPrepared(runner, {
       context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude",
-      message: "What do you think?", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody, allowUntrustedOneShot: true,
-    }));
+      message: "What do you think?", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody,
+    });
     processFactory.process.exit(0, `<exo-agent-response invocation="${TEST_PROTOCOL_INVOCATION_ID}" agent="claude">Chat only</exo-agent-response>`);
 
     await expect(updated).resolves.toMatchObject({
@@ -517,8 +612,25 @@ function invocationRequest(notePath: string, documentBody: string) {
     message: "Continue this.",
     protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID,
     documentBody,
-    allowUntrustedOneShot: true,
   };
+}
+
+function authorizationFor(
+  prepared: Awaited<ReturnType<InvocationRunner["prepare"]>>,
+  kind: "trusted" | "run-once" | "always-allow" = "run-once",
+) {
+  return {
+    decision: { kind },
+    expectedFingerprint: prepared.pending.command.executableFingerprint,
+  } as const;
+}
+
+async function startPrepared(
+  runner: InvocationRunner,
+  request: Parameters<InvocationRunner["prepare"]>[0],
+) {
+  const prepared = await runner.prepare(request);
+  return runner.authorizeAndStart(prepared, authorizationFor(prepared));
 }
 
 class FakeTerminalManager extends EventEmitter {

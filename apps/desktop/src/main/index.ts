@@ -112,9 +112,13 @@ function createCommandServer() {
       terminals: terminalManager.list(),
     }),
     onSpawnAgentCommand: async (input) => {
-      const result = await invocationRunner.authorizeAndStart(await invocationRunner.prepare({
+      const prepared = await invocationRunner.prepare({
         context: "cli", handle: input.handle, task: input.task, message: input.task,
-      }));
+      });
+      const result = await invocationRunner.authorizeAndStart(prepared, {
+        decision: { kind: "trusted" },
+        expectedFingerprint: prepared.pending.command.executableFingerprint,
+      });
       if (!result.terminal) throw new Error("CLI command launches must create a visible terminal.");
       return result;
     },
@@ -258,14 +262,21 @@ function registerIpcHandlers() {
     getFolderIndexStatus: () => inspectFolderIndexes(workspaceModel.noteRoots.map((root) => root.path)),
     getFolderOverview: (directoryPath) => workspaceNotesService.getFolderOverview(directoryPath),
     ensureFolderIndex: (directoryPath) => workspaceNotesService.ensureFolderIndex(directoryPath),
-    launchAgentInvocation: async (input) => invocationRunner.authorizeAndStart(await invocationRunner.prepare({
-      context: "note", handle: input.handle, documentPath: input.documentPath,
-      mentionText: input.mentionText, message: input.message,
-      protocolInvocationId: input.protocolInvocationId,
-      documentFrontmatter: input.documentFrontmatter, documentBody: input.documentBody,
-      allowUntrustedOneShot: input.allowUntrustedOneShot, persistTrust: input.persistTrust,
-    })),
+    launchAgentInvocation: async (input) => {
+      const prepared = await invocationRunner.prepare({
+        context: "note", handle: input.handle, documentPath: input.documentPath,
+        mentionText: input.mentionText, message: input.message,
+        protocolInvocationId: input.protocolInvocationId,
+        documentFrontmatter: input.documentFrontmatter, documentBody: input.documentBody,
+      });
+      return invocationRunner.authorizeAndStart(prepared, {
+        decision: input.authorization,
+        expectedFingerprint: input.expectedFingerprint,
+      });
+    },
+    getAgentInvocationAuthorization: (input) => invocationRunner.getInvocationAuthorization(input.handle, input.documentPath),
     getAgentCommandTrust: (handle) => invocationRunner.getCommandTrust(handle),
+    resetAgentCommandTrust: (handle) => invocationRunner.resetCommandTrust(handle),
     getAgentCommandLaunchFacts: (commandId) => invocationRunner.getCommandLaunchFacts(commandId),
     getAgentCommandContinuity: (commandId) => invocationRunner.getCommandContinuityStatus(commandId),
     resetAgentCommandContinuity: (commandId) => invocationRunner.resetCommandContinuity(commandId),

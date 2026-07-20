@@ -23,13 +23,14 @@ import {
   type InvocationRecord,
   type InvocationContinuityLane,
   type InvocationConversationHead,
+  type InvocationAuthorizationDecision,
   type WorkspaceSettings,
   isDocumentAgentProtocolId,
 } from "@exo/core";
 import { commandForClaudeResume as buildClaudeResumeCommand } from "@exo/core/provider-session";
 
 import type { TerminalSessionInfo } from "../shared/api";
-import type { AgentCommandContinuityStatus, AgentCommandLaunchFacts } from "../shared/api";
+import type { AgentCommandContinuityStatus, AgentCommandLaunchFacts, AgentInvocationAuthorizationFacts } from "../shared/api";
 import { inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
 import { DirectInvocationProcessFactory, type InvocationProcess, type InvocationProcessFactory } from "./invocation-process";
 import {
@@ -51,8 +52,11 @@ export interface InvocationRequest {
   documentFrontmatter?: Record<string, unknown>;
   documentBody?: string;
   message: string;
-  allowUntrustedOneShot?: boolean;
-  persistTrust?: boolean;
+}
+
+export interface InvocationAuthorization {
+  decision: InvocationAuthorizationDecision;
+  expectedFingerprint: string;
 }
 
 export interface PreparedInvocation {
@@ -139,7 +143,7 @@ export class InvocationRunner extends EventEmitter {
 
   async prepare(request: InvocationRequest): Promise<PreparedInvocation> {
     const settings = this.options.getWorkspaceSettings();
-    const command = this.resolveCommand(settings, request.handle);
+    const command = { ...this.resolveCommand(settings, request.handle) };
     const context = request.context === "note"
       ? { kind: "note" as const, workspaceRoot: settings.workspaceRoot, documentPath: request.documentPath }
       : { kind: "cli" as const, workspaceRoot: settings.workspaceRoot };
@@ -213,11 +217,15 @@ export class InvocationRunner extends EventEmitter {
     };
   }
 
-  async authorizeAndStart(prepared: PreparedInvocation): Promise<InvocationStartResult> {
+  async authorizeAndStart(
+    prepared: PreparedInvocation,
+    authorization: InvocationAuthorization,
+  ): Promise<InvocationStartResult> {
     const store = new InvocationStore(prepared.workspaceRoot);
-    if (prepared.request.persistTrust) {
+    this.assertAuthorizationCurrent(prepared, authorization.expectedFingerprint);
+    if (authorization.decision.kind === "always-allow") {
       await new AgentCommandTrustStore(this.options.trustStateRoot, prepared.workspaceRoot).trust(prepared.command);
-    } else if (!prepared.request.allowUntrustedOneShot) {
+    } else if (authorization.decision.kind === "trusted") {
       const trust = await new AgentCommandTrustStore(this.options.trustStateRoot, prepared.workspaceRoot).status(prepared.command);
       if (!trust.trusted) throw new InvocationRunnerError("untrusted", `AgentCommand @${prepared.command.handle} must be trusted before launch.`, { handle: prepared.command.handle });
     }
@@ -375,6 +383,18 @@ export class InvocationRunner extends EventEmitter {
     return inspectAgentCommandLaunchFacts(command, { kind: "cli", workspaceRoot: settings.workspaceRoot });
   }
 
+  async getInvocationAuthorization(handleInput: string, documentPath: string): Promise<AgentInvocationAuthorizationFacts> {
+    const settings = this.options.getWorkspaceSettings();
+    const command = { ...this.resolveCommand(settings, handleInput) };
+    const facts = await inspectAgentCommandLaunchFacts(command, {
+      kind: "note",
+      workspaceRoot: settings.workspaceRoot,
+      documentPath,
+    });
+    const trust = await new AgentCommandTrustStore(this.options.trustStateRoot, settings.workspaceRoot).status(command);
+    return { ...facts, command, trusted: trust.trusted };
+  }
+
   async getCommandContinuityStatus(commandId: string): Promise<AgentCommandContinuityStatus> {
     const settings = this.options.getWorkspaceSettings();
     const command = settings.agentCommands?.find((entry) => entry.id === commandId);
@@ -408,12 +428,14 @@ export class InvocationRunner extends EventEmitter {
       handle: facts.handle,
       task: `Verify that @${facts.handle} can launch from Exo. Respond briefly, then remain available in this terminal.`,
       message: `Test @${facts.handle} in terminal`,
-      allowUntrustedOneShot: true,
     });
     if (prepared.pending.command.executableFingerprint !== expectedFingerprint) {
       throw new InvocationRunnerError("fingerprint-drift", `Command @${facts.handle} changed after confirmation. Review it and try again.`);
     }
-    const result = await this.authorizeAndStart(prepared);
+    const result = await this.authorizeAndStart(prepared, {
+      decision: { kind: "run-once" },
+      expectedFingerprint,
+    });
     if (!result.terminal) {
       throw new InvocationRunnerError("not-launchable", `Command @${facts.handle} did not open its visible test terminal.`);
     }
@@ -424,6 +446,13 @@ export class InvocationRunner extends EventEmitter {
     const settings = this.options.getWorkspaceSettings();
     const command = this.resolveCommand(settings, handleInput);
     return new AgentCommandTrustStore(this.options.trustStateRoot, settings.workspaceRoot).status(command);
+  }
+
+  async resetCommandTrust(handleInput: string): Promise<{ revoked: boolean }> {
+    const settings = this.options.getWorkspaceSettings();
+    const command = this.resolveCommand(settings, handleInput);
+    const revoked = await new AgentCommandTrustStore(this.options.trustStateRoot, settings.workspaceRoot).revoke(command);
+    return { revoked };
   }
 
   async endObservation(id: string): Promise<InvocationRecord | null> { return this.settle(id, "user-ended"); }
@@ -591,6 +620,30 @@ export class InvocationRunner extends EventEmitter {
       ?? (handle === "claude" ? createDefaultClaudeAgentCommand() : undefined);
     if (!handle || !command) throw new InvocationRunnerError("not-found", `No AgentCommand is configured for @${handleInput.replace(/^@/, "")}.`);
     return command;
+  }
+
+  private assertAuthorizationCurrent(prepared: PreparedInvocation, expectedFingerprint: string): void {
+    const preparedFingerprint = agentCommandExecutableFingerprint(prepared.command);
+    if (expectedFingerprint !== preparedFingerprint) {
+      throw new InvocationRunnerError(
+        "fingerprint-drift",
+        `Command @${prepared.command.handle} changed after confirmation. Review it and try again.`,
+      );
+    }
+    const settings = this.options.getWorkspaceSettings();
+    if (settings.workspaceRoot !== prepared.workspaceRoot) {
+      throw new InvocationRunnerError(
+        "fingerprint-drift",
+        "The active Workspace changed after confirmation. Review the invocation and try again.",
+      );
+    }
+    const current = this.resolveCommand(settings, prepared.command.handle);
+    if (agentCommandExecutableFingerprint(current) !== expectedFingerprint) {
+      throw new InvocationRunnerError(
+        "fingerprint-drift",
+        `Command @${prepared.command.handle} changed after confirmation. Review it and try again.`,
+      );
+    }
   }
 }
 

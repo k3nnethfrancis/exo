@@ -12,7 +12,6 @@ import type {
 } from "@exo/core";
 
 import type { CliInstallationStatus, InvocationReviewPayload, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
-import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -71,7 +70,7 @@ interface PendingInvocationAuthorization {
   cwd: string;
   document: OpenEditorDocument;
   draft: InlineAgentDraft;
-  fingerprint: string | null;
+  fingerprint: string;
 }
 
 const NOTE_TREE_MAX_DEPTH = 3;
@@ -435,34 +434,38 @@ export function App() {
     // publish this exact snapshot to the synchronous document ref before any
     // trust/fingerprint await can race the invocation save.
     flushSync(() => updateBody(draft.documentBody));
-    const command = workspaceSettingsRef.current?.agentCommands?.find((entry) => entry.handle === draft.handle)
-      ?? (draft.handle === "claude" ? createDefaultClaudeAgentCommand() : undefined);
-    if (!command) {
-      window.alert(`No AgentCommand is configured for @${draft.handle}.`);
-      return;
-    }
-    const cwd = command?.cwdPolicy === "note_dir"
-      ? dirname(document.filePath)
-      : command?.cwdPolicy === "fixed"
-        ? command.fixedCwd ?? workspaceSettingsRef.current?.workspaceRoot ?? ""
-        : workspaceSettingsRef.current?.workspaceRoot ?? "";
-    const fingerprint = await agentCommandExecutableFingerprintForRenderer(command);
-    let trusted: boolean;
+    let authorization;
     try {
-      trusted = (await window.exo.workspace.getAgentCommandTrust(draft.handle)).trusted;
+      authorization = await window.exo.workspace.getAgentInvocationAuthorization({
+        handle: draft.handle,
+        documentPath: document.filePath,
+      });
     } catch (error) {
       window.alert(error instanceof Error ? error.message : String(error));
       return;
     }
-    const pending = { command, cwd, document, draft, fingerprint };
-    if (!trusted) {
+    if (!authorization.launchable || !authorization.cwd) {
+      window.alert(authorization.detail);
+      return;
+    }
+    const pending = {
+      command: authorization.command,
+      cwd: authorization.cwd,
+      document,
+      draft,
+      fingerprint: authorization.fingerprint,
+    };
+    if (!authorization.trusted) {
       setPendingInvocationAuthorization(pending);
       return;
     }
-    await startInlineAgentInvocation(pending, false);
+    await startInlineAgentInvocation(pending, { kind: "trusted" });
   }
 
-  async function startInlineAgentInvocation(pending: PendingInvocationAuthorization, persistTrust: boolean) {
+  async function startInlineAgentInvocation(
+    pending: PendingInvocationAuthorization,
+    authorization: { kind: "trusted" | "run-once" | "always-allow" },
+  ) {
     // Authorization is a decision surface, not invocation status. Close it as
     // soon as the decision is made; failures belong to the document status UI.
     setPendingInvocationAuthorization(null);
@@ -483,8 +486,8 @@ export function App() {
         message: pending.draft.message,
         documentFrontmatter: persisted.frontmatter,
         documentBody: persisted.body,
-        allowUntrustedOneShot: !persistTrust,
-        persistTrust,
+        authorization,
+        expectedFingerprint: pending.fingerprint,
       });
       setKeptInvocationConflicts(new Set());
       setInvocationReview({ record: result.invocation });
@@ -1573,7 +1576,10 @@ export function App() {
           fingerprint={pendingInvocationAuthorization.fingerprint}
           message={pendingInvocationAuthorization.draft.message}
           onCancel={() => setPendingInvocationAuthorization(null)}
-          onRun={(persistTrust) => void startInlineAgentInvocation(pendingInvocationAuthorization, persistTrust)}
+          onRun={(persistTrust) => void startInlineAgentInvocation(
+            pendingInvocationAuthorization,
+            { kind: persistTrust ? "always-allow" : "run-once" },
+          )}
         />
       ) : null}
 
@@ -1606,29 +1612,8 @@ function joinPath(parentPath: string, name: string): string {
   return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
 }
 
-function dirname(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, "/");
-  const index = normalized.lastIndexOf("/");
-  return index > 0 ? normalized.slice(0, index) : ".";
-}
-
 function markdownBodyAsSaved(body: string): string {
   return body.endsWith("\n") ? body : `${body}\n`;
-}
-
-async function agentCommandExecutableFingerprintForRenderer(command: AgentCommand): Promise<string> {
-  const payload = {
-    command: command.command,
-    cwdPolicy: command.cwdPolicy,
-    fixedCwd: command.fixedCwd ?? null,
-    handle: command.handle,
-    id: command.id,
-    promptDelivery: command.promptDelivery,
-    version: command.version,
-  };
-  const bytes = new TextEncoder().encode(JSON.stringify(payload));
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {

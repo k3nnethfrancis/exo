@@ -19,6 +19,8 @@ import type {
   WorkspaceSearchResults,
   InvocationRecord,
   AgentCommandTrustStatus,
+  AgentCommand,
+  InvocationAuthorizationDecision,
 } from "@exo/core";
 
 export type TerminalKind = "shell";
@@ -114,8 +116,8 @@ export interface LaunchAgentInvocationInput {
   message: string;
   documentFrontmatter?: Record<string, unknown>;
   documentBody?: string;
-  allowUntrustedOneShot?: boolean;
-  persistTrust?: boolean;
+  authorization: InvocationAuthorizationDecision;
+  expectedFingerprint: string;
 }
 
 export interface LaunchAgentInvocationResponse {
@@ -146,6 +148,11 @@ export interface AgentCommandLaunchFacts {
   launchable: boolean;
   block?: "disabled" | "unsupported-prompt-delivery" | "invalid-cwd-policy" | "document-required" | "cwd-missing" | "executable-missing";
   detail: string;
+}
+
+export interface AgentInvocationAuthorizationFacts extends AgentCommandLaunchFacts {
+  command: AgentCommand;
+  trusted: boolean;
 }
 
 export interface TestAgentCommandInput {
@@ -196,7 +203,9 @@ export interface DesktopApi {
     getIndexStatus: () => Promise<IndexStatus>;
     resolvePreviewTarget: (target: string) => Promise<{ url: string; source: "url" | "file" }>;
     launchAgentInvocation: (input: LaunchAgentInvocationInput) => Promise<LaunchAgentInvocationResponse>;
+    getAgentInvocationAuthorization: (input: { handle: string; documentPath: string }) => Promise<AgentInvocationAuthorizationFacts>;
     getAgentCommandTrust: (handle: string) => Promise<AgentCommandTrustStatus>;
+    resetAgentCommandTrust: (handle: string) => Promise<{ revoked: boolean }>;
     getAgentCommandLaunchFacts: (commandId: string) => Promise<AgentCommandLaunchFacts>;
     getAgentCommandContinuity: (commandId: string) => Promise<AgentCommandContinuityStatus>;
     resetAgentCommandContinuity: (commandId: string) => Promise<{ cleared: number }>;

@@ -20,7 +20,9 @@ export interface WorkspaceIpcHandlers {
   getFolderOverview: WorkspaceApi["getFolderOverview"];
   ensureFolderIndex: WorkspaceApi["ensureFolderIndex"];
   launchAgentInvocation: WorkspaceApi["launchAgentInvocation"];
+  getAgentInvocationAuthorization: WorkspaceApi["getAgentInvocationAuthorization"];
   getAgentCommandTrust: WorkspaceApi["getAgentCommandTrust"];
+  resetAgentCommandTrust: WorkspaceApi["resetAgentCommandTrust"];
   getAgentCommandLaunchFacts: WorkspaceApi["getAgentCommandLaunchFacts"];
   getAgentCommandContinuity: WorkspaceApi["getAgentCommandContinuity"];
   resetAgentCommandContinuity: WorkspaceApi["resetAgentCommandContinuity"];
@@ -79,7 +81,12 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const documentPath = await workspaceFiles().existing(input.documentPath);
     return handlers.launchAgentInvocation({ ...input, documentPath });
   });
+  handleDesktopInvoke("workspace:get-agent-invocation-authorization", async (_event, input) => {
+    const documentPath = await workspaceFiles().existing(input.documentPath);
+    return handlers.getAgentInvocationAuthorization({ ...input, documentPath });
+  });
   handleDesktopInvoke("workspace:get-agent-command-trust", async (_event, handle) => handlers.getAgentCommandTrust(handle));
+  handleDesktopInvoke("workspace:reset-agent-command-trust", async (_event, handle) => handlers.resetAgentCommandTrust(handle));
   handleDesktopInvoke("workspace:get-agent-command-launch-facts", async (_event, commandId) =>
     handlers.getAgentCommandLaunchFacts(commandId),
   );
