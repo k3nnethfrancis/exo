@@ -393,6 +393,8 @@ describe("agent invocation model", () => {
       promptDelivery: "stdin",
       command: createDefaultClaudeAgentCommand(),
       cwd: "/tmp",
+      workspaceRoot: "/tmp",
+      noteRoots: ["/tmp/notes"],
       createdAt: "2026-07-08T00:00:00.000Z",
       changedFileRefs: [{ path: "/tmp/note.md", kind: "modified", attribution: "ambiguous", diffRefId: "diff-1" }],
       diffRefs: [{ id: "diff-1", path: "/tmp/note.md", format: "unified", ref: ".exo/invocations/inv-1/diff.patch" }],
@@ -400,6 +402,18 @@ describe("agent invocation model", () => {
       providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
       continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: "inv-0" },
       review: { status: "pending", beforeSha256: "a".repeat(64), afterSha256: "b".repeat(64) },
+      changeset: {
+        version: 1,
+        status: "pending-review",
+        settledAt: "2026-07-08T00:01:00.000Z",
+        files: [{
+          id: "modified:/tmp/note.md",
+          operation: "modified",
+          decision: { status: "pending" },
+          before: { path: "/tmp/note.md", sha256: "a".repeat(64), byteLength: 1, snapshotRef: `files/objects/${"a".repeat(64)}`, mediaType: "text" },
+          after: { path: "/tmp/note.md", sha256: "b".repeat(64), byteLength: 1, snapshotRef: `files/objects/${"b".repeat(64)}`, mediaType: "text" },
+        }],
+      },
     });
 
     expect(record).toMatchObject({
@@ -413,6 +427,8 @@ describe("agent invocation model", () => {
       providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
       continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: "inv-0" },
       review: { status: "pending" },
+      noteRoots: ["/tmp/notes"],
+      changeset: { status: "pending-review", files: [{ operation: "modified" }] },
     });
   });
 

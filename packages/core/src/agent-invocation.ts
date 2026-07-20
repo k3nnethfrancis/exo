@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
 import { formatDocumentAgentResponse, isDocumentAgentProtocolId } from "./document-agent-protocol";
+import { normalizeInvocationChangeset, type InvocationChangeset } from "./invocation-changeset";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "./agent-invocation-prompt";
 export { DEFAULT_AGENT_INVOCATION_PROMPT } from "./agent-invocation-prompt";
 export { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
@@ -125,6 +126,8 @@ export interface InvocationRecord {
   id: string;
   /** Immutable origin for runtime scoping; older records may omit it. */
   workspaceRoot?: string;
+  /** Immutable authorized Note Roots used to capture and recover this run. */
+  noteRoots?: string[];
   status: InvocationStatus;
   context: InvocationContextKind;
   taggedDocumentPath?: string;
@@ -149,6 +152,8 @@ export interface InvocationRecord {
   diffRefs: InvocationDiffRef[];
   attribution: InvocationAttributionSummary;
   review?: InvocationReviewSummary;
+  /** Exact multi-file proposal derived from immutable launch/settled manifests. */
+  changeset?: InvocationChangeset;
 }
 
 const AGENT_HANDLE_PATTERN = /^[a-z][a-z0-9_-]{1,31}$/;
@@ -480,6 +485,7 @@ export function normalizeInvocationRecord(input: unknown): InvocationRecord | nu
   return {
     id,
     ...optionalStringField("workspaceRoot", candidate.workspaceRoot),
+    ...optionalAbsolutePaths("noteRoots", candidate.noteRoots),
     status,
     context,
     ...(taggedDocumentPath ? { taggedDocumentPath } : {}),
@@ -502,7 +508,21 @@ export function normalizeInvocationRecord(input: unknown): InvocationRecord | nu
     diffRefs: normalizeDiffRefs(candidate.diffRefs),
     attribution: normalizeAttributionSummary(candidate.attribution),
     ...optionalReviewSummary(candidate.review),
+    ...optionalChangeset(candidate.changeset),
   };
+}
+
+function optionalAbsolutePaths(key: "noteRoots", value: unknown): { noteRoots?: string[] } {
+  if (!Array.isArray(value)) return {};
+  const paths = [...new Set(value
+    .filter((entry): entry is string => typeof entry === "string" && path.isAbsolute(entry))
+    .map((entry) => path.resolve(entry)))].sort();
+  return paths.length > 0 && paths.length === value.length ? { [key]: paths } : {};
+}
+
+function optionalChangeset(value: unknown): { changeset?: InvocationChangeset } {
+  const changeset = normalizeInvocationChangeset(value);
+  return changeset ? { changeset } : {};
 }
 
 function normalizeInvocationContinuity(value: unknown): InvocationContinuitySummary {

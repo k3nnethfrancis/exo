@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildInvocationChangeset,
   deriveInvocationChangesetStatus,
+  normalizeInvocationChangeset,
   resolveInvocationFileChange,
   type InvocationFileState,
   type InvocationWorkspaceManifest,
@@ -63,7 +64,20 @@ describe("invocation changesets", () => {
     expect(deriveInvocationChangesetStatus([{ decision: { status: "kept", reviewedAt: capturedAt, acceptedSha256: null } }])).toBe("kept");
     expect(deriveInvocationChangesetStatus([{ decision: { status: "rejected", reviewedAt: capturedAt } }])).toBe("rejected");
     expect(deriveInvocationChangesetStatus([{ decision: { status: "kept", reviewedAt: capturedAt, acceptedSha256: null } }, { decision: { status: "pending" } }])).toBe("partially-resolved");
+    expect(deriveInvocationChangesetStatus([{ decision: { status: "kept", reviewedAt: capturedAt, acceptedSha256: null } }, { decision: { status: "rejected", reviewedAt: capturedAt } }])).toBe("resolved");
     expect(deriveInvocationChangesetStatus([{ decision: { status: "conflict", reason: "drift", currentSha256: null } }, { decision: { status: "pending" } }])).toBe("conflict");
+  });
+
+  it("normalizes exact persisted changesets and rejects malformed file states", () => {
+    const changeset = buildInvocationChangeset(
+      manifest([state("/notes/a.md", "a")]),
+      manifest([state("/notes/a.md", "b")]),
+    );
+    expect(normalizeInvocationChangeset(changeset)).toEqual(changeset);
+    expect(normalizeInvocationChangeset({
+      ...changeset,
+      files: [{ ...changeset.files[0], after: { ...changeset.files[0]?.after, snapshotRef: "../../escape" } }],
+    })).toBeNull();
   });
 
   it("resolves one file without inventing a batch decision", () => {
@@ -100,7 +114,7 @@ function state(filePath: string, sha256: string): InvocationFileState {
     path: filePath,
     sha256: sha256.padEnd(64, "0"),
     byteLength: 1,
-    snapshotRef: `files/${sha256.padEnd(64, "0")}`,
+    snapshotRef: `files/objects/${sha256.padEnd(64, "0")}`,
     mediaType: "text",
   };
 }
