@@ -6,7 +6,7 @@ import {
   DEFAULT_TERMINAL_FONT_SIZE,
   getWorkspaceRegistryEntry,
   listWorkspaceRegistryEntries,
-  loadActiveWorkspaceSettings,
+  loadWorkspaceSettings,
   legacyProjectRootsInPersistence,
   normalizeWorkspaceSettings,
   resolveWorkspaceSettingsPath,
@@ -50,7 +50,10 @@ export class WorkspaceConfigStore {
     await (writes.get(this.path()) ?? Promise.resolve());
     const env = this.persistenceEnv();
     const droppedProjectRoots = await legacyProjectRootsInPersistence(env);
-    const settings = await loadActiveWorkspaceSettings(env);
+    // The registry is a user-selectable history, not permission to silently
+    // reactivate a Workspace when the active settings file is missing or
+    // invalid. Startup must return null so first-run recovery remains visible.
+    const settings = await loadWorkspaceSettings(env);
     if (!this.loggedProjectRootNormalization && droppedProjectRoots.length > 0) {
       this.loggedProjectRootNormalization = true;
       console.info("[exo] normalized retired project roots", { droppedProjectRoots });
@@ -62,7 +65,7 @@ export class WorkspaceConfigStore {
   patch(expectedRevision: WorkspaceSettingsRevision, ownedPatch: Partial<WorkspaceSettings>): Promise<WorkspaceSettingsSnapshot> {
     const path = this.path();
     const operation = (writes.get(path) ?? Promise.resolve()).then(async () => {
-      const currentSettings = await loadActiveWorkspaceSettings(this.persistenceEnv());
+      const currentSettings = await loadWorkspaceSettings(this.persistenceEnv());
       const loaded = currentSettings ? { settings: currentSettings, revision: workspaceSettingsRevision(currentSettings) } : null;
       const actualRevision = loaded?.revision ?? null;
       if (actualRevision !== expectedRevision) {

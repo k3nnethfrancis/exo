@@ -252,11 +252,11 @@ First-run setup requires the user to choose a Workspace and its Note Roots. Exo 
 ### Re-run first-run onboarding
 
 Quit Exo completely first (including its menu-bar process), then clear the
-onboarding **and** Workspace persistence files. Deleting only
-`onboarding-state.json` is not enough: any valid `workspace-settings.json`
-causes Exo to open the existing Workspace instead of onboarding. The registry
-and pending transaction must go too, otherwise a saved registry or interrupted
-write can restore the Workspace settings at the next launch.
+active Workspace settings. Deleting only `onboarding-state.json` is not enough:
+any valid `workspace-settings.json` causes Exo to open the existing Workspace
+instead of onboarding. A surviving registry is shown as explicit Workspace
+choices; it never silently reactivates one. Remove the registry and pending
+transaction too only when you want a completely empty Workspace picker.
 
 For the installed macOS app:
 

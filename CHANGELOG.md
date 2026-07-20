@@ -27,6 +27,11 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Changed
 
+- Keeps first-run activation explicit when active Workspace settings are missing
+  or invalid: saved registry entries remain selectable but never reopen on their
+  own.
+- Prevents a packaged app's bundled plugin resources from being mistaken for a
+  source checkout when Exo reports CLI installation status.
 - Makes the graph interaction contract concrete in the desktop surface: the
   editor Graph action focuses the active Note, note-open double-click zooms
   instead of reopening, empty-space double-click is inert, and Connections now

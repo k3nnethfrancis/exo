@@ -1,6 +1,5 @@
 import { app, nativeTheme, powerMonitor } from "electron";
 import path from "node:path";
-import { existsSync } from "node:fs";
 import { appendFile, mkdir, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -42,7 +41,7 @@ import { registerTerminalIpcHandlers } from "./terminal-ipc";
 import { TerminalManager } from "./terminal-manager";
 import { registerWorkspaceIpcHandlers } from "./workspace-ipc";
 import { configureProviderMcp } from "./provider-mcp-setup";
-import { inspectCliInstallation } from "./cli-installation";
+import { findSourceProjectRoot, inspectCliInstallation } from "./cli-installation";
 import { resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace-watchers";
@@ -352,17 +351,12 @@ function pluginDiscoveryEnv(): NodeJS.ProcessEnv {
 
 function resolveSourceProjectRoot(): string | undefined {
   const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  for (const candidate of [
+  return findSourceProjectRoot([
     process.cwd(),
     ...(resourcesPath ? [resourcesPath] : []),
     path.resolve(currentDirectory, "../../.."),
     path.resolve(currentDirectory, "../../../.."),
-  ]) {
-    if (existsSync(path.join(candidate, "plugins"))) {
-      return candidate;
-    }
-  }
-  return undefined;
+  ]);
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {

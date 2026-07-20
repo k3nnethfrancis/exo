@@ -100,6 +100,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke(
     "workspace:select-folder",
     async (_event, options) => {
+      if (process.env.EXO_TEST === "1" && process.env.EXO_TEST_SELECT_FOLDER_CANCEL === "1") {
+        return [];
+      }
       if (process.env.EXO_TEST === "1" && process.env.EXO_TEST_SELECT_FOLDER_PATH) {
         return options?.allowMultiple
           ? process.env.EXO_TEST_SELECT_FOLDER_PATH.split(path.delimiter).filter(Boolean)
