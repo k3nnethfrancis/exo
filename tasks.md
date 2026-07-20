@@ -75,6 +75,28 @@ Fable approved the execution order: decide P0, then run Settings preservation an
   drift conflict, restart recovery, and Gate B latency preservation.
   Evidence: `docs/reviews/output/2026-07-20-launch-gate-c.md`.
 
+### Launch Gate D — Graph as a product surface — in progress
+
+- [ ] Replace object-heavy Graph View IPC with compact typed topology,
+  version/profile/transport hashes, and bounded node/Relation detail reads;
+  prove payload bounds at 10K/50K/100K.
+- [ ] Make editor, Graph Pane, Connections, and explanatory Properties share
+  one inspected Concept and one renderer-neutral selection/path model.
+- [ ] Close one interaction contract across Canvas and WebGPU: click selects,
+  double-click opens, repeated open focuses, frame-all is explicit, and
+  keyboard/reduced-motion behavior is deterministic.
+- [ ] Tune legible node/hit radii, focal label budgets, direct orbit/pan/dolly,
+  and adaptive wheel/pinch zoom against desktop trackpads and mobile gestures.
+- [ ] Keep the finite layout deterministic and continuous across graph updates;
+  prove accurate picking, zero redraw/worker wakeups at rest, bounded labels,
+  Canvas fallback, and WebGPU device-loss recovery.
+- [ ] Prove the Graph Pane under concurrent graph/index work without weakening
+  Gate B editor/navigation budgets, then dogfood a guarded private real-vault
+  copy in both renderer paths.
+- [ ] Remove the Experimental label only after source and exact packaged-app
+  journeys, hardware-stamped scale evidence, truthful docs, and a clean launch
+  surface ledger all pass.
+
 ### Embedding sync strategy — research complete
 
 - [x] Compare automatic indexing/embedding behavior and user controls in current code editors and knowledge tools using primary product documentation.
