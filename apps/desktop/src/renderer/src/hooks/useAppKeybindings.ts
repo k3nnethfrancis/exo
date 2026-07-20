@@ -22,6 +22,12 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
         return;
       }
       if (mod && event.key.toLowerCase() === "s" && options.activeDocumentPath) {
+        // Let the editor keymap flush an active inline-agent composer into the
+        // document model before saving. The window-level capture handler would
+        // otherwise persist only the mention and drop the draft text.
+        if (event.composedPath().some((entry) => entry instanceof Element && entry.closest(".cm-editor"))) {
+          return;
+        }
         event.preventDefault();
         void options.saveDocument(options.activeDocumentPath);
         return;

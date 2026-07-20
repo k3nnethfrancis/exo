@@ -24,7 +24,7 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
 - The UI convergence wave is installed and passing: compact Settings, centered search, breadcrumbs, title/properties chrome, one resizable utility pane, Preview/Terminal/Connections switching, direct terminal creation, and drag-to-split live terminal/preview tabs.
 - Explorer file lists have a scroll-safe lower edge: the floating workspace menu owns a reserved, content-free landing area and rows fade out before reaching it.
 - The direct-PTY terminal and configured Command readiness/Test flow are live.
-- Editor input now has a large-note sustained-typing and trusted keydown-to-paint rapid multiline-backspace gate for ordinary Markdown and active `@agent` composition. List metadata repairs stay within the affected block, repeated links produce one navigable Reference per target Note, and every measured paint asserts editor liveness.
+- Editor input now has a large-note sustained-typing and trusted keydown-to-frame-ready rapid multiline-backspace gate for ordinary Markdown and active `@agent` composition. Samples are recorded after forced layout; list metadata repairs stay within the affected block, table/fence metadata updates incrementally, repeated links produce one navigable Reference per target Note, and every sample asserts editor liveness and exact editor/disk content.
 - `exo start` launches the resident packaged app; app-off `status` and `search`
   return workspace orientation plus path-first results for native filesystem use.
 - `pnpm check`, `pnpm check:repo`, and `pnpm stable:smoke` are green on the current branch.

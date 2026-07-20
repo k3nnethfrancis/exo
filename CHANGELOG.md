@@ -95,8 +95,8 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Keeps provider identity separate from editable `@` handles, prevents
   continued sessions crossing Workspaces or overlapping in one lane, and
   retries only Claude's proven pre-turn stale-session failure.
-- Keeps fast typing within a one-frame paint budget on large Markdown notes by incrementally mapping persisted invocation decorations and avoiding whole-document protocol scans for ordinary keystrokes; covers both normal editing and active `@agent` composition.
-- Keeps rapid multiline backspacing within one frame by repairing list metadata inside the affected block, skipping unrelated table/fence scans, and rendering repeated authored links as one Reference per target Note instead of thousands of duplicate editor controls; the gate uses trusted key events and keydown-to-paint samples.
+- Keeps fast typing within a one-frame frame-ready budget on large Markdown notes by incrementally mapping persisted invocation decorations and avoiding whole-document protocol scans for ordinary keystrokes; covers both normal editing and active `@agent` composition.
+- Keeps rapid multiline backspacing within one frame by repairing list metadata inside the affected block, remapping unrelated table/fence metadata, and rendering repeated authored links as one Reference per target Note instead of thousands of duplicate editor controls; the gate uses trusted key events and keydown-to-frame-ready samples recorded after forced layout.
 - Keeps a tab switch atomic with its CodeMirror document before paint, so the first edit cannot land in the previously active Note while the controlled editor value catches up.
 - Keeps editor navigation independent of derived workspace work: Folder Overview renders immediately and enriches progressively, WorkspaceGraph/folder/filename data are watcher-invalidated caches, graph refresh waits for editor idle time, and live filename results no longer parse every Markdown body per query.
 - Applies the Markdown image radius directly to the rendered asset so all four corners remain symmetrical regardless of widget sizing.

@@ -273,13 +273,16 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     keystrokes map existing protocol decorations incrementally and do not scan
     the whole document for an agent completion unless an `@` query is active.
   - Rapid backspacing through multiline list content is measured with trusted
-    Electron key events and keydown-to-paint samples on the same large-note
-    fixture. Live preview repairs list metadata only inside the affected
-    blank-line-bounded block and does not rescan unrelated table/fence metadata.
+    Electron key events and keydown-to-frame-ready samples, recorded after
+    forced layout, on the same large-note fixture. Live preview repairs list
+    metadata only inside the affected blank-line-bounded block, remaps
+    unrelated table/fence metadata, and reparses only a touched table when its
+    structure is unchanged.
     References render one navigation item per target Note rather than one DOM
     control per authored mention. The retained 50-deletions/second gate now
-    measures p50/p90/p99 `7.3/10.4/18.8 ms`, max `43.6 ms`, with zero long tasks
-    and a live editor after every measured paint.
+    measures p50/p90/p99 ranges of `7.3–7.5/10.8–11.3/11.9–12.7 ms` across
+    three consecutive runs, max `16.8 ms`, with zero long tasks and a live
+    editor after every measured frame-ready sample.
   - The 400-note gates now measure roughly 55/60 ms for Folder Overview shell
     and contents and 11/20 ms for live filename results.
   - QMD foreground status/search, QMD maintenance, and cold/incremental
@@ -403,13 +406,13 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   by the Fable checklist in `EXO-ISSUE-121` and the `EXO-ISSUE-111` budget split
 - Severity: high
 - Area: inline Command typing, breadcrumb Folder Overview, Node CLI startup
-- Review evidence: ordinary typing, backspace, and input-to-paint remain within
+- Review evidence: ordinary typing, backspace, and input-to-frame-ready remain within
   budget, but the mixed tree measured about 32 ms/character for the synthetic
   Playwright invocation burst, about 128 ms p50 for breadcrumb Folder contents,
   and about 101 ms p50 for Node 26 CLI open.
 - Required:
   - [x] Preserve zero renderer long tasks; do not weaken the existing gate.
-  - [x] Separate driver overhead from in-app input-to-paint while retaining a
+  - [x] Separate driver overhead from in-app input-to-frame-ready while retaining a
     real accelerated-typing journey.
   - [x] Isolate the only remaining miss to Node 26 CLI process startup before
     publishing `dev`; all in-app navigation and typing paths passed.

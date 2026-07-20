@@ -188,16 +188,13 @@ test("keeps backlink note navigation within the editor latency budget", async ()
   }
 });
 
-test("keeps sustained Markdown typing within the input-to-paint budget", async () => {
+test("keeps sustained Markdown typing within the input-to-frame-ready budget", async () => {
+  const initialBody = largeMarkdownFixture();
   const { electronApp, page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (root) => {
       const note = path.join(root, "notes/test-notes/typing.md");
-      const paragraphs = Array.from({ length: 5_000 }, (_, index) =>
-        `## Section ${index}\n\nParagraph ${index} with **formatting**, [[focus-note]], #latency, and ordinary prose.`,
-      );
-      const priorInvocation = `<exo-invocation id="123e4567-e89b-42d3-a456-426614174000" agent="claude" status="sent">\n@claude Prior request\n</exo-invocation>`;
-      await writeFile(note, `# Typing latency\n\n${priorInvocation}\n\n${paragraphs.join("\n\n")}\n\n`, "utf8");
+      await writeFile(note, initialBody, "utf8");
     },
   });
   const notePath = path.join(workspaceRoot, "notes/test-notes/typing.md");
@@ -207,18 +204,18 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     await waitForEditorTitle(page, "typing");
     const content = page.locator(".editor-surface .cm-content");
     await content.click();
-    await page.keyboard.press("Control+End");
+    await moveEditorCursorToEnd(page);
 
-    await installInputToPaintProbe(page);
+    await installInputToFrameReadyProbe(page);
 
     const text = Array.from({ length: TYPING_SAMPLE_COUNT }, (_, index) => String(index % 10)).join("");
     const startedAt = performance.now();
     await content.pressSequentially(text, { delay: 0 });
     await nextPaint(page);
     const elapsed = performance.now() - startedAt;
-    const result = await readInputToPaintProbe(page);
+    const result = await readInputToFrameReadyProbe(page);
     const summary = latencySummary(result.samples);
-    console.info(`Markdown typing latency: ${JSON.stringify({
+    console.info(`Markdown typing frame-ready latency: ${JSON.stringify({
       characters: text.length,
       elapsed,
       p50: summary.p50,
@@ -227,75 +224,42 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
       max: summary.max,
       longTasks: result.longTasks,
     })}`);
+    expect(result.samples).toHaveLength(text.length);
     expect(summary.p50).toBeLessThanOrEqual(17);
     expect(summary.p90).toBeLessThanOrEqual(34);
     expect(summary.p99).toBeLessThanOrEqual(50);
     expect(result.longTasks.filter((duration) => duration >= 50)).toEqual([]);
     expect(result.editorLiveness.every(Boolean)).toBe(true);
     expect(elapsed / text.length).toBeLessThanOrEqual(12);
-    const deletionTransactions = await page.evaluate(async () => {
-      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
-      const view = content?.cmView?.view;
-      if (!view) throw new Error("CodeMirror view is unavailable.");
-      const deletionFixture = Array.from({ length: 24 }, (_, index) => `- rapid deletion line ${index}\n`).join("");
-      view.dispatch({
-        changes: { from: view.state.doc.length, insert: deletionFixture },
-        selection: { anchor: view.state.doc.length + deletionFixture.length },
-      });
-      const samples: number[] = [];
-      const startedAt = performance.now();
-      for (let index = 0; index < deletionFixture.length; index += 1) {
-        const operationStartedAt = performance.now();
-        const head = view.state.doc.length;
-        view.dispatch({
-          changes: { from: head - 1, to: head },
-          selection: { anchor: head - 1 },
-          userEvent: "delete.backward",
-        });
-        samples.push(performance.now() - operationStartedAt);
-      }
-      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
-      return { samples, elapsed: performance.now() - startedAt };
-    });
-    const deletionTransactionSummary = latencySummary(deletionTransactions.samples);
-    console.info(`Markdown backspace transaction latency: ${JSON.stringify({
-      characters: deletionTransactions.samples.length,
-      elapsed: deletionTransactions.elapsed,
-      p50: deletionTransactionSummary.p50,
-      p90: deletionTransactionSummary.p90,
-      p99: deletionTransactionSummary.p99,
-      max: deletionTransactionSummary.max,
-    })}`);
-    expect(deletionTransactionSummary.p50).toBeLessThanOrEqual(17);
-    expect(deletionTransactionSummary.p90).toBeLessThanOrEqual(17);
-    expect(deletionTransactionSummary.p99).toBeLessThanOrEqual(17);
-    expect(deletionTransactions.elapsed / deletionTransactions.samples.length).toBeLessThanOrEqual(12);
+    const expectedAfterTyping = `${initialBody}${text}`;
+    expect(await editorBody(page)).toBe(expectedAfterTyping);
+    await expectSavedBody(page, notePath, expectedAfterTyping);
 
-    const deletionCharacters = await page.evaluate(() => {
+    const deletionFixture = Array.from({ length: 8 }, (_, index) => `- trusted deletion line ${index}\n`).join("");
+    await page.evaluate((fixture) => {
       const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
       const view = content?.cmView?.view;
       if (!view) throw new Error("CodeMirror view is unavailable.");
-      const deletionFixture = Array.from({ length: 8 }, (_, index) => `- painted deletion line ${index}\n`).join("");
       view.dispatch({
-        changes: { from: view.state.doc.length, insert: deletionFixture },
-        selection: { anchor: view.state.doc.length + deletionFixture.length },
+        changes: { from: view.state.doc.length, insert: fixture },
+        selection: { anchor: view.state.doc.length + fixture.length },
       });
       view.focus();
-      return deletionFixture.length;
-    });
+    }, deletionFixture);
+    await expectSavedBody(page, notePath, `${expectedAfterTyping}${deletionFixture}`);
     await nextPaint(page);
-    await resetInputToPaintProbe(page);
+    await resetInputToFrameReadyProbe(page);
     const deletionStartedAt = performance.now();
     // 50 deletions/second exceeds normal macOS key-repeat while still leaving
     // one frame between trusted input events so the probe measures Exo rather
     // than an artificial Chromium input-queue starvation loop.
-    await sendBackspaceBurst(electronApp, deletionCharacters, 20);
+    await sendBackspaceBurst(electronApp, deletionFixture.length, 20);
     await nextPaint(page);
     const deletionElapsed = performance.now() - deletionStartedAt;
-    const deletionResult = await readInputToPaintProbe(page);
+    const deletionResult = await readInputToFrameReadyProbe(page);
     const deletionSummary = latencySummary(deletionResult.backspaceSamples);
-    console.info(`Markdown backspace input-to-paint latency: ${JSON.stringify({
-      characters: deletionCharacters,
+    console.info(`Markdown backspace input-to-frame-ready latency: ${JSON.stringify({
+      characters: deletionFixture.length,
       elapsed: deletionElapsed,
       p50: deletionSummary.p50,
       p90: deletionSummary.p90,
@@ -303,19 +267,21 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
       max: deletionSummary.max,
       longTasks: deletionResult.longTasks,
     })}`);
-    expect(deletionResult.backspaceSamples).toHaveLength(deletionCharacters);
+    expect(deletionResult.backspaceSamples).toHaveLength(deletionFixture.length);
     expect(deletionSummary.p50).toBeLessThanOrEqual(17);
     expect(deletionSummary.p90).toBeLessThanOrEqual(17);
     expect(deletionSummary.p99).toBeLessThanOrEqual(34);
     expect(deletionSummary.max).toBeLessThanOrEqual(50);
     expect(deletionResult.longTasks.filter((duration) => duration >= 50)).toEqual([]);
     expect(deletionResult.editorLiveness.every(Boolean)).toBe(true);
+    expect(await editorBody(page)).toBe(expectedAfterTyping);
+    await expectSavedBody(page, notePath, expectedAfterTyping);
 
     await content.pressSequentially("\n@claude", { delay: 0 });
     await expect(page.getByTestId("agent-suggestions")).toBeVisible();
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("inline-agent-composer")).toHaveCount(1);
-    await resetInputToPaintProbe(page);
+    await resetInputToFrameReadyProbe(page);
     await page.evaluate(() => {
       const scoped = window as typeof window & {
         __exoInlineAgentComposerNode?: Element | null;
@@ -327,7 +293,7 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     await content.pressSequentially(invocationText, { delay: 0 });
     await nextPaint(page);
     const invocationElapsed = performance.now() - invocationStartedAt;
-    const invocationProbe = await readInputToPaintProbe(page);
+    const invocationProbe = await readInputToFrameReadyProbe(page);
     const invocationMetadata = await page.evaluate(() => {
       const scoped = window as typeof window & {
         __exoInlineAgentComposerNode?: Element | null;
@@ -346,10 +312,11 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
       max: invocationSummary.max,
       longTasks: invocationProbe.longTasks,
     })}`);
+    expect(invocationProbe.samples).toHaveLength(invocationText.length);
     expect(invocationSummary.p90).toBeLessThanOrEqual(34);
     expect(invocationSummary.p99).toBeLessThanOrEqual(50);
     expect(invocationSummary.max).toBeLessThanOrEqual(50);
-    // Direct input-to-paint samples are the typing contract. The Long Tasks
+    // Direct input-to-frame-ready samples are the typing contract. The Long Tasks
     // observer also sees unrelated browser work, so reserve it for severe
     // stalls while keeping every measured composer key below one 50 ms frame.
     const invocationLongTasks = invocationProbe.longTasks.filter((duration) => duration >= 100);
@@ -359,8 +326,103 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     // 24 ms/character is 41 characters/second: well above human burst typing,
     // while still catching the prior 25-30 ms/character composer churn.
     expect(invocationElapsed / invocationText.length).toBeLessThanOrEqual(24);
-    await expect(page.getByTestId("editor-save-status")).toHaveText("Saved", { timeout: 5_000 });
-    await disconnectInputToPaintProbe(page);
+    const expectedInvocationBody = `${expectedAfterTyping}\n@claude ${invocationText}\n`;
+    expect(await editorBody(page)).toBe(expectedInvocationBody);
+    await page.keyboard.press(process.platform === "darwin" ? "Meta+s" : "Control+s");
+    await expectSavedBody(page, notePath, expectedInvocationBody);
+    await disconnectInputToFrameReadyProbe(page);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("keeps synchronous CodeMirror deletion transactions bounded", async () => {
+  const initialBody = largeMarkdownFixture();
+  const { electronApp, page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareWorkspace: async (root) => {
+      await writeFile(path.join(root, "notes/test-notes/deletion-transactions.md"), initialBody, "utf8");
+    },
+  });
+  const notePath = path.join(workspaceRoot, "notes/test-notes/deletion-transactions.md");
+
+  try {
+    await openFromCommand(electronApp, notePath);
+    await waitForEditorTitle(page, "deletion-transactions");
+    const result = await page.evaluate(async () => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) throw new Error("CodeMirror view is unavailable.");
+      const fixture = Array.from({ length: 24 }, (_, index) => `- rapid deletion line ${index}\n`).join("");
+      view.dispatch({
+        changes: { from: view.state.doc.length, insert: fixture },
+        selection: { anchor: view.state.doc.length + fixture.length },
+      });
+      const samples: number[] = [];
+      const startedAt = performance.now();
+      for (let index = 0; index < fixture.length; index += 1) {
+        const operationStartedAt = performance.now();
+        const head = view.state.doc.length;
+        view.dispatch({
+          changes: { from: head - 1, to: head },
+          selection: { anchor: head - 1 },
+          userEvent: "delete.backward",
+        });
+        samples.push(performance.now() - operationStartedAt);
+      }
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      return { samples, elapsed: performance.now() - startedAt, body: view.state.doc.toString(), fixtureLength: fixture.length };
+    });
+    const summary = latencySummary(result.samples);
+    console.info(`Markdown backspace transaction latency: ${JSON.stringify({
+      characters: result.fixtureLength,
+      elapsed: result.elapsed,
+      p50: summary.p50,
+      p90: summary.p90,
+      p99: summary.p99,
+      max: summary.max,
+    })}`);
+    expect(result.samples).toHaveLength(result.fixtureLength);
+    expect(result.body).toBe(initialBody);
+    expect(summary.p50).toBeLessThanOrEqual(17);
+    expect(summary.p90).toBeLessThanOrEqual(17);
+    expect(summary.p99).toBeLessThanOrEqual(17);
+    expect(result.elapsed / result.samples.length).toBeLessThanOrEqual(12);
+
+    const structuredEdits = await page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) throw new Error("CodeMirror view is unavailable.");
+      const samples: number[] = [];
+      for (const target of ["p90", "frameBudgetMs"]) {
+        for (let index = 0; index < 100; index += 1) {
+          const targetAt = view.state.doc.toString().indexOf(target);
+          if (targetAt < 0) throw new Error(`Structured target is unavailable: ${target}`);
+          let operationStartedAt = performance.now();
+          view.dispatch({ changes: { from: targetAt + 1, insert: "x" }, userEvent: "input.type" });
+          samples.push(performance.now() - operationStartedAt);
+          operationStartedAt = performance.now();
+          view.dispatch({ changes: { from: targetAt + 1, to: targetAt + 2 }, userEvent: "delete.backward" });
+          samples.push(performance.now() - operationStartedAt);
+        }
+      }
+      return { samples, body: view.state.doc.toString() };
+    });
+    const structuredSummary = latencySummary(structuredEdits.samples);
+    console.info(`Structured Markdown transaction latency: ${JSON.stringify({
+      samples: structuredEdits.samples.length,
+      p50: structuredSummary.p50,
+      p90: structuredSummary.p90,
+      p99: structuredSummary.p99,
+      max: structuredSummary.max,
+    })}`);
+    expect(structuredEdits.samples).toHaveLength(400);
+    expect(structuredEdits.body).toBe(initialBody);
+    expect(structuredSummary.p50).toBeLessThanOrEqual(17);
+    expect(structuredSummary.p90).toBeLessThanOrEqual(17);
+    expect(structuredSummary.p99).toBeLessThanOrEqual(17);
+    expect(structuredSummary.max).toBeLessThanOrEqual(50);
+    await expectSavedBody(page, notePath, initialBody);
   } finally {
     await cleanup();
   }
@@ -460,6 +522,41 @@ async function createCorpus(root: string, count: number): Promise<void> {
   ));
 }
 
+function largeMarkdownFixture(): string {
+  const paragraphs = Array.from({ length: 5_000 }, (_, index) =>
+    `## Section ${index}\n\nParagraph ${index} with **formatting**, [[focus-note]], #latency, and ordinary prose.`,
+  );
+  const priorInvocation = `<exo-invocation id="123e4567-e89b-42d3-a456-426614174000" agent="claude" status="sent">\n@claude Prior request\n</exo-invocation>`;
+  const table = "| Metric | Budget |\n| --- | ---: |\n| p90 | 17 ms |";
+  const fence = "```ts\nconst frameBudgetMs = 17;\n```";
+  return `# Typing latency\n\n${priorInvocation}\n\n${table}\n\n${fence}\n\n${paragraphs.join("\n\n")}\n\n`;
+}
+
+async function editorBody(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) throw new Error("CodeMirror view is unavailable.");
+    return view.state.doc.toString();
+  });
+}
+
+async function moveEditorCursorToEnd(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) throw new Error("CodeMirror view is unavailable.");
+    view.dispatch({ selection: { anchor: view.state.doc.length }, scrollIntoView: true });
+    view.focus();
+  });
+}
+
+async function expectSavedBody(page: Page, notePath: string, expectedBody: string): Promise<void> {
+  await expect(page.getByTestId("editor-save-status")).toHaveText("Saved", { timeout: 10_000 });
+  const serializedBody = expectedBody.endsWith("\n") ? expectedBody : `${expectedBody}\n`;
+  await expect.poll(() => readFile(notePath, "utf8"), { timeout: 10_000 }).toBe(serializedBody);
+}
+
 function expectLatencyBudget(route: string, samples: number[]): void {
   const summary = latencySummary(samples);
   const detail = `${route} editor navigation latency: ${JSON.stringify(summary)}`;
@@ -549,14 +646,14 @@ function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   );
 }
 
-interface InputToPaintProbeResult {
+interface InputToFrameReadyProbeResult {
   samples: number[];
   backspaceSamples: number[];
   longTasks: number[];
   editorLiveness: boolean[];
 }
 
-async function installInputToPaintProbe(page: Page): Promise<void> {
+async function installInputToFrameReadyProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
     const samples: number[] = [];
     const backspaceSamples: number[] = [];
@@ -565,8 +662,13 @@ async function installInputToPaintProbe(page: Page): Promise<void> {
     document.addEventListener("beforeinput", () => {
       const startedAt = performance.now();
       requestAnimationFrame(() => {
-        samples.push(performance.now() - startedAt);
         const editor = document.querySelector<HTMLElement>("[data-testid='editor-panel'] .cm-editor");
+        // EventTiming is thresholded and quantized, so it cannot provide a
+        // complete sub-frame sample for every key. Force style/layout first,
+        // then record this deterministic input-to-frame-ready proxy. The
+        // conservative 50 ms maximum and Long Tasks gate still catch stalls.
+        editor?.getBoundingClientRect();
+        samples.push(performance.now() - startedAt);
         editorLiveness.push(Boolean(editor && editor.isConnected && editor.getClientRects().length > 0));
       });
     }, { capture: true });
@@ -574,8 +676,9 @@ async function installInputToPaintProbe(page: Page): Promise<void> {
       if (event.key !== "Backspace") return;
       const startedAt = performance.now();
       requestAnimationFrame(() => {
-        backspaceSamples.push(performance.now() - startedAt);
         const editor = document.querySelector<HTMLElement>("[data-testid='editor-panel'] .cm-editor");
+        editor?.getBoundingClientRect();
+        backspaceSamples.push(performance.now() - startedAt);
         editorLiveness.push(Boolean(editor && editor.isConnected && editor.getClientRects().length > 0));
       });
     }, { capture: true });
@@ -593,7 +696,7 @@ async function installInputToPaintProbe(page: Page): Promise<void> {
   });
 }
 
-async function resetInputToPaintProbe(page: Page): Promise<void> {
+async function resetInputToFrameReadyProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
     const scoped = window as typeof window & {
       __exoTypingSamples?: number[];
@@ -610,7 +713,7 @@ async function resetInputToPaintProbe(page: Page): Promise<void> {
   });
 }
 
-async function readInputToPaintProbe(page: Page): Promise<InputToPaintProbeResult> {
+async function readInputToFrameReadyProbe(page: Page): Promise<InputToFrameReadyProbeResult> {
   return page.evaluate(() => {
     const scoped = window as typeof window & {
       __exoTypingSamples?: number[];
@@ -627,7 +730,7 @@ async function readInputToPaintProbe(page: Page): Promise<InputToPaintProbeResul
   });
 }
 
-async function disconnectInputToPaintProbe(page: Page): Promise<void> {
+async function disconnectInputToFrameReadyProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
     (window as typeof window & { __exoTypingObserver?: PerformanceObserver }).__exoTypingObserver?.disconnect();
   });
