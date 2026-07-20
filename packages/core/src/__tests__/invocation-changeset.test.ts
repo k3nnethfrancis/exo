@@ -58,6 +58,16 @@ describe("invocation changesets", () => {
     expect(changeset.files.filter((file) => file.operation === "created")).toHaveLength(2);
   });
 
+  it("treats a mode-only change as a modified file", () => {
+    const before = state("/notes/script.md", "same", 0o644);
+    const after = state("/notes/script.md", "same", 0o755);
+
+    const changeset = buildInvocationChangeset(manifest([before]), manifest([after]));
+
+    expect(changeset.files).toHaveLength(1);
+    expect(changeset.files[0]).toMatchObject({ operation: "modified", before, after });
+  });
+
   it("derives aggregate review state from exact per-file decisions", () => {
     expect(deriveInvocationChangesetStatus([])).toBe("no-change");
     expect(deriveInvocationChangesetStatus([{ decision: { status: "pending" } }])).toBe("pending-review");
@@ -109,12 +119,13 @@ function manifest(files: InvocationFileState[]): InvocationWorkspaceManifest {
   };
 }
 
-function state(filePath: string, sha256: string): InvocationFileState {
+function state(filePath: string, sha256: string, mode?: number): InvocationFileState {
   return {
     path: filePath,
     sha256: sha256.padEnd(64, "0"),
     byteLength: 1,
     snapshotRef: `files/objects/${sha256.padEnd(64, "0")}`,
     mediaType: "text",
+    ...(mode === undefined ? {} : { mode }),
   };
 }

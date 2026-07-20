@@ -1,9 +1,10 @@
 import { mkdtemp, mkdir, readFile, readdir, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildInvocationChangeset } from "../invocation-changeset";
+import { InvocationCaptureBudgetError } from "../invocation-artifacts";
 import { InvocationStore } from "../invocation-store";
 
 const temporaryRoots: string[] = [];
@@ -205,6 +206,48 @@ describe("invocation artifacts", () => {
       noteRoots: [noteRoot],
       cleanBase: { path: outside, content: "outside" },
     })).rejects.toThrow("outside the authorized Note Roots");
+  });
+
+  it.each([
+    { budget: "file-count" as const, files: ["a", "b"], options: { maxFiles: 1 } },
+    { budget: "file-bytes" as const, files: ["four"], options: { maxFileBytes: 3 } },
+    { budget: "total-bytes" as const, files: ["abc", "def"], options: { maxTotalBytes: 5 } },
+  ])("fails visibly at the $budget capture budget and cleans new objects", async ({ budget, files, options }) => {
+    const workspaceRoot = await temporaryRoot();
+    const noteRoot = path.join(workspaceRoot, "notes");
+    await mkdir(noteRoot);
+    await Promise.all(files.map((content, index) => writeFile(path.join(noteRoot, `${index}.md`), content)));
+    const store = new InvocationStore(workspaceRoot);
+
+    try {
+      await store.captureManifest(`budget-${budget}`, "launch", [noteRoot], options);
+      throw new Error("Expected capture to exceed its budget.");
+    } catch (error) {
+      expect(error).toBeInstanceOf(InvocationCaptureBudgetError);
+      expect(error).toMatchObject({ code: "invocation-capture-budget-exceeded", budget });
+    }
+    const objectsDir = path.join(workspaceRoot, ".exo", "invocations", `budget-${budget}`, "files", "objects");
+    await expect(readdir(objectsDir)).resolves.toEqual([]);
+  });
+
+  it("fails visibly at the elapsed-time budget without leaving objects", async () => {
+    const workspaceRoot = await temporaryRoot();
+    const noteRoot = path.join(workspaceRoot, "notes");
+    await mkdir(noteRoot);
+    await writeFile(path.join(noteRoot, "note.md"), "content");
+    const now = vi.spyOn(Date, "now").mockReturnValueOnce(0).mockReturnValue(10);
+    const store = new InvocationStore(workspaceRoot);
+    try {
+      await expect(store.captureManifest("budget-elapsed", "launch", [noteRoot], { maxElapsedMs: 5 }))
+        .rejects.toMatchObject({
+          code: "invocation-capture-budget-exceeded",
+          budget: "elapsed-time",
+        });
+    } finally {
+      now.mockRestore();
+    }
+    const objectsDir = path.join(workspaceRoot, ".exo", "invocations", "budget-elapsed", "files", "objects");
+    await expect(readdir(objectsDir)).resolves.toEqual([]);
   });
 });
 

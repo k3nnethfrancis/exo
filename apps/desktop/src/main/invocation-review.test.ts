@@ -1,4 +1,4 @@
-import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
@@ -59,7 +59,7 @@ describe("InvocationReviewService", () => {
     await expect(readFile(fixture.paths.created, "utf8")).resolves.toBe("created\n");
   });
 
-  it("records Keep without touching or blocking on newer file edits", async () => {
+  it("refuses a pending Keep after the proposal drifts", async () => {
     const fixture = await changesetFixture();
     const service = new InvocationReviewService(fixture.workspaceRoot);
     const modified = fixture.record.changeset!.files.find((change) => change.operation === "modified")!;
@@ -67,7 +67,7 @@ describe("InvocationReviewService", () => {
 
     const resolved = await service.resolve(fixture.record, [{ changeId: modified.id, action: "keep" }]);
 
-    expect(resolved.changeset?.files.find((change) => change.id === modified.id)?.decision.status).toBe("kept");
+    expect(resolved.changeset?.files.find((change) => change.id === modified.id)?.decision.status).toBe("conflict");
     await expect(readFile(fixture.paths.modified, "utf8")).resolves.toBe("newer human work\n");
   });
 
@@ -91,6 +91,32 @@ describe("InvocationReviewService", () => {
       acceptedSha256: createHash("sha256").update(acceptedCurrent).digest("hex"),
     });
     await expect(readFile(fixture.paths.modified, "utf8")).resolves.toBe(acceptedCurrent);
+  });
+
+  it.each(["deleted", "created"] as const)(
+    "rejects an ancestor-symlink redirect before reviewing a %s file",
+    async (operation) => {
+      const fixture = await ancestorSymlinkFixture(operation);
+      const service = new InvocationReviewService(fixture.workspaceRoot);
+
+      await expect(service.resolve(fixture.record, [{ changeId: fixture.change.id, action: "reject" }]))
+        .rejects.toMatchObject({ code: "review-unavailable" });
+
+      await expect(readFile(fixture.outsidePath, "utf8")).resolves.toBe("outside sentinel\n");
+    },
+  );
+
+  it.each([
+    { action: "keep" as const, expectedMode: 0o755 },
+    { action: "reject" as const, expectedMode: 0o644 },
+  ])("$action preserves the exact reviewed mode for a mode-only change", async ({ action, expectedMode }) => {
+    const fixture = await modeOnlyFixture(action);
+
+    const resolved = await new InvocationReviewService(fixture.workspaceRoot)
+      .resolve(fixture.record, [{ changeId: fixture.change.id, action }]);
+
+    expect(resolved.changeset?.files[0]?.decision.status).toBe(action === "keep" ? "kept" : "rejected");
+    expect((await stat(fixture.notePath)).mode & 0o777).toBe(expectedMode);
   });
 
   it("recovers a journaled Keep-current conflict with its decision-time hash", async () => {
@@ -396,6 +422,54 @@ async function unchangedTaggedFixture(createdCount: number) {
   const record = invocationRecord(id, workspaceRoot, noteRoot, notePath, buildInvocationChangeset(launch, settled));
   await store.writeRecord(record);
   return { workspaceRoot, notePath, clean, launchText, createdPaths, record };
+}
+
+async function ancestorSymlinkFixture(operation: "deleted" | "created") {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `exo-review-symlink-${operation}-`));
+  temporaryRoots.push(workspaceRoot);
+  const noteRoot = path.join(workspaceRoot, "notes");
+  const nested = path.join(noteRoot, "nested");
+  const notePath = path.join(noteRoot, "note.md");
+  const targetPath = path.join(nested, "target.md");
+  const outside = path.join(workspaceRoot, "outside");
+  const outsidePath = path.join(outside, "target.md");
+  await mkdir(nested, { recursive: true });
+  await mkdir(outside);
+  await writeFile(notePath, "clean\n");
+  if (operation === "deleted") await writeFile(targetPath, "proposal\n");
+  const id = `symlink-${operation}`;
+  const store = new InvocationStore(workspaceRoot);
+  await store.captureCleanBase(id, { path: notePath, content: "clean\n" });
+  const launch = await store.captureManifest(id, "launch", [noteRoot]);
+  if (operation === "deleted") await rm(targetPath);
+  else await writeFile(targetPath, "proposal\n");
+  const settled = await store.captureManifest(id, "settled", [noteRoot]);
+  const changeset = buildInvocationChangeset(launch, settled);
+  const record = invocationRecord(id, workspaceRoot, noteRoot, notePath, changeset);
+  await store.writeRecord(record);
+  await rm(nested, { recursive: true });
+  await writeFile(outsidePath, "outside sentinel\n");
+  await symlink(outside, nested, "dir");
+  return { workspaceRoot, outsidePath, record, change: changeset.files[0]! };
+}
+
+async function modeOnlyFixture(action: "keep" | "reject") {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `exo-review-mode-${action}-`));
+  temporaryRoots.push(workspaceRoot);
+  const noteRoot = path.join(workspaceRoot, "notes");
+  const notePath = path.join(noteRoot, "note.md");
+  await mkdir(noteRoot);
+  await writeFile(notePath, "same\n", { mode: 0o644 });
+  const id = `mode-only-${action}`;
+  const store = new InvocationStore(workspaceRoot);
+  await store.captureCleanBase(id, { path: notePath, content: "same\n" });
+  const launch = await store.captureManifest(id, "launch", [noteRoot]);
+  await chmod(notePath, 0o755);
+  const settled = await store.captureManifest(id, "settled", [noteRoot]);
+  const changeset = buildInvocationChangeset(launch, settled);
+  const record = invocationRecord(id, workspaceRoot, noteRoot, notePath, changeset);
+  await store.writeRecord(record);
+  return { workspaceRoot, notePath, record, change: changeset.files[0]! };
 }
 
 function invocationRecord(

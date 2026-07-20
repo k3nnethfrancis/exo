@@ -114,7 +114,8 @@ export function buildInvocationChangeset(
   const createdPaths = afterPaths.filter((filePath) => !launch.files[filePath]);
 
   const changes: InvocationFileChange[] = sharedPaths
-    .filter((filePath) => launch.files[filePath]!.sha256 !== settled.files[filePath]!.sha256)
+    .filter((filePath) => launch.files[filePath]!.sha256 !== settled.files[filePath]!.sha256 ||
+      launch.files[filePath]!.mode !== settled.files[filePath]!.mode)
     .map((filePath) => ({
       id: changeId("modified", filePath),
       operation: "modified",

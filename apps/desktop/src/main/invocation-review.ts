@@ -47,6 +47,10 @@ interface FileProbe {
   mode?: number;
 }
 
+interface ReviewPathAuthority {
+  noteRoots: readonly string[];
+}
+
 type ReviewPreflight =
   | { state: "proposal" | "resolved" | "partial"; currentSha256: string | null }
   | { state: "conflict"; currentSha256: string | null; reason: string };
@@ -63,6 +67,8 @@ export class InvocationReviewService {
     const change = record.changeset?.files.find((entry) => entry.id === changeId);
     if (!change) throw new InvocationReviewError("review-unavailable", `Invocation change ${changeId} was not found.`);
     const cleanBase = await this.store.readCleanBase(record.id);
+    const authority = await this.reviewAuthority(record);
+    await assertAuthorizedChange(authority, change);
     const reviewBefore = rejectionBeforeState(record, change, cleanBase);
     const [before, after] = await Promise.all([
       reviewBefore ? this.store.readSnapshot(record.id, reviewBefore) : null,
@@ -100,6 +106,8 @@ export class InvocationReviewService {
     });
 
     const cleanBase = await this.store.readCleanBase(record.id);
+    const authority = await this.reviewAuthority(record);
+    await Promise.all(changes.map((change) => assertAuthorizedChange(authority, change)));
     const implicitTaggedRestore = willRejectEntireChangeset(record.changeset, plan)
       ? await this.getImplicitTaggedRestore(record, cleanBase)
       : null;
@@ -115,7 +123,7 @@ export class InvocationReviewService {
       : plan);
 
     const checks = await Promise.all(changes.map((change, index) =>
-      preflightChange(change, plan[index]!.action, rejectionBeforeState(record, change, cleanBase))));
+      preflightChange(authority, change, plan[index]!.action, rejectionBeforeState(record, change, cleanBase))));
     const conflicts = checks.map((check, index) => ({ check, change: changes[index]! }))
       .filter(({ check }) => check.state === "conflict" || check.state === "partial" && !resumedJournal);
     if (conflicts.length > 0) {
@@ -133,7 +141,7 @@ export class InvocationReviewService {
       return next;
     }
     const implicitCheck = implicitTaggedRestore
-      ? await preflightImplicitTaggedRestore(implicitTaggedRestore)
+      ? await preflightImplicitTaggedRestore(authority, implicitTaggedRestore)
       : null;
     if (implicitCheck?.state === "conflict") {
       const changeset = withImplicitTaggedConflict(record.changeset, implicitTaggedRestore!, implicitCheck);
@@ -156,6 +164,7 @@ export class InvocationReviewService {
       if (action === "reject" && check.state !== "resolved") {
         await rejectChange(
           this.store,
+          authority,
           record.id,
           change,
           rejectionBeforeState(record, change, cleanBase),
@@ -166,9 +175,7 @@ export class InvocationReviewService {
         ? {
             status: "kept" as const,
             reviewedAt,
-            acceptedSha256: change.decision.status === "conflict"
-              ? check.currentSha256
-              : change.after?.sha256 ?? null,
+            acceptedSha256: check.currentSha256,
           }
         : { status: "rejected" as const, reviewedAt };
       await this.store.updateReviewJournalEntry(record.id, change.id, {
@@ -181,14 +188,14 @@ export class InvocationReviewService {
     if (implicitTaggedRestore && implicitCheck) {
       try {
         if (implicitCheck.state === "proposal") {
-          await restoreImplicitTaggedCleanBase(this.store, record.id, implicitTaggedRestore);
+          await restoreImplicitTaggedCleanBase(this.store, authority, record.id, implicitTaggedRestore);
         }
         await this.store.updateReviewJournalEntry(record.id, IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, {
           status: "applied",
           completedAt: reviewedAt,
         });
       } catch (error) {
-        const check = await implicitConflictFromError(implicitTaggedRestore, error);
+        const check = await implicitConflictFromError(authority, implicitTaggedRestore, error);
         changeset = withImplicitTaggedConflict(changeset, implicitTaggedRestore, check);
         await this.store.updateReviewJournalEntry(record.id, IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, {
           status: "conflict",
@@ -207,15 +214,18 @@ export class InvocationReviewService {
     const journal = await this.store.readReviewJournal(record.id);
     if (!journal || !record.changeset) return record;
     const cleanBase = await this.store.readCleanBase(record.id);
+    const authority = await this.reviewAuthority(record);
+    await Promise.all(record.changeset.files.map((change) => assertAuthorizedChange(authority, change)));
     const implicitEntry = journal.entries.find((entry) => entry.changeId === IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID);
     const implicitTaggedRestore = implicitEntry
       ? await this.getImplicitTaggedRestore(record, cleanBase)
       : null;
     const implicitCheck = implicitEntry?.status === "pending" && implicitTaggedRestore
-      ? await preflightImplicitTaggedRestore(implicitTaggedRestore)
+      ? await preflightImplicitTaggedRestore(authority, implicitTaggedRestore)
       : null;
     const persistedImplicitConflict = implicitEntry?.status === "conflict" && implicitTaggedRestore
       ? await implicitConflict(
+          authority,
           implicitTaggedRestore,
           implicitEntry.reason ?? "The invocation request could not be removed safely.",
         )
@@ -240,7 +250,7 @@ export class InvocationReviewService {
         continue;
       }
       const reviewBefore = rejectionBeforeState(record, change, cleanBase);
-      const check = await preflightChange(change, entry.action, reviewBefore);
+      const check = await preflightChange(authority, change, entry.action, reviewBefore);
       if (entry.status === "conflict") {
         changeset = resolveInvocationFileChange(changeset, change.id, {
           status: "conflict",
@@ -252,7 +262,7 @@ export class InvocationReviewService {
         continue;
       }
       if (entry.action === "reject" && check.state === "partial") {
-        await rejectChange(this.store, record.id, change, reviewBefore, true);
+        await rejectChange(this.store, authority, record.id, change, reviewBefore, true);
         await this.store.updateReviewJournalEntry(record.id, change.id, { status: "applied", completedAt });
         changeset = resolveInvocationFileChange(changeset, change.id, { status: "rejected", reviewedAt: completedAt });
         changed = true;
@@ -298,14 +308,14 @@ export class InvocationReviewService {
       } else {
         try {
           if (implicitCheck.state === "proposal") {
-            await restoreImplicitTaggedCleanBase(this.store, record.id, implicitTaggedRestore);
+            await restoreImplicitTaggedCleanBase(this.store, authority, record.id, implicitTaggedRestore);
           }
           await this.store.updateReviewJournalEntry(record.id, IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, {
             status: "applied",
             completedAt,
           });
         } catch (error) {
-          const check = await implicitConflictFromError(implicitTaggedRestore, error);
+          const check = await implicitConflictFromError(authority, implicitTaggedRestore, error);
           changeset = withImplicitTaggedConflict(changeset, implicitTaggedRestore, check);
           await this.store.updateReviewJournalEntry(record.id, IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID, {
             status: "conflict",
@@ -352,6 +362,14 @@ export class InvocationReviewService {
     }
     return { cleanBase: cleanBase.file, proposal };
   }
+
+  private async reviewAuthority(record: InvocationRecord): Promise<ReviewPathAuthority> {
+    const launch = await this.store.readManifest(record.id, "launch");
+    if (!launch) {
+      throw new InvocationReviewError("review-unavailable", "The immutable launch Note Roots are unavailable.");
+    }
+    return { noteRoots: launch.noteRoots };
+  }
 }
 
 function hasDurableConflict(record: InvocationRecord, changeId: string): boolean {
@@ -372,8 +390,11 @@ function willRejectEntireChangeset(
     change.decision.status === "pending" && planned.get(change.id) === "reject");
 }
 
-async function preflightImplicitTaggedRestore(restore: ImplicitTaggedRestore): Promise<ReviewPreflight> {
-  const current = await probeFile(restore.proposal.path);
+async function preflightImplicitTaggedRestore(
+  authority: ReviewPathAuthority,
+  restore: ImplicitTaggedRestore,
+): Promise<ReviewPreflight> {
+  const current = await probeFile(authority, restore.proposal.path);
   if (matchesState(current, restore.cleanBase)) return { state: "resolved", currentSha256: current.sha256 };
   if (matchesState(current, restore.proposal)) return { state: "proposal", currentSha256: current.sha256 };
   return drift(current.sha256);
@@ -381,28 +402,31 @@ async function preflightImplicitTaggedRestore(restore: ImplicitTaggedRestore): P
 
 async function restoreImplicitTaggedCleanBase(
   store: InvocationStore,
+  authority: ReviewPathAuthority,
   invocationId: string,
   restore: ImplicitTaggedRestore,
 ): Promise<void> {
   const bytes = await requiredSnapshot(store, invocationId, restore.cleanBase);
-  await replaceVerifiedProposal(restore.proposal, restore.cleanBase, bytes);
+  await replaceVerifiedProposal(authority, restore.proposal, restore.cleanBase, bytes);
 }
 
 async function implicitConflictFromError(
+  authority: ReviewPathAuthority,
   restore: ImplicitTaggedRestore,
   error: unknown,
 ): Promise<Extract<ReviewPreflight, { state: "conflict" }>> {
   const detail = error instanceof Error ? error.message : String(error);
-  return implicitConflict(restore, `The invocation request could not be removed safely. ${detail}`);
+  return implicitConflict(authority, restore, `The invocation request could not be removed safely. ${detail}`);
 }
 
 async function implicitConflict(
+  authority: ReviewPathAuthority,
   restore: ImplicitTaggedRestore,
   reason: string,
 ): Promise<Extract<ReviewPreflight, { state: "conflict" }>> {
   let currentSha256: string | null = null;
   try {
-    currentSha256 = (await probeFile(restore.proposal.path)).sha256;
+    currentSha256 = (await probeFile(authority, restore.proposal.path)).sha256;
   } catch {
     // The conflict remains reachable even when probing the current file is
     // itself what failed; Keep-current can probe again at decision time.
@@ -465,20 +489,23 @@ export function withCompatibilityReview(record: InvocationRecord): InvocationRec
 }
 
 async function preflightChange(
+  authority: ReviewPathAuthority,
   change: InvocationFileChange,
   action: InvocationReviewAction,
   rejectionBefore: InvocationFileState | undefined,
 ): Promise<ReviewPreflight> {
-  if (action === "keep") {
-    const currentSha256 = change.decision.status === "conflict"
-      ? (await probeFile(change.after?.path ?? change.before!.path)).sha256
-      : change.after?.sha256 ?? null;
-    return { state: "proposal", currentSha256 };
-  }
   const beforePath = change.before?.path;
   const afterPath = change.after?.path;
-  const beforeCurrent = beforePath ? await probeFile(beforePath) : absentProbe();
-  const afterCurrent = afterPath && afterPath !== beforePath ? await probeFile(afterPath) : beforeCurrent;
+  const beforeCurrent = beforePath ? await probeFile(authority, beforePath) : absentProbe();
+  const afterCurrent = afterPath && afterPath !== beforePath ? await probeFile(authority, afterPath) : beforeCurrent;
+  if (action === "keep") {
+    // Keep-current is the explicit escape hatch after a conflict. A pending
+    // Keep, however, may only accept the exact proposal that was captured.
+    if (change.decision.status === "conflict" || matchesProposal(change, beforeCurrent, afterCurrent)) {
+      return { state: "proposal", currentSha256: afterCurrent.sha256 ?? beforeCurrent.sha256 };
+    }
+    return drift(afterCurrent.sha256 ?? beforeCurrent.sha256);
+  }
   const proposal = matchesProposal(change, beforeCurrent, afterCurrent);
   const resolved = matchesRejected(change, beforeCurrent, afterCurrent, rejectionBefore);
   if (resolved) return { state: "resolved", currentSha256: beforeCurrent.sha256 };
@@ -521,39 +548,40 @@ function drift(currentSha256: string | null): ReviewPreflight {
 
 async function rejectChange(
   store: InvocationStore,
+  authority: ReviewPathAuthority,
   invocationId: string,
   change: InvocationFileChange,
   rejectionBefore: InvocationFileState | undefined,
   finishPartialRename: boolean,
 ): Promise<void> {
   if (change.operation === "created") {
-    await removeVerifiedProposal(change.after!);
+    await removeVerifiedProposal(authority, change.after!);
     return;
   }
   if (change.operation === "modified" || change.operation === "deleted") {
     if (!rejectionBefore) throw new InvocationReviewError("review-unavailable", "The rejection base is unavailable.");
     const bytes = await requiredSnapshot(store, invocationId, rejectionBefore);
     if (change.operation === "modified") {
-      await replaceVerifiedProposal(change.after!, rejectionBefore, bytes);
+      await replaceVerifiedProposal(authority, change.after!, rejectionBefore, bytes);
     } else {
-      await installSnapshotNoClobber(rejectionBefore, bytes);
+      await installSnapshotNoClobber(authority, rejectionBefore, bytes);
     }
     return;
   }
   if (!finishPartialRename) {
     if (!rejectionBefore) throw new InvocationReviewError("review-unavailable", "The rejection base is unavailable.");
     const bytes = await requiredSnapshot(store, invocationId, rejectionBefore);
-    const quarantine = await quarantineVerifiedProposal(change.after!);
+    const quarantine = await quarantineVerifiedProposal(authority, change.after!);
     try {
-      await installSnapshotNoClobber(rejectionBefore, bytes);
+      await installSnapshotNoClobber(authority, rejectionBefore, bytes);
       await rm(quarantine);
     } catch (error) {
-      await restoreQuarantine(quarantine, change.after!.path);
+      await restoreQuarantine(authority, quarantine, change.after!.path);
       throw error;
     }
     return;
   }
-  await removeVerifiedProposal(change.after!);
+  await removeVerifiedProposal(authority, change.after!);
 }
 
 async function requiredSnapshot(store: InvocationStore, invocationId: string, state: InvocationFileState): Promise<Buffer> {
@@ -562,8 +590,14 @@ async function requiredSnapshot(store: InvocationStore, invocationId: string, st
   return bytes;
 }
 
-async function installSnapshotNoClobber(state: InvocationFileState, bytes: Buffer): Promise<void> {
+async function installSnapshotNoClobber(
+  authority: ReviewPathAuthority,
+  state: InvocationFileState,
+  bytes: Buffer,
+): Promise<void> {
+  await assertAuthorizedPath(authority, state.path);
   await mkdir(path.dirname(state.path), { recursive: true });
+  await assertAuthorizedPath(authority, state.path);
   const temporaryPath = path.join(path.dirname(state.path), `.${path.basename(state.path)}.exo-review-${randomUUID()}.tmp`);
   const handle = await open(temporaryPath, "wx", state.mode ?? 0o666);
   try {
@@ -589,27 +623,30 @@ async function installSnapshotNoClobber(state: InvocationFileState, bytes: Buffe
 }
 
 async function replaceVerifiedProposal(
+  authority: ReviewPathAuthority,
   proposal: InvocationFileState,
   replacement: InvocationFileState,
   replacementBytes: Buffer,
 ): Promise<void> {
-  const quarantine = await quarantineVerifiedProposal(proposal);
+  const quarantine = await quarantineVerifiedProposal(authority, proposal);
   try {
-    await installSnapshotNoClobber(replacement, replacementBytes);
+    await installSnapshotNoClobber(authority, replacement, replacementBytes);
     await rm(quarantine);
   } catch (error) {
-    await restoreQuarantine(quarantine, proposal.path);
+    await restoreQuarantine(authority, quarantine, proposal.path);
     throw error;
   }
 }
 
-async function removeVerifiedProposal(proposal: InvocationFileState): Promise<void> {
-  const quarantine = await quarantineVerifiedProposal(proposal);
+async function removeVerifiedProposal(authority: ReviewPathAuthority, proposal: InvocationFileState): Promise<void> {
+  const quarantine = await quarantineVerifiedProposal(authority, proposal);
   await rm(quarantine);
 }
 
-async function quarantineVerifiedProposal(proposal: InvocationFileState): Promise<string> {
+async function quarantineVerifiedProposal(authority: ReviewPathAuthority, proposal: InvocationFileState): Promise<string> {
+  await assertAuthorizedPath(authority, proposal.path);
   const quarantine = path.join(path.dirname(proposal.path), `.${path.basename(proposal.path)}.exo-review-${randomUUID()}.quarantine`);
+  await assertAuthorizedPath(authority, quarantine);
   try {
     await rename(proposal.path, quarantine);
   } catch (error) {
@@ -618,15 +655,17 @@ async function quarantineVerifiedProposal(proposal: InvocationFileState): Promis
     }
     throw error;
   }
-  const moved = await probeFile(quarantine);
+  const moved = await probeFile(authority, quarantine);
   if (!matchesState(moved, proposal)) {
-    await restoreQuarantine(quarantine, proposal.path);
+    await restoreQuarantine(authority, quarantine, proposal.path);
     throw new InvocationReviewError("review-drift", "The file changed during review. Exo restored it without applying Reject.");
   }
   return quarantine;
 }
 
-async function restoreQuarantine(quarantine: string, target: string): Promise<void> {
+async function restoreQuarantine(authority: ReviewPathAuthority, quarantine: string, target: string): Promise<void> {
+  await assertAuthorizedPath(authority, quarantine);
+  await assertAuthorizedPath(authority, target);
   try {
     await link(quarantine, target);
     await rm(quarantine);
@@ -665,7 +704,46 @@ function assertTaggedCleanBase(
   }
 }
 
-async function probeFile(filePath: string): Promise<FileProbe> {
+async function assertAuthorizedChange(
+  authority: ReviewPathAuthority,
+  change: InvocationFileChange,
+): Promise<void> {
+  if (change.before) await assertAuthorizedPath(authority, change.before.path);
+  if (change.after && change.after.path !== change.before?.path) {
+    await assertAuthorizedPath(authority, change.after.path);
+  }
+}
+
+async function assertAuthorizedPath(authority: ReviewPathAuthority, filePath: string): Promise<void> {
+  if (!path.isAbsolute(filePath) || path.normalize(filePath) !== filePath) {
+    throw new InvocationReviewError("review-unavailable", "The review path is not an absolute canonical path.");
+  }
+  const root = authority.noteRoots.find((candidate) => isWithin(candidate, filePath));
+  if (!root) {
+    throw new InvocationReviewError("review-unavailable", "The review path is outside the immutable launch Note Roots.");
+  }
+  const relative = path.relative(root, path.dirname(filePath));
+  const segments = relative === "" ? [] : relative.split(path.sep);
+  let current = root;
+  for (const segment of ["", ...segments]) {
+    if (segment) current = path.join(current, segment);
+    try {
+      const info = await lstat(current);
+      if (info.isSymbolicLink()) {
+        throw new InvocationReviewError("review-unavailable", "A review path ancestor is a symbolic link.");
+      }
+      if (!info.isDirectory()) {
+        throw new InvocationReviewError("review-unavailable", "A review path ancestor is not a directory.");
+      }
+    } catch (error) {
+      if (isNodeErrorCode(error, "ENOENT")) return;
+      throw error;
+    }
+  }
+}
+
+async function probeFile(authority: ReviewPathAuthority, filePath: string): Promise<FileProbe> {
+  await assertAuthorizedPath(authority, filePath);
   let handle;
   try {
     handle = await open(filePath, constants.O_RDONLY | constants.O_NOFOLLOW);
@@ -688,6 +766,11 @@ async function probeFile(filePath: string): Promise<FileProbe> {
   } finally {
     await handle.close();
   }
+}
+
+function isWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return relative === "" || relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
 function absentProbe(): FileProbe {

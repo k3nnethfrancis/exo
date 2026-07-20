@@ -58,6 +58,25 @@ export interface InvocationManifestCaptureOptions {
   capturedAt?: string;
   maxConcurrency?: number;
   maxAttempts?: number;
+  maxFiles?: number;
+  maxFileBytes?: number;
+  maxTotalBytes?: number;
+  maxElapsedMs?: number;
+}
+
+export type InvocationCaptureBudget = "file-count" | "file-bytes" | "total-bytes" | "elapsed-time";
+
+export class InvocationCaptureBudgetError extends Error {
+  readonly code = "invocation-capture-budget-exceeded";
+
+  constructor(
+    readonly budget: InvocationCaptureBudget,
+    readonly limit: number,
+    readonly observed: number,
+  ) {
+    super(`Invocation capture exceeded its ${budget} budget (${observed} > ${limit}).`);
+    this.name = "InvocationCaptureBudgetError";
+  }
 }
 
 export interface InvocationCleanBaseInput {
@@ -117,9 +136,23 @@ interface CapturedFile {
   identity: FileIdentity;
 }
 
+interface CaptureBudgetState {
+  maxFiles: number;
+  maxFileBytes: number;
+  maxTotalBytes: number;
+  startedAt: number;
+  maxElapsedMs: number;
+  deadline: number;
+  totalBytes: number;
+}
+
 const DEFAULT_CAPTURE_CONCURRENCY = 4;
 const MAX_CAPTURE_CONCURRENCY = 16;
 const DEFAULT_CAPTURE_ATTEMPTS = 3;
+const DEFAULT_MAX_CAPTURE_FILES = 100_000;
+const DEFAULT_MAX_CAPTURE_FILE_BYTES = 512 * 1024 * 1024;
+const DEFAULT_MAX_CAPTURE_TOTAL_BYTES = 20 * 1024 * 1024 * 1024;
+const DEFAULT_MAX_CAPTURE_ELAPSED_MS = 120_000;
 const TEXT_FILE_EXTENSIONS = new Set([
   ".css", ".csv", ".html", ".js", ".json", ".jsx", ".md", ".markdown",
   ".mjs", ".sh", ".toml", ".ts", ".tsx", ".txt", ".xml", ".yaml", ".yml",
@@ -163,42 +196,58 @@ export class InvocationArtifactStore {
     }
     const maxAttempts = boundedInteger(options.maxAttempts, DEFAULT_CAPTURE_ATTEMPTS, 1, 8);
     const maxConcurrency = boundedInteger(options.maxConcurrency, DEFAULT_CAPTURE_CONCURRENCY, 1, MAX_CAPTURE_CONCURRENCY);
+    const startedAt = Date.now();
+    const maxElapsedMs = boundedInteger(options.maxElapsedMs, DEFAULT_MAX_CAPTURE_ELAPSED_MS, 1, Number.MAX_SAFE_INTEGER);
+    const budget: CaptureBudgetState = {
+      maxFiles: boundedInteger(options.maxFiles, DEFAULT_MAX_CAPTURE_FILES, 1, Number.MAX_SAFE_INTEGER),
+      maxFileBytes: boundedInteger(options.maxFileBytes, DEFAULT_MAX_CAPTURE_FILE_BYTES, 1, Number.MAX_SAFE_INTEGER),
+      maxTotalBytes: boundedInteger(options.maxTotalBytes, DEFAULT_MAX_CAPTURE_TOTAL_BYTES, 1, Number.MAX_SAFE_INTEGER),
+      startedAt,
+      maxElapsedMs,
+      deadline: startedAt + maxElapsedMs,
+      totalBytes: 0,
+    };
     await mkdir(layout.objectsDir, { recursive: true });
+    await cleanupTemporaryObjects(layout.objectsDir);
+    const baselineObjects = new Set(await readdir(layout.objectsDir));
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      const before = await enumerateCaptureScope(roots);
-      let capturedFiles: Array<CapturedFile | null>;
+      let completed = false;
+      budget.totalBytes = 0;
       try {
+        const before = await enumerateCaptureScope(roots, budget);
+        let capturedFiles: Array<CapturedFile | null>;
         capturedFiles = await mapLimited(before.files, maxConcurrency, async (candidate) => {
           try {
-            return await this.captureFile(layout, candidate);
+            return await this.captureFile(layout, candidate, budget);
           } catch (error) {
             if (isNodeErrorCode(error, "ENOENT")) return null;
             throw error;
           }
         });
-      } catch (error) {
-        if (isNodeErrorCode(error, "EAGAIN")) continue;
-        throw error;
-      }
-      const after = await enumerateCaptureScope(roots);
-      if (!sameStrings(before.files.map((entry) => entry.path), after.files.map((entry) => entry.path))) {
-        continue;
-      }
-      if (capturedFiles.some((entry) => entry === null)) continue;
-      const captured = capturedFiles as CapturedFile[];
-      const stillCurrent = await mapLimited(captured, maxConcurrency, validateCapturedFile);
-      if (stillCurrent.some((entry) => !entry)) continue;
+        const after = await enumerateCaptureScope(roots, budget);
+        if (!sameStrings(before.files.map((entry) => entry.path), after.files.map((entry) => entry.path))) continue;
+        if (capturedFiles.some((entry) => entry === null)) continue;
+        const captured = capturedFiles as CapturedFile[];
+        ensureElapsedBudget(budget);
+        const stillCurrent = await mapLimited(captured, maxConcurrency, validateCapturedFile);
+        if (stillCurrent.some((entry) => !entry)) continue;
 
-      const manifest: InvocationWorkspaceManifest = {
-        version: INVOCATION_MANIFEST_VERSION,
-        capturedAt: options.capturedAt ?? new Date().toISOString(),
-        noteRoots: roots,
-        files: Object.fromEntries(captured.map(({ state }) => [state.path, state])),
-        directories: after.directories,
-      };
-      await writeJsonAtomically(this.manifestPath(layout, phase), manifest);
-      return manifest;
+        const manifest: InvocationWorkspaceManifest = {
+          version: INVOCATION_MANIFEST_VERSION,
+          capturedAt: options.capturedAt ?? new Date().toISOString(),
+          noteRoots: roots,
+          files: Object.fromEntries(captured.map(({ state }) => [state.path, state])),
+          directories: after.directories,
+        };
+        await writeJsonAtomically(this.manifestPath(layout, phase), manifest);
+        completed = true;
+        return manifest;
+      } catch (error) {
+        if (!isNodeErrorCode(error, "EAGAIN")) throw error;
+      } finally {
+        if (!completed) await cleanupNewObjects(layout.objectsDir, baselineObjects);
+      }
     }
 
     throw new Error(`Invocation ${phase} capture did not reach a stable filesystem state after ${maxAttempts} attempts.`);
@@ -370,8 +419,12 @@ export class InvocationArtifactStore {
     return path.join(layout.objectsDir, digest);
   }
 
-  private async captureFile(layout: InvocationArtifactLayout, candidate: CaptureCandidate): Promise<CapturedFile> {
-    const captured = await captureFileAtomically(candidate.path, layout.objectsDir);
+  private async captureFile(
+    layout: InvocationArtifactLayout,
+    candidate: CaptureCandidate,
+    budget: CaptureBudgetState,
+  ): Promise<CapturedFile> {
+    const captured = await captureFileAtomically(candidate.path, layout.objectsDir, budget);
     return {
       state: { path: candidate.path, ...captured.object, mode: captured.identity.mode & 0o777 },
       identity: captured.identity,
@@ -422,7 +475,10 @@ async function canonicalExistingFile(filePath: string): Promise<string> {
   }
 }
 
-async function enumerateCaptureScope(noteRoots: readonly string[]): Promise<{ files: CaptureCandidate[]; directories: string[] }> {
+async function enumerateCaptureScope(
+  noteRoots: readonly string[],
+  budget: CaptureBudgetState,
+): Promise<{ files: CaptureCandidate[]; directories: string[] }> {
   const files: CaptureCandidate[] = [];
   const directories: string[] = [];
   for (const root of noteRoots) await visit(root, root);
@@ -431,6 +487,7 @@ async function enumerateCaptureScope(noteRoots: readonly string[]): Promise<{ fi
   return { files, directories };
 
   async function visit(root: string, directory: string): Promise<void> {
+    ensureElapsedBudget(budget);
     const canonicalDirectory = await realpath(directory);
     if (!isWithin(root, canonicalDirectory)) throw new Error(`Capture escaped Note Root: ${directory}`);
     directories.push(canonicalDirectory);
@@ -445,6 +502,9 @@ async function enumerateCaptureScope(noteRoots: readonly string[]): Promise<{ fi
       }
       if (!entry.isFile()) continue;
       files.push({ path: entryPath });
+      if (files.length > budget.maxFiles) {
+        throw new InvocationCaptureBudgetError("file-count", budget.maxFiles, files.length);
+      }
     }
   }
 }
@@ -452,12 +512,17 @@ async function enumerateCaptureScope(noteRoots: readonly string[]): Promise<{ fi
 async function captureFileAtomically(
   sourcePath: string,
   objectsDir: string,
+  budget: CaptureBudgetState,
 ): Promise<{ object: CapturedObject; identity: FileIdentity }> {
+  ensureElapsedBudget(budget);
   const temporaryPath = path.join(objectsDir, `.object-${process.pid}-${randomUUID()}.tmp`);
   const source = await open(sourcePath, constants.O_RDONLY | constants.O_NOFOLLOW);
   let before: Stats;
   try {
     before = await source.stat();
+    if (before.size > budget.maxFileBytes) {
+      throw new InvocationCaptureBudgetError("file-bytes", budget.maxFileBytes, before.size);
+    }
   } catch (error) {
     await source.close();
     throw error;
@@ -470,9 +535,17 @@ async function captureFileAtomically(
   try {
     output = await open(temporaryPath, "wx");
     for await (const rawChunk of input) {
+      ensureElapsedBudget(budget);
       const chunk = Buffer.isBuffer(rawChunk) ? rawChunk : Buffer.from(rawChunk);
+      if (byteLength + chunk.byteLength > budget.maxFileBytes) {
+        throw new InvocationCaptureBudgetError("file-bytes", budget.maxFileBytes, byteLength + chunk.byteLength);
+      }
+      if (budget.totalBytes + chunk.byteLength > budget.maxTotalBytes) {
+        throw new InvocationCaptureBudgetError("total-bytes", budget.maxTotalBytes, budget.totalBytes + chunk.byteLength);
+      }
       digest.update(chunk);
       byteLength += chunk.byteLength;
+      budget.totalBytes += chunk.byteLength;
       if (sample.byteLength < 8192) sample = Buffer.concat([sample, chunk.subarray(0, 8192 - sample.byteLength)]);
       await writeAll(output, chunk);
     }
@@ -764,13 +837,40 @@ async function mapLimited<Input, Output>(
 ): Promise<Output[]> {
   const results = new Array<Output>(values.length);
   let cursor = 0;
+  let failure: unknown;
   await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, async () => {
-    while (cursor < values.length) {
+    while (cursor < values.length && failure === undefined) {
       const index = cursor++;
-      results[index] = await operation(values[index]!);
+      try {
+        results[index] = await operation(values[index]!);
+      } catch (error) {
+        failure ??= error;
+      }
     }
   }));
+  if (failure !== undefined) throw failure;
   return results;
+}
+
+function ensureElapsedBudget(budget: CaptureBudgetState): void {
+  const elapsed = Date.now() - budget.startedAt;
+  if (elapsed > budget.maxElapsedMs) {
+    throw new InvocationCaptureBudgetError("elapsed-time", budget.maxElapsedMs, elapsed);
+  }
+}
+
+async function cleanupTemporaryObjects(objectsDir: string): Promise<void> {
+  const entries = await readdir(objectsDir);
+  await Promise.all(entries
+    .filter((entry) => entry.startsWith(".object-") && entry.endsWith(".tmp"))
+    .map((entry) => rm(path.join(objectsDir, entry), { force: true })));
+}
+
+async function cleanupNewObjects(objectsDir: string, baseline: ReadonlySet<string>): Promise<void> {
+  const entries = await readdir(objectsDir);
+  await Promise.all(entries
+    .filter((entry) => !baseline.has(entry))
+    .map((entry) => rm(path.join(objectsDir, entry), { force: true })));
 }
 
 function boundedInteger(value: number | undefined, fallback: number, minimum: number, maximum: number): number {
