@@ -1,8 +1,15 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFile, spawn, type ChildProcess } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { promisify } from "node:util";
+
+import type { InvocationProcessOwnership } from "@exo/core";
 
 import { commandEnvironment } from "./command-environment";
 
 export interface InvocationProcess {
+  readonly ownership: InvocationProcessOwnership;
+  release(): Promise<void>;
   send(prompt: string): Promise<void>;
   onExit(handler: (event: InvocationProcessExit) => void): void;
   onOutput?(handler: (event: InvocationProcessOutput) => void): void;
@@ -38,15 +45,36 @@ export class DirectInvocationProcessFactory implements InvocationProcessFactory 
   constructor(private readonly options: DirectInvocationProcessFactoryOptions = {}) {}
 
   launch(input: { command: string; cwd: string; env: NodeJS.ProcessEnv }): InvocationProcess {
-    const child = spawn("/bin/sh", ["-lc", input.command], {
+    if (process.platform === "win32") {
+      throw new Error("Durable headless invocation ownership is unavailable on Windows.");
+    }
+    const ownerToken = randomUUID();
+    const child = spawn("/bin/sh", [
+      "-c",
+      'IFS= read -r _ <&3 || exit 125; /bin/sh -lc "$1" <&0 & child=$!; wait "$child"; exit $?',
+      "exo-invocation-gate",
+      input.command,
+      ownerToken,
+    ], {
       cwd: input.cwd,
-      env: commandEnvironment(input.env),
-      stdio: ["pipe", "pipe", "pipe"],
+      env: commandEnvironment({ ...input.env, [INVOCATION_OWNER_ENV]: ownerToken }),
+      stdio: ["pipe", "pipe", "pipe", "pipe"],
       // A dedicated process group lets Stop terminate the shell and every
       // descendant it launched, rather than only the immediate shell.
-      detached: process.platform !== "win32",
+      detached: true,
     });
-    return new DirectInvocationProcess(child, this.options.stopGraceMs ?? DEFAULT_STOP_GRACE_MS);
+    if (!child.pid) {
+      child.kill("SIGKILL");
+      throw new Error("Invocation process did not expose a durable process id.");
+    }
+    return new DirectInvocationProcess(child, {
+      version: 1,
+      kind: "posix-process-group",
+      pid: child.pid,
+      processGroupId: child.pid,
+      ownerToken,
+      launchedAt: new Date().toISOString(),
+    }, this.options.stopGraceMs ?? DEFAULT_STOP_GRACE_MS);
   }
 }
 
@@ -61,9 +89,11 @@ class DirectInvocationProcess implements InvocationProcess {
   private resolveClosed!: () => void;
   private stopPromise: Promise<void> | null = null;
   private finalizationError: Error | null = null;
+  private released = false;
 
   constructor(
     private readonly child: ChildProcess,
+    readonly ownership: InvocationProcessOwnership,
     private readonly stopGraceMs: number,
   ) {
     this.closed = new Promise<void>((resolve) => {
@@ -100,6 +130,23 @@ class DirectInvocationProcess implements InvocationProcess {
         console.error("[exo] invocation process-group finalization failed", this.finalizationError);
       });
     });
+  }
+
+  async release(): Promise<void> {
+    if (this.released) return;
+    const gate = this.child.stdio[3];
+    if (!gate || typeof gate === "number" || !("end" in gate)) {
+      throw new Error("Invocation process did not expose its launch gate.");
+    }
+    await new Promise<void>((resolve, reject) => {
+      const fail = (error: Error) => reject(error);
+      gate.once("error", fail);
+      gate.end("go\n", () => {
+        gate.off("error", fail);
+        resolve();
+      });
+    });
+    this.released = true;
   }
 
   async send(prompt: string): Promise<void> {
@@ -164,6 +211,33 @@ class DirectInvocationProcess implements InvocationProcess {
 
 const MAX_INVOCATION_STDOUT_CHARS = 256_000;
 const DEFAULT_STOP_GRACE_MS = 1_000;
+const INVOCATION_OWNER_ENV = "EXO_INVOCATION_OWNER_TOKEN";
+const execFileAsync = promisify(execFile);
+
+/**
+ * Terminates a process group left by a crashed Electron main process. Signals
+ * are sent only after the durable random token is observed on the group leader,
+ * preventing a reused pid from being killed.
+ */
+export async function terminateOwnedInvocationProcessGroup(
+  ownership: InvocationProcessOwnership,
+  graceMs = DEFAULT_STOP_GRACE_MS,
+): Promise<void> {
+  if (!processGroupIdExists(ownership.processGroupId)) return;
+  if (!processIdExists(ownership.pid)) {
+    throw new Error("Invocation process group still exists but its recorded leader is gone; ownership cannot be verified safely.");
+  }
+  const identity = await readProcessIdentity(ownership.pid);
+  if (!identity.includes(ownership.ownerToken)) {
+    throw new Error("Invocation process identity no longer matches its durable ownership token; refusing to signal a possibly reused pid.");
+  }
+  signalProcessGroupId(ownership.processGroupId, "SIGTERM");
+  if (await processGroupIdExitsWithin(ownership.processGroupId, graceMs)) return;
+  signalProcessGroupId(ownership.processGroupId, "SIGKILL");
+  if (!await processGroupIdExitsWithin(ownership.processGroupId, graceMs)) {
+    throw new Error("Recovered invocation process group remained alive after forced termination.");
+  }
+}
 
 function appendBounded(existing: string, next: string): string {
   const combined = existing + next;
@@ -199,8 +273,60 @@ function processGroupExists(child: ChildProcess): boolean {
     return true;
   } catch (error) {
     if (isMissingProcess(error)) return false;
+    // macOS may transiently report EPERM while a just-signalled group is
+    // being reaped. That is not proof of death, so keep waiting.
+    if (isNodeErrorCode(error, "EPERM")) return true;
     throw error;
   }
+}
+
+function processIdExists(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (isMissingProcess(error)) return false;
+    throw error;
+  }
+}
+
+function processGroupIdExists(processGroupId: number): boolean {
+  try {
+    process.kill(-processGroupId, 0);
+    return true;
+  } catch (error) {
+    if (isMissingProcess(error)) return false;
+    if (isNodeErrorCode(error, "EPERM")) return true;
+    throw error;
+  }
+}
+
+function signalProcessGroupId(processGroupId: number, signal: NodeJS.Signals): void {
+  try {
+    process.kill(-processGroupId, signal);
+  } catch (error) {
+    if (!isMissingProcess(error)) throw error;
+  }
+}
+
+async function processGroupIdExitsWithin(processGroupId: number, graceMs: number): Promise<boolean> {
+  const deadline = Date.now() + Math.max(0, graceMs);
+  do {
+    if (!processGroupIdExists(processGroupId)) return true;
+    await delay(Math.min(10, Math.max(1, deadline - Date.now())));
+  } while (Date.now() < deadline);
+  return !processGroupIdExists(processGroupId);
+}
+
+async function readProcessIdentity(pid: number): Promise<string> {
+  if (process.platform === "linux") {
+    return (await readFile(`/proc/${pid}/cmdline`)).toString("utf8").replaceAll("\0", " ");
+  }
+  if (process.platform === "darwin") {
+    const { stdout } = await execFileAsync("/bin/ps", ["-p", String(pid), "-ww", "-o", "command="]);
+    return stdout;
+  }
+  throw new Error(`Durable invocation process recovery is unsupported on ${process.platform}.`);
 }
 
 async function processGroupExitsWithin(child: ChildProcess, graceMs: number): Promise<boolean> {
@@ -229,6 +355,10 @@ async function closesWithin(closed: Promise<void>, graceMs: number): Promise<boo
 
 function isMissingProcess(error: unknown): boolean {
   return Boolean(error && typeof error === "object" && "code" in error && error.code === "ESRCH");
+}
+
+function isNodeErrorCode(error: unknown, code: string): boolean {
+  return Boolean(error && typeof error === "object" && "code" in error && error.code === code);
 }
 
 function delay(milliseconds: number): Promise<void> {

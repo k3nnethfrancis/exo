@@ -16,20 +16,19 @@ export async function awaitInvocationAwareQuit(options: InvocationAwareQuitOptio
     options.onError?.("invocation-stop", error);
     throw error;
   }
+  let timer: NodeJS.Timeout | undefined;
   try {
-    let timer: NodeJS.Timeout | undefined;
-    const outcome = await Promise.race([
-      options.flushDirtyDocuments().then(() => "flushed" as const),
-      new Promise<"timed-out">((resolve) => {
-        timer = setTimeout(() => resolve("timed-out"), timeoutMs);
+    await Promise.race([
+      options.flushDirtyDocuments(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`Renderer flush exceeded ${timeoutMs}ms.`)), timeoutMs);
         timer.unref?.();
       }),
     ]);
-    if (timer) clearTimeout(timer);
-    if (outcome === "timed-out") {
-      options.onError?.("renderer-flush", new Error(`Renderer flush exceeded ${timeoutMs}ms.`));
-    }
   } catch (error) {
     options.onError?.("renderer-flush", error);
+    throw error;
+  } finally {
+    if (timer) clearTimeout(timer);
   }
 }

@@ -54,6 +54,16 @@ export interface InvocationArtifactRecovery {
   reviewJournal: InvocationReviewJournal | null;
 }
 
+/** Durable identity for a headless invocation process group. */
+export interface InvocationProcessOwnership {
+  version: 1;
+  kind: "posix-process-group";
+  pid: number;
+  processGroupId: number;
+  ownerToken: string;
+  launchedAt: string;
+}
+
 export interface InvocationManifestCaptureOptions {
   capturedAt?: string;
   maxConcurrency?: number;
@@ -109,6 +119,7 @@ interface InvocationArtifactLayout {
   launchManifestPath: string;
   settledManifestPath: string;
   reviewJournalPath: string;
+  processOwnershipPath: string;
 }
 
 interface CaptureCandidate {
@@ -376,6 +387,20 @@ export class InvocationArtifactStore {
     await rm(this.layout(invocationId).reviewJournalPath, { force: true });
   }
 
+  async writeProcessOwnership(invocationId: string, ownership: InvocationProcessOwnership): Promise<void> {
+    const normalized = normalizeProcessOwnership(ownership);
+    if (!normalized) throw new Error("Invocation process ownership is invalid.");
+    await writeJsonAtomically(this.layout(invocationId).processOwnershipPath, normalized);
+  }
+
+  async readProcessOwnership(invocationId: string): Promise<InvocationProcessOwnership | null> {
+    return normalizeProcessOwnership(await readJsonOrNull(this.layout(invocationId).processOwnershipPath));
+  }
+
+  async clearProcessOwnership(invocationId: string): Promise<void> {
+    await rm(this.layout(invocationId).processOwnershipPath, { force: true });
+  }
+
   async readRecovery(invocationId: string): Promise<InvocationArtifactRecovery> {
     const [cleanBase, launchManifest, settledManifest, reviewJournal] = await Promise.all([
       this.readCleanBase(invocationId),
@@ -408,6 +433,7 @@ export class InvocationArtifactStore {
       launchManifestPath: path.join(invocationDir, "launch-manifest.json"),
       settledManifestPath: path.join(invocationDir, "settled-manifest.json"),
       reviewJournalPath: path.join(invocationDir, "review-journal.json"),
+      processOwnershipPath: path.join(invocationDir, "process-ownership.json"),
     };
   }
 
@@ -704,6 +730,23 @@ async function readJsonOrNull(target: string): Promise<unknown | null> {
     if (isNodeErrorCode(error, "ENOENT")) return null;
     throw error;
   }
+}
+
+function normalizeProcessOwnership(value: unknown): InvocationProcessOwnership | null {
+  if (value === null) return null;
+  if (!value || typeof value !== "object") throw new Error("Invocation process ownership is invalid.");
+  const candidate = value as Partial<InvocationProcessOwnership>;
+  if (
+    candidate.version !== 1 ||
+    candidate.kind !== "posix-process-group" ||
+    !Number.isSafeInteger(candidate.pid) || candidate.pid! <= 1 ||
+    !Number.isSafeInteger(candidate.processGroupId) || candidate.processGroupId !== candidate.pid ||
+    typeof candidate.ownerToken !== "string" || !/^[a-f0-9-]{36}$/.test(candidate.ownerToken) ||
+    typeof candidate.launchedAt !== "string" || !Number.isFinite(Date.parse(candidate.launchedAt))
+  ) {
+    throw new Error("Invocation process ownership is invalid.");
+  }
+  return candidate as InvocationProcessOwnership;
 }
 
 function normalizeManifest(value: unknown): InvocationWorkspaceManifest | null {

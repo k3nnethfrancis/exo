@@ -45,6 +45,7 @@ import { findSourceProjectRoot, inspectCliInstallation } from "./cli-installatio
 import { resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace-watchers";
+import { activateWorkspaceAfterRecovery } from "./workspace-activation";
 import { hasOperatorWorkspaceSetup } from "./workspace-setup-gate";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -412,14 +413,20 @@ async function saveSettings(request: WorkspaceSettingsSaveRequest): Promise<Work
 
 async function switchWorkspace(workspaceId: string, expectedRevision: string | null): Promise<WorkspaceSettingsSaveOutcome> {
   const saved = await workspaceConfig.switchWorkspace(workspaceId, expectedRevision);
-  workspaceSettings = saved.settings;
-  workspaceSettingsRevision = saved.revision;
-  workspaceModel = workspaceModelFromSettings(saved.settings);
-  workspaceNotesService.invalidateDerivedState();
-  workspaceWatcherService.start(workspaceModel);
-  terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
-  indexingService.scheduleReconciliation("workspace-switch", 0);
-  return { ...saved, runtimeApply: { status: "applied" } };
+  return activateWorkspaceAfterRecovery(
+    saved.settings,
+    (destination) => invocationRunner.recoverWorkspace(destination),
+    (destination) => {
+      workspaceSettings = destination;
+      workspaceSettingsRevision = saved.revision;
+      workspaceModel = workspaceModelFromSettings(destination);
+      workspaceNotesService.invalidateDerivedState();
+      workspaceWatcherService.start(workspaceModel);
+      terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
+      indexingService.scheduleReconciliation("workspace-switch", 0);
+      return { ...saved, runtimeApply: { status: "applied" as const } };
+    },
+  );
 }
 
 function applyOnboardingRuntimeEnv() {
@@ -519,7 +526,6 @@ app.whenReady().then(async () => {
     await invocationRunner.markOrphanedRunningInvocations();
   } catch (error) {
     logMain("invocation recovery failed", serializeError(error));
-    throw error;
   }
   workspaceNotesService = new WorkspaceNotesService({
     getWorkspaceModel: () => workspaceModel,
@@ -607,7 +613,7 @@ app.on("before-quit", (event) => {
       app.quit();
     }).catch((error) => {
       quitFlushStarted = false;
-      logMain("quit blocked because invocation Stop did not settle", serializeError(error));
+      logMain("quit remains blocked because durable shutdown did not settle", serializeError(error));
     });
     return;
   }

@@ -122,6 +122,27 @@ describe("InvocationRunner readiness parity", () => {
     await expect(new AgentCommandTrustStore(root, root).status(command)).resolves.toMatchObject({ trusted: false });
   });
 
+  it("durably records process ownership before releasing the pre-exec gate", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-launch-gate-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const documentBody = protocolNoteBody("# Gate\n", command.handle, "Do not race persistence.");
+    await writeFile(notePath, documentBody, "utf8");
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+    const prepared = await runner.prepare(invocationRequest(notePath, documentBody));
+    processFactory.onRelease = async (invocationProcess) => {
+      const durable = await new InvocationStore(root).readProcessOwnership(prepared.id);
+      expect(durable).toEqual(invocationProcess.ownership);
+    };
+
+    await runner.authorizeAndStart(prepared, authorizationFor(prepared));
+
+    expect(processFactory.process.releaseCalls).toBe(1);
+    expect(processFactory.process.prompts).toHaveLength(1);
+  });
+
   it("coalesces structured provider activity into bounded renderer events", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-activity-"));
     temporaryRoots.push(root);
@@ -952,6 +973,49 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     });
   });
 
+  it("persists an unresolved orphan and keeps overlapping roots blocked when process ownership is missing", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-missing-ownership-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const body = protocolNoteBody("# Unsafe recovery\n", command.handle, "Recover this.");
+    await writeFile(notePath, body);
+    const original = createRunner(settings(root, command));
+    const prepared = await original.prepare(invocationRequest(notePath, body));
+    await original.authorizeAndStart(prepared, authorizationFor(prepared));
+    await rm(path.join(root, ".exo", "invocations", prepared.id, "process-ownership.json"));
+
+    const recovering = createRunner(settings(root, command));
+    await expect(recovering.markOrphanedRunningInvocations()).resolves.toBeUndefined();
+    await expect(recovering.get(prepared.id)).resolves.toMatchObject({
+      status: "orphaned",
+      failureReason: expect.stringContaining("cannot prove the writer is dead"),
+    });
+
+    const overlapping = await recovering.prepare(invocationRequest(notePath, body));
+    await expect(recovering.authorizeAndStart(overlapping, authorizationFor(overlapping))).rejects.toMatchObject({ code: "review-busy" });
+  });
+
+  it("isolates malformed recovery artifacts, persists the failure, and returns control to startup", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-malformed-recovery-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
+    const body = protocolNoteBody("# Malformed recovery\n", command.handle, "Recover this.");
+    await writeFile(notePath, body);
+    const original = createRunner(settings(root, command));
+    const prepared = await original.prepare(invocationRequest(notePath, body));
+    await original.authorizeAndStart(prepared, authorizationFor(prepared));
+    await writeFile(path.join(root, ".exo", "invocations", prepared.id, "launch-manifest.json"), "{not-json\n");
+
+    const recovering = createRunner(settings(root, command));
+    await expect(recovering.recoverWorkspace(settings(root, command))).resolves.toBeUndefined();
+    await expect(recovering.get(prepared.id)).resolves.toMatchObject({
+      status: "orphaned",
+      failureReason: expect.stringContaining("Invocation recovery remains unresolved"),
+    });
+  });
+
   it("resets the settlement quiet window when a late watcher event arrives", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-quiet-window-"));
     temporaryRoots.push(root);
@@ -1082,6 +1146,7 @@ class FakeInvocationProcessFactory implements InvocationProcessFactory {
   readonly inputs: Array<{ command: string; cwd: string; env: NodeJS.ProcessEnv }> = [];
   nextSendError: Error | null = null;
   nextStopError: Error | null = null;
+  onRelease?: (process: FakeInvocationProcess) => Promise<void>;
 
   get process(): FakeInvocationProcess {
     const process = this.processes.at(-1);
@@ -1091,7 +1156,7 @@ class FakeInvocationProcessFactory implements InvocationProcessFactory {
 
   launch(input: { command: string; cwd: string; env: NodeJS.ProcessEnv }): InvocationProcess {
     this.inputs.push(input);
-    const process = new FakeInvocationProcess(this.nextSendError, this.nextStopError);
+    const process = new FakeInvocationProcess(this.processes.length + 100, this.nextSendError, this.nextStopError, this.onRelease);
     this.nextSendError = null;
     this.nextStopError = null;
     this.processes.push(process);
@@ -1113,13 +1178,34 @@ class FakeWorkspaceWatcher {
 }
 
 class FakeInvocationProcess implements InvocationProcess {
+  readonly ownership;
+  releaseCalls = 0;
   prompts: string[] = [];
   stopCalls = 0;
   private stopPromise: Promise<void> | null = null;
   private exitHandler: ((event: InvocationProcessExit) => void) | null = null;
   private outputHandler: ((event: import("./invocation-process").InvocationProcessOutput) => void) | null = null;
 
-  constructor(private readonly sendError: Error | null = null, private readonly stopError: Error | null = null) {}
+  constructor(
+    pid: number,
+    private readonly sendError: Error | null = null,
+    private readonly stopError: Error | null = null,
+    private readonly releaseCheck?: (process: FakeInvocationProcess) => Promise<void>,
+  ) {
+    this.ownership = {
+      version: 1 as const,
+      kind: "posix-process-group" as const,
+      pid,
+      processGroupId: pid,
+      ownerToken: `00000000-0000-4000-8000-${String(pid).padStart(12, "0")}`,
+      launchedAt: new Date().toISOString(),
+    };
+  }
+
+  async release(): Promise<void> {
+    await this.releaseCheck?.(this);
+    this.releaseCalls += 1;
+  }
 
   async send(prompt: string): Promise<void> {
     if (this.sendError) throw this.sendError;

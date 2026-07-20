@@ -3,7 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { DirectInvocationProcessFactory, type InvocationProcessExit, type InvocationProcessOutput } from "./invocation-process";
+import {
+  DirectInvocationProcessFactory,
+  terminateOwnedInvocationProcessGroup,
+  type InvocationProcessExit,
+  type InvocationProcessOutput,
+} from "./invocation-process";
 
 const temporaryRoots: string[] = [];
 
@@ -12,6 +17,55 @@ afterEach(async () => {
 });
 
 describe("direct invocation process", () => {
+  it.runIf(process.platform !== "win32")("does not execute the command before its durable launch gate is released", async () => {
+    const root = await temporaryRoot("exo-invocation-process-gate-");
+    const marker = path.join(root, "executed");
+    const invocation = new DirectInvocationProcessFactory().launch({
+      command: `${shellQuote(globalThis.process.execPath)} -e ${shellQuote(`require("node:fs").writeFileSync(${JSON.stringify(marker)}, "yes")`)}`,
+      cwd: processCwd(),
+      env: globalThis.process.env,
+    });
+    const exited = exitOf(invocation);
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    await expect(readFile(marker, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await invocation.release();
+
+    await expect(exited).resolves.toMatchObject({ exitCode: 0 });
+    await expect(readFile(marker, "utf8")).resolves.toBe("yes");
+  });
+
+  it.runIf(process.platform === "darwin" || process.platform === "linux")("verifies and terminates a durably owned process group during recovery", async () => {
+    const invocation = new DirectInvocationProcessFactory({ stopGraceMs: 100 }).launch({
+      command: `${shellQuote(globalThis.process.execPath)} -e ${shellQuote("setInterval(() => {}, 1000)")}`,
+      cwd: processCwd(),
+      env: globalThis.process.env,
+    });
+    const exited = exitOf(invocation);
+    await invocation.release();
+
+    await terminateOwnedInvocationProcessGroup(invocation.ownership, 100);
+
+    await expect(exited).resolves.toMatchObject({ exitCode: null });
+    expect(processExists(invocation.ownership.pid)).toBe(false);
+  });
+
+  it.runIf(process.platform === "darwin" || process.platform === "linux")("refuses to signal when the durable token does not match", async () => {
+    const invocation = new DirectInvocationProcessFactory({ stopGraceMs: 100 }).launch({
+      command: `${shellQuote(globalThis.process.execPath)} -e ${shellQuote("setInterval(() => {}, 1000)")}`,
+      cwd: processCwd(),
+      env: globalThis.process.env,
+    });
+    await invocation.release();
+
+    await expect(terminateOwnedInvocationProcessGroup({
+      ...invocation.ownership,
+      ownerToken: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+    }, 100)).rejects.toThrow("refusing to signal");
+    expect(processExists(invocation.ownership.pid)).toBe(true);
+    await invocation.stop();
+  });
+
   it("streams output facts while retaining bounded exit output", async () => {
     const process = launch("read line; printf 'first:%s\\n' \"$line\"; printf 'warn\\n' >&2; printf 'last\\n'");
     const output: InvocationProcessOutput[] = [];
@@ -173,7 +227,9 @@ setInterval(() => {}, 1000);
 });
 
 function launch(command: string, factory = new DirectInvocationProcessFactory()) {
-  return factory.launch({ command, cwd: processCwd(), env: globalThis.process.env });
+  const invocation = factory.launch({ command, cwd: processCwd(), env: globalThis.process.env });
+  void invocation.release();
+  return invocation;
 }
 
 function exitOf(process: ReturnType<DirectInvocationProcessFactory["launch"]>): Promise<InvocationProcessExit> {

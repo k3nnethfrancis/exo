@@ -27,15 +27,15 @@ describe("awaitInvocationAwareQuit", () => {
     expect(complete).toBe(true);
   });
 
-  it("reports either phase without skipping the other settlement", async () => {
+  it("keeps quit blocked when renderer persistence fails", async () => {
     const onError = vi.fn();
     const stopInvocations = vi.fn(async () => undefined);
 
-    await awaitInvocationAwareQuit({
+    await expect(awaitInvocationAwareQuit({
       flushDirtyDocuments: async () => { throw new Error("flush failed"); },
       stopInvocations,
       onError,
-    });
+    })).rejects.toThrow("flush failed");
 
     expect(stopInvocations).toHaveBeenCalledOnce();
     expect(onError).toHaveBeenCalledWith("renderer-flush", expect.any(Error));
@@ -44,17 +44,31 @@ describe("awaitInvocationAwareQuit", () => {
   it("bounds and reports a renderer flush that never settles", async () => {
     const onError = vi.fn();
 
-    await awaitInvocationAwareQuit({
+    await expect(awaitInvocationAwareQuit({
       flushDirtyDocuments: () => new Promise(() => undefined),
       stopInvocations: async () => undefined,
       flushTimeoutMs: 5,
       onError,
-    });
+    })).rejects.toThrow("Renderer flush exceeded 5ms.");
 
     expect(onError).toHaveBeenCalledWith(
       "renderer-flush",
       expect.objectContaining({ message: "Renderer flush exceeded 5ms." }),
     );
+  });
+
+  it("is retry-safe after a failed dirty-document flush", async () => {
+    const flushDirtyDocuments = vi.fn()
+      .mockRejectedValueOnce(new Error("disk busy"))
+      .mockResolvedValueOnce(undefined);
+    const stopInvocations = vi.fn(async () => undefined);
+    const options = { flushDirtyDocuments, stopInvocations };
+
+    await expect(awaitInvocationAwareQuit(options)).rejects.toThrow("disk busy");
+    await expect(awaitInvocationAwareQuit(options)).resolves.toBeUndefined();
+
+    expect(stopInvocations).toHaveBeenCalledTimes(2);
+    expect(flushDirtyDocuments).toHaveBeenCalledTimes(2);
   });
 
   it("does not flush or hide a failed invocation Stop", async () => {

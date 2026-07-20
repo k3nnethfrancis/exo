@@ -14,6 +14,7 @@ import {
   type InvocationLaunchArtifacts,
   type InvocationReviewJournal,
   type InvocationReviewJournalInput,
+  type InvocationProcessOwnership,
 } from "./invocation-artifacts";
 import type { InvocationFileState, InvocationWorkspaceManifest } from "./invocation-changeset";
 import { safeStoreSegment } from "./store-paths";
@@ -138,6 +139,18 @@ export class InvocationStore {
 
   clearReviewJournal(invocationId: string): Promise<void> {
     return this.artifacts.clearReviewJournal(invocationId);
+  }
+
+  writeProcessOwnership(invocationId: string, ownership: InvocationProcessOwnership): Promise<void> {
+    return this.artifacts.writeProcessOwnership(invocationId, ownership);
+  }
+
+  readProcessOwnership(invocationId: string): Promise<InvocationProcessOwnership | null> {
+    return this.artifacts.readProcessOwnership(invocationId);
+  }
+
+  clearProcessOwnership(invocationId: string): Promise<void> {
+    return this.artifacts.clearProcessOwnership(invocationId);
   }
 
   readArtifactRecovery(invocationId: string): Promise<InvocationArtifactRecovery> {

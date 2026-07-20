@@ -35,7 +35,12 @@ import { commandForClaudeResume as buildClaudeResumeCommand } from "@exo/core/pr
 import type { TerminalSessionInfo } from "../shared/api";
 import type { AgentCommandContinuityStatus, AgentCommandLaunchFacts, AgentInvocationAuthorizationFacts } from "../shared/api";
 import { inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
-import { DirectInvocationProcessFactory, type InvocationProcess, type InvocationProcessFactory } from "./invocation-process";
+import {
+  DirectInvocationProcessFactory,
+  terminateOwnedInvocationProcessGroup,
+  type InvocationProcess,
+  type InvocationProcessFactory,
+} from "./invocation-process";
 import {
   commandForHeadlessInvocation as buildHeadlessInvocationCommand,
   extractClaudeSessionId as extractStructuredClaudeSessionId,
@@ -166,6 +171,7 @@ export class InvocationRunner extends EventEmitter {
   private readonly byTerminal = new Map<string, string>();
   private readonly continuityLocks = new Map<string, { invocationId: string; workspaceRoot: string; commandId: string }>();
   private readonly changesetLocks = new Map<string, { invocationId: string; noteRoots: string[] }>();
+  private readonly recoveryBlocks = new Map<string, { noteRoots: string[]; reason: string }>();
   private readonly invocationScopes = new Map<string, { workspaceRoot: string; noteRoots: string[] }>();
   private readonly activityState = new Map<string, {
     lastKey: string;
@@ -443,6 +449,11 @@ export class InvocationRunner extends EventEmitter {
           });
         });
         try {
+          // The command remains behind its fd3 launch gate until this identity
+          // is durable. Recovery can therefore always stop or block before it
+          // captures a settled workspace.
+          await store.writeProcessOwnership(prepared.id, invocationProcess.ownership);
+          await invocationProcess.release();
           await invocationProcess.send(prompt);
         } catch (error) {
           try {
@@ -738,33 +749,91 @@ export class InvocationRunner extends EventEmitter {
   }
 
   async markOrphanedRunningInvocations(): Promise<void> {
-    const settings = this.options.getWorkspaceSettings();
+    await this.recoverWorkspace(this.options.getWorkspaceSettings());
+  }
+
+  /** Recover a workspace completely before callers expose it as active. */
+  async recoverWorkspace(settings: WorkspaceSettings): Promise<void> {
     const store = new InvocationStore(settings.workspaceRoot);
-    for (const record of await store.listRecords()) {
+    let records: InvocationRecord[];
+    try {
+      records = await store.listRecords();
+      this.recoveryBlocks.delete(settings.workspaceRoot);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      this.recoveryBlocks.set(settings.workspaceRoot, {
+        noteRoots: settings.noteRoots.map((root) => path.resolve(root)),
+        reason: `Invocation recovery could not enumerate durable records: ${reason}`,
+      });
+      console.error("[exo] invocation workspace recovery remains blocked", { workspaceRoot: settings.workspaceRoot, error });
+      return;
+    }
+    for (const record of records) {
       const workspaceRoot = record.workspaceRoot ?? settings.workspaceRoot;
       const noteRoots = record.noteRoots?.length ? [...record.noteRoots] : [...settings.noteRoots];
       this.invocationScopes.set(record.id, { workspaceRoot, noteRoots });
       const recordStore = workspaceRoot === settings.workspaceRoot ? store : new InvocationStore(workspaceRoot);
-      const recovered = await this.reviewService(workspaceRoot).recoverJournal(record);
-      const launch = await recordStore.readManifest(record.id, "launch");
-      const requiresExactRecovery = recovered.status === "pending" || recovered.status === "running" ||
-        Boolean(launch && !recovered.changeset);
-      if (!requiresExactRecovery) continue;
-      const settled = launch
-        ? await recordStore.readManifest(record.id, "settled") ?? await recordStore.captureManifest(record.id, "settled", noteRoots)
-        : null;
-      const changeset = launch && settled ? buildInvocationChangeset(launch, settled) : recovered.changeset;
-      const next = withCompatibilityReview({
-        ...recovered,
-        status: "orphaned",
-        endedAt: new Date().toISOString(),
-        ...(changeset ? { changeset, changedFileRefs: changedFileRefs(changeset.files, new Set()) } : {}),
-        attribution: changeset?.files.length
-          ? { status: "ambiguous", reason: "Exo recovered these exact file changes after restarting during the invocation." }
-          : { status: "unattributed", reason: "Exo restarted before this invocation changed a Note Root file." },
-      });
-      await recordStore.writeRecord(next);
-      this.emit("updated", next);
+      let recovered = record;
+      try {
+        const requiresFromRecord = record.status === "pending" || record.status === "running" ||
+          record.status === "orphaned" && !record.changeset;
+        const ownership = await recordStore.readProcessOwnership(record.id);
+        let existingSettled = null as InvocationWorkspaceManifest | null;
+        if (ownership) {
+          // Stop and prove the writer dead before journal replay, artifact
+          // interpretation, or any new settled capture.
+          await terminateOwnedInvocationProcessGroup(ownership);
+        } else if (requiresFromRecord) {
+          existingSettled = await recordStore.readManifest(record.id, "settled");
+          if (!existingSettled) {
+            throw new Error("Durable invocation process ownership is missing; Exo cannot prove the writer is dead.");
+          }
+        }
+        recovered = await this.reviewService(workspaceRoot).recoverJournal(record);
+        const launch = await recordStore.readManifest(record.id, "launch");
+        const requiresExactRecovery = recovered.status === "pending" || recovered.status === "running" ||
+          (recovered.status === "orphaned" && !recovered.changeset) || Boolean(launch && !recovered.changeset);
+        if (!requiresExactRecovery) {
+          if (ownership) await recordStore.clearProcessOwnership(record.id);
+          continue;
+        }
+        if (!launch) throw new Error("Invocation launch manifest is missing; exact recovery cannot continue.");
+        existingSettled ??= await recordStore.readManifest(record.id, "settled");
+        const settled = existingSettled ?? await recordStore.captureManifest(record.id, "settled", noteRoots);
+        const changeset = buildInvocationChangeset(launch, settled);
+        const next = withCompatibilityReview({
+          ...recovered,
+          status: "orphaned",
+          endedAt: new Date().toISOString(),
+          changeset,
+          changedFileRefs: changedFileRefs(changeset.files, new Set()),
+          attribution: changeset.files.length
+            ? { status: "ambiguous", reason: "Exo recovered these exact file changes after restarting during the invocation." }
+            : { status: "unattributed", reason: "Exo restarted before this invocation changed a Note Root file." },
+        });
+        await recordStore.writeRecord(next);
+        await recordStore.clearProcessOwnership(record.id);
+        this.emit("updated", next);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        const blocked: InvocationRecord = {
+          ...recovered,
+          status: "orphaned",
+          endedAt: new Date().toISOString(),
+          failureReason: `Invocation recovery remains unresolved: ${reason}`,
+          attribution: { status: "ambiguous", reason: "Exo has not proved the prior writer is dead or reconstructed its exact changes. This Note Root remains blocked." },
+        };
+        try {
+          await recordStore.writeRecord(blocked);
+          this.emit("updated", blocked);
+        } catch (persistenceError) {
+          this.recoveryBlocks.set(workspaceRoot, {
+            noteRoots: noteRoots.map((root) => path.resolve(root)),
+            reason: `Invocation ${record.id} recovery and failure-state persistence both failed.`,
+          });
+          console.error("[exo] invocation recovery state could not be persisted", { invocationId: record.id, error, persistenceError });
+        }
+      }
     }
   }
 
@@ -850,6 +919,7 @@ export class InvocationRunner extends EventEmitter {
           : { status: "unattributed", reason: settledStatus === "failed" ? settledFailureReason ?? "The Command failed before changing a Note Root file." : "No Note Root changes observed." },
       });
       await store.writeRecord(next);
+      await store.clearProcessOwnership(id);
       this.emit("updated", next);
       this.releaseObservation(observation);
       return next;
@@ -911,6 +981,10 @@ export class InvocationRunner extends EventEmitter {
 
   private async acquireChangesetLock(prepared: PreparedInvocation, store: InvocationStore): Promise<void> {
     const roots = prepared.noteRoots.map((root) => path.resolve(root));
+    const recoveryBlock = [...this.recoveryBlocks.values()].find((block) => rootsOverlap(block.noteRoots, roots));
+    if (recoveryBlock) {
+      throw new InvocationRunnerError("review-busy", recoveryBlock.reason);
+    }
     if ([...this.changesetLocks.values()].some((lock) => rootsOverlap(lock.noteRoots, roots))) {
       throw new InvocationRunnerError("review-busy", "Another invocation is changing an overlapping Note Root.");
     }
@@ -918,7 +992,8 @@ export class InvocationRunner extends EventEmitter {
     try {
       const unresolved = (await store.listRecords()).find((record) =>
         record.id !== prepared.id &&
-        record.changeset?.files.some((change) => isUnresolvedReviewDecision(change.decision.status)) &&
+        (record.changeset?.files.some((change) => isUnresolvedReviewDecision(change.decision.status)) ||
+          ((record.status === "pending" || record.status === "running" || record.status === "orphaned") && !record.changeset)) &&
         rootsOverlap(record.noteRoots ?? [], roots));
       if (unresolved) {
         throw new InvocationRunnerError("review-busy", "Review the previous invocation before starting another in this Note Root.", { invocationId: unresolved.id });
