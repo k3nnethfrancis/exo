@@ -132,6 +132,11 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 - Guardrail: do not add a retry, error suppression, or protocol workaround
   without a failure trace. The saved Markdown file remains canonical; this is
   an editor-renderer liveness investigation, not evidence of a write failure.
+- Current evidence, 2026-07-19: the Gate B large-note probe now records editor
+  mount/visibility after every measured ordinary-input, trusted-Backspace, and
+  active-`@agent` input paint. All samples remained live with no long tasks.
+  This broadens deterministic liveness coverage but did not reproduce the
+  reported blank renderer, so the issue remains open.
 - Next evidence:
   - [ ] Add a small renderer error boundary / diagnostic capture around the
     editor and inline composer that records the active note path, mode,
@@ -265,10 +270,14 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     roughly 500 KB note with existing invocation protocol markup. Ordinary
     keystrokes map existing protocol decorations incrementally and do not scan
     the whole document for an agent completion unless an `@` query is active.
-  - Rapid backspacing through multiline list content is measured on the same
-    large-note fixture. Live preview now rebuilds whole-note list/table/fence
-    metadata only when the edited line's structural signature changes; its
-    measured p99 fell from roughly 56 ms to roughly 12 ms.
+  - Rapid backspacing through multiline list content is measured with trusted
+    Electron key events and keydown-to-paint samples on the same large-note
+    fixture. Live preview repairs list metadata only inside the affected
+    blank-line-bounded block and does not rescan unrelated table/fence metadata.
+    References render one navigation item per target Note rather than one DOM
+    control per authored mention. The retained 50-deletions/second gate now
+    measures p50/p90/p99 `7.3/10.4/18.8 ms`, max `43.6 ms`, with zero long tasks
+    and a live editor after every measured paint.
   - The 400-note gates now measure roughly 55/60 ms for Folder Overview shell
     and contents and 11/20 ms for live filename results.
   - QMD foreground status/search, QMD maintenance, and cold/incremental

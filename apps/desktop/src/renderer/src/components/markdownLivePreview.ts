@@ -1,4 +1,4 @@
-import { Annotation, EditorSelection, EditorState, Prec, Transaction, type Extension, RangeSetBuilder, StateEffect, StateField, type SelectionRange } from "@codemirror/state";
+import { Annotation, EditorSelection, EditorState, Prec, Transaction, type ChangeSet, type Extension, RangeSetBuilder, StateEffect, StateField, type SelectionRange, type Text } from "@codemirror/state";
 import { indentLess } from "@codemirror/commands";
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { LIST_GEOMETRY, listGeometryStyleVariables } from "./listGeometry";
@@ -50,7 +50,7 @@ interface MarkdownLivePreviewOptions {
   graphReferences?: MarkdownGraphReferences | null;
 }
 
-interface ListContext {
+export interface ListContext {
   depth: number;
   marker: string;
   ordered: boolean;
@@ -90,8 +90,8 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
       }
 
       update(update: ViewUpdate) {
-        if (update.docChanged && markdownStructureChanged(update, this.metadata)) {
-          this.metadata = markdownPreviewMetadata(update.state.doc);
+        if (update.docChanged) {
+          this.metadata = updateMarkdownPreviewMetadata(update, this.metadata);
         }
         if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(tr => tr.effects.some(e => e.is(toggleFoldEffect)))) {
           this.decorations = buildDecorations(update.view, options, this.metadata);
@@ -595,7 +595,7 @@ interface MarkdownPreviewMetadata {
   codeFenceContexts: Map<number, CodeFenceContext>;
 }
 
-function markdownPreviewMetadata(doc: EditorState["doc"]): MarkdownPreviewMetadata {
+function markdownPreviewMetadata(doc: Text): MarkdownPreviewMetadata {
   return {
     listContexts: collectListMetadata(doc),
     tableContexts: collectTableMetadata(doc),
@@ -603,31 +603,47 @@ function markdownPreviewMetadata(doc: EditorState["doc"]): MarkdownPreviewMetada
   };
 }
 
-/** Most keystrokes only affect inline decoration. Rebuilding list, table, and
- * fence metadata for a whole note on every character made normal editing and
- * selection visibly stall. Refresh the structural cache only when an edit can
- * alter a block boundary or touches an existing structured block. */
-function markdownStructureChanged(update: ViewUpdate, metadata: MarkdownPreviewMetadata): boolean {
-  let changed = false;
+/** Keep structural metadata out of the keystroke critical path. The three
+ * metadata families are independent: a local list edit must not rescan every
+ * table and code fence in a large note. List metadata is sparse and can be
+ * repaired inside the affected blank-line-bounded block; complex changes fall
+ * back to the full collector for correctness. */
+function updateMarkdownPreviewMetadata(update: ViewUpdate, metadata: MarkdownPreviewMetadata): MarkdownPreviewMetadata {
+  let listChanged = false;
+  let tableChanged = false;
+  let codeFenceChanged = false;
   update.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
-    if (changed) {
-      return;
-    }
     const before = update.startState.doc.sliceString(fromA, toA);
     const after = inserted.toString();
     const changedText = `${before}${after}`;
-    if (/\n|[`~]|\|/.test(changedText)) {
-      changed = true;
-      return;
-    }
     const previousLine = update.startState.doc.lineAt(fromA);
     const nextLine = update.state.doc.lineAt(fromB);
-    changed = listStructureSignature(previousLine.text) !== listStructureSignature(nextLine.text)
-      || openingFenceSignature(previousLine.text) !== openingFenceSignature(nextLine.text)
+    const lineBoundaryChanged = changedText.includes("\n");
+
+    listChanged ||= lineBoundaryChanged
+      || listStructureSignature(previousLine.text) !== listStructureSignature(nextLine.text);
+    tableChanged ||= changedText.includes("|")
+      || previousLine.text.includes("|")
+      || nextLine.text.includes("|")
       || metadata.tableContexts.has(previousLine.number)
-      || metadata.tableContexts.has(nextLine.number);
+      || lineBoundaryChanged && metadata.tableContexts.size > 0;
+    codeFenceChanged ||= /[`~]/.test(changedText)
+      || openingFenceSignature(previousLine.text) !== openingFenceSignature(nextLine.text)
+      || metadata.codeFenceContexts.has(previousLine.number)
+      || lineBoundaryChanged && metadata.codeFenceContexts.size > 0;
   });
-  return changed;
+
+  if (!listChanged && !tableChanged && !codeFenceChanged) {
+    return metadata;
+  }
+
+  return {
+    listContexts: listChanged
+      ? updateListMetadataForChanges(update.startState.doc, update.state.doc, update.changes, metadata.listContexts)
+      : metadata.listContexts,
+    tableContexts: tableChanged ? collectTableMetadata(update.state.doc) : metadata.tableContexts,
+    codeFenceContexts: codeFenceChanged ? collectCodeFenceMetadata(update.state.doc) : metadata.codeFenceContexts,
+  };
 }
 
 function listStructureSignature(text: string): string {
@@ -1321,8 +1337,58 @@ function indentationColumns(whitespace: string, tabSize = 4) {
   return columns;
 }
 
-function collectListMetadata(doc: EditorView["state"]["doc"]) {
-  const listContexts = new Map<number, ListContext>();
+export function updateListMetadataForChanges(
+  previousDoc: Text,
+  nextDoc: Text,
+  changes: ChangeSet,
+  previousContexts: ReadonlyMap<number, ListContext>,
+): Map<number, ListContext> {
+  const changedRanges: Array<{ fromA: number; toA: number; fromB: number; toB: number }> = [];
+  changes.iterChanges((fromA, toA, fromB, toB) => {
+    changedRanges.push({ fromA, toA, fromB, toB });
+  });
+  if (changedRanges.length !== 1) {
+    return collectListMetadata(nextDoc);
+  }
+
+  const [change] = changedRanges;
+  const previousRange = listMetadataBlockRange(previousDoc, change.fromA, change.toA);
+  const nextRange = listMetadataBlockRange(nextDoc, change.fromB, change.toB);
+  const lineDelta = nextDoc.lines - previousDoc.lines;
+  const nextContexts = new Map<number, ListContext>();
+
+  for (const [lineNumber, context] of previousContexts) {
+    if (lineNumber < previousRange.startLine) {
+      nextContexts.set(lineNumber, context);
+    } else if (lineNumber > previousRange.endLine) {
+      nextContexts.set(lineNumber + lineDelta, context);
+    }
+  }
+  collectListMetadata(nextDoc, nextRange.startLine, nextRange.endLine, nextContexts);
+  return nextContexts;
+}
+
+function listMetadataBlockRange(doc: Text, from: number, to: number): { startLine: number; endLine: number } {
+  let startLine = doc.lineAt(Math.min(from, doc.length)).number;
+  let endLine = doc.lineAt(Math.min(to, doc.length)).number;
+
+  // Include both neighbours when the edit sits on a blank line. Joining or
+  // splitting at that boundary can merge two independently parsed blocks.
+  while (startLine > 1 && doc.line(startLine - 1).text.trim().length > 0) {
+    startLine -= 1;
+  }
+  while (endLine < doc.lines && doc.line(endLine + 1).text.trim().length > 0) {
+    endLine += 1;
+  }
+  return { startLine, endLine };
+}
+
+export function collectListMetadata(
+  doc: Text,
+  startLine = 1,
+  endLine = doc.lines,
+  listContexts = new Map<number, ListContext>(),
+) {
   const stack: Array<{
     indent: number;
     depth: number;
@@ -1330,7 +1396,7 @@ function collectListMetadata(doc: EditorView["state"]["doc"]) {
     ordered: boolean;
   }> = [];
 
-  for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
+  for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
     const line = doc.line(lineNumber);
     const text = line.text;
     const isBlank = text.trim().length === 0;

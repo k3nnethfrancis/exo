@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,6 +16,7 @@ const SAMPLE_COUNT = 100;
 const FOLDER_SAMPLE_COUNT = 20;
 const TYPING_SAMPLE_COUNT = 2_000;
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const compiledCliPath = path.join(repoRoot, "packages/cli/dist/index.cjs");
 
 test.setTimeout(120_000);
 
@@ -207,33 +209,14 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     await content.click();
     await page.keyboard.press("Control+End");
 
-    await page.evaluate(() => {
-      const samples: number[] = [];
-      const longTasks: Array<{ startTime: number; duration: number }> = [];
-      document.addEventListener("beforeinput", () => {
-        const startedAt = performance.now();
-        requestAnimationFrame(() => samples.push(performance.now() - startedAt));
-      }, { capture: true });
-      const observer = new PerformanceObserver((list) => {
-        for (const entry of list.getEntries()) longTasks.push({ startTime: entry.startTime, duration: entry.duration });
-      });
-      observer.observe({ type: "longtask" });
-      Object.assign(window, { __exoTypingSamples: samples, __exoTypingLongTasks: longTasks, __exoTypingObserver: observer });
-    });
+    await installInputToPaintProbe(page);
 
     const text = Array.from({ length: TYPING_SAMPLE_COUNT }, (_, index) => String(index % 10)).join("");
     const startedAt = performance.now();
     await content.pressSequentially(text, { delay: 0 });
-    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await nextPaint(page);
     const elapsed = performance.now() - startedAt;
-    const result = await page.evaluate(() => {
-      const scoped = window as typeof window & {
-        __exoTypingSamples?: number[];
-        __exoTypingLongTasks?: Array<{ startTime: number; duration: number }>;
-        __exoTypingObserver?: PerformanceObserver;
-      };
-      return { samples: scoped.__exoTypingSamples ?? [], longTasks: (scoped.__exoTypingLongTasks ?? []).map((entry) => entry.duration) };
-    });
+    const result = await readInputToPaintProbe(page);
     const summary = latencySummary(result.samples);
     console.info(`Markdown typing latency: ${JSON.stringify({
       characters: text.length,
@@ -248,9 +231,9 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     expect(summary.p90).toBeLessThanOrEqual(34);
     expect(summary.p99).toBeLessThanOrEqual(50);
     expect(result.longTasks.filter((duration) => duration >= 50)).toEqual([]);
+    expect(result.editorLiveness.every(Boolean)).toBe(true);
     expect(elapsed / text.length).toBeLessThanOrEqual(12);
-
-    const deletionResult = await page.evaluate(async () => {
+    const deletionTransactions = await page.evaluate(async () => {
       const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
       const view = content?.cmView?.view;
       if (!view) throw new Error("CodeMirror view is unavailable.");
@@ -274,61 +257,86 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
       return { samples, elapsed: performance.now() - startedAt };
     });
-    const deletionSummary = latencySummary(deletionResult.samples);
-    console.info(`Markdown backspace latency: ${JSON.stringify({
-      characters: deletionResult.samples.length,
-      elapsed: deletionResult.elapsed,
+    const deletionTransactionSummary = latencySummary(deletionTransactions.samples);
+    console.info(`Markdown backspace transaction latency: ${JSON.stringify({
+      characters: deletionTransactions.samples.length,
+      elapsed: deletionTransactions.elapsed,
+      p50: deletionTransactionSummary.p50,
+      p90: deletionTransactionSummary.p90,
+      p99: deletionTransactionSummary.p99,
+      max: deletionTransactionSummary.max,
+    })}`);
+    expect(deletionTransactionSummary.p50).toBeLessThanOrEqual(17);
+    expect(deletionTransactionSummary.p90).toBeLessThanOrEqual(17);
+    expect(deletionTransactionSummary.p99).toBeLessThanOrEqual(17);
+    expect(deletionTransactions.elapsed / deletionTransactions.samples.length).toBeLessThanOrEqual(12);
+
+    const deletionCharacters = await page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) throw new Error("CodeMirror view is unavailable.");
+      const deletionFixture = Array.from({ length: 8 }, (_, index) => `- painted deletion line ${index}\n`).join("");
+      view.dispatch({
+        changes: { from: view.state.doc.length, insert: deletionFixture },
+        selection: { anchor: view.state.doc.length + deletionFixture.length },
+      });
+      view.focus();
+      return deletionFixture.length;
+    });
+    await nextPaint(page);
+    await resetInputToPaintProbe(page);
+    const deletionStartedAt = performance.now();
+    // 50 deletions/second exceeds normal macOS key-repeat while still leaving
+    // one frame between trusted input events so the probe measures Exo rather
+    // than an artificial Chromium input-queue starvation loop.
+    await sendBackspaceBurst(electronApp, deletionCharacters, 20);
+    await nextPaint(page);
+    const deletionElapsed = performance.now() - deletionStartedAt;
+    const deletionResult = await readInputToPaintProbe(page);
+    const deletionSummary = latencySummary(deletionResult.backspaceSamples);
+    console.info(`Markdown backspace input-to-paint latency: ${JSON.stringify({
+      characters: deletionCharacters,
+      elapsed: deletionElapsed,
       p50: deletionSummary.p50,
       p90: deletionSummary.p90,
       p99: deletionSummary.p99,
       max: deletionSummary.max,
+      longTasks: deletionResult.longTasks,
     })}`);
+    expect(deletionResult.backspaceSamples).toHaveLength(deletionCharacters);
     expect(deletionSummary.p50).toBeLessThanOrEqual(17);
     expect(deletionSummary.p90).toBeLessThanOrEqual(17);
-    expect(deletionSummary.p99).toBeLessThanOrEqual(17);
-    expect(deletionResult.elapsed / deletionResult.samples.length).toBeLessThanOrEqual(12);
+    expect(deletionSummary.p99).toBeLessThanOrEqual(34);
+    expect(deletionSummary.max).toBeLessThanOrEqual(50);
+    expect(deletionResult.longTasks.filter((duration) => duration >= 50)).toEqual([]);
+    expect(deletionResult.editorLiveness.every(Boolean)).toBe(true);
 
     await content.pressSequentially("\n@claude", { delay: 0 });
     await expect(page.getByTestId("agent-suggestions")).toBeVisible();
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("inline-agent-composer")).toHaveCount(1);
+    await resetInputToPaintProbe(page);
     await page.evaluate(() => {
       const scoped = window as typeof window & {
-        __exoTypingSamples?: number[];
-        __exoTypingLongTasks?: Array<{ startTime: number; duration: number }>;
-        __exoTypingObserver?: PerformanceObserver;
-        __exoInvocationLongTaskStart?: number;
         __exoInlineAgentComposerNode?: Element | null;
       };
-      scoped.__exoTypingSamples?.splice(0);
-      scoped.__exoTypingObserver?.takeRecords();
-      scoped.__exoTypingLongTasks?.splice(0);
-      scoped.__exoInvocationLongTaskStart = performance.now();
       scoped.__exoInlineAgentComposerNode = document.querySelector("[data-testid='inline-agent-composer']");
     });
     const invocationText = "agent latency ".repeat(30);
     const invocationStartedAt = performance.now();
     await content.pressSequentially(invocationText, { delay: 0 });
-    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+    await nextPaint(page);
     const invocationElapsed = performance.now() - invocationStartedAt;
-    const invocationResult = await page.evaluate(() => {
+    const invocationProbe = await readInputToPaintProbe(page);
+    const invocationMetadata = await page.evaluate(() => {
       const scoped = window as typeof window & {
-        __exoTypingSamples?: number[];
-        __exoTypingLongTasks?: Array<{ startTime: number; duration: number }>;
-        __exoTypingObserver?: PerformanceObserver;
-        __exoInvocationLongTaskStart?: number;
         __exoInlineAgentComposerNode?: Element | null;
       };
-      scoped.__exoTypingObserver?.disconnect();
       return {
-        samples: scoped.__exoTypingSamples ?? [],
-        longTasks: (scoped.__exoTypingLongTasks ?? [])
-          .filter((entry) => entry.startTime >= (scoped.__exoInvocationLongTaskStart ?? 0))
-          .map((entry) => entry.duration),
         composerNodeStable: scoped.__exoInlineAgentComposerNode === document.querySelector("[data-testid='inline-agent-composer']"),
       };
     });
-    const invocationSummary = latencySummary(invocationResult.samples);
+    const invocationSummary = latencySummary(invocationProbe.samples);
     console.info(`Invocation typing latency: ${JSON.stringify({
       characters: invocationText.length,
       elapsed: invocationElapsed,
@@ -336,7 +344,7 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
       p90: invocationSummary.p90,
       p99: invocationSummary.p99,
       max: invocationSummary.max,
-      longTasks: invocationResult.longTasks,
+      longTasks: invocationProbe.longTasks,
     })}`);
     expect(invocationSummary.p90).toBeLessThanOrEqual(34);
     expect(invocationSummary.p99).toBeLessThanOrEqual(50);
@@ -344,13 +352,74 @@ test("keeps sustained Markdown typing within the input-to-paint budget", async (
     // Direct input-to-paint samples are the typing contract. The Long Tasks
     // observer also sees unrelated browser work, so reserve it for severe
     // stalls while keeping every measured composer key below one 50 ms frame.
-    const invocationLongTasks = invocationResult.longTasks.filter((duration) => duration >= 100);
+    const invocationLongTasks = invocationProbe.longTasks.filter((duration) => duration >= 100);
     expect(invocationLongTasks).toEqual([]);
-    expect(invocationResult.composerNodeStable).toBe(true);
+    expect(invocationProbe.editorLiveness.every(Boolean)).toBe(true);
+    expect(invocationMetadata.composerNodeStable).toBe(true);
     // 24 ms/character is 41 characters/second: well above human burst typing,
     // while still catching the prior 25-30 ms/character composer churn.
     expect(invocationElapsed / invocationText.length).toBeLessThanOrEqual(24);
     await expect(page.getByTestId("editor-save-status")).toHaveText("Saved", { timeout: 5_000 });
+    await disconnectInputToPaintProbe(page);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("routes the first edit after a rapid tab switch to the active note", async () => {
+  const { electronApp, page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareWorkspace: async (root) => {
+      await writeFile(path.join(root, "notes/test-notes/switch-a.md"), "# Switch A\n\nalpha\n", "utf8");
+      await writeFile(path.join(root, "notes/test-notes/switch-b.md"), "# Switch B\n\nbeta\n", "utf8");
+    },
+  });
+  const firstPath = path.join(workspaceRoot, "notes/test-notes/switch-a.md");
+  const secondPath = path.join(workspaceRoot, "notes/test-notes/switch-b.md");
+  const marker = "FIRST-EDIT-AFTER-SWITCH";
+
+  try {
+    await openFromCommand(electronApp, firstPath);
+    await waitForEditorTitle(page, "switch-a");
+    await openFromCommand(electronApp, secondPath);
+    await waitForEditorTitle(page, "switch-b");
+    await page.locator(".tab-strip__tab").filter({ hasText: "switch-a" }).click();
+    await waitForEditorTitle(page, "switch-a");
+
+    await page.evaluate(async (input) => {
+      await new Promise<void>((resolve, reject) => {
+        const title = document.querySelector("[data-testid='editor-title']");
+        const timeout = window.setTimeout(() => reject(new Error("Tab switch did not commit.")), 2_000);
+        const observer = new MutationObserver(() => {
+          if (title?.textContent !== "switch-b") return;
+          observer.disconnect();
+          window.clearTimeout(timeout);
+          const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+          const view = content?.cmView?.view;
+          if (!view) {
+            reject(new Error("CodeMirror view is unavailable."));
+            return;
+          }
+          view.dispatch({ changes: { from: view.state.doc.length, insert: input.marker } });
+          resolve();
+        });
+        observer.observe(title ?? document.body, { childList: true, subtree: true, characterData: true });
+        const tab = [...document.querySelectorAll<HTMLElement>(".tab-strip__tab")]
+          .find((candidate) => candidate.textContent?.includes("switch-b"));
+        if (!tab) {
+          observer.disconnect();
+          window.clearTimeout(timeout);
+          reject(new Error("switch-b tab is unavailable."));
+          return;
+        }
+        tab.click();
+      });
+    }, { marker });
+
+    await expect(page.locator(".editor-surface .cm-content")).toContainText(marker);
+    await expect(page.getByTestId("editor-save-status")).toHaveText("Saved");
+    await expect.poll(() => readFile(secondPath, "utf8")).toContain(marker);
+    expect(await readFile(firstPath, "utf8")).not.toContain(marker);
   } finally {
     await cleanup();
   }
@@ -447,8 +516,27 @@ async function openFromCommand(
   }, filePath);
 }
 
+async function sendBackspaceBurst(
+  electronApp: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["electronApp"],
+  count: number,
+  intervalMs: number,
+): Promise<void> {
+  await electronApp.evaluate(async ({ BrowserWindow }, input) => {
+    const webContents = BrowserWindow.getAllWindows()[0]?.webContents;
+    if (!webContents) throw new Error("Exo BrowserWindow is unavailable.");
+    for (let index = 0; index < input.count; index += 1) {
+      webContents.sendInputEvent({ type: "keyDown", keyCode: "Backspace" });
+      webContents.sendInputEvent({ type: "keyUp", keyCode: "Backspace" });
+      await new Promise((resolve) => setTimeout(resolve, input.intervalMs));
+    }
+  }, { count, intervalMs });
+}
+
 function runExoCli(args: string[], env: NodeJS.ProcessEnv) {
-  return spawnSync(path.join(repoRoot, "bin/exo"), args, {
+  if (!existsSync(compiledCliPath)) {
+    throw new Error("Compiled Exo CLI is missing. Run `pnpm --filter @exo/cli build` before the focused Electron latency spec.");
+  }
+  return spawnSync(process.execPath, [compiledCliPath, ...args], {
     cwd: repoRoot,
     env,
     encoding: "utf8",
@@ -459,4 +547,92 @@ function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   return Object.fromEntries(
     Object.entries(env).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   );
+}
+
+interface InputToPaintProbeResult {
+  samples: number[];
+  backspaceSamples: number[];
+  longTasks: number[];
+  editorLiveness: boolean[];
+}
+
+async function installInputToPaintProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const samples: number[] = [];
+    const backspaceSamples: number[] = [];
+    const longTasks: number[] = [];
+    const editorLiveness: boolean[] = [];
+    document.addEventListener("beforeinput", () => {
+      const startedAt = performance.now();
+      requestAnimationFrame(() => {
+        samples.push(performance.now() - startedAt);
+        const editor = document.querySelector<HTMLElement>("[data-testid='editor-panel'] .cm-editor");
+        editorLiveness.push(Boolean(editor && editor.isConnected && editor.getClientRects().length > 0));
+      });
+    }, { capture: true });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Backspace") return;
+      const startedAt = performance.now();
+      requestAnimationFrame(() => {
+        backspaceSamples.push(performance.now() - startedAt);
+        const editor = document.querySelector<HTMLElement>("[data-testid='editor-panel'] .cm-editor");
+        editorLiveness.push(Boolean(editor && editor.isConnected && editor.getClientRects().length > 0));
+      });
+    }, { capture: true });
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) longTasks.push(entry.duration);
+    });
+    observer.observe({ type: "longtask" });
+    Object.assign(window, {
+      __exoTypingSamples: samples,
+      __exoBackspaceSamples: backspaceSamples,
+      __exoTypingLongTasks: longTasks,
+      __exoTypingEditorLiveness: editorLiveness,
+      __exoTypingObserver: observer,
+    });
+  });
+}
+
+async function resetInputToPaintProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const scoped = window as typeof window & {
+      __exoTypingSamples?: number[];
+      __exoBackspaceSamples?: number[];
+      __exoTypingLongTasks?: number[];
+      __exoTypingEditorLiveness?: boolean[];
+      __exoTypingObserver?: PerformanceObserver;
+    };
+    scoped.__exoTypingObserver?.takeRecords();
+    scoped.__exoTypingSamples?.splice(0);
+    scoped.__exoBackspaceSamples?.splice(0);
+    scoped.__exoTypingLongTasks?.splice(0);
+    scoped.__exoTypingEditorLiveness?.splice(0);
+  });
+}
+
+async function readInputToPaintProbe(page: Page): Promise<InputToPaintProbeResult> {
+  return page.evaluate(() => {
+    const scoped = window as typeof window & {
+      __exoTypingSamples?: number[];
+      __exoBackspaceSamples?: number[];
+      __exoTypingLongTasks?: number[];
+      __exoTypingEditorLiveness?: boolean[];
+    };
+    return {
+      samples: [...(scoped.__exoTypingSamples ?? [])],
+      backspaceSamples: [...(scoped.__exoBackspaceSamples ?? [])],
+      longTasks: [...(scoped.__exoTypingLongTasks ?? [])],
+      editorLiveness: [...(scoped.__exoTypingEditorLiveness ?? [])],
+    };
+  });
+}
+
+async function disconnectInputToPaintProbe(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    (window as typeof window & { __exoTypingObserver?: PerformanceObserver }).__exoTypingObserver?.disconnect();
+  });
+}
+
+async function nextPaint(page: Page): Promise<void> {
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
 }

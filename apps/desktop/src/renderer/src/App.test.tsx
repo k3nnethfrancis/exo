@@ -50,9 +50,11 @@ import {
 import { summarizeIndexStatus } from "./indexStatusPresentation";
 import {
   clampSelectionToRenderedListText,
+  collectListMetadata,
   listEnterEdit,
   markdownImageTarget,
   shouldSuppressGeneratedTitleLine,
+  updateListMetadataForChanges,
   visibleLineNumbers,
   wikilinkExitEdit,
 } from "./components/markdownLivePreview";
@@ -794,6 +796,48 @@ describe("markdown live preview viewport work", () => {
     expect(visibleLineNumbers(state.doc, [{ from: 0, to: 20 }])).toEqual([1, 2, 3]);
     expect(visibleLineNumbers(state.doc, [{ from: state.doc.length - 20, to: state.doc.length }])).toEqual([4_998, 4_999, 5_000]);
   });
+
+  it("repairs list metadata locally across line joins and line-number shifts", () => {
+    const initial = EditorState.create({
+      doc: [
+        "# Before",
+        "",
+        "- first",
+        "  - nested",
+        "",
+        "Paragraph",
+        "",
+        "- distant",
+      ].join("\n"),
+    });
+    const joinAt = initial.doc.line(3).to;
+    const transaction = initial.update({ changes: { from: joinAt, to: joinAt + 1, insert: " " } });
+
+    const repaired = updateListMetadataForChanges(
+      initial.doc,
+      transaction.newDoc,
+      transaction.changes,
+      collectListMetadata(initial.doc),
+    );
+
+    expect([...repaired].sort(([left], [right]) => left - right)).toEqual([...collectListMetadata(transaction.newDoc)]);
+    expect(repaired.get(7)).toMatchObject({ marker: "-", isListStart: true });
+  });
+
+  it("repairs both list blocks when deleting their blank-line boundary", () => {
+    const initial = EditorState.create({ doc: "- first\n\n  - second\ncontinuation" });
+    const boundary = initial.doc.line(1).to;
+    const transaction = initial.update({ changes: { from: boundary, to: boundary + 1 } });
+
+    const repaired = updateListMetadataForChanges(
+      initial.doc,
+      transaction.newDoc,
+      transaction.changes,
+      collectListMetadata(initial.doc),
+    );
+
+    expect([...repaired].sort(([left], [right]) => left - right)).toEqual([...collectListMetadata(transaction.newDoc)]);
+  });
 });
 
 describe("terminal output chunking", () => {
@@ -1038,6 +1082,24 @@ describe("markdown editor wikilink behavior", () => {
     const references = graphReferencesForMarkdownMode(true, false, buildNoteGraphContext(graphContextFixture()));
 
     expect(references?.backlinks[0]).toEqual({ label: "Source", target: "/vault/source.md" });
+  });
+
+  it("renders one graph reference per target rather than one per mention", () => {
+    const base = graphContextFixture();
+    const fixture: WorkspaceGraphContext = {
+      ...base,
+      outgoing: [
+        ...base.outgoing,
+        { source: base.note.id, target: "goals", label: "Goals alias", resolution: "unresolved" },
+        { source: base.note.id, target: "later", label: "Later", resolution: "unresolved" },
+        { source: base.note.id, target: "goals", label: "goals", resolution: "unresolved" },
+      ],
+    };
+
+    expect(graphReferencesForMarkdownMode(true, false, buildNoteGraphContext(fixture))?.references).toEqual([
+      { label: "goals", target: "goals" },
+      { label: "Later", target: "later" },
+    ]);
   });
 
   it("derives active-note graph context from the bounded renderer snapshot adapter", () => {

@@ -1,7 +1,7 @@
 import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { flushSync } from "react-dom";
 
-import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import CodeMirror, { ExternalChange, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { bracketMatching, foldGutter } from "@codemirror/language";
@@ -121,6 +121,8 @@ export function NoteEditor(props: NoteEditorProps) {
   const [rawMarkdownMode, setRawMarkdownMode] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(false);
   const codeMirrorRef = useRef<ReactCodeMirrorRef>(null);
+  const renderedDocumentPathRef = useRef<string | null>(null);
+  const pendingDocumentSyncRef = useRef<{ filePath: string; body: string } | null>(null);
   const scrollTopByPathRef = useRef<Map<string, number>>(new Map());
   const selectionByPathRef = useRef<Map<string, { anchor: number; head: number }>>(new Map());
   const seededAuthoringPathsRef = useRef<Set<string>>(new Set());
@@ -147,6 +149,10 @@ export function NoteEditor(props: NoteEditorProps) {
   }, [document?.filePath]);
 
   const documentPath = document?.filePath ?? "";
+  if (renderedDocumentPathRef.current !== documentPath) {
+    renderedDocumentPathRef.current = documentPath;
+    pendingDocumentSyncRef.current = document ? { filePath: document.filePath, body: document.body } : null;
+  }
   const useMarkdownEditing = shouldUseMarkdownRenderer(document);
   const showNoteMetadata = useMarkdownEditing && isNoteDocument;
   const displayTitle = document ? getDocumentDisplayTitle(document.filePath, document.kind) : "";
@@ -175,18 +181,41 @@ export function NoteEditor(props: NoteEditorProps) {
     return enabled.some((command) => command.handle === "claude") ? enabled : [createDefaultClaudeAgentCommand(), ...enabled];
   }, [agentCommands]);
   const invokeAgentRef = useRef(onInvokeAgent);
+  const bodyChangeRef = useRef(onBodyChange);
   const openTargetRef = useRef(onOpenTarget);
   const openTagRef = useRef(onOpenTag);
+  const suggestTargetsRef = useRef(onSuggestTargets);
+  const previewTargetRef = useRef(onPreviewTarget);
   const resolveMarkdownImageRef = useRef(window.exo.notes.resolveMarkdownImage);
   const saveRef = useRef(onSave);
   const zoomEditorRef = useRef(onZoomEditor);
-  useEffect(() => {
-    invokeAgentRef.current = onInvokeAgent;
-  }, [onInvokeAgent]);
-  useEffect(() => { openTargetRef.current = onOpenTarget; }, [onOpenTarget]);
-  useEffect(() => { openTagRef.current = onOpenTag; }, [onOpenTag]);
-  useEffect(() => { saveRef.current = onSave; }, [onSave]);
-  useEffect(() => { zoomEditorRef.current = onZoomEditor; }, [onZoomEditor]);
+  // Event callbacks must stay stable for CodeMirror configuration without
+  // becoming stale for the first input after switching Notes.
+  invokeAgentRef.current = onInvokeAgent;
+  bodyChangeRef.current = onBodyChange;
+  openTargetRef.current = onOpenTarget;
+  openTagRef.current = onOpenTag;
+  suggestTargetsRef.current = onSuggestTargets;
+  previewTargetRef.current = onPreviewTarget;
+  saveRef.current = onSave;
+  zoomEditorRef.current = onZoomEditor;
+
+  useLayoutEffect(() => {
+    const pending = pendingDocumentSyncRef.current;
+    const view = codeMirrorRef.current?.view;
+    if (!pending || pending.filePath !== documentPath || !view) {
+      return;
+    }
+    pendingDocumentSyncRef.current = null;
+    const currentBody = view.state.doc.toString();
+    if (currentBody === pending.body) {
+      return;
+    }
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: pending.body },
+      annotations: ExternalChange.of(true),
+    });
+  });
   const agentComposer = useMemo(
     () => inlineAgentComposerExtension({
       onSend: (draft) => {
@@ -195,11 +224,11 @@ export function NoteEditor(props: NoteEditorProps) {
       },
       onClose: (documentBody) => {
         setInlineComposerActive(false);
-        startTransition(() => onBodyChange(documentBody));
+        startTransition(() => bodyChangeRef.current(documentBody));
       },
       renderPersistedInvocations: !rawMarkdownMode,
     }),
-    [onBodyChange, rawMarkdownMode],
+    [rawMarkdownMode],
   );
   const normalizedNewPropertyKey = normalizeFrontmatterPropertyKey(newPropertyKey);
   const newPropertyKeyFeedback = frontmatterPropertyKeyFeedback(newPropertyKey, document?.frontmatter ?? {});
@@ -261,7 +290,7 @@ export function NoteEditor(props: NoteEditorProps) {
         const surfaceRect = surface?.getBoundingClientRect();
         const left = cursorCoords && surfaceRect ? cursorCoords.left - surfaceRect.left : 24;
         const top = cursorCoords && surfaceRect ? cursorCoords.bottom - surfaceRect.top + 4 : 48;
-        void onSuggestTargets(linkContext.query).then((suggestions) => {
+        void suggestTargetsRef.current(linkContext.query).then((suggestions) => {
           if (requestId !== wikilinkSuggestionRequestRef.current) {
             return;
           }
@@ -279,7 +308,7 @@ export function NoteEditor(props: NoteEditorProps) {
           }
         });
       },
-    [onSuggestTargets, rawMarkdownMode, useMarkdownEditing],
+    [rawMarkdownMode, useMarkdownEditing],
   );
   const maybeUpdateAgentSuggestions = useMemo(
     () =>
@@ -327,11 +356,11 @@ export function NoteEditor(props: NoteEditorProps) {
       (value: string, update: ViewUpdate) => {
         // CodeMirror has already applied this edit. Deprioritise the
         // workspace-model update so long inline requests stay responsive.
-        startTransition(() => onBodyChange(value));
+        startTransition(() => bodyChangeRef.current(value));
         maybeUpdateWikilinkSuggestions(update);
         maybeUpdateAgentSuggestions(update);
       },
-    [maybeUpdateAgentSuggestions, maybeUpdateWikilinkSuggestions, onBodyChange],
+    [maybeUpdateAgentSuggestions, maybeUpdateWikilinkSuggestions],
   );
   const acceptAgentSuggestion = useMemo(
     () =>
@@ -439,7 +468,7 @@ export function NoteEditor(props: NoteEditorProps) {
         const requestId = ++wikilinkPreviewRequestRef.current;
         setWikilinkPreview({ target: linkTarget, left, top, title: linkTarget, excerpt: "", loading: true });
 
-        void onPreviewTarget(linkTarget).then((preview) => {
+        void previewTargetRef.current(linkTarget).then((preview) => {
           if (requestId !== wikilinkPreviewRequestRef.current) {
             return;
           }
@@ -454,7 +483,7 @@ export function NoteEditor(props: NoteEditorProps) {
           }
         });
       },
-    [onPreviewTarget, rawMarkdownMode, useMarkdownEditing, wikilinkPreview?.target],
+    [rawMarkdownMode, useMarkdownEditing, wikilinkPreview?.target],
   );
   const handleEditorSurfaceMouseLeave = useMemo(
     () =>
@@ -470,7 +499,7 @@ export function NoteEditor(props: NoteEditorProps) {
         {
           key: "Mod-s",
           run: (view) => {
-            if (inlineComposerActive) flushSync(() => onBodyChange(view.state.doc.toString()));
+            if (inlineComposerActive) flushSync(() => bodyChangeRef.current(view.state.doc.toString()));
             saveRef.current();
             return true;
           },
@@ -506,7 +535,7 @@ export function NoteEditor(props: NoteEditorProps) {
         indentWithTab,
         ...lintKeymap,
       ]),
-    [inlineComposerActive, onBodyChange],
+    [inlineComposerActive],
   );
 
   const markdownPreviewExtensions = useMemo(
@@ -626,6 +655,10 @@ export function NoteEditor(props: NoteEditorProps) {
   const handleEditorCreated = useMemo(
     () =>
       (view: EditorView) => {
+        const pendingSync = pendingDocumentSyncRef.current;
+        if (pendingSync?.filePath === documentPath && view.state.doc.toString() === pendingSync.body) {
+          pendingDocumentSyncRef.current = null;
+        }
         if (!document || !useMarkdownEditing || rawMarkdownMode || seededAuthoringPathsRef.current.has(document.filePath)) {
           return;
         }
@@ -639,7 +672,7 @@ export function NoteEditor(props: NoteEditorProps) {
         selectionByPathRef.current.set(document.filePath, { anchor: position, head: position });
         view.focus();
       },
-    [document, rawMarkdownMode, useMarkdownEditing],
+    [document, documentPath, rawMarkdownMode, useMarkdownEditing],
   );
 
   useEffect(() => {
@@ -792,7 +825,7 @@ export function NoteEditor(props: NoteEditorProps) {
             disabled={!document.dirty || saveStatus === "saving"}
             onClick={() => {
               const view = codeMirrorRef.current?.view;
-              if (inlineComposerActive && view) flushSync(() => onBodyChange(view.state.doc.toString()));
+              if (inlineComposerActive && view) flushSync(() => bodyChangeRef.current(view.state.doc.toString()));
               void saveRef.current();
             }}
             title={document.dirty ? "Save" : "No unsaved changes"}
@@ -937,7 +970,7 @@ export function NoteEditor(props: NoteEditorProps) {
           }}
           onBlur={() => {
             const view = codeMirrorRef.current?.view;
-            if (inlineComposerActive && view) startTransition(() => onBodyChange(view.state.doc.toString()));
+            if (inlineComposerActive && view) startTransition(() => bodyChangeRef.current(view.state.doc.toString()));
           }}
           onChange={inlineComposerActive ? undefined : handleEditorChange}
           onCreateEditor={handleEditorCreated}
