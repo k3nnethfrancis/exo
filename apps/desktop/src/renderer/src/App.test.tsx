@@ -6,7 +6,6 @@ import { EditorState } from "@codemirror/state";
 import { renderToStaticMarkup } from "react-dom/server";
 import type {
   IndexStatus,
-  InvocationRecord,
   NoteDocument,
   WorkspaceGraphContext,
   TreeNode,
@@ -40,7 +39,7 @@ import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { normalizeTerminalPresentation } from "./components/terminalPresentation";
 import { focusTerminal, registerTerminal, unregisterTerminal, writeTerminalData } from "./components/terminalRegistry";
-import { nextSuggestionIndex, normalizeFrontmatterPropertyKey, shouldUseMarkdownRenderer } from "./components/NoteEditor";
+import { firstChangedOffset, nextSuggestionIndex, normalizeFrontmatterPropertyKey, shouldUseMarkdownRenderer } from "./components/NoteEditor";
 import {
   WorkspaceSettingsDialog,
   indexSettingsStatusCopy,
@@ -91,12 +90,19 @@ import {
 } from "./graphAffordances";
 import type { WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
 import type { TerminalSessionInfo } from "../../shared/api";
-import { hasInvocationDirtyConflict } from "./invocationReviewState";
 import { AppInvocationAuthorizationGate, invocationAuthorizationForDecision } from "./appInvocationAuthorization";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
     expect(true).toBe(true);
+  });
+});
+
+describe("invocation review positioning", () => {
+  it("anchors at the first changed character, including append-only changes", () => {
+    expect(firstChangedOffset("alpha beta", "alpha zeta")).toBe(6);
+    expect(firstChangedOffset("alpha", "alpha beta")).toBe(5);
+    expect(firstChangedOffset("former", "")).toBe(0);
   });
 });
 
@@ -173,17 +179,6 @@ describe("agent invocation review", () => {
     expect(html).toContain("Always allow here");
     expect(invocationAuthorizationForDecision("once")).toEqual({ kind: "run-once" });
     expect(invocationAuthorizationForDecision("workspace")).toEqual({ kind: "always-allow" });
-  });
-
-  it("flags agent-written disk changes only when the open editor buffer is dirty", () => {
-    const record = invocationRecord({
-      changedFileRefs: [{ path: "/vault/current.md", kind: "modified", attribution: "likely", diffRefId: "diff-1" }],
-    });
-
-    expect(hasInvocationDirtyConflict(record, "/vault/current.md", { dirty: true }, new Set())).toBe(true);
-    expect(hasInvocationDirtyConflict(record, "/vault/current.md", { dirty: false }, new Set())).toBe(false);
-    expect(hasInvocationDirtyConflict(record, "/vault/other.md", { dirty: true }, new Set())).toBe(false);
-    expect(hasInvocationDirtyConflict(record, "/vault/current.md", { dirty: true }, new Set(["inv-1:/vault/current.md"]))).toBe(false);
   });
 
 });
@@ -1252,41 +1247,6 @@ function graphContextFixture(overrides: Partial<WorkspaceGraphContext["note"]> =
     backlinks: [{ source: source.id, target: source.filePath, label: "Source", resolution: "resolved", note: source }],
     unresolved: [{ source: note.id, target: "goals", label: "goals", resolution: "unresolved" }],
     neighborhood: [note, source],
-  };
-}
-
-function invocationRecord(overrides: Partial<InvocationRecord> = {}): InvocationRecord {
-  return {
-    id: "inv-1",
-    status: "process-exited",
-    context: "note",
-    taggedDocumentPath: "/vault/current.md",
-    originalMentionText: "@claude review this",
-    mentionProvenance: "human-authored",
-    message: "review this",
-    promptDelivery: "terminalInputAfterLaunch",
-    command: {
-      id: "claude",
-      label: "Claude",
-      handle: "claude",
-      command: "claude",
-      adapter: "claude-code",
-      continuityPolicy: "continuous",
-      cwdPolicy: "workspace_root",
-      promptDelivery: "terminalInputAfterLaunch",
-      version: 1,
-      enabled: true,
-      executableFingerprint: "fingerprint",
-    },
-    cwd: "/vault",
-    createdAt: "2026-07-08T00:00:00.000Z",
-    startedAt: "2026-07-08T00:00:01.000Z",
-    endedAt: "2026-07-08T00:00:02.000Z",
-    changedFileRefs: [],
-    diffRefs: [],
-    attribution: { status: "pending" },
-    continuity: { policy: "continuous", outcome: "fresh" },
-    ...overrides,
   };
 }
 

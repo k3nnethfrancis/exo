@@ -1,5 +1,6 @@
 import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exo/core";
-import type { InvocationReviewPayload } from "../../../shared/api";
+import type { InvocationFileReviewPayload } from "../../../shared/api";
+import type { InvocationReviewQueueProjection } from "./invocation";
 import type { DragManager } from "../hooks/useDragManager";
 import type { ExoThemeVariant } from "../theme/types";
 
@@ -50,6 +51,8 @@ interface EditorPaneProps {
   agentCommands: AgentCommand[];
   onInvokeAgent: (draft: InlineAgentDraft) => void;
   invocationReview: EditorInvocationReview | null;
+  historyAvailable: boolean;
+  onOpenHistory: () => void;
   theme: ExoThemeVariant;
   fontSize: number;
   onZoomEditor: (direction: -1 | 0 | 1) => void;
@@ -88,6 +91,8 @@ export function EditorPane(props: EditorPaneProps) {
     agentCommands,
     onInvokeAgent,
     invocationReview,
+    historyAvailable,
+    onOpenHistory,
     theme,
     fontSize,
     onZoomEditor,
@@ -175,6 +180,8 @@ export function EditorPane(props: EditorPaneProps) {
         agentCommands={agentCommands}
         onInvokeAgent={onInvokeAgent}
         invocationReview={invocationReview}
+        historyAvailable={historyAvailable}
+        onOpenHistory={onOpenHistory}
         onFocus={onFocusPane}
         theme={theme}
         fontSize={fontSize}
@@ -189,10 +196,15 @@ export function EditorPane(props: EditorPaneProps) {
 }
 
 export interface EditorInvocationReview {
-  hasDirtyConflict: boolean;
-  onKeepDirtyBuffer: () => void;
-  onReloadFromDisk: () => void;
-  reviewPayload: InvocationReviewPayload | null;
-  onKeepReview: () => void;
-  onRejectReview: () => void;
+  payload: InvocationFileReviewPayload;
+  queue: InvocationReviewQueueProjection;
+  readOnly: boolean;
+  onNavigate: (index: number) => void;
+  onKeepCurrent: () => void;
+  onRejectCurrent: () => void;
+  onKeepAll: () => void;
+  onRejectAll: () => void;
+  onRefreshConflict: () => void;
+  onOpenConflict: () => void;
+  onDismiss?: () => void;
 }

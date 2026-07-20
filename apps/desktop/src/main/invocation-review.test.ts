@@ -117,6 +117,19 @@ describe("InvocationReviewService", () => {
     await expect(store.readReviewJournal(conflicted.id)).resolves.toBeNull();
   });
 
+  it("resolves a drift conflict by keeping the exact current file without mutating it", async () => {
+    const fixture = await changesetFixture();
+    const service = new InvocationReviewService(fixture.workspaceRoot);
+    const modified = fixture.record.changeset!.files.find((change) => change.operation === "modified")!;
+    await writeFile(fixture.paths.modified, "newer human work\n", "utf8");
+    const conflicted = await service.resolve(fixture.record, [{ changeId: modified.id, action: "reject" }]);
+
+    const resolved = await service.resolve(conflicted, [{ changeId: modified.id, action: "keep" }]);
+
+    expect(resolved.changeset?.files.find((change) => change.id === modified.id)?.decision.status).toBe("kept");
+    await expect(readFile(fixture.paths.modified, "utf8")).resolves.toBe("newer human work\n");
+  });
+
   it("uses the clean protocol base for Reject and preserves frontmatter bytes", async () => {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-envelope-review-"));
     temporaryRoots.push(workspaceRoot);

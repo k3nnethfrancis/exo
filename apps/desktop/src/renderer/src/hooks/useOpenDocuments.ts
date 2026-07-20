@@ -7,6 +7,8 @@ import type { FileStatInfo } from "../../../shared/api";
 export interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
   diskVersion: FileStatInfo | null;
+  /** Ephemeral review documents are exact snapshots and never save to disk. */
+  readOnly?: boolean;
 }
 
 export type DocumentSaveStatus = "idle" | "saving" | "saved" | "error";
@@ -112,6 +114,21 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     scheduleMarkdownContextRefresh(document, filePath);
   }
 
+  function openVirtualDocument(document: NoteDocument) {
+    const nextDocuments = {
+      ...openDocumentsRef.current,
+      [document.filePath]: {
+        ...document,
+        dirty: false,
+        diskVersion: null,
+        readOnly: true,
+      },
+    };
+    openDocumentsRef.current = nextDocuments;
+    setOpenDocuments(nextDocuments);
+    setDocumentSaveStatuses((current) => ({ ...current, [document.filePath]: "idle" }));
+  }
+
   function scheduleRefresh(filePath: string, diskVersion?: FileStatInfo | null) {
     const currentDocument = openDocumentsRef.current[filePath];
     if (!currentDocument || currentDocument.dirty) {
@@ -213,7 +230,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
 
   function updateBody(body: string) {
     const filePath = activeDocumentPathRef.current;
-    if (!filePath || !openDocumentsRef.current[filePath]) {
+    if (!filePath || !openDocumentsRef.current[filePath] || openDocumentsRef.current[filePath]?.readOnly) {
       return;
     }
 
@@ -238,7 +255,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
 
   function updateFrontmatter(key: string, value: unknown) {
     const filePath = activeDocumentPathRef.current;
-    if (!filePath || !openDocumentsRef.current[filePath]) {
+    if (!filePath || !openDocumentsRef.current[filePath] || openDocumentsRef.current[filePath]?.readOnly) {
       return;
     }
 
@@ -265,7 +282,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   async function saveDocument(filePath: string) {
     cancelPendingAutosave(filePath);
     const document = openDocumentsRef.current[filePath];
-    if (!document) {
+    if (!document || document.readOnly) {
       return;
     }
 
@@ -464,6 +481,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     setActiveDocumentPath,
     pruneToOpenPaths,
     ensureDocumentLoaded,
+    openVirtualDocument,
     scheduleRefresh,
     reloadFromDisk,
     updateBody,

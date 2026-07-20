@@ -40,7 +40,7 @@ describe("InvocationReviewControls", () => {
       <InvocationReviewControls queue={{ items: [items[0]!], currentIndex: 0 }} {...callbacks} />,
     );
 
-    expect(html).toContain('aria-label="Review agent changes"');
+    expect(html).toContain('aria-label="Review invocation changes"');
     expect(html).toContain("Created");
     expect(html).toContain("Binary");
     expect(html).toContain('aria-label="Reject"');
@@ -83,6 +83,7 @@ describe("InvocationReviewControls", () => {
           items: [{ ...items[2]!, conflict: "The file changed after the agent finished." }],
         }}
         onOpenConflict={() => {}}
+        onKeepConflict={() => {}}
         onRefreshConflict={() => {}}
         {...callbacks}
       />,
@@ -93,6 +94,7 @@ describe("InvocationReviewControls", () => {
     expect(html).toContain("The file changed after the agent finished.");
     expect(html).toContain('aria-label="Refresh review"');
     expect(html).toContain('aria-label="Open file"');
+    expect(html).toContain('aria-label="Keep current"');
     expect(html).not.toContain('aria-label="Reject"');
     expect(html).not.toContain('aria-label="Keep"');
     expect(html).not.toContain("All 1 files");

@@ -3,6 +3,7 @@ import type { InvocationRecord } from "@exo/core";
 import type { InvocationActivityEvent } from "@exo/core/invocation-activity";
 
 import {
+  acknowledgeInvocationActivity,
   applyInvocationActivityEvent,
   applyInvocationRecord,
   beginInvocationActivity,
@@ -44,6 +45,15 @@ function record(status: InvocationRecord["status"]): InvocationRecord {
 }
 
 describe("invocation activity state", () => {
+  it("acknowledges a send synchronously without claiming provider work began", () => {
+    expect(acknowledgeInvocationActivity(command)).toEqual({
+      invocationId: null,
+      kind: "checking",
+      commandHandle: "claude",
+      commandLabel: "Claude",
+    });
+  });
+
   it("moves through bounded activity and terminal states", () => {
     const started = beginInvocationActivity(command);
     const reading = applyInvocationActivityEvent(started, {
@@ -113,6 +123,15 @@ describe("invocation activity state", () => {
       commandHandle: "claude",
       kind: "failed",
       errorDetail: "Unable to stop the process.",
+    });
+  });
+
+  it("retains Resume for failed invocations without reviewable file changes", () => {
+    const failed = { ...record("failed"), providerSessionId: "session-1", failureReason: "Provider exited." };
+    expect(applyInvocationRecord(beginInvocationActivity(command), failed)).toMatchObject({
+      invocationId: "invocation-1",
+      kind: "failed",
+      providerSessionId: "session-1",
     });
   });
 });

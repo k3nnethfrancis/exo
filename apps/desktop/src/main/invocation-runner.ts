@@ -112,6 +112,7 @@ export interface InvocationReviewListItem {
   command: Pick<InvocationRecord["command"], "handle" | "label">;
   changedFileCount: number;
   pendingFileCount: number;
+  pendingChangeIds: string[];
   status: InvocationRecord["status"];
 }
 
@@ -122,6 +123,7 @@ export interface InvocationHistoryItem {
   command: Pick<InvocationRecord["command"], "handle" | "label">;
   outcome: "kept" | "rejected" | "pending" | "failed";
   changedFileCount: number;
+  changeIds: string[];
   providerSessionId?: string;
 }
 
@@ -683,6 +685,7 @@ export class InvocationRunner extends EventEmitter {
         command: { handle: record.command.handle, label: record.command.label },
         outcome: invocationHistoryOutcome(record),
         changedFileCount: record.changeset?.files.length ?? 0,
+        changeIds: record.changeset?.files.map((change) => change.id) ?? [],
         ...(record.providerSessionId ? { providerSessionId: record.providerSessionId } : {}),
       }));
   }
@@ -1118,6 +1121,9 @@ function reviewListItem(record: InvocationRecord): InvocationReviewListItem {
     command: { handle: record.command.handle, label: record.command.label },
     changedFileCount: record.changeset?.files.length ?? 0,
     pendingFileCount: record.changeset?.files.filter((change) => isUnresolvedReviewDecision(change.decision.status)).length ?? 0,
+    pendingChangeIds: record.changeset?.files
+      .filter((change) => isUnresolvedReviewDecision(change.decision.status))
+      .map((change) => change.id) ?? [],
     status: record.status,
   };
 }

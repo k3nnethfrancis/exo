@@ -614,7 +614,7 @@ describe("InvocationRunner readiness parity", () => {
       review: { status: "pending" },
     });
     await expect(runner.listHistoryForNote(createdPath)).resolves.toEqual([
-      expect.objectContaining({ invocationId: failed.id, outcome: "pending", changedFileCount: 1 }),
+      expect.objectContaining({ invocationId: failed.id, outcome: "pending", changedFileCount: 1, changeIds: [failed.changeset!.files[0]!.id] }),
     ]);
     await runner.reviewInvocationAll(failed.id, "keep");
     await expect(readFile(createdPath, "utf8")).resolves.toBe("partial\n");
@@ -829,10 +829,20 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     processFactory.process.exit(0, "done");
     let completed = await updated;
     await expect(runner.listPendingReviews()).resolves.toEqual([
-      expect.objectContaining({ invocationId: completed.id, changedFileCount: 2, pendingFileCount: 2 }),
+      expect.objectContaining({
+        invocationId: completed.id,
+        changedFileCount: 2,
+        pendingFileCount: 2,
+        pendingChangeIds: completed.changeset!.files.map((change) => change.id),
+      }),
     ]);
     await expect(runner.listHistoryForNote(notePath)).resolves.toEqual([
-      expect.objectContaining({ invocationId: completed.id, outcome: "pending", changedFileCount: 2 }),
+      expect.objectContaining({
+        invocationId: completed.id,
+        outcome: "pending",
+        changedFileCount: 2,
+        changeIds: completed.changeset!.files.map((change) => change.id),
+      }),
     ]);
 
     const created = completed.changeset!.files.find((change) => change.operation === "created")!;

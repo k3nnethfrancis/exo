@@ -16,6 +16,7 @@ export interface InvocationActivityState {
   commandLabel: string;
   label?: string;
   errorDetail?: string;
+  providerSessionId?: string;
 }
 
 const INVOCATION_ERROR_DETAIL_LIMIT = 180;
@@ -24,6 +25,18 @@ export function beginInvocationActivity(command: Pick<AgentCommand, "handle" | "
   return {
     invocationId: null,
     kind: "working",
+    commandHandle: command.handle,
+    commandLabel: command.label,
+  };
+}
+
+/** A synchronous, truthful acknowledgement while Exo checks launch authority. */
+export function acknowledgeInvocationActivity(
+  command: Pick<AgentCommand, "handle" | "label">,
+): InvocationActivityState {
+  return {
+    invocationId: null,
+    kind: "checking",
     commandHandle: command.handle,
     commandLabel: command.label,
   };
@@ -92,6 +105,7 @@ export function applyInvocationRecord(
     commandLabel: record.command.label,
     ...(kind === "failed" ? { errorDetail: boundedInvocationErrorDetail(record.failureReason) } : {}),
     ...(kind === activeKind && current?.label ? { label: current.label } : {}),
+    ...(record.providerSessionId ? { providerSessionId: record.providerSessionId } : {}),
   };
 }
 

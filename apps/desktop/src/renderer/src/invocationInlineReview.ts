@@ -1,10 +1,10 @@
 import { unifiedMergeView } from "@codemirror/merge";
 import type { Extension } from "@codemirror/state";
 
-import type { InvocationReviewPayload } from "../../shared/api";
+import type { InvocationFileReviewPayload } from "../../shared/api";
 
 interface InvocationInlineReviewInput {
-  payload: InvocationReviewPayload | null;
+  payload: InvocationFileReviewPayload | null;
   documentKind: "markdown" | "text";
   rawMarkdownMode: boolean;
 }
@@ -18,21 +18,28 @@ export function invocationInlineReviewExtension(input: InvocationInlineReviewInp
   const { payload } = input;
   if (
     input.rawMarkdownMode ||
-    payload?.before === null ||
-    payload?.before === undefined ||
-    payload.invocation.review?.status !== "pending"
+    !payload ||
+    (payload.change.after?.mediaType ?? payload.change.before?.mediaType) === "binary" ||
+    payload.change.decision.status === "rejected"
   ) {
     return [];
   }
 
   return unifiedMergeView({
-    original: invocationSnapshotBody(payload.before, input.documentKind),
+    original: invocationReviewOriginal(payload, input.documentKind),
     allowInlineDiffs: true,
     gutter: false,
     highlightChanges: true,
     mergeControls: false,
     syntaxHighlightDeletions: false,
   });
+}
+
+export function invocationReviewOriginal(
+  payload: InvocationFileReviewPayload,
+  documentKind: "markdown" | "text",
+): string {
+  return invocationSnapshotBody(payload.beforeText ?? "", documentKind);
 }
 
 /**

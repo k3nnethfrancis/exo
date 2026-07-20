@@ -153,6 +153,8 @@ export interface InvocationReviewListItem {
   command: Pick<InvocationRecord["command"], "handle" | "label">;
   changedFileCount: number;
   pendingFileCount: number;
+  /** Opaque review keys in deterministic changeset order. */
+  pendingChangeIds: string[];
   status: InvocationRecord["status"];
 }
 
@@ -163,6 +165,8 @@ export interface InvocationHistoryItem {
   command: Pick<InvocationRecord["command"], "handle" | "label">;
   outcome: "kept" | "rejected" | "pending" | "failed";
   changedFileCount: number;
+  /** Opaque review keys in deterministic changeset order. */
+  changeIds: string[];
   providerSessionId?: string;
 }
 

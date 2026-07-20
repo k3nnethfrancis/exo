@@ -94,6 +94,7 @@
 
 .invocation-review-controls__path { font: 10px/1.35 var(--mono); }
 .invocation-review-controls__summary { margin: 0; font-size: 11px; line-height: 1.35; }
+.invocation-review-controls__resolved { justify-self: end; color: var(--text-muted); font-size: 10px; font-weight: 650; }
 
 .invocation-review-controls__navigation,
 .invocation-review-controls__decisions,
@@ -105,6 +106,7 @@
 }
 
 .invocation-review-controls__navigation { gap: 1px; }
+.invocation-review-controls__navigation nav { display: flex; gap: 1px; }
 .invocation-review-controls__decisions { justify-content: flex-end; }
 
 .invocation-review-decision {

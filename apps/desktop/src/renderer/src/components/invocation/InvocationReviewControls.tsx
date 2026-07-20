@@ -12,6 +12,7 @@ import {
   RotateCcw,
   ShieldAlert,
   Undo2,
+  X,
   type LucideIcon,
 } from "lucide-react";
 import type { CSSProperties, ReactNode } from "react";
@@ -29,6 +30,7 @@ export interface InvocationReviewItemProjection {
   mediaType?: InvocationReviewMediaType;
   summary?: string;
   conflict?: string;
+  resolved?: "kept" | "rejected";
 }
 
 export interface InvocationReviewQueueProjection {
@@ -53,6 +55,8 @@ export interface InvocationReviewControlsProps {
   onRejectAll?: () => void;
   onRefreshConflict?: (item: InvocationReviewItemProjection, index: number) => void;
   onOpenConflict?: (item: InvocationReviewItemProjection, index: number) => void;
+  onKeepConflict?: (item: InvocationReviewItemProjection, index: number) => void;
+  onDismiss?: () => void;
 }
 
 export function InvocationReviewControls({
@@ -65,6 +69,8 @@ export function InvocationReviewControls({
   onRejectAll,
   onRefreshConflict,
   onOpenConflict,
+  onKeepConflict,
+  onDismiss,
 }: InvocationReviewControlsProps) {
   if (queue.items.length === 0) return null;
 
@@ -79,7 +85,7 @@ export function InvocationReviewControls({
 
   return (
     <section
-      aria-label="Review agent changes"
+      aria-label="Review invocation changes"
       className={`invocation-review-controls${conflicted ? " invocation-review-controls--conflict" : ""}`}
       data-multiple={multiple ? "true" : "false"}
       data-narrow={position?.maxWidth !== undefined && position.maxWidth <= 320 ? "true" : "false"}
@@ -106,23 +112,28 @@ export function InvocationReviewControls({
             {reviewPathSummary(item)}
           </span>
         </div>
-        {multiple ? (
-          <nav aria-label="Review files" className="invocation-review-controls__navigation">
-            <IconAction
-              disabled={index === 0 || !onNavigate}
-              label="Previous file"
-              onClick={() => onNavigate?.(index - 1)}
-            >
-              <ChevronLeft size={15} />
-            </IconAction>
-            <IconAction
-              disabled={index === queue.items.length - 1 || !onNavigate}
-              label="Next file"
-              onClick={() => onNavigate?.(index + 1)}
-            >
-              <ChevronRight size={15} />
-            </IconAction>
-          </nav>
+        {multiple || onDismiss ? (
+          <div className="invocation-review-controls__navigation">
+            {multiple ? (
+              <nav aria-label="Review files">
+                <IconAction
+                  disabled={index === 0 || !onNavigate}
+                  label="Previous file"
+                  onClick={() => onNavigate?.(index - 1)}
+                >
+                  <ChevronLeft size={15} />
+                </IconAction>
+                <IconAction
+                  disabled={index === queue.items.length - 1 || !onNavigate}
+                  label="Next file"
+                  onClick={() => onNavigate?.(index + 1)}
+                >
+                  <ChevronRight size={15} />
+                </IconAction>
+              </nav>
+            ) : null}
+            {onDismiss ? <IconAction label="Close review" onClick={onDismiss}><X size={14} /></IconAction> : null}
+          </div>
         ) : null}
       </header>
 
@@ -130,9 +141,14 @@ export function InvocationReviewControls({
         <p className="invocation-review-controls__summary">{item.summary}</p>
       ) : null}
 
-      {conflicted ? (
+      {item.resolved ? (
+        <div className="invocation-review-controls__resolved" role="status">
+          {item.resolved === "kept" ? "Kept" : "Rejected"}
+        </div>
+      ) : conflicted ? (
         <ConflictActions
           conflict={item.conflict ?? "The file changed after this review was prepared."}
+          onKeep={onKeepConflict ? () => onKeepConflict(item, index) : undefined}
           onOpen={onOpenConflict ? () => onOpenConflict(item, index) : undefined}
           onRefresh={onRefreshConflict ? () => onRefreshConflict(item, index) : undefined}
         />
@@ -177,10 +193,12 @@ function ConflictActions({
   conflict,
   onOpen,
   onRefresh,
+  onKeep,
 }: {
   conflict: string;
   onOpen?: () => void;
   onRefresh?: () => void;
+  onKeep?: () => void;
 }) {
   return (
     <div className="invocation-review-controls__conflict">
@@ -190,6 +208,9 @@ function ConflictActions({
         <span>{conflict}</span>
       </p>
       <div aria-label="Conflict actions" role="group">
+        {onKeep ? (
+          <IconAction label="Keep current" onClick={onKeep}><Check size={14} /></IconAction>
+        ) : null}
         {onRefresh ? (
           <IconAction label="Refresh review" onClick={onRefresh}><RotateCcw size={14} /></IconAction>
         ) : null}

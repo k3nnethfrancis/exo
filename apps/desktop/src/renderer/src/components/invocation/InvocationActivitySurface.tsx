@@ -16,6 +16,7 @@ import { AgentIcon } from "../AgentIcon";
 import "./invocation-ui.css";
 
 export type InvocationActivityKind =
+  | "checking"
   | "working"
   | "reading"
   | "searching"
@@ -121,7 +122,8 @@ function agentKind(handle: string): "claude" | "codex" | "default" {
 }
 
 export function activityTitle(kind: InvocationActivityKind, label?: string): string {
-  const base = kind === "working" ? "Working"
+  const base = kind === "checking" ? "Checking"
+    : kind === "working" ? "Working"
     : kind === "reading" ? "Reading"
       : kind === "searching" ? "Searching"
         : kind === "editing" ? "Editing"

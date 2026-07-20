@@ -8,10 +8,10 @@ import { bracketMatching, foldGutter } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
-import { Code2, Network, Plus, Save, SlidersHorizontal } from "lucide-react";
+import { Clock3, Code2, Network, Plus, Save, SlidersHorizontal } from "lucide-react";
 import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
-import type { InvocationReviewPayload } from "../../../shared/api";
+import type { InvocationFileReviewPayload } from "../../../shared/api";
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
 import type { ExoThemeVariant } from "../theme/types";
 import { codeLanguageForPath } from "./codeLanguages";
@@ -19,7 +19,8 @@ import { AgentIcon } from "./AgentIcon";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
 import { inlineAgentComposerExtension, isPersistedInvocationPosition, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
-import { invocationInlineReviewExtension } from "../invocationInlineReview";
+import { invocationInlineReviewExtension, invocationReviewOriginal } from "../invocationInlineReview";
+import { InvocationReviewControls, type InvocationReviewPosition, type InvocationReviewQueueProjection } from "./invocation";
 import {
   buildNoteGraphContext,
   graphReferencesForMarkdownMode,
@@ -59,6 +60,7 @@ interface AgentSuggestionState {
 
 interface EditorDocument extends NoteDocument {
   dirty: boolean;
+  readOnly?: boolean;
 }
 
 interface NoteEditorProps {
@@ -78,6 +80,8 @@ interface NoteEditorProps {
   agentCommands: AgentCommand[];
   onInvokeAgent: (draft: InlineAgentDraft) => void;
   invocationReview: NoteInvocationReview | null;
+  historyAvailable: boolean;
+  onOpenHistory: () => void;
   onFocus: () => void;
   theme: ExoThemeVariant;
   fontSize: number;
@@ -108,6 +112,8 @@ export function NoteEditor(props: NoteEditorProps) {
     agentCommands,
     onInvokeAgent,
     invocationReview,
+    historyAvailable,
+    onOpenHistory,
     onFocus,
     theme,
     fontSize,
@@ -137,6 +143,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const [inlineComposerActive, setInlineComposerActive] = useState(false);
   const [newPropertyKey, setNewPropertyKey] = useState("");
   const [newPropertyValue, setNewPropertyValue] = useState("");
+  const [reviewPosition, setReviewPosition] = useState<InvocationReviewPosition | undefined>(undefined);
 
   useEffect(() => {
     setRawMarkdownMode(false);
@@ -553,11 +560,11 @@ export function NoteEditor(props: NoteEditorProps) {
   );
   const invocationReviewExtensions = useMemo(
     () => invocationInlineReviewExtension({
-      payload: invocationReview?.reviewPayload ?? null,
+      payload: invocationReview?.payload ?? null,
       documentKind: document?.kind ?? "text",
       rawMarkdownMode,
     }),
-    [document?.kind, invocationReview?.reviewPayload, rawMarkdownMode],
+    [document?.kind, invocationReview?.payload, rawMarkdownMode],
   );
   const editorExtensions = useMemo(
     () => useMarkdownEditing
@@ -678,6 +685,38 @@ export function NoteEditor(props: NoteEditorProps) {
     [document, documentPath, rawMarkdownMode, useMarkdownEditing],
   );
 
+  useLayoutEffect(() => {
+    const view = codeMirrorRef.current?.view;
+    if (!view || !invocationReview?.payload) {
+      setReviewPosition(undefined);
+      return;
+    }
+    const payload = invocationReview.payload;
+    const original = invocationReviewOriginal(payload, document?.kind ?? "text");
+    const place = () => {
+      const position = firstChangedOffset(original, view.state.doc.toString());
+      const coords = view.coordsAtPos(clampPosition(position, view.state.doc.length));
+      const surface = view.dom.closest<HTMLElement>(".editor-surface");
+      const bounds = surface?.getBoundingClientRect();
+      if (!coords || !bounds) return;
+      const maxWidth = Math.max(180, Math.min(390, bounds.width - 24));
+      const left = Math.max(bounds.left + 12, Math.min(coords.left + 20, bounds.right - maxWidth - 12));
+      const preferredTop = coords.bottom + 8;
+      const top = preferredTop + 190 <= bounds.bottom
+        ? preferredTop
+        : Math.max(bounds.top + 12, coords.top - 174);
+      setReviewPosition({ left, top, maxWidth, origin: `${Math.round(coords.left)}px ${Math.round(coords.top)}px` });
+    };
+    place();
+    const scroller = view.scrollDOM;
+    scroller.addEventListener("scroll", place, { passive: true });
+    window.addEventListener("resize", place);
+    return () => {
+      scroller.removeEventListener("scroll", place);
+      window.removeEventListener("resize", place);
+    };
+  }, [document?.filePath, document?.kind, invocationReview?.payload]);
+
   useEffect(() => {
     if (!document || !revealLineRequest || revealLineRequest.filePath !== document.filePath) {
       return;
@@ -790,6 +829,18 @@ export function NoteEditor(props: NoteEditorProps) {
                 type="button"
               >
                 <SlidersHorizontal size={14} />
+              </button>
+            ) : null}
+            {historyAvailable ? (
+              <button
+                aria-label="Open invocation history"
+                className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
+                data-testid="open-invocation-history"
+                onClick={onOpenHistory}
+                title="History"
+                type="button"
+              >
+                <Clock3 size={14} />
               </button>
             ) : null}
             {showNoteMetadata ? (
@@ -934,7 +985,6 @@ export function NoteEditor(props: NoteEditorProps) {
                 ) : null}
               </div>
             </div>
-            {graphPropertyEntries.length === 0 ? <div className="properties-card__empty">No properties</div> : null}
           </div>
         </div>
       ) : !useMarkdownEditing ? (
@@ -948,7 +998,7 @@ export function NoteEditor(props: NoteEditorProps) {
       ) : null}
 
       <div
-        className={`editor-surface ${useMarkdownEditing && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!useMarkdownEditing ? "editor-surface--code" : ""} ${invocationReview?.reviewPayload?.invocation.review?.status === "pending" && !rawMarkdownMode ? "editor-surface--invocation-review" : ""}`}
+        className={`editor-surface ${useMarkdownEditing && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!useMarkdownEditing ? "editor-surface--code" : ""} ${invocationReview && !rawMarkdownMode ? "editor-surface--invocation-review" : ""}`}
         onKeyDownCapture={handleEditorSurfaceKeyDown}
         onMouseLeave={handleEditorSurfaceMouseLeave}
         onMouseMove={handleEditorSurfaceMouseMove}
@@ -964,6 +1014,7 @@ export function NoteEditor(props: NoteEditorProps) {
             foldGutter: false,
             highlightSelectionMatches: false,
           }}
+          editable={!document.readOnly}
           onBlur={() => {
             const view = codeMirrorRef.current?.view;
             if (inlineComposerActive && view) startTransition(() => bodyChangeRef.current(view.state.doc.toString()));
@@ -1036,53 +1087,20 @@ export function NoteEditor(props: NoteEditorProps) {
             ))}
           </div>
         ) : null}
-        {invocationReview?.reviewPayload?.before !== null &&
-        invocationReview?.reviewPayload?.before !== undefined &&
-        invocationReview.reviewPayload.after !== null ? (
-          <div
-            className={`invocation-review ${invocationReview.hasDirtyConflict ? "invocation-review--danger" : ""}`}
-            data-testid="invocation-review-proposal"
-          >
-            <div className="invocation-review__proposal">
-              <div className="invocation-review__proposal-header">
-                <span>
-                  <strong>Saved to disk.</strong>
-                  {invocationReview.hasDirtyConflict
-                    ? " Showing changes against your current buffer. Reject is unavailable until the buffer matches disk."
-                    : " Review changes inline. Reject restores the pre-invocation snapshot."}
-                </span>
-                <span>
-                  {invocationReview.hasDirtyConflict ? (
-                    <>
-                      <button className="toolbar-button" data-testid="invocation-keep-dirty-buffer" onClick={invocationReview.onKeepDirtyBuffer} type="button">
-                        Keep buffer
-                      </button>
-                      <button className="toolbar-button toolbar-button--primary" data-testid="invocation-reload-disk" onClick={invocationReview.onReloadFromDisk} type="button">
-                        Reload disk
-                      </button>
-                    </>
-                  ) : null}
-                  {invocationReview.reviewPayload.invocation.review?.status === "pending" ? (
-                    <>
-                      <button className="toolbar-button" data-testid="invocation-keep-review" onClick={invocationReview.onKeepReview} type="button">Keep</button>
-                      {invocationReview.reviewPayload.canReject ? (
-                        <button
-                          className="toolbar-button"
-                          data-testid="invocation-reject-review"
-                          disabled={invocationReview.hasDirtyConflict}
-                          onClick={invocationReview.onRejectReview}
-                          title={invocationReview.hasDirtyConflict ? "Resolve the editor/disk conflict before restoring the snapshot" : "Restore the pre-invocation snapshot"}
-                          type="button"
-                        >
-                          Reject
-                        </button>
-                      ) : null}
-                    </>
-                  ) : invocationReview.reviewPayload.invocation.review?.status === "kept" ? "Kept" : "Rejected"}
-                </span>
-              </div>
-            </div>
-          </div>
+        {invocationReview ? (
+          <InvocationReviewControls
+            queue={invocationReview.queue}
+            position={reviewPosition}
+            onNavigate={invocationReview.onNavigate}
+            onKeepCurrent={() => invocationReview.onKeepCurrent()}
+            onRejectCurrent={() => invocationReview.onRejectCurrent()}
+            onKeepAll={invocationReview.readOnly ? undefined : invocationReview.onKeepAll}
+            onRejectAll={invocationReview.readOnly ? undefined : invocationReview.onRejectAll}
+            onKeepConflict={invocationReview.readOnly ? undefined : () => invocationReview.onKeepCurrent()}
+            onRefreshConflict={invocationReview.onRefreshConflict}
+            onOpenConflict={invocationReview.onOpenConflict}
+            onDismiss={invocationReview.onDismiss}
+          />
         ) : null}
       </div>
 
@@ -1091,16 +1109,28 @@ export function NoteEditor(props: NoteEditorProps) {
 }
 
 interface NoteInvocationReview {
-  hasDirtyConflict: boolean;
-  onKeepDirtyBuffer: () => void;
-  onReloadFromDisk: () => void;
-  reviewPayload: InvocationReviewPayload | null;
-  onKeepReview: () => void;
-  onRejectReview: () => void;
+  payload: InvocationFileReviewPayload;
+  queue: InvocationReviewQueueProjection;
+  readOnly: boolean;
+  onNavigate: (index: number) => void;
+  onKeepCurrent: () => void;
+  onRejectCurrent: () => void;
+  onKeepAll: () => void;
+  onRejectAll: () => void;
+  onRefreshConflict: () => void;
+  onOpenConflict: () => void;
+  onDismiss?: () => void;
 }
 
 function clampPosition(position: number, docLength: number): number {
   return Math.max(0, Math.min(position, docLength));
+}
+
+export function firstChangedOffset(before: string, after: string): number {
+  const shared = Math.min(before.length, after.length);
+  let index = 0;
+  while (index < shared && before.charCodeAt(index) === after.charCodeAt(index)) index += 1;
+  return index;
 }
 
 function initialMarkdownAuthoringPosition(body: string): number | null {
