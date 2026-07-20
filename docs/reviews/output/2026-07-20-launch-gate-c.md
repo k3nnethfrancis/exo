@@ -2,7 +2,7 @@
 
 ## Outcome
 
-Gate C passes on `launch/gate-c`. Inline configured Commands now produce one
+Gate C passes on source/package commit `cbe88cf`. Inline configured Commands now produce one
 exact, restart-safe Changeset across authorized Note Roots. Every review action
 operates on known bytes and file operations rather than guessed authorship.
 The page-native review flow, native-process lifecycle, legacy migration, source
@@ -86,11 +86,16 @@ Final gates run from the clean integration branch:
   editor/navigation latency journeys.
 
 Gate B performance remained intact in the full source run: 1,200-Note derived
-typing p90 11.9 ms, derived navigation p90 41.0 ms, warmed Search p90 10.2 ms,
-Explorer p90 42.2 ms, CLI navigation p90 85.0 ms, filename Search p90 47.1 ms,
-breadcrumbs p90 30.9 ms, backlinks p90 40.2 ms, trusted typing p90 14.5 ms,
-rapid Backspace p90 11.3 ms, and active invocation typing p90 15.0 ms, with zero
+typing p90 12.0 ms, derived navigation p90 41.4 ms, warmed Search p90 10.3 ms,
+Explorer p90 41.0 ms, CLI navigation p90 84.6 ms, filename Search p90 47.0 ms,
+breadcrumbs p90 30.5 ms, backlinks p90 39.8 ms, trusted typing p90 14.5 ms,
+rapid Backspace p90 11.5 ms, and active invocation typing p90 14.9 ms, with zero
 renderer long tasks.
+
+The exact package preserved those budgets: Explorer p90 41.5 ms, CLI total p90
+85.0 ms, filename Search p90 46.8 ms, breadcrumbs p90 30.2 ms, backlinks p90
+39.9 ms, trusted typing p90 14.9 ms, rapid Backspace p90 11.3 ms, and active
+invocation typing p90 14.8 ms, with exact editor/disk bytes and zero long tasks.
 
 The first combined packaged run exposed one test-only content assertion: the
 deletion stress fixture appended `- item` directly to a digit line. The app
@@ -114,5 +119,10 @@ typing p90 14.4–15.0 ms, exact editor/disk content, and zero long tasks.
 
 `EXO-ISSUE-111`, the Node 26 CLI process-start floor, remains non-blocking. The
 measured total CLI route still passes its product budget.
+
+The final unsigned app is 467 MB. Executable SHA-256:
+`51ea98f5b4ff5e5c079a6953a886a10999e5b355a76bcd92ff5dd59cb7167bd9`;
+`app.asar` SHA-256:
+`ccc7a4329ca596ac19864266fbd0584e0b3aa67a6a0d3610e1443b0ec4e58703`.
 
 -- Exo | 2026-07-20
