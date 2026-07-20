@@ -1099,7 +1099,8 @@ button svg,
 }
 
 .editor-surface--live-preview .exo-md-image {
-  display: inline-block;
+  display: block;
+  width: 100%;
   vertical-align: top;
   max-width: 100%;
   min-height: 1.6em;
