@@ -70,6 +70,17 @@ Across five consecutive isolated repeats, the 50K/250K compiled-camera p95
 range was 13.54–16.15 ms. The focused M2 Max gate is therefore `< 16.7 ms`.
 It is hardware-stamped rather than generalized to other machines.
 
+Run the wall-clock gate in isolation:
+
+```sh
+pnpm graph:presentation:perf
+```
+
+Ordinary unit suites still verify exact output parity, capacity reuse, and
+finite measurements, but do not enforce wall-clock time while other test files
+compete for the same CPU. The dedicated command sets the explicit performance
+gate and runs this file with one worker.
+
 Capacity evidence:
 
 | Fixture | Node capacity | Edge capacity | Resident typed capacity | Measured-frame growth | Measured-frame capacity bytes |

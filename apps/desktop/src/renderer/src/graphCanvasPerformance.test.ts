@@ -71,7 +71,12 @@ describe("Canvas plan and draw-call scale measurements", () => {
       expect(finalStats.capacityGrowths).toBe(warmStats.capacityGrowths);
       expect(finalStats.allocatedBytes).toBe(warmStats.allocatedBytes);
       expect(presentationBuffers(finalPlan)).toEqual(stableBuffers);
-      if (scale.nodes === 50_000 && cpu === "Apple M2 Max" && process.arch === "arm64") {
+      if (
+        process.env.EXO_GRAPH_PRESENTATION_PERF_GATE === "1"
+        && scale.nodes === 50_000
+        && cpu === "Apple M2 Max"
+        && process.arch === "arm64"
+      ) {
         expect(cameraDistribution.p95).toBeLessThan(16.7);
       }
       console.info("graph-canvas-measurement", {
