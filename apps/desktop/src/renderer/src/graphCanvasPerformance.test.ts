@@ -3,7 +3,7 @@ import { cpus } from "node:os";
 
 import { GraphCanvasRenderer, type GraphCanvasContext, type GraphCanvasSurface } from "./graphCanvasRenderer";
 import type { GraphSceneContract } from "./graphSceneFoundation";
-import { createGraphPresentationPlan } from "./graphPresentation";
+import { GraphPresentationCompiler, createGraphPresentationPlan, type GraphPresentationPlan } from "./graphPresentation";
 
 describe("Canvas plan and draw-call scale measurements", () => {
   for (const scale of [
@@ -15,8 +15,15 @@ describe("Canvas plan and draw-call scale measurements", () => {
       const context = new CountingContext();
       const renderer = new GraphCanvasRenderer(surface(context));
       renderer.resize({ width: 1440, height: 900, dpr: 2 });
-      const planSamples: number[] = [];
+      const pureSamples: number[] = [];
+      const cameraSamples: number[] = [];
+      const interactionSamples: number[] = [];
+      const stableSamples: number[] = [];
       const adapterSamples: number[] = [];
+      const compiler = new GraphPresentationCompiler();
+      const cameraScene = alternateProjection(scene);
+      const selectedScene = alternateInteraction(scene, 0);
+      const pathScene = alternateInteraction(scene, 1);
       let plan = createGraphPresentationPlan(scene, { placements: [], omittedRequired: [] }, { profile: "overview", palette: palette() });
       let render = renderer.render(plan);
       for (let iteration = 0; iteration < 33; iteration += 1) {
@@ -26,31 +33,73 @@ describe("Canvas plan and draw-call scale measurements", () => {
         const planMilliseconds = performance.now() - planStarted;
         render = renderer.render(plan);
         if (iteration < 3) continue;
-        planSamples.push(planMilliseconds);
+        pureSamples.push(planMilliseconds);
         adapterSamples.push(render.cpuMilliseconds);
       }
+
+      compiler.compile(scene, { placements: [], omittedRequired: [] }, { profile: "overview", palette: palette() });
+      const warmStats = compiler.stats();
+      const stableBuffers = presentationBuffers(compiler.compile(scene, { placements: [], omittedRequired: [] }, { profile: "overview", palette: palette() }));
+      measureCompiler(compiler, [scene, cameraScene], cameraSamples);
+      measureCompiler(compiler, [selectedScene, pathScene], interactionSamples);
+      compiler.compile(scene, { placements: [], omittedRequired: [] }, { profile: "overview", palette: palette() });
+      measureCompiler(compiler, [scene], stableSamples);
+      const finalPlan = compiler.compile(scene, { placements: [], omittedRequired: [] }, { profile: "overview", palette: palette() });
+      const finalStats = compiler.stats();
+      const pureDistribution = distribution(pureSamples);
+      const cameraDistribution = distribution(cameraSamples);
+      const interactionDistribution = distribution(interactionSamples);
+      const stableDistribution = distribution(stableSamples);
+      const adapterDistribution = distribution(adapterSamples);
+      const cpu = cpus()[0]?.model ?? "unknown";
 
       expect(plan.nodes.indices).toHaveLength(scale.nodes);
       expect(plan.edges.indices).toHaveLength(scale.edges);
       expect(context.curves).toBe(scale.edges);
       expect(context.arcs).toBe(scale.nodes);
       expect(render.drawCalls).toBeLessThanOrEqual(16);
-      expect(planSamples).toHaveLength(30);
+      expect(pureSamples).toHaveLength(30);
+      expect(cameraSamples).toHaveLength(30);
+      expect(interactionSamples).toHaveLength(30);
+      expect(stableSamples).toHaveLength(30);
       expect(adapterSamples).toHaveLength(30);
-      expect(planSamples.every(Number.isFinite)).toBe(true);
+      expect(pureSamples.every(Number.isFinite)).toBe(true);
+      expect(cameraSamples.every(Number.isFinite)).toBe(true);
+      expect(interactionSamples.every(Number.isFinite)).toBe(true);
+      expect(stableSamples.every(Number.isFinite)).toBe(true);
       expect(adapterSamples.every(Number.isFinite)).toBe(true);
+      expect(finalStats.capacityGrowths).toBe(warmStats.capacityGrowths);
+      expect(finalStats.allocatedBytes).toBe(warmStats.allocatedBytes);
+      expect(presentationBuffers(finalPlan)).toEqual(stableBuffers);
+      if (scale.nodes === 50_000 && cpu === "Apple M2 Max" && process.arch === "arm64") {
+        expect(cameraDistribution.p95).toBeLessThan(16.7);
+      }
       console.info("graph-canvas-measurement", {
         ...scale,
         hardware: {
-          cpu: cpus()[0]?.model ?? "unknown",
+          cpu,
           platform: process.platform,
           architecture: process.arch,
           node: process.version,
         },
         warmedRuns: 30,
-        planMilliseconds: distribution(planSamples),
-        adapterMilliseconds: distribution(adapterSamples),
+        purePlanMilliseconds: pureDistribution,
+        compiledCameraMilliseconds: cameraDistribution,
+        compiledInteractionMilliseconds: interactionDistribution,
+        compiledStableMilliseconds: stableDistribution,
+        adapterMilliseconds: adapterDistribution,
         drawCalls: render.drawCalls,
+        compiler: {
+          nodeCapacity: finalStats.nodeCapacity,
+          edgeCapacity: finalStats.edgeCapacity,
+          residentCapacityBytes: finalStats.residentCapacityBytes,
+          capacityGrowths: finalStats.capacityGrowths,
+          capacityGrowthsDuringMeasuredFrames: finalStats.capacityGrowths - warmStats.capacityGrowths,
+          allocatedBytesDuringMeasuredFrames: finalStats.allocatedBytes - warmStats.allocatedBytes,
+          orderRebuilds: finalStats.orderRebuilds,
+          geometryRebuilds: finalStats.geometryRebuilds,
+          numericReuseHits: finalStats.numericReuseHits,
+        },
       });
     }, 30_000);
   }
@@ -79,6 +128,20 @@ class CountingContext implements GraphCanvasContext {
   fill() {}
   stroke() {}
   fillText() {}
+}
+
+function measureCompiler(
+  compiler: GraphPresentationCompiler,
+  scenes: readonly GraphSceneContract[],
+  samples: number[],
+): void {
+  for (let iteration = 0; iteration < 33; iteration += 1) {
+    const scene = scenes[iteration % scenes.length] ?? scenes[0]!;
+    const started = performance.now();
+    compiler.compile(scene, { placements: [], omittedRequired: [] }, { profile: "overview", palette: palette() });
+    const milliseconds = performance.now() - started;
+    if (iteration >= 3) samples.push(milliseconds);
+  }
 }
 
 function distribution(samples: number[]) {
@@ -148,6 +211,60 @@ function scaleScene(nodeCount: number, edgeCount: number): GraphSceneContract {
       pickIndex: { cellSize: 48, columns: 1, rows: 1, offsets: new Uint32Array(2), nodeIndices: new Uint32Array(0) },
     },
   };
+}
+
+function alternateProjection(scene: GraphSceneContract): GraphSceneContract {
+  const nodes = new Float32Array(scene.projection.nodes);
+  for (let index = 0; index < nodes.length / 4; index += 1) {
+    nodes[index * 4] = ((nodes[index * 4] ?? 0) + 17) % scene.projection.viewport.width;
+    nodes[index * 4 + 1] = ((nodes[index * 4 + 1] ?? 0) + 11) % scene.projection.viewport.height;
+    nodes[index * 4 + 2] = 1 - (nodes[index * 4 + 2] ?? 0);
+  }
+  return {
+    ...scene,
+    camera: { ...scene.camera, yaw: scene.camera.yaw + 0.04, distance: scene.camera.distance + 12 },
+    projection: { ...scene.projection, nodes },
+  };
+}
+
+function alternateInteraction(scene: GraphSceneContract, variant: number): GraphSceneContract {
+  const nodeCount = scene.topology.nodes.seeds.length;
+  const edgeCount = scene.topology.edges.visualClasses.length;
+  const pathNodes = new Uint8Array(nodeCount);
+  const pathEdges = new Uint8Array(edgeCount);
+  const selected = variant % Math.max(1, nodeCount);
+  const pathTarget = (variant + 17) % Math.max(1, nodeCount);
+  pathNodes[selected] = 1;
+  pathNodes[pathTarget] = 1;
+  if (edgeCount > 0) pathEdges[variant % edgeCount] = 1;
+  return {
+    ...scene,
+    interaction: { selected, pathTarget, hovered: (variant + 3) % Math.max(1, nodeCount), pathNodes, pathEdges },
+  };
+}
+
+function presentationBuffers(plan: GraphPresentationPlan): ArrayBufferLike[] {
+  return [
+    plan.nodes.indices.buffer,
+    plan.nodes.centers.buffer,
+    plan.nodes.depths.buffer,
+    plan.nodes.visualClasses.buffer,
+    plan.nodes.radii.buffer,
+    plan.nodes.opacities.buffer,
+    plan.nodes.fillColors.buffer,
+    plan.nodes.strokeColors.buffer,
+    plan.nodes.strokeWidths.buffer,
+    plan.nodes.strokeOpacities.buffer,
+    plan.nodes.emphasis.buffer,
+    plan.edges.indices.buffer,
+    plan.edges.curves.buffer,
+    plan.edges.depths.buffer,
+    plan.edges.visualClasses.buffer,
+    plan.edges.widths.buffer,
+    plan.edges.opacities.buffer,
+    plan.edges.strokeColors.buffer,
+    plan.edges.emphasis.buffer,
+  ];
 }
 
 function palette() {
