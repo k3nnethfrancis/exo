@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-20
+Last updated: 2026-07-21
 
 This is Exo's active execution ledger. It records only current work. Completed implementation belongs in Git and `ledger.md`; reproducible bugs belong in `issues.md`; architecture rationale belongs in `docs/exograph-simplification-plan.md`.
 
@@ -28,6 +28,25 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
 - `exo start` launches the resident packaged app; app-off `status` and `search`
   return workspace orientation plus path-first results for native filesystem use.
 - `pnpm check`, `pnpm check:repo`, and `pnpm stable:smoke` are green on the current branch.
+- The launch candidate keeps Properties visibility per editor pane, adds
+  Explorer/Utility shortcuts with one shared operator-help catalog, and ships
+  polished ordered lists, `/today`/`/tomorrow`, and clickable inline tags.
+
+### Ontology trace assessment — implementation complete, review pending
+
+- [x] Build the reusable harness-only runner: fresh Claude/Codex sessions,
+  read-only controls, exact Workspace manifests, full local traces, structured
+  proposals, synchronized lanes, evidence/conflict review, and exploratory
+  agreement statistics without direct provider APIs or an automated gate.
+- [x] Prove the real Codex harness boundary on a checked-in Markdown Workspace;
+  it returned supported `ontology_schema: 1` with relative evidence while the
+  source manifest remained byte-identical.
+- [ ] Restore Claude subscription authentication on this machine, then run the
+  frozen Skill five times per harness against the real vault and generate the
+  one private local dashboard.
+- [ ] Kenneth reviews that dashboard and alone decides whether ontology
+  discovery proceeds. Do not add a corpus, judge, threshold, or synthetic eval
+  before this review exposes concrete failure modes.
 
 ## Loop 01 architectural ruling — 2026-07-12
 
