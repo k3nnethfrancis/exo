@@ -71,9 +71,10 @@ class MockContext implements GraphCanvasContext {
   textBaseline: CanvasTextBaseline = "alphabetic";
   imageSmoothingEnabled = false;
   arcs = 0;
+  arcsAtLastClear = 0;
   labels = 0;
   setTransform() {}
-  clearRect() {}
+  clearRect() { this.arcsAtLastClear = this.arcs; }
   fillRect() {}
   beginPath() {}
   moveTo() {}
@@ -89,9 +90,15 @@ class MockPixelRenderer implements GraphPixelRenderer {
   viewports: Array<{ width: number; height: number; dpr: number }> = [];
   destroyCalls = 0;
   failure: ((error: Error) => void) | null = null;
+  renderError: Error | null = null;
 
   resize(viewport: { width: number; height: number; dpr: number }): void { this.viewports.push({ ...viewport }); }
   render(plan: GraphPresentationPlan): GraphPixelRendererMeasurement {
+    if (this.renderError) {
+      const error = this.renderError;
+      this.renderError = null;
+      throw error;
+    }
     this.plans.push(plan);
     return {
       cpuMilliseconds: 0,
@@ -319,6 +326,41 @@ describe("SpatialGraph runtime", () => {
     runtime.dispose();
     expect(gpu.destroyCalls).toBe(1);
     expect(replacementGpu.destroyCalls).toBe(1);
+  });
+
+  it("keeps a complete Canvas frame visible while a synchronous GPU draw failure recovers", async () => {
+    const frames = new FakeFrameDriver();
+    const context = new MockContext();
+    const gpu = new MockPixelRenderer();
+    let resolveReplacement!: (renderer: MockPixelRenderer) => void;
+    const replacement = new Promise<MockPixelRenderer>((resolve) => { resolveReplacement = resolve; });
+    let gpuCreates = 0;
+    const runtime = new SpatialGraphRuntime(surface(context), {
+      frameDriver: frames,
+      palette: palette(),
+      webGpuSurface: {} as GraphWebGpuSurface,
+      webGpuRuntime: fakeGpuRuntime(),
+      createWebGpu: async (_surface, _runtime, reportFailure) => {
+        gpuCreates += 1;
+        const renderer = gpuCreates === 1 ? gpu : await replacement;
+        renderer.failure = reportFailure;
+        return renderer;
+      },
+    });
+    runtime.setTopology(topology(), { width: 800, height: 600 });
+    frames.settle();
+    await waitFor(() => runtime.snapshot().rendererKind === "webgpu");
+    frames.settle();
+
+    gpu.renderError = new Error("draw failed");
+    runtime.setPalette(palette());
+    frames.settle();
+    expect(runtime.snapshot().rendererRecoveryState).toBe("recreating");
+    expect(context.arcs).toBeGreaterThan(context.arcsAtLastClear);
+
+    resolveReplacement(new MockPixelRenderer());
+    await waitFor(() => runtime.snapshot().rendererRecoveryState === "ready");
+    runtime.dispose();
   });
 });
 

@@ -527,10 +527,13 @@ export class SpatialGraphRuntime {
     this.labelPlans += 1;
     try {
       const plan = this.presentationCompiler.compile(this.scene, labelPlan, { palette: this.palette });
-      const kind = this.rendererHost.kind;
       this.rendererHost.render({ plan, state: this.scene });
-      if (kind === "webgpu") this.canvasRenderer.renderLabels(plan);
-      else if (kind === null) this.canvasRenderer.render(plan);
+      const renderer = this.rendererHost.snapshot();
+      if (renderer.kind === "webgpu" && renderer.recoveryState === "ready") {
+        this.canvasRenderer.renderLabels(plan);
+      } else if (renderer.kind === null || renderer.recoveryState === "recreating") {
+        this.canvasRenderer.render(plan);
+      }
     } catch (error) {
       this.transition = null;
       this.options.onDrawError?.(error instanceof Error ? error : new Error(String(error)));
