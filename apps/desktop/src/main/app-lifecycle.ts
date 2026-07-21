@@ -116,7 +116,6 @@ export class AppLifecycleController {
       }
       const diagnostics = {
         ...details,
-        gpuDisabled: process.env.EXO_ENABLE_GPU !== "1",
         terminals: this.options.getTerminals(),
       };
       console.error("[main] renderer process gone", diagnostics);

@@ -47,16 +47,12 @@ import { WorkspaceNotesService } from "./workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace-watchers";
 import { activateWorkspaceAfterRecovery } from "./workspace-activation";
 import { hasOperatorWorkspaceSetup } from "./workspace-setup-gate";
+import { configureGpuStartup } from "./gpu-startup-policy";
+import { runStandaloneGraphGpuProbe } from "./gpu-probe-runner";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const sourceProjectRoot = resolveSourceProjectRoot();
-
-if (process.env.EXO_ENABLE_GPU !== "1") {
-  app.disableHardwareAcceleration();
-  app.commandLine.appendSwitch("disable-gpu");
-  app.commandLine.appendSwitch("disable-gpu-compositing");
-  app.commandLine.appendSwitch("disable-zero-copy");
-}
+const gpuStartupPolicy = configureGpuStartup(app, process.env);
 
 if (process.env.EXO_USER_DATA_PATH) {
   app.setPath("userData", process.env.EXO_USER_DATA_PATH);
@@ -172,7 +168,7 @@ function logWorkspaceStartup(model: WorkspaceModel) {
     noteRoots: model.noteRoots.map((root) => root.path),
     userDataPath: app.getPath("userData"),
     settingsPath: path.join(app.getPath("userData"), "workspace-settings.json"),
-    gpuDisabled: process.env.EXO_ENABLE_GPU !== "1",
+    hardwareAcceleration: gpuStartupPolicy,
   };
   console.info("[exo] workspace startup", details);
   logMain("workspace startup", details);
@@ -437,6 +433,16 @@ function applyOnboardingRuntimeEnv() {
 }
 
 app.whenReady().then(async () => {
+  if (process.env.EXO_GPU_PROBE_OUTPUT) {
+    await runStandaloneGraphGpuProbe({
+      app,
+      currentDirectory,
+      outputPath: process.env.EXO_GPU_PROBE_OUTPUT,
+      gpuStartupPolicy,
+    });
+    return;
+  }
+
   workspaceConfig = new WorkspaceConfigStore({ userDataPath: app.getPath("userData") });
   workspaceWatcherService = new WorkspaceWatcherService((event) => {
     // Queue graph refresh before notifying the renderer so a following context

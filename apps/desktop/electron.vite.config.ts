@@ -56,6 +56,12 @@ export default defineConfig({
   renderer: {
     build: {
       outDir: "dist/renderer",
+      rollupOptions: {
+        input: {
+          index: path.resolve(currentDirectory, "src/renderer/index.html"),
+          "gpu-probe": path.resolve(currentDirectory, "src/renderer/gpu-probe.html"),
+        },
+      },
     },
     plugins: [react()],
     resolve: {

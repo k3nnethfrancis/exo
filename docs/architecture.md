@@ -73,6 +73,14 @@ graph performance suite covers rendering, layout geometry, interaction, memory,
 resilience, and latency. Neither produces an unexplained universal quality
 score.
 
+Electron's normal hardware-acceleration policy is the production default so
+the Graph Pane can capability-detect WebGPU without unsafe Chromium flags. A
+diagnostic `EXO_DISABLE_GPU=1` launch may disable hardware acceleration, but it
+does not change feature lists or renderer semantics; Canvas remains the product
+fallback. Source and exact packaged evidence must compile the production graph
+shaders, submit a bounded draw, and record an explicit absence, adapter, device,
+shader, validation, or success outcome.
+
 ## Deep modules
 
 ### `WorkspaceConfigStore`
