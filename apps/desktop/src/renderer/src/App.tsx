@@ -117,7 +117,6 @@ export function App() {
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
   const [qmdSearchSelected, setQmdSearchSelected] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter, qmdSelected: qmdSearchSelected });
-  const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
   const graphInspection = useInspectedConcept();
   const [onboardingMcp, setOnboardingMcp] = useState({
     providers: ["claude", "codex"] as Array<"claude" | "codex">,
@@ -1742,7 +1741,6 @@ export function App() {
               documents={openDocuments}
               graphContextByPath={graphContextByPath}
               saveStatuses={documentSaveStatuses}
-              propertiesCollapsed={propertiesCollapsed}
               isFocused={isFocused}
               onFocusPane={() => {
                 focusEditorPane(leaf.id);
@@ -1755,7 +1753,6 @@ export function App() {
               onOpenFile={(filePath) => void openFile(filePath, leaf.id)}
               onClosePane={collectLeaves(canvasTree).length > 1 ? () => canvasActions.removeLeaf(leaf.id) : null}
               dragManager={dragManager}
-              onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
               onOpenGraph={() => openGraphCanvas(pane.activePath ?? undefined)}
               onUpdateFrontmatter={updateFrontmatter}
               onBodyChange={updateBody}

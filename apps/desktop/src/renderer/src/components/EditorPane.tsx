@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import type { InvocationFileReviewPayload } from "../../../shared/api";
 import type { InvocationReviewQueueProjection } from "./invocation";
@@ -27,7 +29,6 @@ interface EditorPaneProps {
   documents: Record<string, EditorDocument>;
   graphContextByPath: Record<string, WorkspaceGraphContext>;
   saveStatuses: Record<string, "idle" | "saving" | "saved" | "error">;
-  propertiesCollapsed: boolean;
   isFocused: boolean;
   onFocusPane: () => void;
   onActivateTab: (filePath: string) => void;
@@ -39,7 +40,6 @@ interface EditorPaneProps {
   /** Close this entire pane (merge back into parent split). Null when this is the only pane. */
   onClosePane: (() => void) | null;
   dragManager: DragManager;
-  onToggleProperties: () => void;
   onOpenGraph: () => void;
   onUpdateFrontmatter: (key: string, value: unknown) => void;
   onBodyChange: (body: string) => void;
@@ -69,7 +69,6 @@ export function EditorPane(props: EditorPaneProps) {
     documents,
     graphContextByPath,
     saveStatuses,
-    propertiesCollapsed,
     isFocused,
     onFocusPane,
     onActivateTab,
@@ -80,7 +79,6 @@ export function EditorPane(props: EditorPaneProps) {
     onOpenFile,
     onClosePane,
     dragManager,
-    onToggleProperties,
     onOpenGraph,
     onUpdateFrontmatter,
     onBodyChange,
@@ -106,6 +104,7 @@ export function EditorPane(props: EditorPaneProps) {
 
   const activeDocument = pane.activePath ? documents[pane.activePath] ?? null : null;
   const activeGraphContext = pane.activePath ? graphContextByPath[pane.activePath] ?? null : null;
+  const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
 
   return (
     <div
@@ -170,7 +169,7 @@ export function EditorPane(props: EditorPaneProps) {
         graphContext={activeGraphContext}
         saveStatus={pane.activePath ? saveStatuses[pane.activePath] ?? "idle" : "idle"}
         propertiesCollapsed={propertiesCollapsed}
-        onToggleProperties={onToggleProperties}
+        onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
         onOpenGraph={onOpenGraph}
         onUpdateFrontmatter={onUpdateFrontmatter}
         onBodyChange={onBodyChange}

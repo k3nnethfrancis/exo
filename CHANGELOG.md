@@ -71,6 +71,8 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Keeps the Properties surface open or closed independently in each split
+  editor pane instead of mirroring one pane's toggle across the canvas.
 - Upgrades pre-Changeset single-note invocation reviews into the exact review
   model without losing pending, kept, or rejected decisions.
 - Makes the exact multi-file Changeset the sole invocation review model; new

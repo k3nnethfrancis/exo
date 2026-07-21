@@ -89,3 +89,43 @@ test("keeps the properties control reachable through repeated open and close", a
     await cleanup();
   }
 });
+
+test("keeps properties visibility independent across split editor panes", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture();
+
+  try {
+    const source = await page.getByRole("button", { name: "related-note" }).first().boundingBox();
+    const editor = await page.locator(".workspace-shell__canvas .pane-leaf--editor").first().boundingBox();
+    expect(source).not.toBeNull();
+    expect(editor).not.toBeNull();
+
+    await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(editor!.x + editor!.width * 0.88, editor!.y + editor!.height / 2, { steps: 8 });
+    await page.mouse.up();
+
+    const panes = page.locator(".workspace-shell__canvas .pane-leaf--editor");
+    await expect(panes).toHaveCount(2);
+
+    const firstPane = panes.nth(0);
+    const secondPane = panes.nth(1);
+    await firstPane.click({ position: { x: 8, y: 80 } });
+    await firstPane.getByTestId("editor-panel").hover();
+    await firstPane.getByTestId("toggle-properties").click();
+
+    await expect(firstPane.getByTestId("properties-panel")).toBeVisible();
+    await expect(secondPane.getByTestId("properties-panel")).toHaveCount(0);
+
+    await secondPane.click({ position: { x: 8, y: 80 } });
+    await secondPane.getByTestId("editor-panel").hover();
+    await secondPane.getByTestId("toggle-properties").click();
+    await expect(firstPane.getByTestId("properties-panel")).toBeVisible();
+    await expect(secondPane.getByTestId("properties-panel")).toBeVisible();
+
+    await firstPane.getByTestId("toggle-properties").click();
+    await expect(firstPane.getByTestId("properties-panel")).toHaveCount(0);
+    await expect(secondPane.getByTestId("properties-panel")).toBeVisible();
+  } finally {
+    await cleanup();
+  }
+});
