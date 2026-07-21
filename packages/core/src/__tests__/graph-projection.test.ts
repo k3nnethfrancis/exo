@@ -65,9 +65,9 @@ describe("graph projection", () => {
 
   it("holds deterministic packed payload gates at launch scales", () => {
     const scales = [
-      { nodes: 10_000, edges: 50_000, payloadBytes: 660_560, topologyHash: "graph-topology:0.1:21cfb262ccccc391", transportHash: "graph-transport:0.1:37c2a8234c574d41", layoutEpochId: "graph-layout:0.1:1fe2ca66ba36bc18" },
-      { nodes: 50_000, edges: 250_000, payloadBytes: 3_300_562, topologyHash: "graph-topology:0.1:a5d41368c924273a", transportHash: "graph-transport:0.1:c489f6ead21aa90f", layoutEpochId: "graph-layout:0.1:54c5257b4fd9de99" },
-      { nodes: 100_000, edges: 500_000, payloadBytes: 6_600_563, topologyHash: "graph-topology:0.1:4f4d312784ade882", transportHash: "graph-transport:0.1:1775597279b9c366", layoutEpochId: "graph-layout:0.1:26ef5ce5d83f8d94" },
+      { nodes: 10_000, edges: 50_000, payloadBytes: 660_560, topologyHash: "graph-topology:0.1:599afafa480128d3", transportHash: "graph-transport:0.1:708924b3f018349a", layoutEpochId: "graph-layout:0.1:f4fafcabaa19931e" },
+      { nodes: 50_000, edges: 250_000, payloadBytes: 3_300_562, topologyHash: "graph-topology:0.1:801a42fd8e58207c", transportHash: "graph-transport:0.1:9ea10f9283a5264d", layoutEpochId: "graph-layout:0.1:53ababff705e1c05" },
+      { nodes: 100_000, edges: 500_000, payloadBytes: 6_600_563, topologyHash: "graph-topology:0.1:e6987d1b64ee0d43", transportHash: "graph-transport:0.1:3241a4ccbe7c39b0", layoutEpochId: "graph-layout:0.1:06c3522ae8893f17" },
     ];
 
     for (const scale of scales) {
@@ -100,7 +100,7 @@ describe("graph projection", () => {
 
 function fixtureSnapshot(): KnowledgeGraphSnapshot {
   return {
-    version: "0.2",
+    version: "0.3",
     snapshotId: "snapshot:fixture",
     generatedAt: "2026-07-17T00:00:00.000Z",
     scope: { workspaceRoot: "/Users/private/notes", noteRootIds: ["private"], paths: ["/Users/private/notes/a.md"] },
@@ -108,9 +108,10 @@ function fixtureSnapshot(): KnowledgeGraphSnapshot {
       { id: "note:private:b.md", label: "Private Beta", filePath: "/Users/private/notes/b.md", conceptTypes: [], properties: {}, resolution: "resolved", tags: [] },
       { id: "note:private:a.md", label: "Private Alpha", filePath: "/Users/private/notes/a.md", conceptTypes: ["SensitiveOntologyType"], properties: {}, resolution: "resolved", tags: [] },
     ],
-    relations: [{ id: "relation:private", source: "note:private:a.md", target: "note:private:b.md", family: "link", authority: "authored", resolution: "resolved", directed: true, evidence: [] }],
+    relations: [{ id: "relation:private", source: "note:private:a.md", target: "note:private:b.md", family: "link", origin: "document", resolution: "resolved", directed: true, evidence: [] }],
     findings: [],
     activeProfile: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
+    activeOntology: { state: "generic" },
   };
 }
 
@@ -138,6 +139,7 @@ function topologyInput(nodeCount: number, edgeCount: number) {
   return {
     sourceSnapshotId: "snapshot:scale",
     activeProfile: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" } as const,
+    activeOntology: { state: "generic" } as const,
     seed: 0x12345678,
     nodes: { identityKeys, seeds, groups, degrees, visualClasses },
     edges: { endpoints, visualClasses: edgeClasses },

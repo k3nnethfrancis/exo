@@ -1,3 +1,6 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { shouldIgnoreWorkspaceChange, WorkspaceWatcherService } from "./workspace-watchers";
@@ -65,6 +68,32 @@ describe("WorkspaceWatcherService subscriptions", () => {
 
     expect(listener).not.toHaveBeenCalled();
     vi.useRealTimers();
+  });
+
+  it("observes the canonical ontology file outside a nested Note Root", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-watch-"));
+    const noteRoot = path.join(workspaceRoot, "notes");
+    await mkdir(noteRoot);
+    const event = new Promise<WorkspaceChangeEvent>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error("ontology watcher timed out")), 2_000);
+      const service = new WorkspaceWatcherService((change) => {
+        if (change.filePath !== path.join(workspaceRoot, "ontology.yaml")) return;
+        clearTimeout(timeout);
+        service.stop();
+        resolve(change);
+      });
+      service.start({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [{ id: "notes", label: "Notes", path: noteRoot }],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+      });
+    });
+
+    await writeFile(path.join(workspaceRoot, "ontology.yaml"), "ontology_schema: 1\n");
+    await expect(event).resolves.toMatchObject({ rootPath: workspaceRoot, filePath: path.join(workspaceRoot, "ontology.yaml") });
+    await rm(workspaceRoot, { recursive: true, force: true });
   });
 });
 

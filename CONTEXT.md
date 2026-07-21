@@ -30,7 +30,7 @@ _Avoid_: arbitrary filesystem root
 A Markdown document under a Note Root. Its body and frontmatter are canonical user data.
 
 **Concept**
-A knowledge identity projected from a Note by the active format or Knowledge Profile. Generic Markdown and OKF normally project one Concept per Note; the Note remains canonical.
+A knowledge identity projected from a Note by its Note Root Format and optionally interpreted by the Workspace Ontology. Generic Markdown and OKF normally project one Concept per Note; the Note remains canonical.
 _Avoid_: graph node as source of truth, database entity
 
 **Indexed Root**
@@ -54,24 +54,24 @@ The Folder-based classification implied by a Note's path. It supplies a default 
 _Avoid_: exclusive type, enforced taxonomy
 
 **Ontology**
-The user-defined vocabulary and organization expressed by Folder structure, Folder Indexes, properties, tags, links, typed relationships, and optional Knowledge Profiles. Exo may interpret and help maintain it but does not require a separate ontology database or one global schema.
+An optional, user-owned `<Workspace Root>/ontology.yaml` that passively interprets Concept Types, Property shapes, reference Relations, and validation rules across the Workspace. It complements the vocabulary already expressed in folders and Markdown; it never owns or mutates that data.
 _Avoid_: fixed taxonomy, app-owned schema
 
+**Format**
+The interoperability convention used to project base Concepts from a Note Root, currently Generic Markdown or permissive OKF 0.1. Format is not the Workspace Ontology and does not control graph presentation.
+_Avoid_: ontology, plugin, visual profile
+
 **Properties**
-Losslessly preserved document facts projected from a Note's raw frontmatter. A Knowledge Profile may interpret their value shapes or relationships; editing Properties edits the Markdown source.
+Losslessly preserved document facts projected from a Note's raw frontmatter. A Workspace Ontology may interpret their value shapes or relationships; editing Properties edits the Markdown source.
 _Avoid_: app metadata, inspector fields
 
 **Relation**
-A directed connection between Concepts with a family, optional user-defined predicate, authority, resolution, and Evidence. A Relation may be authored, profile-declared, or derived; those states are never interchangeable.
+A directed connection between Concepts with a family, optional user-defined predicate, origin, resolution, and Evidence. Origin is `document`, `ontology`, or `inferred`; those states are never interchangeable.
 _Avoid_: unexplained edge, visual line as truth
 
 **Evidence**
-The inspectable source of a graph fact: a Markdown span, property, path, profile rule, or versioned model observation.
+The inspectable source of a graph fact: a Markdown span, Property, path, Ontology rule, or versioned model observation.
 _Avoid_: opaque confidence score
-
-**Knowledge Profile**
-Optional user-owned interpretation of Concept types, property shapes, reference-valued properties, expected Relations, and validation rules. Generic Markdown requires none; a profile preserves unknown data and never becomes canonical knowledge.
-_Avoid_: mandatory schema, ontology database, plugin runtime
 
 **Graph View**
 A derived projection that maps selected Concepts, Relations, Properties, and Derived Signals into layout weights, visual encodings, labels, and interaction. It changes presentation, not knowledge.

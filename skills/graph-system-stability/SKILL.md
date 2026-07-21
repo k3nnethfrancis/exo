@@ -1,6 +1,6 @@
 ---
 name: graph-system-stability
-description: Use before changing Exo graph domain types, snapshot construction, relationship extraction, graph queries, Knowledge Profiles, graph integrity checks, layout, scene logic, WebGPU/Canvas rendering, Graph Pane integration, or graph performance tests. Preserves Markdown ownership, open ontology, evidence, renderer independence, editor latency, deterministic layout, and fallback behavior.
+description: Use before changing Exo graph domain types, snapshot construction, relationship extraction, graph queries, Note Root Formats, Workspace Ontology interpretation, graph integrity checks, layout, scene logic, WebGPU/Canvas rendering, Graph Pane integration, or graph performance tests. Preserves Markdown ownership, open ontology, evidence, renderer independence, editor latency, deterministic layout, and fallback behavior.
 ---
 
 # Graph System Stability
@@ -30,7 +30,7 @@ contract, not import the lab as a second application or semantics path.
 Choose the narrowest affected layer:
 
 1. **Knowledge Graph** — Concepts, Properties, Relations, Evidence, resolution,
-   authority, profile interpretation, graph queries.
+   origin, Format/Ontology interpretation, graph queries.
 2. **Graph projection** — semantic facts compiled into numeric topology, visual
    classes, weights, and cold metadata.
 3. **Layout and scene** — deterministic positions, camera, selection, paths,
@@ -50,12 +50,16 @@ Do not solve a lower-layer problem by moving ownership into a higher layer.
 - Markdown and frontmatter remain canonical.
 - Preserve unknown types, properties, and supported nested YAML values.
 - Keep Concept types and Relation predicates open vocabularies.
-- Record authority, resolution, and inspectable Evidence for Relations.
+- Record `document | ontology | inferred` origin, resolution, and inspectable Evidence for Relations.
 - Keep semantic similarity, inferred types, and proposed Relations as versioned
   Derived Signals until a user accepts a Markdown change.
-- Generic Markdown remains usable without a Knowledge Profile.
-- A profile interprets user data; it never becomes an ontology database,
-  mutation authority, or reason to reject unknown data.
+- Generic Markdown remains usable without a Workspace Ontology.
+- Treat `ontology.yaml` as Candidate source. Only an exact reviewed Keep may
+  publish Active derived state; Candidate watcher events never invalidate the
+  graph by themselves.
+- A Format projects base Concepts and an Ontology may interpret their meaning;
+  neither becomes a canonical database, mutation authority, or reason to reject
+  unknown data.
 
 ### Layer ownership
 
@@ -78,7 +82,7 @@ Markdown → Knowledge Graph → Graph projection → Layout → Scene → Rende
 
 - Known Note/editor state paints independently of graph, layout, or index
   freshness.
-- Graph extraction, profile validation, layout, and enrichment stay off the
+- Graph extraction, Format/Ontology validation, layout, and enrichment stay off the
   keystroke and navigation critical paths.
 - Input mutates camera or selection synchronously; simulation never blocks a
   gesture.

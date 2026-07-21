@@ -246,7 +246,7 @@ Start only after the trust gates above pass.
 - [x] Distill the visualization work, benchmark evidence, quality findings,
   domain model, and production gates in
   `docs/graph-system-report-and-plan.md`.
-- [x] Record the durable schema-agnostic graph / optional Knowledge Profile
+- [x] Record the durable schema-agnostic graph / optional Workspace Ontology
   decision in `docs/adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` and
   align `CONTEXT.md`, architecture, roadmap, insight, and research logs.
 - [x] Add the repo-owned `graph-system-stability` engineering skill and expose it
@@ -257,19 +257,20 @@ Start only after the trust gates above pass.
 - [ ] Phase 0: pin one public Google OKF bundle and one OpenWiki wiki fixture and
   define deterministic schema/compatibility cases with expected facts.
 - [x] Phase 1: consolidate `GraphSnapshot` and `WorkspaceGraph` behind snapshot
-  0.2 with open Concept types, lossless Properties, Relation predicates,
-  authority, resolution, and Evidence; preserve current Connections, Folder
+  0.3 with open Concept types, lossless Properties, Relation predicates,
+  origin, resolution, and Evidence; preserve current Connections, Folder
   Overview, and search behavior through compatibility tests.
-  - [x] Land snapshot 0.2 behind `WorkspaceGraph`: open Concept types, recursive
-    Properties, Relation authority/resolution/Evidence, deterministic identity,
+  - [x] Land snapshot 0.3 behind `WorkspaceGraph`: open Concept types, recursive
+    Properties, Relation origin/resolution/Evidence, deterministic identity,
     and compatibility coverage; remove the legacy snapshot/query, object Graph
     View, unbounded detail, and duplicate renderer-scene contracts after audit.
-- [ ] Phase 2: add Generic Markdown and permissive OKF 0.1 Knowledge Profiles,
-  then earn the smallest user-owned profile contract from the fixtures.
+- [ ] Phase 2: add Generic Markdown and permissive OKF 0.1 Formats, then earn
+  the smallest reviewed Workspace Ontology contract from fixtures.
   - [x] Add built-in Generic Markdown and permissive OKF 0.1 interpretation;
-    missing OKF type is a finding and unknown fields survive. User-owned profile
-    configuration remains unearned.
-- [x] Phase 3: cover identity, resolution, Evidence, and profile conformance in
+    missing OKF type is a finding and unknown fields survive. User-owned
+    Candidate parsing/compilation and persisted Active checkpointing are now
+    implemented; graph-effect preview and product Keep/Reject remain unearned.
+- [x] Phase 3: cover identity, resolution, Evidence, and Format/Ontology conformance in
   deterministic graph contract tests. Keep AI-system evaluation outside Exo.
 - [x] Phase 4: compile renderer-neutral dense topology and stable layout epochs
   from the consolidated graph; keep ontology strings and semantics out of hot

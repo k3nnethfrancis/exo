@@ -13,6 +13,7 @@ describe("derived index response bounds", () => {
     const topology = createGraphTopology({
       sourceSnapshotId: "snapshot:fixture",
       activeProfile: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
+      activeOntology: { state: "generic" },
       seed: 7,
       nodes: {
         identityKeys: new Uint32Array(200_000),

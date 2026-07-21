@@ -1,7 +1,7 @@
 import path from "node:path";
 import { existsSync, watch, type FSWatcher } from "node:fs";
 
-import type { WorkspaceModel } from "@exo/core";
+import { isWorkspaceOntologyPath, type WorkspaceModel } from "@exo/core";
 
 export interface WorkspaceChangeEvent {
   rootPath: string;
@@ -88,6 +88,29 @@ export class WorkspaceWatcherService {
       } catch (error) {
         console.warn("[exo] workspace watcher setup failed", {
           rootPath,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    const workspaceRoot = path.resolve(model.workspaceRoot);
+    if (!uniqueRootPaths.some((rootPath) => path.resolve(rootPath) === workspaceRoot) && existsSync(workspaceRoot)) {
+      try {
+        const watcher = watch(workspaceRoot, (eventType, filename) => {
+          const filePath = typeof filename === "string" && filename.length > 0 ? path.join(workspaceRoot, filename) : null;
+          if (!filePath || !isWorkspaceOntologyPath(workspaceRoot, filePath)) return;
+          this.queue({ rootPath: workspaceRoot, eventType, filePath });
+        });
+        watcher.on("error", (error) => {
+          console.warn("[exo] ontology watcher error", {
+            rootPath: workspaceRoot,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+        this.watchers.push(watcher);
+      } catch (error) {
+        console.warn("[exo] ontology watcher setup failed", {
+          rootPath: workspaceRoot,
           error: error instanceof Error ? error.message : String(error),
         });
       }

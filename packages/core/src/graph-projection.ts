@@ -22,9 +22,9 @@ export const GraphNodeVisualClass = {
 
 /** Core resolves Relation meaning before the renderer receives this class. */
 export const GraphEdgeVisualClass = {
-  authored: 0,
-  declared: 1,
-  derived: 2,
+  document: 0,
+  ontology: 1,
+  inferred: 2,
   unresolved: 3,
   ambiguous: 4,
   external: 5,
@@ -112,6 +112,7 @@ export interface BoundedGraphConceptDetail {
   relations: readonly GraphConceptRelationDetail[];
   findings: readonly GraphFinding[];
   profile: KnowledgeGraphSnapshot["activeProfile"];
+  ontology: KnowledgeGraphSnapshot["activeOntology"];
   omitted: {
     properties: number;
     relations: number;
@@ -180,6 +181,7 @@ export function compileGraphTopology(snapshot: KnowledgeGraphSnapshot): GraphTop
   const topology = createGraphTopology({
     sourceSnapshotId: snapshot.snapshotId,
     activeProfile: snapshot.activeProfile,
+    activeOntology: snapshot.activeOntology,
     seed,
     nodes: { identityKeys, seeds: nodeSeeds, groups, degrees, visualClasses: nodeVisualClasses },
     edges: {
@@ -212,6 +214,7 @@ export function normalizeGraphConceptFilePath(filePath: string): string {
 export function createGraphTopology(input: {
   sourceSnapshotId: string;
   activeProfile: KnowledgeGraphSnapshot["activeProfile"];
+  activeOntology: KnowledgeGraphSnapshot["activeOntology"];
   seed: number;
   nodes: GraphTopologyNodeArrays;
   edges: GraphTopologyEdgeArrays;
@@ -223,6 +226,7 @@ export function createGraphTopology(input: {
     version: input.activeProfile.version,
     source: input.activeProfile.source,
     state: input.activeProfile.state,
+    ontology: input.activeOntology,
   });
   const topologyHash = digestTopology("graph-topology", {
     version: GRAPH_TOPOLOGY_VERSION,
@@ -306,6 +310,7 @@ function projectionSeed(snapshot: KnowledgeGraphSnapshot): number {
     roots: [...snapshot.scope.noteRootIds].sort(),
     profile: snapshot.activeProfile.id,
     profileVersion: snapshot.activeProfile.version,
+    ontology: snapshot.activeOntology,
   });
   return createHash("sha256").update(identity).digest().readUInt32LE(0);
 }
@@ -320,9 +325,9 @@ function edgeVisualClass(relation: RelationEdge): number {
   if (relation.resolution === "external") return GraphEdgeVisualClass.external;
   if (relation.resolution === "ambiguous") return GraphEdgeVisualClass.ambiguous;
   if (relation.resolution === "unresolved") return GraphEdgeVisualClass.unresolved;
-  if (relation.authority === "derived") return GraphEdgeVisualClass.derived;
-  if (relation.authority === "declared") return GraphEdgeVisualClass.declared;
-  return GraphEdgeVisualClass.authored;
+  if (relation.origin === "inferred") return GraphEdgeVisualClass.inferred;
+  if (relation.origin === "ontology") return GraphEdgeVisualClass.ontology;
+  return GraphEdgeVisualClass.document;
 }
 
 function validateTopologyArrays(nodes: GraphTopologyNodeArrays, edges: GraphTopologyEdgeArrays): void {

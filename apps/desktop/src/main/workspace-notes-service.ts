@@ -373,12 +373,12 @@ export class WorkspaceNotesService {
 
   private workspaceGraph(): WorkspaceGraph {
     const model = this.options.getWorkspaceModel();
-    const modelKey = model.noteRoots
+    const modelKey = [path.resolve(model.workspaceRoot), path.resolve(this.options.getRuntimeRoot?.() ?? ""), ...model.noteRoots
       .map((root) => `${root.id}:${path.resolve(root.path)}`)
-      .sort()
+      .sort()]
       .join("\n");
     if (!this.graph || this.graphModelKey !== modelKey) {
-      this.graph = new WorkspaceGraph(model);
+      this.graph = new WorkspaceGraph(model, { runtimeRoot: this.options.getRuntimeRoot?.() });
       this.graphModelKey = modelKey;
       this.folderOverviewCache.clear();
       this.noteFileCache = null;

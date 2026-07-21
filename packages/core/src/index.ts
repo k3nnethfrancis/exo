@@ -7,6 +7,7 @@ export * from "./notes";
 export * from "./onboarding-state";
 export * from "./knowledge-graph";
 export * from "./knowledge-profile";
+export * from "./workspace-ontology";
 export * from "./graph-projection";
 export * from "./graph-integrity";
 export * from "./workspace-graph";

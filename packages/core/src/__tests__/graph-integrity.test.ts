@@ -6,7 +6,7 @@ import type { KnowledgeGraphSnapshot } from "../knowledge-graph";
 describe("graph integrity tracer", () => {
   it("reports separate evidenced dimensions and never fabricates an aggregate quality score", () => {
     const snapshot: KnowledgeGraphSnapshot = {
-      version: "0.2",
+      version: "0.3",
       snapshotId: "fixture",
       generatedAt: "2026-07-17T00:00:00.000Z",
       scope: { noteRootIds: ["notes"], paths: [] },
@@ -15,11 +15,12 @@ describe("graph integrity tracer", () => {
         { id: "b", label: "B", conceptTypes: [], properties: {}, resolution: "resolved", tags: [] },
       ],
       relations: [
-        { id: "resolved", source: "a", target: "b", family: "link", authority: "authored", resolution: "resolved", directed: true, evidence: [{ kind: "source-span", noteId: "a", sourceRange: { from: 0, to: 5 } }] },
-        { id: "broken", source: "a", target: "missing", family: "link", authority: "authored", resolution: "unresolved", directed: true, evidence: [] },
+        { id: "resolved", source: "a", target: "b", family: "link", origin: "document", resolution: "resolved", directed: true, evidence: [{ kind: "source-span", noteId: "a", sourceRange: { from: 0, to: 5 } }] },
+        { id: "broken", source: "a", target: "missing", family: "link", origin: "document", resolution: "unresolved", directed: true, evidence: [] },
       ],
       findings: [],
       activeProfile: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
+      activeOntology: { state: "generic" },
     };
 
     const report = evaluateGraphIntegrity(snapshot);

@@ -264,6 +264,7 @@ function topology() {
   return createGraphTopology({
     sourceSnapshotId: "snapshot:fixture",
     activeProfile: { id: "okf", version: "0.1", label: "OKF", source: "built-in", state: "active" },
+    activeOntology: { state: "generic" },
     seed: 9,
     nodes: {
       identityKeys: new Uint32Array([1, 0, 2, 0]),

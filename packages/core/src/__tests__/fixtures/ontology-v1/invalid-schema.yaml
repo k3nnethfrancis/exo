@@ -1,0 +1,5 @@
+ontology_schema: 99
+id: future
+version: 1
+types:
+  future: {}

@@ -33,9 +33,9 @@ layout intact, and verifies that the settled renderer schedules zero frames.
 
 We also built the production foundation beneath the pixels. Markdown remains
 canonical. The graph preserves open Concept types, lossless Properties, typed
-Relations, authored/declared/derived authority, resolution state, and Evidence.
+Relations, `document | ontology | inferred` origin, resolution state, and Evidence.
 Generic Markdown works without configuration; OKF 0.1 is the first optional
-interoperability profile. A renderer-neutral projection keeps ontology and file
+interoperability Format. A renderer-neutral projection keeps ontology and file
 objects out of hot GPU/draw paths.
 
 ## How we built it
@@ -80,7 +80,7 @@ any published number.
 
 - Large graphs can feel immediate on ordinary hardware.
 - WebGPU can own pixels without owning graph meaning or interaction.
-- The same graph can support authored links, properties, semantic overlays, and
+- The same graph can support document links, Properties, semantic overlays, and
   future model-space projections without confusing them as equally canonical.
 - Speed and readable layout are separate engineering properties and need
   separate tests.
@@ -144,7 +144,7 @@ Knowledge Graph meaning, inspected Concept, scene, and pixels.
 
 Keep both property surfaces for now. Editor Properties edits canonical Markdown
 frontmatter. Connections/graph Properties explains the currently inspected
-Concept: its interpreted type, Relations, Evidence, profile findings, and which
+Concept: its interpreted type, Relations, Evidence, Ontology Findings, and which
 properties affect graph color, size, grouping, filtering, or physics. Editor,
 Connections, local graph, and full graph must share one explicit inspected
 Concept so changing Pane focus cannot produce unrelated “No properties” states.

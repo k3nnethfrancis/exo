@@ -22,8 +22,9 @@ The current objective is no longer to complete the old plugin/routine/harness ro
 2. **Modular Search:** reliable filesystem and QMD retrieval behind the one earned provider seam.
 3. **Actionable graph:** links, backlinks, tags, properties, neighborhoods,
    Folder Overview, Connections, and the production spatial Graph View share a
-   consolidated schema-agnostic graph today. User-owned ontology, conformance,
-   and reviewable graph-maintenance Skills are the next graph-system slices.
+   consolidated schema-agnostic graph today. The user-owned Ontology
+   parser/compiler and reviewed activation store are implemented; candidate
+   preview, conformance UX, and graph-maintenance Skills are next.
 4. **Inline invocation:** configured Commands run only on explicit invocation; Exo observes and reviews changes. The first user-editable graph-management Skill is next-slice work.
 
 The product test is simple: a person can open an existing Markdown folder, resume thought, find context, understand the connection, explicitly invoke a configured Command, and review observed Markdown changes without surrendering file ownership. A bounded graph-management Skill is the next vertical slice.
@@ -37,8 +38,8 @@ The remaining work is quality rather than a second system: make the inline affor
 Folder ontology is intentionally simple: folders provide a primary structural
 home; tags and typed relationships express additional membership. Folder
 Overview and explicit optional `index.md` authoring are shipped substrate. An
-optional Knowledge Profile may interpret broader types, properties, and
-relationship rules without replacing that user-owned structure.
+optional Workspace Ontology may interpret broader types, Properties, and
+reference rules without replacing that user-owned structure.
 
 ## Active Work Packages
 
@@ -87,13 +88,14 @@ graph-maintenance work continue above it.
 
 - Preserve the shipped link, backlink, tag, property, Folder Overview, and
   Connections behavior through the single `WorkspaceGraph` boundary.
-- Maintain knowledge snapshot 0.2 with open Concept types, lossless Properties,
-  Relation predicates, authority, resolution, and Evidence.
+- Maintain knowledge snapshot 0.3 with open Concept types, lossless Properties,
+  Relation predicates, origin, resolution, and Evidence.
 - Keep Generic Markdown as the zero-requirement interpretation and Open
-  Knowledge Format 0.1 as the first permissive interoperability profile.
-- Add a small user-owned Knowledge Profile contract only after interoperability
-  fixtures and expected facts are frozen.
-- Keep identity, resolution, Evidence, and profile conformance covered by
+  Knowledge Format 0.1 as the first permissive interoperability Format.
+- Complete preview and reviewed activation for the small user-owned
+  `ontology.yaml` contract; do not grow it into an editor or executable rule
+  system.
+- Keep identity, resolution, Evidence, and Format/Ontology conformance covered by
   deterministic graph contract tests.
 - Keep the shipped renderer-neutral dense topology, bounded cold metadata
   reads, deterministic layout, and shared WebGPU/Canvas scene free of semantic

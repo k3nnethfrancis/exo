@@ -27,7 +27,20 @@ The current Folder model is:
 - Folder defaults and the nearest Folder Index chain are inherited guidance, not automatic child-note mutations. Explicit Note properties override defaults.
 - Tags and typed relationships express additional membership beyond the primary path.
 
-This produces useful ontology through normal organization without a mandatory schema, ontology database, or ontology plugin. Optional user-owned Knowledge Profiles may interpret these same facts; they do not replace Folder Indexes or become another canonical store.
+This produces useful structure through normal organization without a mandatory
+schema or ontology database. One optional user-owned `ontology.yaml` may
+interpret these facts across the Workspace; it does not replace Folder Indexes
+or become another canonical store.
+
+## Workspace Ontology and Note Root Formats
+
+Each Note Root first uses a Format: Generic Markdown by default or permissive
+OKF 0.1. An explicitly kept `<Workspace Root>/ontology.yaml` can then interpret
+open Concept Types, Property shapes, reference-valued Relations, and validation
+rules. The user-edited file is a Candidate; only a separately reviewed Keep may
+persist its exact accepted source under `.exo/ontology` and publish a new graph
+generation. Candidate watcher events alone never invalidate the graph. See
+`workspace-ontology.md` and ADR 0006.
 
 ## Accepted graph direction — feature-branch tracer
 
@@ -38,19 +51,19 @@ enforces this separation:
 ```text
 canonical Markdown
   → schema-agnostic Knowledge Graph
-  → profile/view projection
+  → Format and explicitly kept Workspace Ontology interpretation
+  → Graph View projection
   → deterministic layout
   → renderer-independent scene
   → WebGPU or Canvas pixels
 ```
 
 The Knowledge Graph preserves open Concept types, arbitrary frontmatter
-Properties, Relations, resolution, authority, and Evidence. Generic Markdown is
-the zero-configuration profile. Open Knowledge Format 0.1 is the first
-implemented built-in interoperability profile on the feature branch. A
-Knowledge Profile may interpret a property as a
-Concept reference or declare validation rules, but unknown properties and types
-must survive and remain usable.
+Properties, Relations, resolution, origin, and Evidence. Generic Markdown is
+the zero-configuration Format. Open Knowledge Format 0.1 is the first built-in
+interoperability Format. A kept Workspace Ontology may interpret a Property as
+a Concept reference or declare validation rules, but unknown Properties and
+Types survive and remain usable.
 
 Graph Views compile this cold semantic model into dense numeric topology and
 visual classes. Closed numeric node/edge kinds are allowed inside a compiled
@@ -95,7 +108,7 @@ Owns Note Root identity, path authorization, containment, symlink policy, absolu
 
 Owns the derived Knowledge Graph: Note/Concept identity, lossless Properties,
 Relation resolution and Evidence, backlinks, neighborhoods, graph context, and
-invalidation. Markdown is canonical; graph snapshots and profile interpretations
+invalidation. Markdown is canonical; graph snapshots and Format/Ontology interpretations
 are derived. Folder Overview, Connections, and Graph Views consume this
 boundary rather than creating their own graph models. Connections receives a
 bounded Note-local context; the full Graph Pane receives string-free typed
@@ -142,7 +155,7 @@ The future Skill flow adds a reviewed, bounded proposal step; it is not claimed 
 | Note Roots and files | `WorkspaceModel`, `WorkspaceFiles` | Exo reads and mutates only authorized Note Roots | containment tests; `../issues.md#exo-issue-103`, `../CONTEXT.md` |
 | Workspace settings | `WorkspaceConfigStore`, revisioned `WorkspaceSettings` | Settings preserve unowned/unknown data and configured Commands | settings tests; `../issues.md#exo-issue-102` |
 | Notes and properties | Markdown/frontmatter, `NoteDocument` | Source on disk remains canonical | note/Markdown tests; `../CONTEXT.md` |
-| Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context; the schema-agnostic graph preserves open properties, relation authority, and evidence while the Graph Pane uses compact topology plus bounded cold reads | search/graph/transport tests; `graph-system-report-and-plan.md` |
+| Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context; Knowledge Graph 0.3 preserves open Properties, Relation origin, and Evidence while the Graph Pane uses compact topology plus bounded cold reads | search/graph/transport tests; `graph-system-report-and-plan.md` |
 | Canvas and panes | `WorkspaceCanvasLayoutSettings`, pane tree | Notes, Terminal, Preview, and Connections share one canvas | pane E2E; `../README.md` |
 | Terminal | `TerminalManager`, direct `node-pty`, xterm | Live terminal with bounded reload tail; no durable session history | terminal suite; `terminal-runtime-decision.md` |
 | Commands and invocation | `AgentCommand`, `InvocationRunner`, invocation records | Explicit inline invocation, headless document work, optional session handoff, observed-change review | invocation E2E; `../issues.md#exo-issue-106` |

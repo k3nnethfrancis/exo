@@ -1,10 +1,11 @@
 import { writeFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { GRAPH_CONCEPT_SUMMARY_MAX_BYTES } from "../graph-projection";
 import { WorkspaceGraph, workspaceNoteId } from "../workspace-graph";
+import { WorkspaceOntologyStore } from "../workspace-ontology";
 import type { WorkspaceModel } from "../types";
 
 const roots: string[] = [];
@@ -151,7 +152,7 @@ describe("WorkspaceGraph", () => {
     const second = await graph.knowledgeSnapshot();
     const metric = snapshot.concepts.find((concept) => concept.label === "Activation");
 
-    expect(snapshot.version).toBe("0.2");
+    expect(snapshot.version).toBe("0.3");
     expect(snapshot.snapshotId).toBe(second.snapshotId);
     expect(metric).toMatchObject({
       conceptTypes: ["Metric", "NorthStar"],
@@ -161,11 +162,11 @@ describe("WorkspaceGraph", () => {
     expect(snapshot.relations).toEqual(expect.arrayContaining([
       expect.objectContaining({
         family: "link",
-        authority: "authored",
+        origin: "document",
         resolution: "resolved",
         evidence: [expect.objectContaining({ kind: "source-span", detail: "source" })],
       }),
-      expect.objectContaining({ family: "tag-membership", predicate: "has-tag", authority: "authored" }),
+      expect.objectContaining({ family: "tag-membership", predicate: "has-tag", origin: "document" }),
     ]));
     expect(snapshot.findings).toContainEqual(expect.objectContaining({ code: "relation.unresolved" }));
   });
@@ -183,6 +184,53 @@ describe("WorkspaceGraph", () => {
     expect(snapshot.activeProfile).toMatchObject({ id: "okf", version: "0.1" });
     expect(snapshot.concepts.find((concept) => concept.label === "Typed")?.properties).toMatchObject({ producer_field: "keep" });
     expect(snapshot.findings).toContainEqual(expect.objectContaining({ code: "okf.missing-type", conceptIds: ["note:notes:untyped.md"] }));
+  });
+
+  it("uses only an explicitly kept Ontology and ignores later candidate edits", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-ontology-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    const runtimeRoot = path.join(workspace, ".exo-test");
+    await mkdir(notes);
+    const sourcePath = path.join(notes, "source.md");
+    const sourceBytes = "---\ntype: paper\nsupports: [missing]\n---\n# Source\n";
+    await writeFile(sourcePath, sourceBytes);
+    await writeFile(path.join(workspace, "ontology.yaml"), [
+      "ontology_schema: 1",
+      "id: research",
+      "version: 1",
+      "types:",
+      "  paper: {}",
+      "properties:",
+      "  supports:",
+      "    value: reference[]",
+      "    predicate: supports",
+    ].join("\n"));
+
+    const beforeKeep = await new WorkspaceGraph(model(workspace, notes), { runtimeRoot }).knowledgeSnapshot();
+    expect(beforeKeep.activeOntology).toEqual({ state: "generic" });
+    expect(beforeKeep.relations.some((relation) => relation.origin === "ontology")).toBe(false);
+
+    const store = new WorkspaceOntologyStore({ workspaceRoot: workspace, runtimeRoot });
+    const candidate = await store.inspectCandidate();
+    await store.keepCandidate(candidate.sourceRevision ?? "");
+    const activeGraph = new WorkspaceGraph(model(workspace, notes), { runtimeRoot });
+    const active = await activeGraph.knowledgeSnapshot();
+    const activeTopology = await activeGraph.graphTopology();
+    expect(active.activeOntology).toMatchObject({ state: "active", id: "research" });
+    expect(active.relations).toContainEqual(expect.objectContaining({ origin: "ontology", resolution: "unresolved" }));
+    const ids = new Set(active.concepts.map((concept) => concept.id));
+    expect(active.relations.every((relation) => ids.has(relation.source) && ids.has(relation.target))).toBe(true);
+
+    await writeFile(path.join(workspace, "ontology.yaml"), "ontology_schema: 1\nid: replacement\nversion: 2\n");
+    const candidateGraph = new WorkspaceGraph(model(workspace, notes), { runtimeRoot });
+    const candidateOnly = await candidateGraph.knowledgeSnapshot();
+    const candidateTopology = await candidateGraph.graphTopology();
+    expect(candidateOnly.snapshotId).toBe(active.snapshotId);
+    expect(candidateOnly.activeOntology).toEqual(active.activeOntology);
+    expect(candidateTopology.topologyHash).toBe(activeTopology.topologyHash);
+    expect(candidateTopology.layoutEpochId).toBe(activeTopology.layoutEpochId);
+    expect(await readFile(sourcePath, "utf8")).toBe(sourceBytes);
   });
 
   it("preserves stable relation identity when a different link is inserted earlier", async () => {
@@ -268,7 +316,7 @@ describe("WorkspaceGraph", () => {
     expect(detail.detail?.relations[0]).toMatchObject({
       direction: "outgoing",
       relation: {
-        authority: "authored",
+        origin: "document",
         evidence: [expect.objectContaining({ kind: "source-span", noteId: "note:notes:focus.md" })],
       },
     });

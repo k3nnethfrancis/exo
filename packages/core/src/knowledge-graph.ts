@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 
-export const KNOWLEDGE_GRAPH_VERSION = "0.2" as const;
+export const KNOWLEDGE_GRAPH_VERSION = "0.3" as const;
 
 export type KnowledgeGraphVersion = typeof KNOWLEDGE_GRAPH_VERSION;
 export type GraphPropertyValue = null | boolean | number | string | readonly GraphPropertyValue[] | GraphPropertyObject;
 export interface GraphPropertyObject { readonly [key: string]: GraphPropertyValue }
 
 export type ConceptResolution = "resolved" | "unresolved" | "external";
-export type RelationAuthority = "authored" | "declared" | "derived";
+export type RelationOrigin = "document" | "ontology" | "inferred";
 export type RelationResolution = "resolved" | "unresolved" | "ambiguous" | "external";
 export type RelationFamily = "link" | "property-reference" | "tag-membership" | "hierarchy" | "semantic";
 
@@ -24,7 +24,7 @@ export interface GraphSourceRange {
 }
 
 export interface RelationEvidence {
-  kind: "source-span" | "property" | "path" | "profile-rule" | "model";
+  kind: "source-span" | "property" | "path" | "ontology-rule" | "model";
   noteId?: string;
   property?: string;
   sourceRange?: GraphSourceRange;
@@ -51,7 +51,7 @@ export interface RelationEdge {
   target: string;
   family: RelationFamily;
   predicate?: string;
-  authority: RelationAuthority;
+  origin: RelationOrigin;
   resolution: RelationResolution;
   directed: boolean;
   confidence?: number;
@@ -74,6 +74,14 @@ export interface KnowledgeGraphSnapshot {
   relations: readonly RelationEdge[];
   findings: readonly GraphFinding[];
   activeProfile: KnowledgeProfileStatus;
+  activeOntology: ActiveOntologyStatus;
+}
+
+export interface ActiveOntologyStatus {
+  state: "generic" | "active" | "invalid-state";
+  id?: string;
+  version?: string;
+  revision?: string;
 }
 
 export interface GraphFinding {
@@ -118,10 +126,12 @@ export function knowledgeGraphSnapshotId(
   scope: KnowledgeGraphScope,
   concepts: readonly ConceptNode[],
   relations: readonly RelationEdge[],
+  findings: readonly GraphFinding[],
   profile: KnowledgeProfileStatus,
+  ontology: ActiveOntologyStatus,
 ): string {
   const digest = createHash("sha256")
-    .update(JSON.stringify({ version: KNOWLEDGE_GRAPH_VERSION, scope, concepts, relations, profile }))
+    .update(JSON.stringify({ version: KNOWLEDGE_GRAPH_VERSION, scope, concepts, relations, findings, profile, ontology }))
     .digest("hex")
     .slice(0, 16);
   return `knowledge-graph:${KNOWLEDGE_GRAPH_VERSION}:${digest}`;

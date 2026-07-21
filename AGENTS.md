@@ -46,7 +46,7 @@ Before contributing, scan `skills/`. For broad Exo development, load the relevan
 - `skills/submit-exo-issue/SKILL.md` - available for contributors and intake agents that file, promote, deduplicate, or assign Exo bug/QA/setup reports. The lead/orchestrator may follow the tracker convention directly without invoking this skill.
 - `skills/terminal-stability/SKILL.md` - use before changing terminal runtime, rendering, settings, tests, or Command launch behavior.
 - `skills/graph-system-stability/SKILL.md` - use before changing graph domain
-  types, Knowledge Profiles, graph queries, integrity checks, layout, scene,
+  types, Note Root Formats, Workspace Ontology rules, graph queries, integrity checks, layout, scene,
   rendering, Graph Pane integration, or graph performance tests.
 - `skills/deslopify-frontend/SKILL.md` - use before changing setup, settings, onboarding, future extension settings, or other configuration UI.
 
@@ -138,11 +138,14 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Folder containment and inherited guidance are current graph facts. A future
   Skill may consume a Folder Index chain only through the normal reviewed
   invocation path.
-- Exo should not impose one global schema or ontology. Users create ontologies through folders, Folder Indexes, properties, tags, links, and relationships; Exo detects, visualizes, searches, and helps maintain that user-owned structure.
-- Knowledge Profiles are optional user-owned interpretations of open Concept
-  types, Properties, Relations, and validation rules. Generic Markdown requires
-  none; OKF 0.1 is the first planned interoperability profile. Profiles must
-  preserve unknown user data and never become a second canonical database.
+- Exo never requires a schema. One optional user-owned `ontology.yaml` may
+  passively interpret open Concept Types, Properties, reference Relations, and
+  validation rules across a Workspace. It preserves unknown data, never mutates
+  Notes, and cannot contain executable or presentation behavior.
+- Note Root Formats and the Workspace Ontology are separate. Generic Markdown
+  and permissive OKF 0.1 are Formats; the Ontology applies after Format
+  projection. Relation origin is `document | ontology | inferred` and remains
+  separate from authorship.
 - Graph Views change layout and visual encoding, not knowledge. Renderer-local
   numeric kinds are performance projections and must not become ontology enums.
 - Keep graph contract tests and the repo-local graph performance suite separate.

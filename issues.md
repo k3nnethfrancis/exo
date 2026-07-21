@@ -456,7 +456,7 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     projection/presentation path as the full graph; delete the custom SVG once
     parity passes.
   - [x] Keep editor Properties editable and graph/Connections properties
-    explanatory; share one inspected Concept and show Relation authority,
+    explanatory; share one inspected Concept and show Relation origin,
     Evidence, profile interpretation, and the visual mappings a property drives.
   - [x] Hide Activity until it has a real invocation/change/provenance stream,
     then define its empty and populated states.

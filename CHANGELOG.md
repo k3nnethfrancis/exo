@@ -6,7 +6,10 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Added
 
-- Adds the experimental feature-branch graph-system tracer: an open Knowledge Graph 0.2,
+- Adds the reviewed Workspace Ontology foundation: an atomic `ontology.yaml`
+  parser/compiler, Candidate/Active revision store, persisted accepted source,
+  exact rule Evidence, and Generic Markdown fallback without modifying Notes.
+- Adds the experimental feature-branch graph-system tracer: an open Knowledge Graph 0.3,
   Generic Markdown and permissive OKF profiles, evidence-backed utility
   dimensions, dense renderer-neutral projection, and an interactive Canvas
   Graph Pane whose semantic construction and finite layout run outside the

@@ -20,13 +20,13 @@ contract:
    interaction.
 
 Exo will not impose one ontology. Generic Markdown remains the zero-configuration
-profile. Optional user-owned **Knowledge Profiles** may interpret properties and
+Format. An optional reviewed **Workspace Ontology** may interpret Properties and
 relationships, with Open Knowledge Format 0.1 as the first interoperability
-profile. Profiles never become a second canonical database, and unknown
+Format. Formats and Ontologies never become a second canonical database, and unknown
 properties or types must survive round trips.
 
 Graph quality will not be reduced to a universal scalar. Exo will report
-evidenced mechanical integrity, profile conformance, and stability separately
+evidenced mechanical integrity, Format/Ontology conformance, and stability separately
 from visual layout quality.
 
 ## What the graph lab built
@@ -146,27 +146,27 @@ set; an explicit label-density control is unnecessary.
 Edge uniformity, stress, overlap, and neighborhood preservation describe a
 layout. They do not tell us whether a Note is true, whether the user's ontology
 is appropriate, or whether an agent can find the right evidence. Density,
-orphan count, and modularity are likewise descriptive unless a declared profile
+orphan count, and modularity are likewise descriptive unless a declared evaluation profile
 or task makes them normative.
 
-### Semantic similarity is evidence, not an authored relation
+### Semantic similarity is evidence, not a document-origin Relation
 
 Embeddings can reveal likely duplicates, missing tags, or unlinked related
 concepts. They must remain versioned Derived Signals until accepted. A strong
 semantic match is a proposal candidate; a weak semantic match across an
-authored link may be an important bridge rather than a defect.
+document-origin link may be an important bridge rather than a defect.
 
 ### Quality is multidimensional
 
 There is no honest universal `graph quality = 82` metric. The useful model is:
 
 ```text
-Q(graph, knowledge profile) =
+Q(graph, evaluation profile) =
   [conformance, integrity, semantic alignment, stability]
 ```
 
 Each dimension must show its evidence and confidence. A quality report should
-say “seven Metric concepts have no declared source relation,” not merely display
+say “seven Metric concepts have no ontology-defined source Relation,” not merely display
 a score.
 
 ### Interoperability and ontology are different
@@ -194,23 +194,24 @@ this section describes the architectural relationships.
 
 **Note** is the Markdown file and remains canonical. **Property** is a lossless
 frontmatter fact on that Note. **Concept** is the graph identity projected from
-a Note by the active format/profile rules. Generic Markdown and OKF both default
+a Note by its Format and optional kept Ontology rules. Generic Markdown and OKF both default
 to one Concept per Note.
 
 **Relation** connects two Concepts. It records a family, optional user-defined
-predicate, authority, resolution, and Evidence. A Relation may be authored in
-Markdown, declared through a profile-interpreted property, or derived by a
+predicate, origin, resolution, and Evidence. Origin is `document` for Markdown,
+`ontology` for a kept Ontology-interpreted Property, or `inferred` for a
 versioned machine process.
 
-**Knowledge Profile** is optional, user-owned interpretation. It can declare
-concept types, property value shapes, which properties contain concept
-references, expected relations, and validation rules. It does not own Notes,
-silently rewrite them, or reject unknown data.
+**Workspace Ontology** is optional, reviewed user-owned interpretation. It can
+declare Concept Types, Property value shapes, which Properties contain Concept
+references, expected Relations, and validation rules. It does not own Notes,
+silently rewrite them, or reject unknown data. **Format** remains the separate
+Note Root interoperability contract.
 
 **Graph View** maps a selected graph projection into encodings and layout
 weights. It changes presentation, not knowledge.
 
-### Knowledge graph snapshot 0.2
+### Knowledge graph snapshot 0.3
 
 The implemented semantic snapshot preserves these fields:
 
@@ -236,14 +237,14 @@ interface RelationEdge {
   family: "link" | "property-reference" | "tag-membership" |
           "hierarchy" | "semantic";
   predicate?: string;            // open vocabulary
-  authority: "authored" | "declared" | "derived";
+  origin: "document" | "ontology" | "inferred";
   resolution: "resolved" | "unresolved" | "ambiguous" | "external";
   confidence?: number;
   evidence: readonly RelationEvidence[];
 }
 
 interface RelationEvidence {
-  kind: "source-span" | "property" | "path" | "profile-rule" | "model";
+  kind: "source-span" | "property" | "path" | "ontology-rule" | "model";
   noteId?: string;
   property?: string;
   sourceRange?: { from: number; to: number };
@@ -258,8 +259,8 @@ projection-local performance data rather than the durable graph contract.
 ### Consolidated production contract
 
 `WorkspaceGraph` is the only production knowledge-graph boundary. Its
-schema-agnostic 0.2 snapshot owns open Concept types, lossless Properties,
-Relations, resolution, authority, and Evidence. Connections adapts that graph
+schema-agnostic 0.3 snapshot owns open Concept Types, lossless Properties,
+Relations, resolution, origin, and Evidence. Connections adapts that graph
 to a bounded focused-Note context. The full Graph Pane receives a compact,
 string-free typed topology with profile/topology/transport hashes and retrieves
 labels, paths, Properties, Findings, and Relation Evidence through bounded,
@@ -273,7 +274,7 @@ contract rather than carrying a compatibility graph representation.
 ## How properties become useful without becoming mandatory
 
 The base graph preserves every supported YAML value and exposes it through a
-generic property inspector and filter. A Knowledge Profile may then interpret
+generic property inspector and filter. A Workspace Ontology may then interpret
 selected keys:
 
 | Fact | Possible Graph View projection |
@@ -286,11 +287,11 @@ selected keys:
 | numeric property | optional size, heat, or priority |
 | enum property | facet, color, or region |
 | reference property | directed typed Relation |
-| Markdown link | strong authored directed Relation |
-| semantic similarity | faint derived overlay or proposal evidence |
+| Markdown link | strong document-origin directed Relation |
+| semantic similarity | faint inferred overlay or proposal evidence |
 
-No property should affect physics merely because it exists. The user or a
-profile chooses that mapping. The same graph can therefore support topology,
+No Property should affect physics merely because it exists. The user chooses
+that mapping through a Graph View. The same graph can therefore support topology,
 lineage, ontology, semantic, and temporal views without changing its Notes.
 
 ## Graph verification
@@ -309,11 +310,11 @@ lineage, ontology, semantic, and temporal views without changing its Notes.
 ### Profile conformance checks
 
 - required properties and valid value shapes;
-- declared relationship expectations;
+- Ontology-defined relationship expectations;
 - duplicate canonical resources;
-- reachability from declared entry Concepts;
+- reachability from Ontology-defined entry Concepts;
 - domain-specific citation or provenance requirements; and
-- profile/version compatibility.
+- Format/Ontology version compatibility.
 
 Graph contract tests own schema conformance, identity, link resolution,
 Evidence, unknown-field preservation, deterministic snapshots, and malformed
@@ -337,9 +338,9 @@ Gate: the fixtures and expected facts are reviewable without any renderer.
 ### Phase 1 — Consolidate the knowledge graph — complete
 
 1. Inventory consumers of `GraphSnapshot` and `WorkspaceGraph`.
-2. Introduce knowledge snapshot 0.2 behind `WorkspaceGraph`.
+2. Introduce knowledge snapshot 0.3 behind `WorkspaceGraph`.
 3. Preserve arbitrary nested frontmatter values and stable Note identity.
-4. Add Relation authority, resolution, predicate, and Evidence.
+4. Add Relation origin, resolution, predicate, and Evidence.
 5. Keep backlinks, neighborhoods, and graph context on the consolidated model.
 6. Delete the superseded snapshot/query, object-IPC, and renderer-scene paths
    after their consumer and parity audits pass.
@@ -347,20 +348,20 @@ Gate: the fixtures and expected facts are reviewable without any renderer.
 Gate: current links, backlinks, tags, Folder Overview, Connections, and search
 hydration remain behaviorally identical; unknown fields survive a round trip.
 
-### Phase 2 — Add profile interpretation
+### Phase 2 — Add Format and Ontology interpretation
 
-1. Implement Generic Markdown as the zero-requirement profile.
-2. Implement OKF 0.1 as a data-only built-in profile: one Markdown concept per
+1. Implement Generic Markdown as the zero-requirement Format.
+2. Implement OKF 0.1 as a data-only built-in Format: one Markdown Concept per
    document, path-relative concept IDs, required `type`, permissive properties,
    ordinary Markdown relation edges, and reserved-file handling.
-3. Define the smallest user-owned Knowledge Profile format for concept types,
-   property shapes, reference-valued properties, relation expectations, and
-   visual hints.
-4. Add best-effort behavior for unknown profile versions and types.
-5. Expose profile status and violations without blocking ordinary Markdown use.
+3. Define the smallest reviewed Workspace Ontology format for Concept Types,
+   Property shapes, reference-valued Properties, Relation expectations, and
+   validation rules. Presentation remains exclusively a Graph View concern.
+4. Add best-effort behavior for unknown Format versions and open Types.
+5. Expose Format/Ontology status and Findings without blocking ordinary Markdown use.
 
 Gate: Exo loads both fixtures without mutation, preserves unknown data, explains
-every interpreted edge, and falls back to Generic Markdown when no profile is
+every interpreted edge, and falls back to Generic Markdown when no Ontology is
 selected.
 
 ### Phase 3 — Complete graph contract verification
@@ -379,7 +380,7 @@ unknown data without affecting editor latency.
    topology: numeric indices, CSR adjacency, visual classes, weights, and cold
    metadata.
 2. Keep ontology strings and properties out of hot draw loops.
-3. Derive stable layout seeds from graph/profile/view versions.
+3. Derive stable layout seeds from graph/Format/Ontology/View versions.
 4. Preserve positions for unchanged Concepts and align new layout epochs to the
    previous mental map.
 5. Compile selection, path, focal labels, and relation explanations in the scene,
@@ -405,9 +406,9 @@ selection, path, labels, and relation explanations.
    until a real provenance/change stream exists.
 6. Keep editable canonical frontmatter in the editor Properties surface and use
    graph/Connections detail to explain Concept properties, visual mappings,
-   Relation authority, Evidence, and profile findings.
-7. Provide a focused Concept detail surface with properties, authored/derived
-   relationship distinction, Evidence, and profile violations.
+   Relation origin, Evidence, and Ontology findings.
+7. Provide a focused Concept detail surface with Properties, document/inferred
+   relationship distinction, Evidence, and Ontology Findings.
 8. Make semantic overlays and suggestions opt-in and visibly derived.
 9. Persist only derived layout state under `.exo/`; never write canonical Notes
    from graph navigation.
@@ -431,13 +432,13 @@ remaining passive and worker-free. Evidence:
 4. Verify that proposals remain understandable, reviewable, and reversible.
 5. Do not add another maintenance Skill until this one demonstrates value.
 
-Gate: reviewed proposals resolve a declared profile violation without silently
+Gate: reviewed proposals resolve an Ontology finding without silently
 expanding Exo's authority.
 
 ### Phase 7 — Ontology onboarding
 
 Only after the prior gates, let a configured Command inspect selected Note Roots
-and propose a Knowledge Profile, Folder/Index guidance, and migration plan.
+and propose a Workspace Ontology, Folder/Index guidance, and migration plan.
 Show before/after graph and utility evidence. Every filesystem change remains a
 normal explicit invocation diff; ontology inference never becomes an automatic
 initializer.

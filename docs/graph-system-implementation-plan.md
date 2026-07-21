@@ -61,10 +61,10 @@ merge decision.
 
 | Slice | State | Evidence / remaining gate |
 | --- | --- | --- |
-| Open Knowledge Graph 0.2 | tracer complete | open Concept types, recursive Property values, Relation authority/resolution/Evidence, deterministic snapshot tests |
-| Generic Markdown profile | tracer complete | zero-configuration interpretation covered by core tests |
-| Permissive OKF 0.1 profile | tracer complete | unknown fields survive; missing `type` is a finding rather than rejection |
-| Graph contract tracer | tracer complete | identity, resolution, Evidence, and profile-conformance dimensions; no aggregate score |
+| Open Knowledge Graph 0.3 | tracer complete | open Concept Types, recursive Property values, Relation origin/resolution/Evidence, deterministic snapshot tests |
+| Generic Markdown Format | tracer complete | zero-configuration interpretation covered by core tests |
+| Permissive OKF 0.1 Format | tracer complete | unknown fields survive; missing `type` is a finding rather than rejection |
+| Graph contract tracer | tracer complete | identity, resolution, Evidence, and conformance dimensions; no aggregate score |
 | Dense Graph View projection | tracer complete | deterministic numeric topology; tag facts remain canonical but tag hubs are omitted from the default view |
 | Derived-process transport | tracer complete | `graph-view` runs outside Electron's renderer/main critical path with bounded IPC response handling |
 | Normal Graph Pane | tracer complete | Canvas view in Connections and Workspace Canvas; select, shortest path, orbit, pan, zoom, frame, refresh |
@@ -110,9 +110,9 @@ remain the acceptance sequence, including work that has not yet been earned.
 | One production graph model | simplification architecture / Exo | current duplicate `GraphSnapshot` and `WorkspaceGraph` | **keep** |
 | Current Connections and Folder behavior cannot regress | shipped user behavior / Exo | renderer, IPC, core tests | **keep** |
 | Derived graph work cannot block typing or navigation | measured performance invariant / Exo | ADR 0003, latency E2E | **keep** |
-| Relations explain authority, resolution, and evidence | quality model / Kenneth | graph report and OKF/OpenWiki analysis | **keep** |
+| Relations explain origin, resolution, and Evidence | quality model / Kenneth | graph report and OKF/OpenWiki analysis | **keep** |
 | Generic Markdown works without setup | product simplicity / Kenneth | Exo launch direction | **keep** |
-| OKF 0.1 is the first optional interoperability profile | product decision / Kenneth | ADR 0005 | **keep** |
+| OKF 0.1 is the first optional interoperability Format | product decision / Kenneth | ADR 0005 | **keep** |
 | Graph integrity must be verified separately from layout | graph experiment / Kenneth | graph performance baseline | **keep** |
 | Stellar ships in the same branch | inherited implementation convenience | no user requirement; raises rollback and review cost | **delete** |
 | Snapshot 0.2 requires a long-lived compatibility layer | earlier plan assumption | current caller inventory shows old snapshot APIs are tests/docs only | **question; delete unless an external caller is proven** |
@@ -172,14 +172,14 @@ export interface GraphRelation {
     | "hierarchy"
     | "semantic";
   predicate?: string;
-  authority: "authored" | "declared" | "derived";
+  origin: "document" | "ontology" | "inferred";
   resolution: "resolved" | "unresolved" | "ambiguous" | "external";
   confidence?: number;
   evidence: readonly GraphEvidence[];
 }
 
 export interface GraphEvidence {
-  kind: "source-span" | "property" | "path" | "profile-rule" | "model";
+  kind: "source-span" | "property" | "path" | "ontology-rule" | "model";
   noteId?: string;
   property?: string;
   sourceRange?: { from: number; to: number };
@@ -187,7 +187,7 @@ export interface GraphEvidence {
 }
 
 export interface KnowledgeGraphSnapshot {
-  version: "0.2";
+  version: "0.3";
   snapshotId: string;
   generatedAt: string;
   scope: GraphScope;
@@ -203,13 +203,13 @@ Rules:
   metadata, not portable identity.
 - Properties preserve every supported YAML value without stringifying arrays or
   nested objects.
-- An authored Markdown link produces a `link` Relation with source-span Evidence.
+- A Markdown link produces a document-origin `link` Relation with source-span Evidence.
 - A tag produces a `tag-membership` Relation; the tag may be a Concept in a
   compiled View without becoming a Note.
 - Folder containment produces a `hierarchy` Relation with path Evidence.
-- A profile-declared reference property produces a `property-reference`
-  Relation with both property and profile-rule Evidence.
-- Semantic observations use `authority: "derived"`, include producer version and
+- A kept Ontology reference Property produces an ontology-origin
+  `property-reference` Relation with both Property and ontology-rule Evidence.
+- Semantic observations use `origin: "inferred"`, include producer version and
   confidence, and are excluded from canonical neighborhoods unless a caller
   explicitly requests them.
 - Findings are evidence-backed warnings/errors. They do not mutate Notes or
@@ -373,13 +373,13 @@ tests, and desktop typecheck pass.
    - reserved `index.md` / `log.md` behavior;
    - arbitrary unknown properties preserved; and
    - unknown types rendered/interpreted generically.
-4. A profile may identify reference-valued properties and validation rules. It
-   may not execute code or write Notes.
+4. A Workspace Ontology may identify reference-valued Properties and validation
+   rules. It may not execute code or write Notes.
 5. Profile selection remains API/config input in this branch; no onboarding or
    settings UI.
 
 **Gate:** both public fixtures load without mutation; unknown fields survive;
-every declared relation cites property/profile Evidence; absent/unknown profiles
+every Ontology Relation cites Property/rule Evidence; absent/unknown Ontologies
 fall back safely to Generic Markdown.
 
 **Commit:** profile contract and two implementations.
@@ -394,7 +394,7 @@ fall back safely to Generic Markdown.
    - integrity;
    - semantic alignment when a derived provider is supplied;
    - stability/determinism.
-3. Verify path identity, authored links, tags/properties/profile Relations, and
+3. Verify path identity, document links, tags/Properties/Ontology Relations, and
    deterministic precomputed semantic observations.
 4. Emit versioned JSON and concise Markdown. Do not aggregate dimensions into a
    universal score.
@@ -535,7 +535,7 @@ understandable, reviewable, and reversible.
 
 ### Ontology onboarding
 
-Remains a later product experiment. It may propose a Knowledge Profile and
+Remains a later product experiment. It may propose a Workspace Ontology and
 migration plan only after the foundation can demonstrate a meaningful,
 reversible before/after result.
 

@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import {
   qmdSearchProvider,
   WorkspaceIndex,
@@ -66,30 +68,30 @@ function run(request: DerivedIndexRequest): Promise<DerivedIndexResult> {
     case "sync":
       return index.rebuild();
     case "graph-context":
-      return graphFor(model).contextForNote(request.filePath);
+      return graphFor(model, runtimeRoot).contextForNote(request.filePath);
     case "graph-topology":
-      return graphFor(model).graphTopology(request.profileId);
+      return graphFor(model, runtimeRoot).graphTopology(request.profileId);
     case "graph-concept-summaries":
-      return graphFor(model).graphConceptSummaries(request.indexes, request.sourceSnapshotId, request.profileId);
+      return graphFor(model, runtimeRoot).graphConceptSummaries(request.indexes, request.sourceSnapshotId, request.profileId);
     case "graph-concept-lookup":
-      return graphFor(model).graphConceptLookup(request.reference, request.sourceSnapshotId, request.profileId);
+      return graphFor(model, runtimeRoot).graphConceptLookup(request.reference, request.sourceSnapshotId, request.profileId);
     case "graph-concept-detail-by-index":
-      return graphFor(model).graphConceptDetailByIndex(request.index, request.sourceSnapshotId, request.profileId);
+      return graphFor(model, runtimeRoot).graphConceptDetailByIndex(request.index, request.sourceSnapshotId, request.profileId);
     case "graph-refresh":
-      return graphFor(model).refreshFile(request.filePath).then(() => null);
+      return graphFor(model, runtimeRoot).refreshFile(request.filePath).then(() => null);
     case "graph-invalidate":
-      graphFor(model).invalidate();
+      graphFor(model, runtimeRoot).invalidate();
       return Promise.resolve(null);
   }
 }
 
-function graphFor(model: WorkspaceModel): WorkspaceGraph {
-  const key = model.noteRoots
+function graphFor(model: WorkspaceModel, runtimeRoot: string): WorkspaceGraph {
+  const key = [path.resolve(model.workspaceRoot), path.resolve(runtimeRoot), ...model.noteRoots
     .map((root) => `${root.id}:${root.path}`)
-    .sort()
+    .sort()]
     .join("\n");
   if (!workspaceGraph || workspaceGraphKey !== key) {
-    workspaceGraph = new WorkspaceGraph(model);
+    workspaceGraph = new WorkspaceGraph(model, { runtimeRoot });
     workspaceGraphKey = key;
   }
   return workspaceGraph;
