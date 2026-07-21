@@ -48,6 +48,7 @@ interface LaunchExoFixtureOptions {
   workspaceRootEnv?: boolean;
   runtimeRootEnv?: boolean;
   expectOnboarding?: boolean;
+  stripEnvironment?: readonly string[];
   prepareSettings?: (input: { settingsPath: string; userDataRoot: string; workspaceRoot: string }) => Promise<void>;
 }
 
@@ -124,6 +125,7 @@ async function launchExoFixtureForJourney(
     ...workspaceEnv,
     ...options?.env,
   };
+  for (const name of options?.stripEnvironment ?? []) delete launchEnv[name];
 
   if (options?.workspaceRootEnv === false) {
     delete launchEnv.EXO_WORKSPACE_ROOT;
@@ -219,6 +221,7 @@ interface RelaunchExoFixtureOptions {
   configured?: boolean;
   workspaceRootEnv?: boolean;
   runtimeRootEnv?: boolean;
+  stripEnvironment?: readonly string[];
 }
 
 interface RelaunchedExoFixture {
@@ -268,6 +271,7 @@ async function relaunchExoFixtureForJourney(
     EXO_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
     ...options?.env,
   };
+  for (const name of options?.stripEnvironment ?? []) delete launchEnv[name];
 
   if (options?.workspaceRootEnv === false) {
     delete launchEnv.EXO_WORKSPACE_ROOT;
