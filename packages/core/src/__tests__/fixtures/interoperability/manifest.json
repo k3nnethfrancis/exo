@@ -1,0 +1,114 @@
+{
+  "schema": 1,
+  "sources": [
+    {
+      "id": "google-knowledge-catalog-okf-crypto-bitcoin",
+      "repository": "https://github.com/GoogleCloudPlatform/knowledge-catalog",
+      "revision": "d44368c15e38e7c92481c5992e4f9b5b421a801d",
+      "specUrl": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/d44368c15e38e7c92481c5992e4f9b5b421a801d/okf/SPEC.md",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/d44368c15e38e7c92481c5992e4f9b5b421a801d/okf/LICENSE.md",
+      "notice": "Files are copied byte-for-byte. Exo selected a five-file subset and omitted all other bundle files.",
+      "files": [
+        {
+          "sourcePath": "okf/bundles/crypto_bitcoin/index.md",
+          "sourceUrl": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/d44368c15e38e7c92481c5992e4f9b5b421a801d/okf/bundles/crypto_bitcoin/index.md",
+          "destination": "google-knowledge-catalog/bundle/index.md",
+          "gitBlob": "6e452520613abcc39307db1e5f9bdd4eb173b561",
+          "sha256": "d8976586b989408aa16c5805c63415d4ad1533d0304b5a7c629ed91b4cf59143"
+        },
+        {
+          "sourcePath": "okf/bundles/crypto_bitcoin/datasets/index.md",
+          "sourceUrl": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/d44368c15e38e7c92481c5992e4f9b5b421a801d/okf/bundles/crypto_bitcoin/datasets/index.md",
+          "destination": "google-knowledge-catalog/bundle/datasets/index.md",
+          "gitBlob": "9f118b6d7834a2dfa71a7cb4f28b63ff02637a68",
+          "sha256": "5e5bd68160d52a8a8549f3eb1f2c0fac8e2b891515b61af743b05f996bc64500"
+        },
+        {
+          "sourcePath": "okf/bundles/crypto_bitcoin/datasets/crypto_bitcoin.md",
+          "sourceUrl": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/d44368c15e38e7c92481c5992e4f9b5b421a801d/okf/bundles/crypto_bitcoin/datasets/crypto_bitcoin.md",
+          "destination": "google-knowledge-catalog/bundle/datasets/crypto_bitcoin.md",
+          "gitBlob": "202919075cd08e2b77901b56486ac64eeeff3c6e",
+          "sha256": "1d6423ac6afa0c431a0bd3aeec2049839ac3bf491a3669a2f52c50847937c953"
+        },
+        {
+          "sourcePath": "okf/bundles/crypto_bitcoin/tables/index.md",
+          "sourceUrl": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/d44368c15e38e7c92481c5992e4f9b5b421a801d/okf/bundles/crypto_bitcoin/tables/index.md",
+          "destination": "google-knowledge-catalog/bundle/tables/index.md",
+          "gitBlob": "7583606c3f66e1f58b5490a22ef0d12d83442560",
+          "sha256": "59f1d172697d5cfb348ba2ca46ceda7958a756f5a9ab24cfdf8909fa7f790ca2"
+        },
+        {
+          "sourcePath": "okf/bundles/crypto_bitcoin/tables/blocks.md",
+          "sourceUrl": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/d44368c15e38e7c92481c5992e4f9b5b421a801d/okf/bundles/crypto_bitcoin/tables/blocks.md",
+          "destination": "google-knowledge-catalog/bundle/tables/blocks.md",
+          "gitBlob": "feea27640af8ee01b435e557af2a80aeeaa24549",
+          "sha256": "2e110091dd19ae94c2e095e7d6559061e29ef6b094a52d690779873d3b188d77"
+        }
+      ]
+    },
+    {
+      "id": "langchain-openwiki-deterministic-index-output",
+      "repository": "https://github.com/langchain-ai/openwiki",
+      "revision": "264ee8465f3c9874b822bcbb7ca68de471143798",
+      "tag": "0.2.1",
+      "readmeUrl": "https://github.com/langchain-ai/openwiki/blob/264ee8465f3c9874b822bcbb7ca68de471143798/README.md",
+      "license": "MIT",
+      "licenseUrl": "https://github.com/langchain-ai/openwiki/blob/264ee8465f3c9874b822bcbb7ca68de471143798/LICENSE",
+      "licenseDestination": "langchain-openwiki/LICENSE",
+      "licenseSha256": "1126322e2cc8d165adc4c792eeb195717de2bcc7b39be1ce77959d78e87ef685",
+      "generator": {
+        "path": "src/okf/index-sync.ts",
+        "url": "https://github.com/langchain-ai/openwiki/blob/264ee8465f3c9874b822bcbb7ca68de471143798/src/okf/index-sync.ts",
+        "gitBlob": "c39d3a5cf5b3fff6aa1a2ada8a6298e960243806",
+        "testPath": "test/index-middleware.test.ts",
+        "testUrl": "https://github.com/langchain-ai/openwiki/blob/264ee8465f3c9874b822bcbb7ca68de471143798/test/index-middleware.test.ts",
+        "testGitBlob": "964d6029e6a075f53cbfc7c624645469e1f12134",
+        "testName": "creates deterministic indexes for every directory",
+        "preparation": "Materialize the test's Quickstart and architecture/overview concept inputs, run synchronizeWikiIndexes(backend, 'repository'), and retain the generated root and nested indexes. Add the test's exact reserved log.md input; the generator excludes it from indexes."
+      },
+      "files": [
+        {
+          "destination": "langchain-openwiki/wiki/index.md",
+          "role": "generated root index",
+          "sha256": "fba2e69df570dd75fe56be06fc2dbbce1403376de6ef57cc0d204c59aa4d68ae"
+        },
+        {
+          "destination": "langchain-openwiki/wiki/quickstart.md",
+          "role": "public test input",
+          "sha256": "7116bb4846716af571e2b68a340af7561f356ac464a62d0cb0955c17310c42fe"
+        },
+        {
+          "destination": "langchain-openwiki/wiki/architecture/index.md",
+          "role": "generated nested index",
+          "sha256": "e4113e369d5cdcdfb7698457ca0a4664381e5f9311ad6c3d08526ce54888bdfb"
+        },
+        {
+          "destination": "langchain-openwiki/wiki/architecture/overview.md",
+          "role": "public test input",
+          "sha256": "b5477d6d52ee3ac2f3131a2a211564bc6e319bd73e5e412b749ecb5e55ef39ea"
+        },
+        {
+          "destination": "langchain-openwiki/wiki/log.md",
+          "role": "public reserved-log test input",
+          "sha256": "16e26774469219d4514f295ea2d76117ac9227e5d2d740184a79fd04ca0fa937"
+        }
+      ],
+      "compatibilityNote": "The repository's checked-in openwiki/index.md at this revision has Concept frontmatter and no okf_version. It is intentionally not claimed as conformant generator output."
+    }
+  ],
+  "localCases": [
+    {
+      "directory": "format-ontology-boundary",
+      "license": "Apache-2.0",
+      "purpose": "Separate OKF Format facts from explicitly kept Workspace Ontology meaning and prove open property preservation.",
+      "files": {
+        "notes/index.md": "25544d6ff02e169fe42afd636dff9bbbec71d05a23b15637f861bfc33dda8a22",
+        "notes/log.md": "873760ef7e0e98436f9e7e9440d3d3a51f879cc37abcebc5acd1e54c94571ca5",
+        "notes/source.md": "02ba81cbdc2c7a2a68b37f1f312939efcac3593619d72a057c49ee1ae69c0007",
+        "notes/target.md": "1b957960e415e1cd3c3d8b74ce0cc29dc14c4a25cd2027ff00affd5b16d84b3f",
+        "ontology.yaml": "cb524c131fb7ec55123cc6e8fc8c55ad1a3cfd200dd9b272eec6edfaa550d7ab"
+      }
+    }
+  ]
+}

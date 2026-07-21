@@ -13,7 +13,7 @@ import {
   type RelationEvidence,
   type RelationEdge,
 } from "./knowledge-graph";
-import { knowledgeProfile } from "./knowledge-profile";
+import { knowledgeProfile, type KnowledgeProfile } from "./knowledge-profile";
 import {
   WorkspaceOntologyStore,
   absentWorkspaceOntologyCandidateRevision,
@@ -57,6 +57,7 @@ import { listMarkdownFiles, WorkspaceFiles } from "./workspace";
 
 export type NoteId = `note:${string}`;
 export type GraphResolution = "resolved" | "unresolved" | "ambiguous" | "external";
+type AbsoluteMarkdownLinkBase = KnowledgeProfile["absoluteMarkdownLinkBase"];
 
 export interface WorkspaceGraphNote {
   id: NoteId;
@@ -241,14 +242,17 @@ export class WorkspaceGraph {
     const cached = cache ? this.knowledgeSnapshotCache.get(cacheKey) : undefined;
     if (cached) return cached;
     const graph = await this.build();
-    const epoch = this.resolveEpoch(graph);
     const profile = knowledgeProfile(profileId);
+    const noteRootAbsoluteLinks = profile.absoluteMarkdownLinkBase === "note-root";
+    const epoch = noteRootAbsoluteLinks ? null : this.resolveEpoch(graph);
+    const formatResolutionIndex = noteRootAbsoluteLinks ? resolutionIndex(graph) : null;
     const concepts = new Map<string, ConceptNode>();
     const relations: RelationEdge[] = [];
     const findings: GraphFinding[] = [];
     const formatConcepts: ConceptNode[] = [];
 
     for (const entry of [...graph.values()].sort((left, right) => byPath(left.note, right.note))) {
+      if (!profile.includesConcept(entry.note.relativePath)) continue;
       const formatTypes = profile.conceptTypes(entry.document.frontmatter);
       const concept: ConceptNode = {
         id: entry.note.id,
@@ -271,7 +275,13 @@ export class WorkspaceGraph {
       formatConcepts.push({ ...concept, conceptTypes: formatTypes });
 
       const relationCounts = new Map<string, number>();
-      (epoch.outgoingByConcept.get(entry.note.id) ?? []).forEach((link) => {
+      const outgoing = noteRootAbsoluteLinks
+        ? this.linksFromGraph(graph, entry, formatResolutionIndex ?? undefined, profile.absoluteMarkdownLinkBase)
+        : epoch?.outgoingByConcept.get(entry.note.id) ?? [];
+      outgoing.forEach((link) => {
+        // Format-excluded documents may organize a Note Root but cannot become
+        // Concept endpoints, whether or not the target currently exists.
+        if (link.resolution !== "external" && !profile.includesConcept(link.note?.relativePath ?? link.target)) return;
         const targetId = link.note?.id ?? conceptIdForLink(entry.note.id, link.target, link.resolution);
         if (!link.note) {
           concepts.set(targetId, {
@@ -348,15 +358,23 @@ export class WorkspaceGraph {
       [...concepts.values()],
       (source, reference) => {
         const sourceEntry = source.filePath ? graph.get(path.resolve(source.filePath)) : undefined;
-        const resolved = this.resolveTarget(graph, sourceEntry?.note, reference);
+        const resolved = this.resolveTarget(graph, sourceEntry?.note, reference, undefined, profile.absoluteMarkdownLinkBase);
         return {
           targetId: resolved.note?.id ?? conceptIdForLink(source.id, reference, resolved.status),
           resolution: resolved.status,
         };
       },
     );
-    for (const concept of ontologyInterpretation.concepts) concepts.set(concept.id, concept);
-    relations.push(...ontologyInterpretation.relations);
+    const ontologyRelations = ontologyInterpretation.relations
+      .filter((relation) => relation.resolution === "external"
+        || !relation.label
+        || profile.includesConcept(relation.label));
+    const ontologyRelationIds = new Set(ontologyRelations.map((relation) => relation.id));
+    const ontologyEndpointIds = new Set(ontologyRelations.flatMap((relation) => [relation.source, relation.target]));
+    for (const concept of ontologyInterpretation.concepts) {
+      if (ontologyEndpointIds.has(concept.id)) concepts.set(concept.id, concept);
+    }
+    relations.push(...ontologyRelations);
 
     const sortedConcepts = [...concepts.values()].sort(byId);
     const sortedRelations = relations.sort(byId);
@@ -370,7 +388,8 @@ export class WorkspaceGraph {
       ...findings,
       ...profile.validate(formatConcepts.sort(byId)),
       ...ontologyActiveDiagnostics(ontologyActive),
-      ...ontologyInterpretation.findings,
+      ...ontologyInterpretation.findings.filter((finding) => finding.relationIds.length === 0
+        || finding.relationIds.some((relationId) => ontologyRelationIds.has(relationId))),
     ].sort(byId);
     const snapshotId = knowledgeGraphSnapshotId(
       scope,
@@ -797,10 +816,15 @@ export class WorkspaceGraph {
 
   private findByPath(graph: Map<string, GraphEntry>, filePath: string): GraphEntry | undefined { return graph.get(path.resolve(filePath)); }
 
-  private linksFromGraph(graph: Map<string, GraphEntry>, entry: GraphEntry, index = resolutionIndex(graph)): WorkspaceGraphLink[] {
+  private linksFromGraph(
+    graph: Map<string, GraphEntry>,
+    entry: GraphEntry,
+    index = resolutionIndex(graph),
+    absoluteLinkBase: AbsoluteMarkdownLinkBase = "source-document",
+  ): WorkspaceGraphLink[] {
     const links: WorkspaceGraphLink[] = [];
-    for (const item of extractWikilinks(entry.document.body)) links.push(this.makeLink(graph, index, entry, item.target, item.label, item.sourceRange));
-    for (const item of extractMarkdownLinks(entry.document.body)) links.push(this.makeLink(graph, index, entry, item.target, item.label, item.sourceRange));
+    for (const item of extractWikilinks(entry.document.body)) links.push(this.makeLink(graph, index, entry, item.target, item.label, item.sourceRange, absoluteLinkBase));
+    for (const item of extractMarkdownLinks(entry.document.body)) links.push(this.makeLink(graph, index, entry, item.target, item.label, item.sourceRange, absoluteLinkBase));
     return links;
   }
 
@@ -878,14 +902,37 @@ export class WorkspaceGraph {
     return this.resolvedEpoch;
   }
 
-  private makeLink(graph: Map<string, GraphEntry>, index: ResolutionIndex, source: GraphEntry, target: string, label: string, sourceRange?: { from: number; to: number }): WorkspaceGraphLink {
+  private makeLink(
+    graph: Map<string, GraphEntry>,
+    index: ResolutionIndex,
+    source: GraphEntry,
+    target: string,
+    label: string,
+    sourceRange?: { from: number; to: number },
+    absoluteLinkBase: AbsoluteMarkdownLinkBase = "source-document",
+  ): WorkspaceGraphLink {
     const clean = target.split("#")[0]?.split("?")[0]?.trim() ?? target.trim();
     if (/^https?:\/\//i.test(clean)) return { source: source.note.id, target: clean, label, resolution: "external", sourceRange };
-    const resolved = this.resolveTarget(graph, source.note, clean, index);
+    const resolved = this.resolveTarget(graph, source.note, clean, index, absoluteLinkBase);
     return { source: source.note.id, target: clean, label, resolution: resolved.status, note: resolved.note, sourceRange };
   }
 
-  private resolveTarget(graph: Map<string, GraphEntry>, source: WorkspaceGraphNote | undefined, target: string, index = resolutionIndex(graph)): { status: GraphResolution; note?: WorkspaceGraphNote } {
+  private resolveTarget(
+    graph: Map<string, GraphEntry>,
+    source: WorkspaceGraphNote | undefined,
+    target: string,
+    index = resolutionIndex(graph),
+    absoluteLinkBase: AbsoluteMarkdownLinkBase = "source-document",
+  ): { status: GraphResolution; note?: WorkspaceGraphNote } {
+    if (absoluteLinkBase === "note-root" && source && target.startsWith("/")) {
+      const root = this.roots().find((candidate) => candidate.id === source.rootId);
+      if (!root) return { status: "unresolved" };
+      const relativeTarget = target.replace(/^\/+/, "");
+      const candidate = path.resolve(root.path, target.endsWith(".md") ? relativeTarget : `${relativeTarget}.md`);
+      if (!isWithin(root.path, candidate)) return { status: "unresolved" };
+      const exact = graph.get(candidate);
+      return exact ? { status: "resolved", note: exact.note } : { status: "unresolved" };
+    }
     const normalized = normalize(target.replace(/\.md(?:own)?$/i, ""));
     if (source && (target.includes("/") || target.endsWith(".md"))) {
       const candidate = path.resolve(path.dirname(source.filePath), target.endsWith(".md") ? target : `${target}.md`);

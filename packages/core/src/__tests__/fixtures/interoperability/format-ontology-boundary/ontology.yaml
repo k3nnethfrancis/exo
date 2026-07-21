@@ -1,0 +1,12 @@
+ontology_schema: 1
+id: fixture-meaning
+version: 1
+types:
+  Custom Claim: {}
+  Custom Evidence: {}
+properties:
+  supports:
+    value: reference
+    predicate: supports
+    direction: outgoing
+    targets: [Custom Evidence]

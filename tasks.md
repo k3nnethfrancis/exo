@@ -255,7 +255,7 @@ Start only after the trust gates above pass.
   `find-connect-context` until their underlying contracts exist. The now-earned
   `design-workspace-ontology` Skill is the next optional, evaluation-gated slice
   after the interoperability fixtures.
-- [ ] Phase 0: pin one public Google OKF bundle and one OpenWiki wiki fixture and
+- [x] Phase 0: pin one public Google OKF bundle and one OpenWiki wiki fixture and
   define deterministic schema/compatibility cases with expected facts.
 - [x] Phase 1: consolidate `GraphSnapshot` and `WorkspaceGraph` behind snapshot
   0.3 with open Concept types, lossless Properties, Relation predicates,
