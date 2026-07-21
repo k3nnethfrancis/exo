@@ -986,17 +986,9 @@ export function App() {
   }
 
   async function openTag(tag: string) {
-    if (activeDocumentPath) {
-      const resolved = await window.exo.notes.resolveTarget(activeDocumentPath, tag);
-      if (resolved) {
-        await openFile(resolved, focusedPaneId);
-        return;
-      }
-    }
-
-    setActiveTag(tag);
-    const results = await window.exo.workspace.searchTag(tag);
-    setTagResults(results);
+    setActiveTag(null);
+    setTagResults([]);
+    await openKnowledgeTarget(tag.replace(/^#/, ""));
   }
 
   async function suggestNoteTargets(query: string) {

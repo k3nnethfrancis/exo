@@ -12,6 +12,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Adds `Mod+B` and `Mod+Alt+B` shell shortcuts for Explorer and Utility,
   plus a compact lower-menu Help surface sourced from Exo's current
   keybinding and CLI command catalogs.
+- Adds `/today` and `/tomorrow` editor commands that expand to ordinary date
+  wikilinks and open or create the corresponding daily Note through the
+  existing link path.
 - Adds explicit Workspace Ontology review in Settings: bounded graph effects,
   exact stale-review guards, atomic Keep/Reject, restart-stable activation, and
   Ontology-origin Connections edges without changing authored Links or Notes.
@@ -74,8 +77,13 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+<<<<<<< HEAD
 - Keeps the Properties surface open or closed independently in each split
   editor pane instead of mirroring one pane's toggle across the canvas.
+=======
+- Makes inline `#tags` visible, highlighted, and clickable like wikilinks, and
+  refines ordered-list numbering, nesting, marker alignment, and continuation.
+>>>>>>> 028c1bc (feat(editor): polish markdown navigation syntax)
 - Upgrades pre-Changeset single-note invocation reviews into the exact review
   model without losing pending, kept, or rejected decisions.
 - Makes the exact multi-file Changeset the sole invocation review model; new

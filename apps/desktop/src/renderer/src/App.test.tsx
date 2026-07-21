@@ -53,6 +53,7 @@ import {
   listEnterEdit,
   markdownImageTarget,
   markdownPreviewMetadata,
+  slashDateCommandEdit,
   shouldSuppressGeneratedTitleLine,
   updateMarkdownPreviewMetadataForChanges,
   updateListMetadataForChanges,
@@ -1217,6 +1218,37 @@ describe("markdown editor list behavior", () => {
 
     expect(selection?.anchor).toBe(anchor);
     expect(selection?.head).toBe("- ".length);
+  });
+});
+
+describe("markdown editor slash date commands", () => {
+  const now = new Date(2026, 6, 21, 23, 30);
+
+  it("turns /today into a normal date wikilink", () => {
+    const state = EditorState.create({ doc: "Plan /today" });
+
+    expect(slashDateCommandEdit(state, state.doc.length, now)).toEqual({
+      from: "Plan ".length,
+      to: state.doc.length,
+      insert: "[[2026-07-21]]",
+      selection: "Plan [[2026-07-21]]".length,
+    });
+  });
+
+  it("uses calendar-day arithmetic for /tomorrow", () => {
+    const state = EditorState.create({ doc: "/tomorrow" });
+
+    expect(slashDateCommandEdit(state, state.doc.length, now)).toEqual({
+      from: 0,
+      to: state.doc.length,
+      insert: "[[2026-07-22]]",
+      selection: "[[2026-07-22]]".length,
+    });
+  });
+
+  it("does not expand partial commands or commands inside words", () => {
+    expect(slashDateCommandEdit(EditorState.create({ doc: "/tod" }), 4, now)).toBeNull();
+    expect(slashDateCommandEdit(EditorState.create({ doc: "not/today" }), 9, now)).toBeNull();
   });
 });
 

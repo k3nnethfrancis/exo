@@ -46,6 +46,17 @@ describe("WorkspaceNotesService", () => {
     await expect(readFile(createdPath, "utf8")).resolves.toMatch(/^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n\n# new target\n$/);
   });
 
+  it("creates ISO daily-note targets at the source Note Root", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const sourcePath = path.join(noteRoot, "folder", "source.md");
+    await writeFile(sourcePath, "# Source\n", "utf8");
+
+    const createdPath = await service.ensureTarget(sourcePath, "2026-07-22");
+
+    expect(createdPath).toBe(path.join(noteRoot, "2026-07-22.md"));
+    await expect(readFile(createdPath, "utf8")).resolves.toContain("# 2026-07-22");
+  });
+
   it("rejects wiki targets that traverse outside the source note root", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const sourcePath = path.join(noteRoot, "folder", "source.md");

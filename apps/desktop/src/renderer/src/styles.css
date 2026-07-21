@@ -1002,7 +1002,7 @@ button svg,
 
 .editor-surface--live-preview .exo-md-line--list {
   position: relative;
-  line-height: 1.6;
+  line-height: 1.58;
 }
 
 .editor-surface--live-preview .exo-md-line--task {
@@ -1017,7 +1017,7 @@ button svg,
 
 .editor-surface--live-preview .exo-md-line--list-start,
 .editor-surface--live-preview .exo-md-line--list-continuation {
-  min-height: 1.6em;
+  min-height: 1.58em;
 }
 
 .editor-surface--live-preview .exo-md-line--quote {
@@ -1226,7 +1226,18 @@ button svg,
 }
 
 .editor-surface--live-preview .exo-md-tag {
-  color: var(--accent);
+  border-radius: 4px;
+  background: var(--tag);
+  color: var(--tag-text);
+  cursor: pointer;
+  padding: 0.04em 0.22em;
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.editor-surface--live-preview .exo-md-tag:hover {
+  background: color-mix(in srgb, var(--tag) 72%, var(--accent) 28%);
+  color: var(--accent-strong);
 }
 
 .editor-surface--live-preview .exo-md-strong {
@@ -1306,18 +1317,20 @@ button svg,
   top: 0;
   left: calc(var(--exo-list-base-indent, 30px) + var(--exo-list-depth, 0) * var(--exo-list-indent-step, 28px) - var(--exo-list-marker-lane-width, 18px));
   width: var(--exo-list-marker-lane-width, 18px);
-  height: 1lh;
+  height: 1.58em;
+  box-sizing: border-box;
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   background: transparent;
   color: var(--exo-list-bullet);
   font-family: var(--sans);
-  font-size: 0.76em;
+  font-size: 0.86em;
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
+  font-weight: 520;
   justify-content: flex-end;
-  padding-right: 3px;
-  opacity: 0.9;
+  padding-right: 9px;
+  padding-top: 0.1em;
+  opacity: 0.88;
 }
 
 /* Continuation lines have no bullet. */
@@ -1334,15 +1347,19 @@ button svg,
 .editor-surface--live-preview .exo-md-list-marker-raw {
   display: inline-flex;
   width: var(--exo-list-marker-lane-width, 26px);
+  box-sizing: border-box;
   margin-left: calc(-1 * var(--exo-list-marker-lane-width, 26px));
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   font-family: inherit;
-  font-size: 0.84em;
+  font-size: 0.86em;
+  font-variant-numeric: tabular-nums;
+  font-weight: 520;
   line-height: 1;
   pointer-events: none;
   user-select: none;
   vertical-align: baseline;
+  padding-right: 9px;
 }
 
 .editor-surface--live-preview .exo-md-list-prefix {

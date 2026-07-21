@@ -5,9 +5,9 @@ export interface ListGeometry {
 }
 
 export const LIST_GEOMETRY: ListGeometry = {
-  baseIndent: 28,
+  baseIndent: 40,
   indentStep: 26,
-  markerLaneWidth: 20,
+  markerLaneWidth: 32,
 };
 
 export function listGeometryStyleVariables(geometry: ListGeometry = LIST_GEOMETRY) {

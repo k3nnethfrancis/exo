@@ -480,4 +480,29 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     duplicates in `recentJobs` or the active status.
   - [ ] Add a focused test for the completed-update job warning list.
 
--- Shoshin | 2026-07-20
+### EXO-ISSUE-123: Sustained editor latency journey has an autosave/content assertion race
+
+- Status: open; inherited, non-product-blocking QA harness issue
+- Severity: medium
+- Area: Electron editor latency harness, autosave/external refresh, inline
+  invocation composer
+- Observed: the latency budgets pass on both `launch/gate-d` and
+  `side/editor-syntax-polish`, but the sustained journey intermittently observes
+  one extra newline before its deletion fixture or misses the invocation
+  composer's expected trailing newline. The same content assertion failure
+  reproduces on untouched `launch/gate-d`; this editor-syntax slice did not
+  introduce it.
+- Evidence: ordinary 2,000-character typing measured 10.1–10.3 ms p50,
+  13.9–15.2 ms p90, 18.7–19.0 ms p99, and 33.0–36.6 ms max; accelerated
+  backspace measured 7.4–7.7 ms p50, 10.7–11.3 ms p90, 11.9–12.0 ms p99,
+  and 12.2–12.8 ms max; inline invocation typing measured 14.6–14.9 ms p90
+  and 19.4–21.2 ms max. All scoped runs recorded zero renderer long tasks.
+- Required:
+  - [ ] Reproduce deterministically without weakening any latency budget or
+    normalizing the expected document text.
+  - [ ] Trace editor transactions across autosave serialization and watcher
+    refresh to identify where document bytes diverge.
+  - [ ] Repair the sequencing race while preserving the real accelerated-typing,
+    backspace, and inline-composer journeys.
+
+-- Shoshin | 2026-07-21

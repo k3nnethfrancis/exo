@@ -192,8 +192,11 @@ export class WorkspaceNotesService {
     const noteRoot = this.options.getWorkspaceModel().noteRoots.find((root) => isPathWithin(root.path, sourceFilePath));
     const normalizedTarget = target.replace(/\.md$/i, "");
     const targetWithExtension = `${normalizedTarget}.md`;
+    const isDailyNoteTarget = /^\d{4}-\d{2}-\d{2}$/.test(normalizedTarget);
     const nextPath = path.isAbsolute(targetWithExtension)
       ? path.resolve(targetWithExtension)
+      : isDailyNoteTarget && noteRoot
+        ? path.join(noteRoot.path, targetWithExtension)
       : normalizedTarget.includes("/")
         ? path.join(noteRoot?.path ?? path.dirname(sourceFilePath), targetWithExtension)
         : path.join(path.dirname(sourceFilePath), targetWithExtension);

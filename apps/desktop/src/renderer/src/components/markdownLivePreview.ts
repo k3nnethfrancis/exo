@@ -265,13 +265,60 @@ const listContinuationOutdentKeymap = Prec.highest(keymap.of([
 const wikilinkExitKeymap = Prec.highest(keymap.of([
   {
     key: "Tab",
-    run: exitWikilink,
+    run: (view) => expandSlashDateCommand(view) || exitWikilink(view),
   },
   {
     key: "Enter",
-    run: exitWikilink,
+    run: (view) => expandSlashDateCommand(view) || exitWikilink(view),
   },
 ]));
+
+function expandSlashDateCommand(view: EditorView): boolean {
+  const range = view.state.selection.main;
+  if (!range.empty) {
+    return false;
+  }
+  const edit = slashDateCommandEdit(view.state, range.head);
+  if (!edit) {
+    return false;
+  }
+  view.dispatch({
+    changes: { from: edit.from, to: edit.to, insert: edit.insert },
+    selection: EditorSelection.cursor(edit.selection),
+    scrollIntoView: true,
+    userEvent: "input.complete",
+  });
+  return true;
+}
+
+export function slashDateCommandEdit(
+  state: EditorState,
+  pos: number,
+  now = new Date(),
+): { from: number; to: number; insert: string; selection: number } | null {
+  const line = state.doc.lineAt(pos);
+  const beforeCursor = state.doc.sliceString(line.from, pos);
+  const match = beforeCursor.match(/(^|\s)\/(today|tomorrow)$/i);
+  if (!match) {
+    return null;
+  }
+
+  const day = new Date(now);
+  if (match[2].toLowerCase() === "tomorrow") {
+    day.setDate(day.getDate() + 1);
+  }
+  const target = localIsoDate(day);
+  const insert = `[[${target}]]`;
+  const from = pos - match[0].length + match[1].length;
+  return { from, to: pos, insert, selection: from + insert.length };
+}
+
+function localIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 const listPrefixSelectionFilter = EditorState.transactionFilter.of((tr) => {
   if (!tr.selection || !tr.changes.empty) {
