@@ -6,6 +6,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Added
 
+- Adds a reusable, harness-only mini trace assessment that runs a Skill through
+  fresh read-only Claude and Codex sessions and generates a private local
+  comparison dashboard without defining an automated quality gate.
 - Adds explicit Workspace Ontology review in Settings: bounded graph effects,
   exact stale-review guards, atomic Keep/Reject, restart-stable activation, and
   Ontology-origin Connections edges without changing authored Links or Notes.
