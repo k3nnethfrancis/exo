@@ -276,7 +276,7 @@ export function SpatialGraphView({
       return;
     }
     runtimeRef.current = runtime;
-    canvas.__exoGraphSnapshot = () => {
+    if (window.exo.test?.graphHooks) canvas.__exoGraphSnapshot = () => {
       const snapshot = runtimeRef.current?.snapshot();
       if (!snapshot) return null;
       return {
@@ -290,7 +290,7 @@ export function SpatialGraphView({
         inspectedFilePath: inspectedConceptRef.current?.filePath ?? null,
       };
     };
-    canvas.__exoGraphPointForIndex = (index) => {
+    if (window.exo.test?.graphHooks) canvas.__exoGraphPointForIndex = (index) => {
       const scene = runtimeRef.current?.getScene();
       if (!scene || index < 0 || index >= scene.topology.nodes.seeds.length) return null;
       const offset = index * 4;
@@ -300,12 +300,14 @@ export function SpatialGraphView({
         visible: scene.projection.nodes[offset + 3] === 1,
       };
     };
-    canvas.__exoGraphPickAt = (x, y) => {
+    if (window.exo.test?.graphHooks) canvas.__exoGraphPickAt = (x, y) => {
       const scene = runtimeRef.current?.getScene();
       if (!scene) return -1;
       return pickGraphSceneNode(scene.topology, scene.projection, scene.camera, x, y, { pointer: "fine" });
     };
-    canvas.__exoGraphForceCanvasFallback = () => runtime.forceCanvasFallbackForTesting();
+    if (window.exo.test?.graphHooks) {
+      canvas.__exoGraphForceCanvasFallback = () => runtime.forceCanvasFallbackForTesting();
+    }
     const refreshCoordinator = new GraphSnapshotRefreshCoordinator(
       {
         schedule: (callback, delay) => window.setTimeout(callback, delay),

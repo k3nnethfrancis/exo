@@ -1,7 +1,7 @@
 # Launch Gate D baseline — production Graph
 
-Date: 2026-07-20  
-Branch: `launch/gate-d`  
+Date: 2026-07-20
+Branch: `launch/gate-d`
 Base: `ccbf81e`
 
 ## Outcome

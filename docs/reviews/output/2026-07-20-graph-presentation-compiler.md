@@ -76,6 +76,10 @@ Run the wall-clock gate in isolation:
 pnpm graph:presentation:perf
 ```
 
+That command fails explicitly on hardware without a declared threshold. Use
+`pnpm graph:presentation:measure` to collect the same hardware-stamped
+distribution on another machine without misrepresenting it as acceptance.
+
 Ordinary unit suites still verify exact output parity, capacity reuse, and
 finite measurements, but do not enforce wall-clock time while other test files
 compete for the same CPU. The dedicated command sets the explicit performance

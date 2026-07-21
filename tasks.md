@@ -81,7 +81,9 @@ Fable approved the execution order: decide P0, then run Settings preservation an
   version/profile/transport hashes, and bounded node/Relation detail reads;
   prove payload bounds at 10K/50K/100K.
 - [x] Make editor, Graph Pane, Connections, and explanatory Properties share
-  one inspected Concept and one renderer-neutral selection/path model.
+  one inspected Concept; make Canvas and WebGPU share one renderer-neutral
+  selection/path model. The bounded Connections thumbnail shares that compiler
+  in the next non-blocking slice.
 - [x] Close one interaction contract across Canvas and WebGPU: click selects,
   double-click opens, repeated open focuses, frame-all is explicit, and
   keyboard/reduced-motion behavior is deterministic.

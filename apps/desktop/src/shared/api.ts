@@ -221,6 +221,8 @@ export interface CliInstallationStatus {
 }
 
 export interface DesktopApi {
+  /** Present only in explicit test launches; absent from ordinary production. */
+  test?: { graphHooks: true };
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
     getSettings: () => Promise<WorkspaceSettingsSnapshot>;

@@ -26,6 +26,7 @@ window.addEventListener(
 );
 
 const api: DesktopApi = {
+  ...(process.env.EXO_TEST === "1" ? { test: { graphHooks: true as const } } : {}),
   workspace: {
     getModel: () => invokeDesktop("workspace:get-model"),
     getSettings: () => invokeDesktop("workspace:get-settings"),

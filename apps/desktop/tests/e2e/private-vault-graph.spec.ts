@@ -111,11 +111,12 @@ test("verifies graph behavior on a guarded private-vault copy", async () => {
     timings.graphOpen = await measured(async () => openGraphFromEditor(fixture!.page));
     let canvas = graphCanvas(fixture.page);
     await waitForGraphIdle(canvas);
-    if (await hasCanvasFallbackHook(canvas)) await waitForRendererReady(canvas);
+    ensure(await hasCanvasFallbackHook(canvas), "GRAPH_TEST_HOOKS_MISSING");
+    await waitForRendererReady(canvas);
     await assertGraphIdentity(canvas, graphSeed.filePath!);
 
     const initialSnapshot = await graphSnapshot(canvas);
-    if (await hasCanvasFallbackHook(canvas)) ensure(initialSnapshot.rendererKind === "webgpu", "WEBGPU_NOT_ACTIVE");
+    ensure(initialSnapshot.rendererKind === "webgpu", "WEBGPU_NOT_ACTIVE");
     const renderers = new Set<string>([initialSnapshot.rendererKind ?? "canvas2d"]);
 
     phase = "connections-identity";
@@ -137,21 +138,19 @@ test("verifies graph behavior on a guarded private-vault copy", async () => {
     });
 
     phase = "canvas-fallback";
-    if (await hasCanvasFallbackHook(canvas)) {
-      await forceCanvasFallback(canvas);
-      await waitForRenderer(canvas, "canvas2d");
-      renderers.add("canvas2d");
-      await waitForGraphIdentity(canvas, interaction.target.filePath);
-      timings.canvasFallbackPanZoom = await measured(async () => panAndZoom(fixture!.page, canvas));
-      phase = "canvas-interaction-target";
-      const canvasInteraction = await interactionTarget(canvas);
-      phase = "canvas-select-path";
-      timings.canvasFallbackSelectPath = await measured(async () => selectAndRoute(
-        canvas,
-        canvasInteraction,
-        (next) => { phase = `canvas-${next}`; },
-      ));
-    }
+    await forceCanvasFallback(canvas);
+    await waitForRenderer(canvas, "canvas2d");
+    renderers.add("canvas2d");
+    await waitForGraphIdentity(canvas, interaction.target.filePath);
+    timings.canvasFallbackPanZoom = await measured(async () => panAndZoom(fixture!.page, canvas));
+    phase = "canvas-interaction-target";
+    const canvasInteraction = await interactionTarget(canvas);
+    phase = "canvas-select-path";
+    timings.canvasFallbackSelectPath = await measured(async () => selectAndRoute(
+      canvas,
+      canvasInteraction,
+      (next) => { phase = `canvas-${next}`; },
+    ));
 
     phase = "repeat-open-close";
     timings.repeatedOpenClose = await measured(async () => {
@@ -181,6 +180,7 @@ test("verifies graph behavior on a guarded private-vault copy", async () => {
     ensure(corpus !== null, "COPY_AGGREGATE_MISSING");
     const finalSnapshot = await graphSnapshot(canvas);
     if (finalSnapshot.rendererKind) renderers.add(finalSnapshot.rendererKind);
+    ensure([...renderers].sort().join(",") === "canvas2d,webgpu", "RENDERER_COVERAGE_INCOMPLETE");
     report = {
       schemaVersion: 1,
       result: "pass",

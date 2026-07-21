@@ -74,9 +74,12 @@ describe("Canvas plan and draw-call scale measurements", () => {
       if (
         process.env.EXO_GRAPH_PRESENTATION_PERF_GATE === "1"
         && scale.nodes === 50_000
-        && cpu === "Apple M2 Max"
-        && process.arch === "arm64"
       ) {
+        if (cpu !== "Apple M2 Max" || process.arch !== "arm64") {
+          throw new Error(
+            `No graph presentation threshold is declared for ${cpu} (${process.arch}); run graph:presentation:measure instead.`,
+          );
+        }
         expect(cameraDistribution.p95).toBeLessThan(16.7);
       }
       console.info("graph-canvas-measurement", {

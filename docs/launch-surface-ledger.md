@@ -1,6 +1,6 @@
 # Launch Surface Ledger
 
-Last verified: 2026-07-20 at `cbe88cf`
+Last verified: 2026-07-20 at `abe0dde`
 
 This is the code-grounded launch inventory for Exo. It records surfaces a user,
 installer, or external agent can actually reach. Preload and main-process IPC are
@@ -53,9 +53,9 @@ separate list of supposed product features.
 | --- | --- | --- | --- | --- | --- | --- |
 | Connections properties, Outline, and Links tabs | shipped | `InspectorDock.tsx`; workspace graph context/detail | `InspectorDock.test.tsx`; `shell.spec.ts` | `README.md`; `docs/architecture.md` | Required | Links should continue to distinguish backlinks, note links, external links, and tags. |
 | Connections Activity tab | stale | removed from `InspectorDock.tsx` by this audit | The former test asserted a permanently empty tab; `App.tsx` supplied no invocation history | none | Removed before launch | Restore only after a real, bounded activity stream exists. |
-| Note-local graph neighborhood | shipped | `GraphNeighborhoodView`; graph context/query | neighborhood, graph query, shell tests | graph system report | Important | Keep this as the lightweight Connections projection. |
-| Full spatial graph canvas | experimental | `GraphPane.tsx`; `SpatialGraphView.tsx`; graph scene/projection | spatial/scene tests; packed interaction e2e inside `shell.spec.ts`; GraphBench | graph system report | V1 blocker | Resolve EXO-ISSUE-119 transport at 10k scale and EXO-ISSUE-121 interaction polish before calling it launch-ready. |
-| Typed knowledge-graph contract, evidence, and relation origins | experimental | `knowledge-graph.ts`; `workspace-graph.ts` | graph integrity/projection/query/snapshot/workspace tests | graph system report; ADR 0005 | Required foundation | Current names still use legacy `authority`/profile vocabulary; migrate only with a compatibility plan. |
+| Note-local graph neighborhood | shipped | `GraphNeighborhoodView`; graph context/query | neighborhood, graph query, shell tests | graph system report | Important | Keep it bounded; compile it through the full graph presentation path and delete the custom SVG in the immediate follow-up. |
+| Full spatial graph canvas | shipped | `GraphPane.tsx`; `SpatialGraphView.tsx`; compact topology, deterministic layout, shared scene, WebGPU/Canvas renderers | scene/runtime tests; source/package WebGPU and terminal gates; full-pane latency E2E; guarded private-copy E2E | graph system report; Gate D proof | Required | Gate D is complete. Continue multi-hardware evidence and physical-device polish without reopening the scene contract. |
+| Typed knowledge-graph contract, evidence, and relation origins | shipped foundation | `knowledge-graph.ts`; `workspace-graph.ts` | graph integrity/projection/query/snapshot/workspace tests | graph system report; ADR 0005 | Required foundation | Current names still use legacy `authority`/profile vocabulary; migrate deliberately in Launch Gate E. |
 | Internal generic and OKF interpreters | experimental | `knowledge-profile.ts`; workspace graph | workspace graph/profile tests | graph system report; ADR 0005 | Foundation only | Renderer currently selects `generic-markdown`; users cannot choose or edit an ontology. Do not market OKF support as configured product behavior. |
 | GraphBench rendering/layout harness | experimental | `packages/graphbench`; graphbench scripts | repository graphbench suites | graph system report | Engineering quality gate | Keep described as Exo's internal graph-system measurement harness, not a universal AI benchmark. |
 
@@ -140,7 +140,7 @@ Any change to those surfaces requires the repository's public-contract review pr
 | Connections exposed Activity without a producer | Removed the tab, helper, prop, styles, and false test. |
 | `plugins/` manifests had no loader but were packaged and used as a source-root sentinel | Removed after CLI source detection was changed to require the real launcher and installer. |
 | The old public-surface ledger reads like a current contract despite describing Wave 1 | Marked prominently as historical and linked here. |
-| The full graph is reachable while the renderer selects only `generic-markdown`, and 10k transport plus interaction issues remain | Remains a V1 blocker; keep the surface experimental until those gates pass. |
+| The full graph was reachable while 10K transport and interaction issues remained | Resolved by Launch Gate D: compact 10K/50K/100K transport, one scene, source/package WebGPU and Canvas recovery, concurrent latency, and guarded private-copy evidence passed. |
 | Current base docs/code use `KnowledgeProfile` and `authority` while accepted product vocabulary is moving toward Ontology, Format, and Origin | Requires a deliberate compatibility migration, not search-and-replace. |
 | `ontology.yaml` is planned; ontology discovery and graph-maintenance Skills are not user-reachable | Keep ontology as Launch Gate E; keep discovery optional and eval-gated. |
 

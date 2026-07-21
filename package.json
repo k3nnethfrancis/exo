@@ -37,6 +37,7 @@
     "graphbench:resilience": "pnpm --filter @exo/graphbench resilience",
     "graphbench:incremental": "pnpm --filter @exo/graphbench incremental",
     "graphbench:full": "pnpm --filter @exo/graphbench full",
+    "graph:presentation:measure": "pnpm --filter @exo/desktop exec vitest run src/renderer/src/graphCanvasPerformance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism",
     "graph:presentation:perf": "EXO_GRAPH_PRESENTATION_PERF_GATE=1 pnpm --filter @exo/desktop exec vitest run src/renderer/src/graphCanvasPerformance.test.ts --pool=forks --maxWorkers=1 --no-file-parallelism",
     "graph:private-vault:gate": "node scripts/run-private-vault-graph-gate.mjs",
     "graph:private-vault:source": "node scripts/run-private-vault-graph-gate.mjs --source-only",

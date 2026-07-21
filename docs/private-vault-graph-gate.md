@@ -30,12 +30,12 @@ The guardrails are mechanical:
   counts, and a redacted pass/fail phase. Note names, relative paths, bodies,
   topology identities, and source checksums never enter the report.
 
-The journey opens the Graph Pane, pans, zooms, selects a pickable connected
-pair, explains a route, opens the selected Note, checks Connections/Graph/Note
-identity, repeatedly closes and reopens the Pane, and observes one synthetic
-Note mutation made only in the copy. On a WebGPU-enabled tree it exercises the
-WebGPU path first and then the product's forced Canvas recovery hook. Until that
-runtime is present, the same harness truthfully reports Canvas-only coverage.
+The journey opens the Graph Pane, requires hardware WebGPU, pans, zooms, selects
+a pickable connected pair, explains a route, opens the selected Note, checks
+Connections/Graph/Note identity, repeatedly closes and reopens the Pane, then
+requires the product's forced Canvas recovery path and observes one synthetic
+Note mutation made only in the copy. Missing WebGPU or test instrumentation
+fails the Gate D harness; it cannot silently degrade into narrower evidence.
 
 This file defines the harness. A source or packaged acceptance claim still
 requires a successful aggregate from the exact checkout under review.
