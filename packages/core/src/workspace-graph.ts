@@ -1,6 +1,8 @@
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { extractMarkdownLinks, extractTags, extractWikilinks, readWorkspaceDocument } from "./notes";
+import { extractMarkdownLinks, extractTags, extractWikilinks, parseWorkspaceDocument } from "./notes";
 import {
   KNOWLEDGE_GRAPH_VERSION,
   graphPropertyRecord,
@@ -14,10 +16,23 @@ import {
 import { knowledgeProfile } from "./knowledge-profile";
 import {
   WorkspaceOntologyStore,
+  absentWorkspaceOntologyCandidateRevision,
   interpretWorkspaceOntology,
   ontologyConceptTypes,
   type WorkspaceOntologyActive,
 } from "./workspace-ontology";
+import {
+  ONTOLOGY_REVIEW_MAX_DIAGNOSTICS,
+  ONTOLOGY_REVIEW_MAX_CODE_CHARS,
+  ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS,
+  ONTOLOGY_REVIEW_MAX_MESSAGE_CHARS,
+  boundedOntologyReviewText,
+  summarizeOntologyGraphEffects,
+  type OntologyKeepResult,
+  type OntologyRejectResult,
+  type OntologyReviewGuard,
+  type OntologyReviewState,
+} from "./ontology-review";
 import {
   GRAPH_CONCEPT_DETAIL_MAX_BYTES,
   GRAPH_CONCEPT_DETAIL_MAX_EVIDENCE,
@@ -62,12 +77,22 @@ export interface WorkspaceGraphLink {
   sourceRange?: { from: number; to: number };
 }
 
+export interface WorkspaceGraphNeighborhoodRelation {
+  source: NoteId;
+  target: NoteId;
+  label: string;
+  predicate: string;
+  origin: "ontology";
+  evidence: readonly RelationEvidence[];
+}
+
 export interface WorkspaceGraphContext {
   note: WorkspaceGraphNote;
   outgoing: readonly WorkspaceGraphLink[];
   backlinks: readonly WorkspaceGraphLink[];
   unresolved: readonly WorkspaceGraphLink[];
   neighborhood: readonly WorkspaceGraphNote[];
+  neighborhoodRelations: readonly WorkspaceGraphNeighborhoodRelation[];
 }
 
 export interface WorkspaceGraphStatus {
@@ -79,6 +104,7 @@ export interface WorkspaceGraphStatus {
 interface GraphEntry {
   note: WorkspaceGraphNote;
   document: NoteDocument;
+  sourceRevision: string;
 }
 
 interface ResolutionIndex {
@@ -98,6 +124,14 @@ interface KnowledgeDetailIndex {
   relations: ReadonlyMap<string, readonly GraphConceptRelationDetail[]>;
 }
 
+interface StagedOntologyReview {
+  guard: OntologyReviewGuard;
+  snapshot: KnowledgeGraphSnapshot | null;
+  sourceRevision: string;
+}
+
+const NON_ACTIONABLE_ONTOLOGY_REVIEW_BASE = "not-pending";
+
 /** The one graph boundary for note relationships. It owns indexing and resolution. */
 export class WorkspaceGraph {
   private snapshot: Map<string, GraphEntry> | null = null;
@@ -110,6 +144,9 @@ export class WorkspaceGraph {
   private readonly knowledgeDetailIndexes = new Map<string, KnowledgeDetailIndex>();
   private resolvedEpoch: ResolvedGraphEpoch | null = null;
   private readonly ontologyStore: WorkspaceOntologyStore | null;
+  private activeOntology: WorkspaceOntologyActive | null = null;
+  private activeOntologyInFlight: Promise<WorkspaceOntologyActive> | null = null;
+  private stagedOntologyReview: StagedOntologyReview | null = null;
 
   constructor(private readonly model: WorkspaceModel, options: { runtimeRoot?: string } = {}) {
     this.ontologyStore = options.runtimeRoot
@@ -141,9 +178,19 @@ export class WorkspaceGraph {
     if (!entry) return null;
     const outgoing = epoch.outgoingByConcept.get(entry.note.id) ?? [];
     const backlinks = epoch.incomingByConcept.get(entry.note.id) ?? [];
+    const ontologyNeighborhood = await this.ontologyNeighborhoodRelations(entry, graph);
+    const neighborhoodRelations = ontologyNeighborhood.relations;
     const neighborhood = new Map<string, WorkspaceGraphNote>([[entry.note.id, entry.note]]);
     for (const link of [...outgoing, ...backlinks]) if (link.note) neighborhood.set(link.note.id, link.note);
-    return { note: entry.note, outgoing, backlinks, unresolved: outgoing.filter((link) => link.resolution === "unresolved" || link.resolution === "ambiguous"), neighborhood: Array.from(neighborhood.values()).sort(byPath) };
+    for (const note of ontologyNeighborhood.notes) neighborhood.set(note.id, note);
+    return {
+      note: entry.note,
+      outgoing,
+      backlinks,
+      unresolved: outgoing.filter((link) => link.resolution === "unresolved" || link.resolution === "ambiguous"),
+      neighborhood: Array.from(neighborhood.values()).sort(byPath),
+      neighborhoodRelations,
+    };
   }
 
   async backlinks(filePath: string): Promise<readonly WorkspaceGraphLink[]> {
@@ -174,9 +221,14 @@ export class WorkspaceGraph {
    * a deterministic derived snapshot and never a mutable graph database.
    */
   async knowledgeSnapshot(profileId?: string | null): Promise<KnowledgeGraphSnapshot> {
-    const ontologyActive = this.ontologyStore
-      ? await this.ontologyStore.active()
-      : ({ state: "generic", ontology: null, diagnostics: [] } satisfies WorkspaceOntologyActive);
+    return this.buildKnowledgeSnapshot(await this.loadActiveOntology(), profileId, true);
+  }
+
+  private async buildKnowledgeSnapshot(
+    ontologyActive: WorkspaceOntologyActive,
+    profileId?: string | null,
+    cache = false,
+  ): Promise<KnowledgeGraphSnapshot> {
     const activeOntology = {
       state: ontologyActive.state,
       ...(ontologyActive.ontology ? {
@@ -185,8 +237,8 @@ export class WorkspaceGraph {
         revision: ontologyActive.ontology.revision,
       } : {}),
     };
-    const cacheKey = `${profileId?.trim() || "generic-markdown"}:${activeOntology.state}:${activeOntology.revision ?? "none"}`;
-    const cached = this.knowledgeSnapshotCache.get(cacheKey);
+    const cacheKey = ontologySnapshotCacheKey(profileId, activeOntology);
+    const cached = cache ? this.knowledgeSnapshotCache.get(cacheKey) : undefined;
     if (cached) return cached;
     const graph = await this.build();
     const epoch = this.resolveEpoch(graph);
@@ -339,8 +391,154 @@ export class WorkspaceGraph {
       activeProfile,
       activeOntology,
     };
-    this.knowledgeSnapshotCache.set(cacheKey, snapshot);
+    if (cache) this.knowledgeSnapshotCache.set(cacheKey, snapshot);
     return snapshot;
+  }
+
+  async previewOntology(): Promise<OntologyReviewState> {
+    const store = this.requireOntologyStore();
+    const [candidate, active] = await Promise.all([
+      store.inspectCandidate(),
+      this.loadActiveOntology(),
+    ]);
+    const candidateRevision = candidate.sourceRevision ?? null;
+    const candidatePending = candidate.state === "absent"
+      ? active.state === "active"
+      : candidateRevision !== null && candidateRevision !== active.sourceRevision;
+    const diagnostics = candidate.diagnostics.slice(0, ONTOLOGY_REVIEW_MAX_DIAGNOSTICS)
+      .map(({ severity, code, message }) => ({
+        severity,
+        code: boundedOntologyReviewText(code, ONTOLOGY_REVIEW_MAX_CODE_CHARS),
+        message: boundedOntologyReviewText(message, ONTOLOGY_REVIEW_MAX_MESSAGE_CHARS),
+      }));
+    const candidateIdentity = {
+      state: candidate.state,
+      ...(candidate.ontology ? {
+        id: boundedOntologyReviewText(candidate.ontology.id, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS),
+        ...(candidate.ontology.label ? { label: boundedOntologyReviewText(candidate.ontology.label, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS) } : {}),
+        version: boundedOntologyReviewText(candidate.ontology.version, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS),
+      } : {}),
+      revision: candidateRevision,
+      pending: candidatePending,
+      rejected: candidateRevision !== null
+        ? candidateRevision === active.rejectedCandidateRevision
+        : active.sourceRevision !== undefined
+          && active.rejectedCandidateRevision === absentWorkspaceOntologyCandidateRevision(active.sourceRevision),
+    };
+    if (!candidatePending) {
+      this.stagedOntologyReview = null;
+      return {
+        active: ontologyReviewIdentity(active),
+        candidate: candidateIdentity,
+        guard: {
+          candidateRevision,
+          activationRevision: active.activationRevision,
+          baseSnapshotId: NON_ACTIONABLE_ONTOLOGY_REVIEW_BASE,
+        },
+        diagnostics,
+        omittedDiagnostics: Math.max(0, candidate.diagnostics.length - diagnostics.length),
+      };
+    }
+    const { snapshot: baseSnapshot, sourceRevision } = await this.ontologyReviewBase();
+    const guard: OntologyReviewGuard = {
+      candidateRevision,
+      activationRevision: active.activationRevision,
+      baseSnapshotId: baseSnapshot.snapshotId,
+    };
+    let candidateSnapshot: KnowledgeGraphSnapshot | null = null;
+    if (candidatePending && candidate.state === "valid" && candidate.ontology) {
+      candidateSnapshot = await this.buildKnowledgeSnapshot({
+        state: "active",
+        ontology: candidate.ontology,
+        activationRevision: active.activationRevision,
+        sourceRevision: candidate.sourceRevision,
+        diagnostics: [],
+      });
+    } else if (candidatePending && candidate.state === "absent" && active.state === "active") {
+      candidateSnapshot = await this.buildKnowledgeSnapshot(genericOntologyActive());
+    }
+    this.stagedOntologyReview = candidatePending && (candidateSnapshot || candidateRevision !== null)
+      ? { guard, snapshot: candidateSnapshot, sourceRevision }
+      : null;
+    return {
+      active: ontologyReviewIdentity(active),
+      candidate: candidateIdentity,
+      guard,
+      ...(candidateSnapshot ? { effects: summarizeOntologyGraphEffects(baseSnapshot, candidateSnapshot) } : {}),
+      diagnostics,
+      omittedDiagnostics: Math.max(0, candidate.diagnostics.length - diagnostics.length),
+    };
+  }
+
+  async keepOntology(guard: OntologyReviewGuard): Promise<OntologyKeepResult> {
+    const store = this.requireOntologyStore();
+    const staged = this.stagedOntologyReview;
+    const sourceRevision = await this.workspaceMarkdownRevision();
+    if (!staged || staged.sourceRevision !== sourceRevision) {
+      await this.reloadGraphFromDisk();
+      return { status: "stale", review: await this.previewOntology() };
+    }
+    const currentActive = await this.loadActiveOntology();
+    const currentBase = await this.knowledgeSnapshot();
+    const candidate = await store.inspectCandidate();
+    if (!staged?.snapshot
+      || !sameOntologyGuard(staged.guard, guard)
+      || (candidate.sourceRevision ?? null) !== guard.candidateRevision
+      || currentActive.activationRevision !== guard.activationRevision
+      || currentBase.snapshotId !== guard.baseSnapshotId) {
+      return { status: "stale", review: await this.previewOntology() };
+    }
+    let state;
+    try {
+      state = guard.candidateRevision === null
+        ? await store.keepReviewedGeneric(guard.activationRevision)
+        : await store.keepReviewedCandidate(guard.candidateRevision, guard.activationRevision);
+    } catch (error) {
+      if (!isOntologyReviewRace(error)) throw error;
+      return { status: "stale", review: await this.previewOntology() };
+    }
+    this.activeOntology = state.active;
+    this.activeOntologyInFlight = null;
+    this.knowledgeSnapshotCache.clear();
+    this.topologyCache.clear();
+    this.knowledgeDetailIndexes.clear();
+    const cacheKey = ontologySnapshotCacheKey(undefined, staged.snapshot.activeOntology);
+    this.knowledgeSnapshotCache.set(cacheKey, staged.snapshot);
+    this.stagedOntologyReview = null;
+    return { status: "applied", review: await this.previewOntology() };
+  }
+
+  async rejectOntology(guard: OntologyReviewGuard): Promise<OntologyRejectResult> {
+    const store = this.requireOntologyStore();
+    const staged = this.stagedOntologyReview;
+    const sourceRevision = await this.workspaceMarkdownRevision();
+    if (!staged || staged.sourceRevision !== sourceRevision) {
+      await this.reloadGraphFromDisk();
+      return { status: "stale", review: await this.previewOntology() };
+    }
+    const active = await this.loadActiveOntology();
+    const base = await this.knowledgeSnapshot();
+    const candidate = await store.inspectCandidate();
+    if (!staged
+      || !sameOntologyGuard(staged.guard, guard)
+      || (candidate.sourceRevision ?? null) !== guard.candidateRevision
+      || active.activationRevision !== guard.activationRevision
+      || base.snapshotId !== guard.baseSnapshotId) {
+      return { status: "stale", review: await this.previewOntology() };
+    }
+    let state;
+    try {
+      state = guard.candidateRevision === null
+        ? await store.rejectReviewedGeneric(guard.activationRevision)
+        : await store.rejectReviewedCandidate(guard.candidateRevision, guard.activationRevision);
+    } catch (error) {
+      if (!isOntologyReviewRace(error)) throw error;
+      return { status: "stale", review: await this.previewOntology() };
+    }
+    this.activeOntology = state.active;
+    this.activeOntologyInFlight = null;
+    this.stagedOntologyReview = null;
+    return { status: "rejected", review: await this.previewOntology() };
   }
 
   async graphTopology(profileId?: string | null): Promise<GraphTopology> {
@@ -488,6 +686,8 @@ export class WorkspaceGraph {
     const entry = await this.readEntry(resolvedPath, root).catch(() => null);
     if (generation !== this.generation || this.refreshVersions.get(resolvedPath) !== refreshVersion) return;
     if (!this.snapshot) return;
+    const previous = this.snapshot.get(resolvedPath);
+    if (entry?.sourceRevision === previous?.sourceRevision || (!entry && !previous)) return;
     if (entry) this.snapshot.set(resolvedPath, entry);
     else this.snapshot.delete(resolvedPath);
     this.resolvedEpoch = null;
@@ -547,7 +747,8 @@ export class WorkspaceGraph {
     authorized = new WorkspaceFiles(this.roots().map((candidate) => candidate.path)),
   ): Promise<GraphEntry | null> {
     try { await authorized.existing(filePath); } catch { return null; }
-    const document = await readWorkspaceDocument(filePath);
+    const raw = await readFile(filePath, "utf8");
+    const document = parseWorkspaceDocument(filePath, raw);
     const relativePath = normalize(path.relative(root.path, filePath));
     const note: WorkspaceGraphNote = {
       id: workspaceNoteId(root.id, relativePath),
@@ -558,7 +759,40 @@ export class WorkspaceGraph {
       tags: extractTags(document.body, document.frontmatter).map((tag) => tag.tag).sort(),
       frontmatter: document.frontmatter,
     };
-    return { note, document };
+    return { note, document, sourceRevision: contentRevision(raw) };
+  }
+
+  private async ontologyReviewBase(): Promise<{ snapshot: KnowledgeGraphSnapshot; sourceRevision: string }> {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const graph = await this.build();
+      const sourceRevision = graphSourceRevision(graph);
+      if (sourceRevision === await this.workspaceMarkdownRevision()) {
+        return { snapshot: await this.knowledgeSnapshot(), sourceRevision };
+      }
+      await this.reloadGraphFromDisk();
+    }
+    throw new Error("Workspace Notes changed while Ontology review was being prepared.");
+  }
+
+  private async reloadGraphFromDisk(): Promise<void> {
+    this.invalidate();
+    await this.build();
+  }
+
+  private async workspaceMarkdownRevision(): Promise<string> {
+    const roots = this.roots();
+    const files = (await listMarkdownFiles(roots.map((root) => root.path))).map((filePath) => path.resolve(filePath)).sort();
+    const authorized = new WorkspaceFiles(roots.map((root) => root.path));
+    const hash = createHash("sha256");
+    for (let offset = 0; offset < files.length; offset += 32) {
+      const batch = files.slice(offset, offset + 32);
+      const revisions = await Promise.all(batch.map(async (filePath) => {
+        await authorized.existing(filePath);
+        return contentRevision(await readFile(filePath));
+      }));
+      batch.forEach((filePath, index) => hash.update(filePath).update("\0").update(revisions[index] ?? "").update("\0"));
+    }
+    return hash.digest("hex");
   }
 
   private findByPath(graph: Map<string, GraphEntry>, filePath: string): GraphEntry | undefined { return graph.get(path.resolve(filePath)); }
@@ -568,6 +802,55 @@ export class WorkspaceGraph {
     for (const item of extractWikilinks(entry.document.body)) links.push(this.makeLink(graph, index, entry, item.target, item.label, item.sourceRange));
     for (const item of extractMarkdownLinks(entry.document.body)) links.push(this.makeLink(graph, index, entry, item.target, item.label, item.sourceRange));
     return links;
+  }
+
+  private async ontologyNeighborhoodRelations(
+    entry: GraphEntry,
+    graph: Map<string, GraphEntry>,
+  ): Promise<{ relations: WorkspaceGraphNeighborhoodRelation[]; notes: WorkspaceGraphNote[] }> {
+    const active = await this.loadActiveOntology();
+    if (active.state !== "active") return { relations: [], notes: [] };
+    const snapshot = await this.knowledgeSnapshot();
+    const index = this.detailIndex(snapshot);
+    const relations: WorkspaceGraphNeighborhoodRelation[] = [];
+    const noteById = new Map<NoteId, WorkspaceGraphNote>();
+    for (const detail of index.relations.get(entry.note.id) ?? []) {
+      const relation = detail.relation;
+      if (relation.origin !== "ontology" || relation.resolution !== "resolved") continue;
+      const source = index.concepts.get(relation.source);
+      const target = index.concepts.get(relation.target);
+      const sourceEntry = source?.filePath ? graph.get(path.resolve(source.filePath)) : undefined;
+      const targetEntry = target?.filePath ? graph.get(path.resolve(target.filePath)) : undefined;
+      if (!sourceEntry || !targetEntry) continue;
+      const predicate = relation.predicate ?? relation.family;
+      noteById.set(sourceEntry.note.id, sourceEntry.note);
+      noteById.set(targetEntry.note.id, targetEntry.note);
+      relations.push({
+        source: sourceEntry.note.id,
+        target: targetEntry.note.id,
+        label: relation.label ?? predicate,
+        predicate,
+        origin: "ontology",
+        evidence: relation.evidence.slice(0, 4).map((item) => ({
+          ...item,
+          ...(item.producer ? {
+            producer: {
+              id: item.producer.id.slice(0, 128),
+              version: item.producer.version.slice(0, 128),
+            },
+          } : {}),
+          ...(item.detail ? { detail: item.detail.slice(0, 256) } : {}),
+        })),
+      });
+    }
+    const boundedRelations = relations
+      .sort((left, right) => left.source.localeCompare(right.source) || left.target.localeCompare(right.target) || left.predicate.localeCompare(right.predicate))
+      .slice(0, 64);
+    const noteIds = new Set(boundedRelations.flatMap((relation) => [relation.source, relation.target]));
+    return {
+      relations: boundedRelations,
+      notes: [...noteIds].flatMap((id) => noteById.get(id) ?? []).sort(byPath),
+    };
   }
 
   private resolveEpoch(graph: Map<string, GraphEntry>): ResolvedGraphEpoch {
@@ -659,6 +942,59 @@ export class WorkspaceGraph {
     this.knowledgeDetailIndexes.set(snapshot.snapshotId, index);
     return index;
   }
+
+  private loadActiveOntology(): Promise<WorkspaceOntologyActive> {
+    if (this.activeOntology) return Promise.resolve(this.activeOntology);
+    if (this.activeOntologyInFlight) return this.activeOntologyInFlight;
+    const request = this.ontologyStore
+      ? this.ontologyStore.active()
+      : Promise.resolve(genericOntologyActive());
+    this.activeOntologyInFlight = request.then((active) => {
+      this.activeOntology = active;
+      return active;
+    }).finally(() => {
+      this.activeOntologyInFlight = null;
+    });
+    return this.activeOntologyInFlight;
+  }
+
+  private requireOntologyStore(): WorkspaceOntologyStore {
+    if (!this.ontologyStore) throw new Error("Workspace Ontology review requires a configured runtime root.");
+    return this.ontologyStore;
+  }
+}
+
+function genericOntologyActive(): WorkspaceOntologyActive {
+  return { state: "generic", ontology: null, activationRevision: null, diagnostics: [] };
+}
+
+function ontologySnapshotCacheKey(
+  profileId: string | null | undefined,
+  active: KnowledgeGraphSnapshot["activeOntology"],
+): string {
+  return `${profileId?.trim() || "generic-markdown"}:${active.state}:${active.revision ?? "none"}`;
+}
+
+function ontologyReviewIdentity(active: WorkspaceOntologyActive): OntologyReviewState["active"] {
+  return {
+    state: active.state,
+    ...(active.ontology ? {
+      id: boundedOntologyReviewText(active.ontology.id, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS),
+      ...(active.ontology.label ? { label: boundedOntologyReviewText(active.ontology.label, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS) } : {}),
+      version: boundedOntologyReviewText(active.ontology.version, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS),
+      revision: active.ontology.revision,
+    } : {}),
+  };
+}
+
+function sameOntologyGuard(left: OntologyReviewGuard, right: OntologyReviewGuard): boolean {
+  return left.candidateRevision === right.candidateRevision
+    && left.activationRevision === right.activationRevision
+    && left.baseSnapshotId === right.baseSnapshotId;
+}
+
+function isOntologyReviewRace(error: unknown): boolean {
+  return error instanceof Error && (error.message.includes("changed; review") || error.message.includes("changed; inspect"));
 }
 
 function normalize(value: string): string { return value.split(path.sep).join("/").replace(/^\.\//, "").toLowerCase(); }
@@ -837,6 +1173,19 @@ function appendRelation(
   if (current) current.push(relation);
   else relations.set(conceptId, [relation]);
 }
+
+function contentRevision(content: string | Buffer): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+function graphSourceRevision(graph: ReadonlyMap<string, GraphEntry>): string {
+  const hash = createHash("sha256");
+  for (const [filePath, entry] of [...graph.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    hash.update(filePath).update("\0").update(entry.sourceRevision).update("\0");
+  }
+  return hash.digest("hex");
+}
+
 function conceptIdForLink(sourceId: string, target: string, resolution: GraphResolution): string {
   if (resolution === "external") return `external:${target}`;
   return `unresolved:${encodeURIComponent(`${sourceId}:${target}`)}`;

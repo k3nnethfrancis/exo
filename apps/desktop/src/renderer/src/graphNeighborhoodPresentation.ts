@@ -14,6 +14,10 @@ import {
 } from "./graphPresentation";
 
 const MAXIMUM_NEIGHBORHOOD_NODES = 8;
+// Mirrors core's numeric projection contract without importing the Node-backed
+// core barrel into the renderer bundle.
+const DOCUMENT_EDGE_VISUAL_CLASS = 0;
+const ONTOLOGY_EDGE_VISUAL_CLASS = 1;
 
 type NeighborhoodNode = RendererGraphNeighborhood["nodes"][number];
 type NeighborhoodEdge = RendererGraphNeighborhood["edges"][number];
@@ -79,9 +83,11 @@ export function projectGraphNeighborhoodTopology(
     endpoints[index * 2 + 1] = target;
     degrees[source] += 1;
     degrees[target] += 1;
-    // Both local edge kinds are explicit Markdown links. Endpoint meaning was
+    // Preserve the cold relation origin even though endpoint meaning was
     // already resolved before the renderer received this bounded context.
-    edgeVisualClasses[index] = 0;
+    edgeVisualClasses[index] = edge.kind === "ontology"
+      ? ONTOLOGY_EDGE_VISUAL_CLASS
+      : DOCUMENT_EDGE_VISUAL_CLASS;
   });
 
   return {

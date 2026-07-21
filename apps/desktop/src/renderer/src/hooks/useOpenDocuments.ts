@@ -90,6 +90,12 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     };
   });
 
+  useEffect(() => window.exo.workspace.onGraphChanged(() => {
+    for (const [filePath, document] of Object.entries(openDocumentsRef.current)) {
+      scheduleMarkdownContextRefresh(document, filePath);
+    }
+  }), []);
+
   function pruneToOpenPaths(openPaths: Set<string>) {
     setOpenDocuments((current) => {
       const next = Object.fromEntries(

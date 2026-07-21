@@ -26,6 +26,10 @@ import type {
   InvocationAuthorizationDecision,
   InvocationActivityEvent,
   InvocationFileChange,
+  OntologyKeepResult,
+  OntologyRejectResult,
+  OntologyReviewGuard,
+  OntologyReviewState,
 } from "@exo/core";
 
 export type TerminalKind = "shell";
@@ -233,6 +237,9 @@ export interface DesktopApi {
     saveSettings: (request: WorkspaceSettingsSaveRequest) => Promise<WorkspaceSettingsSaveOutcome>;
     selectFolder: (options?: { title?: string; allowMultiple?: boolean; buttonLabel?: string }) => Promise<string[]>;
     getIndexStatus: () => Promise<IndexStatus>;
+    previewOntology: () => Promise<OntologyReviewState>;
+    keepOntology: (guard: OntologyReviewGuard) => Promise<OntologyKeepResult>;
+    rejectOntology: (guard: OntologyReviewGuard) => Promise<OntologyRejectResult>;
     resolvePreviewTarget: (target: string) => Promise<{ url: string; source: "url" | "file" }>;
     launchAgentInvocation: (input: LaunchAgentInvocationInput) => Promise<LaunchAgentInvocationResponse>;
     getAgentInvocationAuthorization: (input: { handle: string; documentPath: string }) => Promise<AgentInvocationAuthorizationFacts>;
@@ -273,6 +280,8 @@ export interface DesktopApi {
     deletePath: (targetPath: string) => Promise<void>;
     onDidChange: (callback: (event: { rootPath: string; eventType: string; filePath: string | null }) => void) => () => void;
     onIndexSyncState: (callback: (event: IndexSyncStateEvent) => void) => () => void;
+    onGraphChanged: (callback: () => void) => () => void;
+    onOntologyCandidateChanged: (callback: () => void) => () => void;
     onCommandOpenFile: (callback: (filePath: string) => void) => () => void;
     onCommandOpenSettings: (callback: (event: { section: WorkspaceSettingsSection }) => void) => () => void;
   };

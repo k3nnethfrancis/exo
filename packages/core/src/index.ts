@@ -8,6 +8,7 @@ export * from "./onboarding-state";
 export * from "./knowledge-graph";
 export * from "./knowledge-profile";
 export * from "./workspace-ontology";
+export * from "./ontology-review";
 export * from "./graph-projection";
 export * from "./graph-integrity";
 export * from "./workspace-graph";

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { lstat, mkdir, open, realpath, rename, rm, writeFile, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 
 import { parseDocument } from "yaml";
@@ -85,6 +86,7 @@ export interface WorkspaceOntologyCandidate {
 export interface WorkspaceOntologyActive {
   state: "generic" | "active" | "invalid-state";
   ontology: WorkspaceOntology | null;
+  activationRevision: string | null;
   sourceRevision?: string;
   rejectedCandidateRevision?: string;
   diagnostics: readonly WorkspaceOntologyDiagnostic[];
@@ -132,10 +134,12 @@ export function isWorkspaceOntologyPath(workspaceRoot: string, filePath: string)
 export class WorkspaceOntologyStore {
   readonly ontologyPath: string;
   readonly activationPath: string;
+  private readonly workspaceRoot: string;
   private readonly runtimeRoot: string;
 
   constructor(options: { workspaceRoot: string; runtimeRoot: string }) {
     const { workspaceRoot, runtimeRoot } = options;
+    this.workspaceRoot = path.resolve(workspaceRoot);
     this.ontologyPath = workspaceOntologyPath(workspaceRoot);
     this.runtimeRoot = path.resolve(runtimeRoot);
     this.activationPath = path.join(this.runtimeRoot, "ontology", "activation.json");
@@ -144,7 +148,29 @@ export class WorkspaceOntologyStore {
   async inspectCandidate(): Promise<WorkspaceOntologyCandidate> {
     let source: string;
     try {
-      source = await readFile(this.ontologyPath, "utf8");
+      const handle = await openNoFollow(this.ontologyPath);
+      try {
+        const info = await handle.stat();
+        if (!info.isFile()) throw new Error(`${WORKSPACE_ONTOLOGY_FILENAME} must be a regular file.`);
+        if (info.size > MAX_ONTOLOGY_BYTES) {
+          return { state: "invalid", path: this.ontologyPath, diagnostics: [{
+            severity: "error",
+            code: "ontology.too-large",
+            path: "$",
+            message: `${WORKSPACE_ONTOLOGY_FILENAME} exceeds the ${MAX_ONTOLOGY_BYTES}-byte limit.`,
+          }] };
+        }
+        const [realRoot, realCandidate] = await Promise.all([
+          realpath(this.workspaceRoot),
+          realpath(this.ontologyPath),
+        ]);
+        if (realCandidate !== path.join(realRoot, WORKSPACE_ONTOLOGY_FILENAME)) {
+          throw new Error(`${WORKSPACE_ONTOLOGY_FILENAME} escapes the configured Workspace root.`);
+        }
+        source = await readBoundedUtf8(handle, MAX_ONTOLOGY_BYTES);
+      } finally {
+        await handle.close();
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") {
         return { state: "absent", path: this.ontologyPath, diagnostics: [] };
@@ -157,16 +183,7 @@ export class WorkspaceOntologyStore {
       }] };
     }
 
-    const sourceBytes = Buffer.byteLength(source, "utf8");
     const sourceRevision = revision("ontology-source", source);
-    if (sourceBytes > MAX_ONTOLOGY_BYTES) {
-      return { state: "invalid", path: this.ontologyPath, sourceRevision, diagnostics: [{
-        severity: "error",
-        code: "ontology.too-large",
-        path: "$",
-        message: `${WORKSPACE_ONTOLOGY_FILENAME} exceeds the ${MAX_ONTOLOGY_BYTES}-byte limit.`,
-      }] };
-    }
 
     const parsed = parseWorkspaceOntology(source);
     if (!parsed.ontology) {
@@ -177,12 +194,13 @@ export class WorkspaceOntologyStore {
 
   async active(): Promise<WorkspaceOntologyActive> {
     const stored = await this.readActivation();
-    if (!stored) return { state: "generic", ontology: null, diagnostics: [] };
+    if (!stored) return { state: "generic", ontology: null, activationRevision: null, diagnostics: [] };
     if ("diagnostics" in stored) return stored;
     if (!stored.active) {
       return {
         state: "generic",
         ontology: null,
+        activationRevision: stored.recordHash,
         ...(stored.rejectedCandidateRevision ? { rejectedCandidateRevision: stored.rejectedCandidateRevision } : {}),
         diagnostics: [],
       };
@@ -196,6 +214,7 @@ export class WorkspaceOntologyStore {
     return {
       state: "active",
       ontology: parsed.ontology,
+      activationRevision: stored.recordHash,
       sourceRevision: stored.active.sourceRevision,
       ...(stored.rejectedCandidateRevision ? { rejectedCandidateRevision: stored.rejectedCandidateRevision } : {}),
       diagnostics: [],
@@ -208,13 +227,21 @@ export class WorkspaceOntologyStore {
   }
 
   async keepCandidate(expectedSourceRevision: string): Promise<WorkspaceOntologyState> {
+    const active = await this.active();
+    return this.keepReviewedCandidate(expectedSourceRevision, active.activationRevision);
+  }
+
+  async keepReviewedCandidate(
+    expectedSourceRevision: string,
+    expectedActivationRevision: string | null,
+  ): Promise<WorkspaceOntologyState> {
+    await this.assertActivationRevision(expectedActivationRevision);
     const candidate = await this.inspectCandidate();
     assertCandidateRevision(candidate, expectedSourceRevision);
     if (candidate.state !== "valid" || !candidate.ontology || !candidate.sourceRevision) {
       throw new Error("Only a valid Workspace Ontology candidate can be kept.");
     }
-    const source = await readFile(this.ontologyPath, "utf8");
-    if (revision("ontology-source", source) !== expectedSourceRevision) throw candidateChangedError();
+    const source = await this.readValidatedCandidateSource(expectedSourceRevision);
     await this.writeActivation({
       schema: WORKSPACE_ONTOLOGY_ACTIVATION_SCHEMA,
       active: {
@@ -228,6 +255,15 @@ export class WorkspaceOntologyStore {
   }
 
   async rejectCandidate(expectedSourceRevision: string): Promise<WorkspaceOntologyState> {
+    const active = await this.active();
+    return this.rejectReviewedCandidate(expectedSourceRevision, active.activationRevision);
+  }
+
+  async rejectReviewedCandidate(
+    expectedSourceRevision: string,
+    expectedActivationRevision: string | null,
+  ): Promise<WorkspaceOntologyState> {
+    await this.assertActivationRevision(expectedActivationRevision);
     const candidate = await this.inspectCandidate();
     assertCandidateRevision(candidate, expectedSourceRevision);
     const stored = await this.readActivationRecord();
@@ -241,24 +277,91 @@ export class WorkspaceOntologyStore {
   }
 
   async keepGeneric(expectedActiveSourceRevision: string): Promise<WorkspaceOntologyState> {
+    const active = await this.active();
+    return this.keepReviewedGeneric(active.activationRevision, expectedActiveSourceRevision);
+  }
+
+  async keepReviewedGeneric(
+    expectedActivationRevision: string | null,
+    expectedActiveSourceRevision?: string,
+  ): Promise<WorkspaceOntologyState> {
+    await this.assertActivationRevision(expectedActivationRevision);
     const candidate = await this.inspectCandidate();
     if (candidate.state !== "absent") {
       throw new Error("Generic Markdown can be kept only after the Workspace Ontology candidate is removed.");
     }
     const active = await this.active();
-    if (active.state !== "active" || active.sourceRevision !== expectedActiveSourceRevision) {
+    if (active.state !== "active"
+      || (expectedActiveSourceRevision !== undefined && active.sourceRevision !== expectedActiveSourceRevision)) {
       throw new Error("The active Workspace Ontology changed; inspect it again before keeping Generic Markdown.");
     }
     await this.writeActivation({ schema: WORKSPACE_ONTOLOGY_ACTIVATION_SCHEMA, recordHash: "" });
     return this.state();
   }
 
+  async rejectReviewedGeneric(expectedActivationRevision: string | null): Promise<WorkspaceOntologyState> {
+    await this.assertActivationRevision(expectedActivationRevision);
+    const candidate = await this.inspectCandidate();
+    if (candidate.state !== "absent") {
+      throw new Error("Generic Markdown rejection requires an absent Workspace Ontology candidate.");
+    }
+    const stored = await this.readActivationRecord();
+    if (!stored?.active || expectedActivationRevision === null) {
+      throw new Error("There is no active Workspace Ontology deactivation to reject.");
+    }
+    await this.writeActivation({
+      schema: WORKSPACE_ONTOLOGY_ACTIVATION_SCHEMA,
+      active: stored.active,
+      rejectedCandidateRevision: absentCandidateRevision(stored.active.sourceRevision),
+      recordHash: "",
+    });
+    return this.state();
+  }
+
+  private async assertActivationRevision(expected: string | null): Promise<void> {
+    const active = await this.active();
+    if (active.state === "invalid-state") {
+      throw new Error("Workspace Ontology activation state is invalid; repair it before Keep or Reject.");
+    }
+    if (active.activationRevision !== expected) {
+      throw new Error("Workspace Ontology activation changed; review it again before Keep or Reject.");
+    }
+  }
+
+  private async readValidatedCandidateSource(expectedRevision: string): Promise<string> {
+    const handle = await openNoFollow(this.ontologyPath);
+    try {
+      const info = await handle.stat();
+      if (!info.isFile() || info.size > MAX_ONTOLOGY_BYTES) throw candidateChangedError();
+      const [realRoot, realCandidate] = await Promise.all([
+        realpath(this.workspaceRoot),
+        realpath(this.ontologyPath),
+      ]);
+      if (realCandidate !== path.join(realRoot, WORKSPACE_ONTOLOGY_FILENAME)) throw candidateChangedError();
+      const source = await readBoundedUtf8(handle, MAX_ONTOLOGY_BYTES);
+      if (revision("ontology-source", source) !== expectedRevision || !parseWorkspaceOntology(source).ontology) {
+        throw candidateChangedError();
+      }
+      return source;
+    } finally {
+      await handle.close();
+    }
+  }
+
   private async readActivation(): Promise<StoredWorkspaceOntologyActivation | WorkspaceOntologyActive | null> {
     try {
       await this.assertActivationPathSafe(false);
-      const source = await readFile(this.activationPath, "utf8");
-      if (Buffer.byteLength(source, "utf8") > MAX_ACTIVATION_BYTES) {
-        return invalidPersistedState("The kept Workspace Ontology state exceeds its size limit.");
+      const handle = await openNoFollow(this.activationPath);
+      let source: string;
+      try {
+        const info = await handle.stat();
+        if (!info.isFile()) return invalidPersistedState("The kept Workspace Ontology state is not a regular file.");
+        if (info.size > MAX_ACTIVATION_BYTES) {
+          return invalidPersistedState("The kept Workspace Ontology state exceeds its size limit.");
+        }
+        source = await readBoundedUtf8(handle, MAX_ACTIVATION_BYTES);
+      } finally {
+        await handle.close();
       }
       const value = JSON.parse(source) as unknown;
       if (!isStoredActivation(value)) return invalidPersistedState("The kept Workspace Ontology state is invalid.");
@@ -392,11 +495,11 @@ export function ontologyConceptTypes(
   if (!ontology) return formatTypes;
   const explicit = openStrings(properties[ontology.typeProperty]);
   if (explicit.length > 0) return explicit;
-  if (ontology.typeProperty === "type" && formatTypes.length > 0) return [...formatTypes];
-  return Object.entries(ontology.types)
+  const pathDefaults = Object.entries(ontology.types)
     .filter(([, definition]) => definition.paths.some((pattern) => pathGlobMatches(pattern, relativePath)))
     .map(([type]) => type)
     .sort();
+  return pathDefaults.length > 0 ? pathDefaults : [...formatTypes];
 }
 
 export function interpretWorkspaceOntology(
@@ -683,6 +786,7 @@ function invalidPersistedState(message: string): WorkspaceOntologyActive {
   return {
     state: "invalid-state",
     ontology: null,
+    activationRevision: null,
     diagnostics: [{ severity: "error", code: "ontology.invalid-activation-state", path: "$", message }],
   };
 }
@@ -716,6 +820,33 @@ function assertCandidateRevision(candidate: WorkspaceOntologyCandidate, expected
 
 function candidateChangedError(): Error {
   return new Error("Workspace Ontology candidate changed; inspect it again before Keep or Reject.");
+}
+
+function openNoFollow(filePath: string) {
+  return open(filePath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+}
+
+export function absentWorkspaceOntologyCandidateRevision(activationRevision: string): string {
+  return absentCandidateRevision(activationRevision);
+}
+
+function absentCandidateRevision(activationRevision: string): string {
+  return revision("ontology-candidate-absent", activationRevision);
+}
+
+async function readBoundedUtf8(handle: FileHandle, maxBytes: number): Promise<string> {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  while (total <= maxBytes) {
+    const remaining = maxBytes + 1 - total;
+    const buffer = Buffer.allocUnsafe(Math.min(64 * 1024, remaining));
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, null);
+    if (bytesRead === 0) break;
+    chunks.push(buffer.subarray(0, bytesRead));
+    total += bytesRead;
+  }
+  if (total > maxBytes) throw new Error(`File exceeds the ${maxBytes}-byte limit.`);
+  return Buffer.concat(chunks, total).toString("utf8");
 }
 
 function expectRecord(

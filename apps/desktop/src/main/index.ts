@@ -11,6 +11,7 @@ import {
   listRootTree,
   emptyOnboardingStateStore,
   inspectFolderIndexes,
+  isWorkspaceOntologyPath,
   markOnboardingComplete,
   markOnboardingWorkspaceBasicsSaved,
   readOnboardingStateStore,
@@ -261,6 +262,9 @@ function registerIpcHandlers() {
     embedIndex: () => indexingService.embed("settings"),
     ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
+    previewOntology: () => workspaceNotesService.previewOntology(),
+    keepOntology: (guard) => workspaceNotesService.keepOntology(guard),
+    rejectOntology: (guard) => workspaceNotesService.rejectOntology(guard),
     getFolderIndexStatus: () => inspectFolderIndexes(workspaceModel.noteRoots.map((root) => root.path)),
     getFolderOverview: (directoryPath) => workspaceNotesService.getFolderOverview(directoryPath),
     ensureFolderIndex: (directoryPath) => workspaceNotesService.ensureFolderIndex(directoryPath),
@@ -445,6 +449,12 @@ app.whenReady().then(async () => {
 
   workspaceConfig = new WorkspaceConfigStore({ userDataPath: app.getPath("userData") });
   workspaceWatcherService = new WorkspaceWatcherService((event) => {
+    if (event.filePath && isWorkspaceOntologyPath(workspaceModel.workspaceRoot, event.filePath)) {
+      // Candidate Ontology changes are passive review input. They must not
+      // invalidate Note caches, refresh Explorer trees, or publish graph state.
+      sendToRenderer("workspace:ontology-candidate-changed", undefined);
+      return;
+    }
     // Queue graph refresh before notifying the renderer so a following context
     // request observes that refresh. Graph owns a separate utility process, so
     // this ordering never delays foreground Search or QMD maintenance.
@@ -542,6 +552,7 @@ app.whenReady().then(async () => {
     getWorkspaceModel: () => workspaceModel,
     getRuntimeRoot: () => resolveRuntimeRoot(),
     derivedIndex: graphDerivedIndex,
+    onGraphChanged: () => sendToRenderer("workspace:graph-changed", { source: "ontology" }),
   });
   commandServerLifecycle = new CommandServerLifecycle({
     runtimeRoot: resolveRuntimeRoot(),

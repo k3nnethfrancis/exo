@@ -37,6 +37,9 @@ const api: DesktopApi = {
     saveSettings: (request) => invokeDesktop("workspace:save-settings", request),
     selectFolder: (options) => invokeDesktop("workspace:select-folder", options),
     getIndexStatus: () => invokeDesktop("workspace:get-index-status"),
+    previewOntology: () => invokeDesktop("workspace:ontology-preview"),
+    keepOntology: (guard) => invokeDesktop("workspace:ontology-keep", guard),
+    rejectOntology: (guard) => invokeDesktop("workspace:ontology-reject", guard),
     resolvePreviewTarget: (target) => invokeDesktop("workspace:resolve-preview-target", target),
     launchAgentInvocation: (input) => invokeDesktop("workspace:launch-agent-invocation", input),
     getAgentInvocationAuthorization: (input) => invokeDesktop("workspace:get-agent-invocation-authorization", input),
@@ -90,6 +93,16 @@ const api: DesktopApi = {
       const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
       ipcRenderer.on("workspace:index-sync-state", listener);
       return () => ipcRenderer.removeListener("workspace:index-sync-state", listener);
+    },
+    onGraphChanged: (callback) => {
+      const listener = () => callback();
+      ipcRenderer.on("workspace:graph-changed", listener);
+      return () => ipcRenderer.removeListener("workspace:graph-changed", listener);
+    },
+    onOntologyCandidateChanged: (callback) => {
+      const listener = () => callback();
+      ipcRenderer.on("workspace:ontology-candidate-changed", listener);
+      return () => ipcRenderer.removeListener("workspace:ontology-candidate-changed", listener);
     },
     onCommandOpenFile: (callback) => {
       const listener = (_event: unknown, filePath: string) => callback(filePath);

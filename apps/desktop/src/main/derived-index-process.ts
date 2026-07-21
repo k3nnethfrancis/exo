@@ -10,6 +10,10 @@ import type {
   GraphConceptLookupResult,
   GraphConceptSummaryResult,
   GraphTopology,
+  OntologyKeepResult,
+  OntologyRejectResult,
+  OntologyReviewGuard,
+  OntologyReviewState,
   WorkspaceGraphContext,
   WorkspaceIndexSearchResponse,
   WorkspaceModel,
@@ -46,6 +50,9 @@ export interface DerivedIndexClient {
   graphConceptDetailByIndex(model: WorkspaceModel, runtimeRoot: string, index: number, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptDetailByIndexResult>;
   graphRefresh(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<void>;
   graphInvalidate(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<void>;
+  ontologyPreview(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<OntologyReviewState>;
+  ontologyKeep(model: WorkspaceModel, runtimeRoot: string, guard: OntologyReviewGuard, signal?: AbortSignal): Promise<OntologyKeepResult>;
+  ontologyReject(model: WorkspaceModel, runtimeRoot: string, guard: OntologyReviewGuard, signal?: AbortSignal): Promise<OntologyRejectResult>;
   dispose(): void;
 }
 
@@ -180,6 +187,28 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
 
   async graphInvalidate(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<void> {
     await this.request({ operation: "graph-invalidate", context: { model, runtimeRoot } }, signal);
+  }
+
+  ontologyPreview(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<OntologyReviewState> {
+    return this.request({ operation: "ontology-preview", context: { model, runtimeRoot } }, signal);
+  }
+
+  ontologyKeep(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    guard: OntologyReviewGuard,
+    signal?: AbortSignal,
+  ): Promise<OntologyKeepResult> {
+    return this.request({ operation: "ontology-keep", context: { model, runtimeRoot }, guard }, signal);
+  }
+
+  ontologyReject(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    guard: OntologyReviewGuard,
+    signal?: AbortSignal,
+  ): Promise<OntologyRejectResult> {
+    return this.request({ operation: "ontology-reject", context: { model, runtimeRoot }, guard }, signal);
   }
 
   dispose(): void {

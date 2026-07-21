@@ -320,6 +320,7 @@ export function SpatialGraphView({
     const unsubscribeWorkspace = window.exo.workspace.onDidChange((event) => {
       if (shouldRefreshGraphForWorkspaceChange(event)) refreshCoordinator.workspaceChanged();
     });
+    const unsubscribeGraph = window.exo.workspace.onGraphChanged(() => refreshCoordinator.workspaceChanged());
     let worker: Worker | null = null;
     try {
       worker = new Worker(new URL("../workers/graphLayout.worker.ts", import.meta.url), { type: "module" });
@@ -368,6 +369,7 @@ export function SpatialGraphView({
       resizeObserver.disconnect();
       themeObserver.disconnect();
       unsubscribeWorkspace();
+      unsubscribeGraph();
       refreshCoordinator.dispose();
       refreshCoordinatorRef.current = null;
       runtime.dispose();

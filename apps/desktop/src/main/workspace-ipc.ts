@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import path from "node:path";
-import { WorkspaceFiles, type WorkspaceModel } from "@exo/core";
+import { assertOntologyReviewGuard, WorkspaceFiles, type WorkspaceModel } from "@exo/core";
 
 import type { DesktopApi, FileStatInfo, WorkspaceRegistryEntry } from "../shared/api";
 import { handleDesktopInvoke } from "./typed-ipc";
@@ -16,6 +16,9 @@ export interface WorkspaceIpcHandlers {
   embedIndex: WorkspaceApi["embedIndex"];
   ensureTarget: NotesApi["ensureTarget"];
   getIndexStatus: WorkspaceApi["getIndexStatus"];
+  previewOntology: WorkspaceApi["previewOntology"];
+  keepOntology: WorkspaceApi["keepOntology"];
+  rejectOntology: WorkspaceApi["rejectOntology"];
   getFolderIndexStatus: WorkspaceApi["getFolderIndexStatus"];
   getFolderOverview: WorkspaceApi["getFolderOverview"];
   ensureFolderIndex: WorkspaceApi["ensureFolderIndex"];
@@ -75,6 +78,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:list-workspaces", async () => handlers.listWorkspaces());
   handleDesktopInvoke("workspace:activate-workspace", async (_event, input) => handlers.activateWorkspace(input));
   handleDesktopInvoke("workspace:get-index-status", async () => handlers.getIndexStatus());
+  handleDesktopInvoke("workspace:ontology-preview", async () => handlers.previewOntology());
+  handleDesktopInvoke("workspace:ontology-keep", async (_event, guard) => handlers.keepOntology(assertOntologyReviewGuard(guard)));
+  handleDesktopInvoke("workspace:ontology-reject", async (_event, guard) => handlers.rejectOntology(assertOntologyReviewGuard(guard)));
   handleDesktopInvoke("workspace:get-folder-index-status", async () => handlers.getFolderIndexStatus());
   handleDesktopInvoke("workspace:get-folder-overview", async (_event, directoryPath) => {
     const authorizedDirectory = await workspaceFiles().existing(directoryPath);

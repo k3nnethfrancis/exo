@@ -15,6 +15,10 @@ import {
   type GraphConceptLookupResult,
   type GraphConceptSummaryResult,
   type GraphTopology,
+  type OntologyKeepResult,
+  type OntologyRejectResult,
+  type OntologyReviewGuard,
+  type OntologyReviewState,
   type WorkspaceSearchResults,
   WorkspaceFiles,
   WorkspaceGraph,
@@ -28,6 +32,7 @@ export interface WorkspaceNotesServiceOptions {
   getWorkspaceModel: () => WorkspaceModel;
   getRuntimeRoot?: () => string;
   derivedIndex?: DerivedIndexClient;
+  onGraphChanged?: () => void;
 }
 
 export class WorkspaceNotesService {
@@ -262,6 +267,39 @@ export class WorkspaceNotesService {
       );
     }
     return this.workspaceGraph().graphTopology(profileId);
+  }
+
+  async previewOntology(): Promise<OntologyReviewState> {
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.ontologyPreview(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+      );
+    }
+    return this.workspaceGraph().previewOntology();
+  }
+
+  async keepOntology(guard: OntologyReviewGuard): Promise<OntologyKeepResult> {
+    const result = this.options.derivedIndex && this.options.getRuntimeRoot
+      ? await this.options.derivedIndex.ontologyKeep(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        guard,
+      )
+      : await this.workspaceGraph().keepOntology(guard);
+    if (result.status === "applied") this.options.onGraphChanged?.();
+    return result;
+  }
+
+  async rejectOntology(guard: OntologyReviewGuard): Promise<OntologyRejectResult> {
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.ontologyReject(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        guard,
+      );
+    }
+    return this.workspaceGraph().rejectOntology(guard);
   }
 
   async getGraphConceptSummaries(indexes: number[], sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptSummaryResult> {

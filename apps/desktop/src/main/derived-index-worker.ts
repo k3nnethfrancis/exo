@@ -2,6 +2,7 @@ import path from "node:path";
 
 import {
   qmdSearchProvider,
+  assertOntologyReviewGuard,
   WorkspaceIndex,
   WorkspaceGraph,
   type WorkspaceModel,
@@ -82,6 +83,12 @@ function run(request: DerivedIndexRequest): Promise<DerivedIndexResult> {
     case "graph-invalidate":
       graphFor(model, runtimeRoot).invalidate();
       return Promise.resolve(null);
+    case "ontology-preview":
+      return graphFor(model, runtimeRoot).previewOntology();
+    case "ontology-keep":
+      return graphFor(model, runtimeRoot).keepOntology(assertOntologyReviewGuard(request.guard));
+    case "ontology-reject":
+      return graphFor(model, runtimeRoot).rejectOntology(assertOntologyReviewGuard(request.guard));
   }
 }
 
@@ -117,7 +124,7 @@ function isRequest(value: unknown): value is DerivedIndexRequest {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<DerivedIndexRequest>;
   return Number.isSafeInteger(candidate.id)
-    && ["status", "search", "update", "embed", "sync", "graph-context", "graph-topology", "graph-concept-summaries", "graph-concept-lookup", "graph-concept-detail-by-index", "graph-refresh", "graph-invalidate"].includes(String(candidate.operation))
+    && ["status", "search", "update", "embed", "sync", "graph-context", "graph-topology", "graph-concept-summaries", "graph-concept-lookup", "graph-concept-detail-by-index", "graph-refresh", "graph-invalidate", "ontology-preview", "ontology-keep", "ontology-reject"].includes(String(candidate.operation))
     && Boolean(candidate.context?.model)
     && typeof candidate.context?.runtimeRoot === "string";
 }

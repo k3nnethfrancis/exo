@@ -16,6 +16,9 @@ export interface DesktopInvokeHandlers {
   "workspace:save-settings": WorkspaceApi["saveSettings"];
   "workspace:select-folder": WorkspaceApi["selectFolder"];
   "workspace:get-index-status": WorkspaceApi["getIndexStatus"];
+  "workspace:ontology-preview": WorkspaceApi["previewOntology"];
+  "workspace:ontology-keep": WorkspaceApi["keepOntology"];
+  "workspace:ontology-reject": WorkspaceApi["rejectOntology"];
   "workspace:resolve-preview-target": WorkspaceApi["resolvePreviewTarget"];
   "workspace:launch-agent-invocation": WorkspaceApi["launchAgentInvocation"];
   "workspace:get-agent-invocation-authorization": WorkspaceApi["getAgentInvocationAuthorization"];
@@ -76,6 +79,8 @@ export interface DesktopInvokeHandlers {
 export interface DesktopEventPayloads {
   "workspace:changed": { rootPath: string; eventType: string; filePath: string | null };
   "workspace:index-sync-state": IndexSyncStateEvent;
+  "workspace:graph-changed": { source: "ontology" };
+  "workspace:ontology-candidate-changed": undefined;
   "workspace:invocation-updated": InvocationRecord;
   "workspace:invocation-activity": InvocationActivityEvent;
   "command:open-file": string;

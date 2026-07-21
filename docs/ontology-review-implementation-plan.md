@@ -1,7 +1,6 @@
 # Ontology candidate review implementation plan
 
-Status: approved next vertical slice after the Ontology parser/compiler and
-Candidate/Active persistence foundation lands.
+Status: implemented and verified in the `launch/ontology-review` vertical slice.
 
 ## Product contract
 
@@ -112,4 +111,6 @@ Candidate, and compares every Note byte before and after.
 
 YAML editing, discovery, migrations, OKF UX, presentation rules, semantic
 inference, Note rewriting, full before/after canvases, onboarding, CLI/MCP, and
-multiple Active Ontologies remain outside this slice.
+multiple Active Ontologies remain outside this slice. Deliberately rejecting a
+Candidate that cannot be read or bounded-hashed is also deferred; it remains
+inert and reports its bounded diagnostic.

@@ -292,6 +292,39 @@ describe("WorkspaceNotesService", () => {
     await service.handleWorkspaceChange({ rootPath: noteRoot, eventType: "rename", filePath: renamedPath });
     expect((await service.getGraphContext(focusPath))?.backlinks).toEqual([]);
   });
+
+  it("emits one graph change only after a successful reviewed Ontology Keep", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-notes-ontology-review-"));
+    const noteRoot = path.join(workspaceRoot, "notes");
+    await mkdir(noteRoot, { recursive: true });
+    await writeFile(path.join(noteRoot, "focus.md"), "---\ntype: paper\n---\n# Focus\n");
+    await writeFile(path.join(workspaceRoot, "ontology.yaml"), "ontology_schema: 1\nid: research\nversion: 1\ntypes:\n  paper: {}\n");
+    const model: WorkspaceModel = {
+      workspaceRoot,
+      defaultTerminalCwd: workspaceRoot,
+      noteRoots: [{ id: "notes", label: "Notes", path: noteRoot }],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+    };
+    let graphChanged = 0;
+    const service = new WorkspaceNotesService({
+      getWorkspaceModel: () => model,
+      getRuntimeRoot: () => path.join(workspaceRoot, ".exo-test"),
+      onGraphChanged: () => { graphChanged += 1; },
+    });
+
+    const preview = await service.previewOntology();
+    expect(graphChanged).toBe(0);
+    expect((await service.keepOntology(preview.guard)).status).toBe("applied");
+    expect(graphChanged).toBe(1);
+    expect((await service.keepOntology(preview.guard)).status).toBe("stale");
+    expect(graphChanged).toBe(1);
+    await writeFile(path.join(workspaceRoot, "ontology.yaml"), "ontology_schema: 1\nid: replacement\nversion: 2\n");
+    const rejectedPreview = await service.previewOntology();
+    expect((await service.rejectOntology(rejectedPreview.guard)).status).toBe("rejected");
+    expect(graphChanged).toBe(1);
+    await rm(workspaceRoot, { recursive: true, force: true });
+  });
 });
 
 async function workspaceNotesService() {

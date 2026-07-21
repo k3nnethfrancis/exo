@@ -65,12 +65,20 @@ derived state, not canonical knowledge. It allows restart to preserve the last
 kept interpreter while the user-owned candidate changes. A missing or invalid
 kept state falls back explicitly to Generic Markdown.
 
-This foundation does not yet expose candidate graph-effect preview or
-Keep/Reject in the product UI, so no product path can create or activate the
-checkpoint yet. `WorkspaceGraph` can consume a persisted Active checkpoint when
-constructed with the configured runtime root. Candidate edits alone remain
-inert: the Workspace watcher emits their status event, but does not invalidate
-or replace the active graph.
+Workspace Settings shows one compact review row beneath the Notes folder when a
+Candidate differs from Active. It reports bounded typed-Concept, Ontology-
+Relation, and Finding effects. Keep and Reject are explicit; stale Candidate,
+Active, or Markdown revisions require a fresh review. Keep atomically persists
+the exact accepted source and then publishes the already-reviewed graph.
+Reject preserves Active. Both actions compare an exact content-derived
+Markdown manifest, so they do not depend on filesystem-watcher timing.
+
+Candidate edits alone remain inert. Their dedicated watcher notification does
+not invalidate Note caches, refresh Explorer, or replace graph identity. A
+successful Keep emits one ordinary graph-changed event. Authored Links and
+Backlinks remain authored facts; resolved local Ontology Relations appear only
+in the bounded Connections graph neighborhood with their Ontology origin and
+Evidence preserved.
 
 ## Interpretation contract
 

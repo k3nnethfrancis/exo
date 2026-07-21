@@ -18,6 +18,7 @@ const neighborhood: RendererGraphNeighborhood = {
     { id: "backlink", label: "Source", source: "source", target: "focus", kind: "wikilink" },
     { id: "outgoing", label: "External", source: "focus", target: "external", kind: "markdownLink" },
     { id: "missing", label: "Missing", source: "focus", target: "unresolved:missing", kind: "wikilink" },
+    { id: "ontology", label: "supports", source: "focus", target: "source", kind: "ontology" },
   ],
 };
 
@@ -28,11 +29,12 @@ describe("Connections graph presentation", () => {
     const second = projectGraphNeighborhoodTopology(neighborhood);
 
     expect(first.nodes.map((node) => node.id)).toEqual(["focus", "external", "source"]);
-    expect(first.edges.map((edge) => edge.id)).toEqual(["backlink", "outgoing"]);
+    expect(first.edges.map((edge) => edge.id)).toEqual(["backlink", "ontology", "outgoing"]);
     expect(first.topology.topologyHash).toBe(second.topology.topologyHash);
     expect(first.topology.layoutEpochId).toBe(second.topology.layoutEpochId);
-    expect([...first.topology.nodes.degrees]).toEqual([2, 1, 1]);
-    expect([...first.topology.edges.endpoints]).toEqual([2, 0, 0, 1]);
+    expect([...first.topology.nodes.degrees]).toEqual([3, 1, 2]);
+    expect([...first.topology.edges.endpoints]).toEqual([2, 0, 0, 2, 0, 1]);
+    expect([...first.topology.edges.visualClasses]).toEqual([0, 1, 0]);
     expect(first.topology.nodes.seeds).toBeInstanceOf(Uint32Array);
     expect(first.topology.edges.visualClasses).toBeInstanceOf(Uint8Array);
     expect(Object.values(first.topology.nodes).some((value) => typeof value === "string")).toBe(false);
@@ -47,10 +49,10 @@ describe("Connections graph presentation", () => {
 
     expect(compiled.scene.interaction.selected).toBe(0);
     expect([...compiled.scene.interaction.pathNodes]).toEqual([0, 0, 0]);
-    expect([...compiled.scene.interaction.pathEdges]).toEqual([0, 0]);
+    expect([...compiled.scene.interaction.pathEdges]).toEqual([0, 0, 0]);
     expect(compiled.plan.profile).toBe("focus");
     expect(compiled.plan.nodes.indices).toHaveLength(3);
-    expect(compiled.plan.edges.indices).toHaveLength(2);
+    expect(compiled.plan.edges.indices).toHaveLength(3);
     expect(compiled.plan.labels.placements.some((label) => label.text === "Focus" && label.required)).toBe(true);
     expect(compiled.plan.topologyHash).toBe(compiled.scene.topology.topologyHash);
   });

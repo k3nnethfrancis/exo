@@ -33,7 +33,7 @@ export interface RendererGraphBacklink {
 export interface RendererGraphNeighborhood {
   focusPath: string;
   nodes: Array<{ id: string; label: string; kind: "note" | "external" | "unresolved"; target: string }>;
-  edges: Array<{ id: string; label: string; source: string; target: string; kind: "wikilink" | "markdownLink" }>;
+  edges: Array<{ id: string; label: string; source: string; target: string; kind: "wikilink" | "markdownLink" | "ontology" }>;
 }
 
 export interface RendererNoteGraphContext {
@@ -124,6 +124,13 @@ export function buildNoteGraphContext(
     target: note.id,
     kind: "wikilink" as const,
   }));
+  const ontologyEdges = graph.neighborhoodRelations.map((relation, index) => ({
+    id: `ontology:${index}:${relation.source}:${relation.target}:${relation.predicate}`,
+    label: relation.label,
+    source: relation.source,
+    target: relation.target,
+    kind: "ontology" as const,
+  }));
 
   return {
     note,
@@ -136,7 +143,7 @@ export function buildNoteGraphContext(
     neighborhood: {
       focusPath: note.filePath,
       nodes: neighborhoodNodes,
-      edges: [...outgoingEdges, ...backlinkEdges],
+      edges: [...outgoingEdges, ...backlinkEdges, ...ontologyEdges],
     },
   };
 }

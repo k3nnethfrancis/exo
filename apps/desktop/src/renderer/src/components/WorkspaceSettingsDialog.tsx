@@ -9,6 +9,7 @@ import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSec
 import { HelpTooltip } from "./HelpTooltip";
 import { PathList } from "./PathList";
 import { AgentInvocationPromptEditor } from "./AgentInvocationPromptEditor";
+import { OntologyReviewRow } from "./OntologyReviewRow";
 
 interface WorkspaceSettingsDialogProps {
   indexBusy: IndexBusyState;
@@ -233,6 +234,7 @@ function WorkspaceSection({
           onRemove={() => setSettings((current) => (current ? { ...current, noteRoots: [], applyStatus: "idle", applyErrorMessage: null } : current))}
         />
       </div>
+      <OntologyReviewRow />
     </>
   );
 }

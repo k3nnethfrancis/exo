@@ -178,8 +178,40 @@ describe("Workspace ontology", () => {
     await symlink(outside, path.join(runtime, "ontology"));
     const candidate = await store.inspectCandidate();
 
-    await expect(store.keepCandidate(candidate.sourceRevision ?? "")).rejects.toThrow("must not be a symlink");
+    await expect(store.keepCandidate(candidate.sourceRevision ?? "")).rejects.toThrow("activation state is invalid");
     await expect(store.active()).resolves.toMatchObject({ state: "invalid-state", ontology: null });
+  });
+
+  it("does not follow a candidate symlink or read an oversized candidate", async () => {
+    const { workspace, store } = await ontologyStore();
+    const outside = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-candidate-outside-"));
+    roots.push(outside);
+    const outsideFile = path.join(outside, "ontology.yaml");
+    await writeFile(outsideFile, "ontology_schema: 1\nid: outside\nversion: 1\n");
+    await symlink(outsideFile, path.join(workspace, "ontology.yaml"));
+    await expect(store.inspectCandidate()).resolves.toMatchObject({
+      state: "invalid",
+      diagnostics: [expect.objectContaining({ code: "ontology.read-failed" })],
+    });
+
+    await unlink(path.join(workspace, "ontology.yaml"));
+    await writeFile(path.join(workspace, "ontology.yaml"), "x".repeat(1024 * 1024 + 1));
+    await expect(store.inspectCandidate()).resolves.toMatchObject({
+      state: "invalid",
+      diagnostics: [expect.objectContaining({ code: "ontology.too-large" })],
+    });
+  });
+
+  it("refuses to Reject through invalid Active state and preserves its exact bytes", async () => {
+    const { workspace, store } = await ontologyStore();
+    await cp(path.join(fixtureRoot, "ontology.yaml"), path.join(workspace, "ontology.yaml"));
+    const candidate = await store.inspectCandidate();
+    await store.keepCandidate(candidate.sourceRevision ?? "");
+    const corrupt = "{\"schema\":1,\"active\":{}}\n";
+    await writeFile(store.activationPath, corrupt);
+
+    await expect(store.rejectCandidate(candidate.sourceRevision ?? "")).rejects.toThrow("activation state is invalid");
+    await expect(readFile(store.activationPath, "utf8")).resolves.toBe(corrupt);
   });
 
   it("requires stable unique validation rule ids", () => {
@@ -236,7 +268,8 @@ describe("Workspace ontology", () => {
     const parsed = parseWorkspaceOntology(await readFile(path.join(fixtureRoot, "ontology.yaml"), "utf8"));
     expect(ontologyConceptTypes(parsed.ontology, { kind: "custom" }, "papers/a.md", ["legacy"])).toEqual(["custom"]);
     expect(ontologyConceptTypes(parsed.ontology, {}, "papers/a.md", [])).toEqual(["paper"]);
-    expect(ontologyConceptTypes(parsed.ontology, {}, "claims/a.md", ["legacy"])).toEqual([]);
+    expect(ontologyConceptTypes(parsed.ontology, {}, "claims/a.md", ["legacy"])).toEqual(["legacy"]);
+    expect(ontologyConceptTypes(parsed.ontology, { kind: "explicit" }, "papers/a.md", ["legacy"])).toEqual(["explicit"]);
   });
 });
 

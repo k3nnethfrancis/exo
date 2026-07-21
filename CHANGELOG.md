@@ -6,6 +6,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Added
 
+- Adds explicit Workspace Ontology review in Settings: bounded graph effects,
+  exact stale-review guards, atomic Keep/Reject, restart-stable activation, and
+  Ontology-origin Connections edges without changing authored Links or Notes.
 - Adds the reviewed Workspace Ontology foundation: an atomic `ontology.yaml`
   parser/compiler, Candidate/Active revision store, persisted accepted source,
   exact rule Evidence, and Generic Markdown fallback without modifying Notes.

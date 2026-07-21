@@ -113,7 +113,7 @@ separate list of supposed product features.
 | --- | --- | --- | --- | --- | --- | --- |
 | Markdown as canonical user-owned format | shipped | workspace files/notes/graph parsers | markdown, workspace, graph tests | `README.md`; `CONTEXT.md` | Core promise | Exo must continue to augment ordinary filesystem access. |
 | Open properties and relations preserved by graph parsing | shipped | workspace graph and knowledge graph | graph/workspace graph tests | graph system report | Required foundation | Interpretation must not erase unknown user data. |
-| User-owned `ontology.yaml` and type-conformance UX | substrate | `WorkspaceOntologyStore`; pure ontology compiler; candidate watcher | ontology/parser/store/graph/watcher tests | `workspace-ontology.md`; ADR 0006 | Launch Gate E | Parser/compiler and reviewed activation checkpoint exist; candidate graph preview and product Keep/Reject/conformance UX remain. |
+| User-owned `ontology.yaml` and type-conformance UX | internal operator surface | `WorkspaceOntologyStore`; pure ontology compiler; serialized review worker; compact Settings row | ontology/parser/store/graph/watcher tests; Electron stale→Keep→restart→Reject tracer | `workspace-ontology.md`; ADR 0006 | Launch Gate E | Candidate effects and explicit Keep/Reject are shipped; broader conformance/discovery UX remains deferred. |
 | Ontology discovery/design and graph-maintenance Skills | planned | no user-reachable implementation; repo `skills/` are contributor workflows | none | roadmap/specs | Optional and eval-gated | Skills must remain inspectable instructions/data and route writes through normal review. |
 | Note Root Format compatibility rules | planned | legacy `KnowledgeProfile` code contains partial interpretation only | profile/graph tests | product cleanup specs | Needed for portable ontologies | Separate Format compatibility from Ontology meaning without destructive namespace churn. |
 | Legacy plugin manifests | stale | no loader or product caller | no test evidence | superseded ADR 0001 | Removed before launch | The static manifests and packaging copy were deleted after CLI source detection stopped depending on them. |
@@ -142,7 +142,6 @@ Any change to those surfaces requires the repository's public-contract review pr
 | The old public-surface ledger reads like a current contract despite describing Wave 1 | Marked prominently as historical and linked here. |
 | The full graph was reachable while 10K transport and interaction issues remained | Resolved by Launch Gate D: compact 10K/50K/100K transport, one scene, source/package WebGPU and Canvas recovery, concurrent latency, and guarded private-copy evidence passed. |
 | Internal built-in Format selection still uses legacy `KnowledgeProfile`, `profileHash`, and `profile-conformance` names | Intentional compatibility seam until the bounded Note Root Format migration; public Knowledge Graph 0.3 uses `origin`, and user configuration is `ontology.yaml`. |
-| The reviewed `ontology.yaml` foundation exists but its product review path does not | Finish bounded effect preview and explicit Keep/Reject before claiming Gate E; keep discovery optional and eval-gated. |
 
 ## Deletion candidates and call-site evidence
 

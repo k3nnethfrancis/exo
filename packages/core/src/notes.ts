@@ -23,6 +23,10 @@ export async function readNoteDocument(filePath: string): Promise<NoteDocument> 
 
 export async function readWorkspaceDocument(filePath: string): Promise<NoteDocument> {
   const raw = await readFile(filePath, "utf8");
+  return parseWorkspaceDocument(filePath, raw);
+}
+
+export function parseWorkspaceDocument(filePath: string, raw: string): NoteDocument {
   if (!isMarkdownPath(filePath)) {
     return {
       filePath,

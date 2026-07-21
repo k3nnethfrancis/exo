@@ -530,6 +530,9 @@ function derivedIndexClient(): DerivedIndexClient {
     graphConceptDetailByIndex: vi.fn(async () => { throw new Error("graph detail is not used by indexing tests"); }),
     graphRefresh: vi.fn(async () => {}),
     graphInvalidate: vi.fn(async () => {}),
+    ontologyPreview: vi.fn(async () => { throw new Error("ontology review is not used by indexing tests"); }),
+    ontologyKeep: vi.fn(async () => { throw new Error("ontology review is not used by indexing tests"); }),
+    ontologyReject: vi.fn(async () => { throw new Error("ontology review is not used by indexing tests"); }),
     dispose: vi.fn(),
   };
 }

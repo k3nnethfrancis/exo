@@ -269,7 +269,10 @@ Start only after the trust gates above pass.
   - [x] Add built-in Generic Markdown and permissive OKF 0.1 interpretation;
     missing OKF type is a finding and unknown fields survive. User-owned
     Candidate parsing/compilation and persisted Active checkpointing are now
-    implemented; graph-effect preview and product Keep/Reject remain unearned.
+    implemented.
+  - [x] Add bounded Candidate graph-effect preview and explicit Keep/Reject in
+    Workspace Settings with disk-fresh stale guards, atomic activation,
+    restart proof, and graph-only Ontology Relations in Connections.
 - [x] Phase 3: cover identity, resolution, Evidence, and Format/Ontology conformance in
   deterministic graph contract tests. Keep AI-system evaluation outside Exo.
 - [x] Phase 4: compile renderer-neutral dense topology and stable layout epochs

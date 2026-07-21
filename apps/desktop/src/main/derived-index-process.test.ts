@@ -81,6 +81,34 @@ describe("UtilityDerivedIndexClient", () => {
     await expect(refresh).resolves.toBeUndefined();
   });
 
+  it("serializes Ontology preview, Keep, and Reject through the graph worker", async () => {
+    const worker = new FakeProcess();
+    const client = new UtilityDerivedIndexClient({ spawn: () => worker, workerPath: "/app/derived-index-worker.js" });
+    const guard = { candidateRevision: "candidate", activationRevision: null, baseSnapshotId: "snapshot" };
+    const review = {
+      active: { state: "generic" as const },
+      candidate: { state: "valid" as const, revision: "candidate", pending: true, rejected: false },
+      guard,
+      diagnostics: [],
+      omittedDiagnostics: 0,
+    };
+
+    const preview = client.ontologyPreview(model(), "/workspace/.exo");
+    expect(worker.messages.at(-1)).toMatchObject({ operation: "ontology-preview" });
+    worker.emit("message", { id: 1, ok: true, result: review });
+    await expect(preview).resolves.toEqual(review);
+
+    const keep = client.ontologyKeep(model(), "/workspace/.exo", guard);
+    expect(worker.messages.at(-1)).toMatchObject({ operation: "ontology-keep", guard });
+    worker.emit("message", { id: 2, ok: true, result: { status: "applied", review } });
+    await expect(keep).resolves.toMatchObject({ status: "applied" });
+
+    const reject = client.ontologyReject(model(), "/workspace/.exo", guard);
+    expect(worker.messages.at(-1)).toMatchObject({ operation: "ontology-reject", guard });
+    worker.emit("message", { id: 3, ok: true, result: { status: "rejected", review } });
+    await expect(reject).resolves.toMatchObject({ status: "rejected" });
+  });
+
   it("routes compact topology and epoch-qualified cold reads without detaching repeated buffers", async () => {
     const worker = new FakeProcess();
     const client = new UtilityDerivedIndexClient({ spawn: () => worker, workerPath: "/app/derived-index-worker.js" });
