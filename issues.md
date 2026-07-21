@@ -453,8 +453,8 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - [x] Give Outline only headings; give Links backlinks, internal outgoing,
     and external links.
   - [x] Make Graph a local spatial neighborhood compiled from the same
-    projection/presentation path as the full graph; delete the custom SVG once
-    parity passes.
+    projection/presentation path as the full graph; the custom SVG is deleted
+    after Electron parity passed.
   - [x] Keep editor Properties editable and graph/Connections properties
     explanatory; share one inspected Concept and show Relation origin,
     Evidence, profile interpretation, and the visual mappings a property drives.
