@@ -121,6 +121,7 @@ function assertRendererHasNoNodeOrElectronImports() {
     'apps/desktop/src/renderer/src/components/SpatialGraphView.test.ts',
     'apps/desktop/src/renderer/src/graphCanvasPerformance.test.ts',
     'apps/desktop/src/renderer/src/graphLayoutSimulation.test.ts',
+    'apps/desktop/src/renderer/src/graphWebGpuRenderer.test.ts',
   ]);
   for (const file of listSourceFiles('apps/desktop/src/renderer/src')) {
     if (allowed.has(file)) {
