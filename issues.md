@@ -417,10 +417,10 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - [x] Isolate the only remaining miss to Node 26 CLI process startup before
     publishing `dev`; all in-app navigation and typing paths passed.
 
-### EXO-ISSUE-121: Graph navigation and Connections do not yet form one system
+### EXO-ISSUE-121: Graph navigation and Connections physical-device polish
 
-- Status: production navigation contract resolved by Launch Gate D; compact
-  Connections projection and physical-device polish remain
+- Status: production navigation and Connections projection resolved; physical-
+  device polish remains
 - Severity: medium follow-up; no longer blocks the production Graph Pane
 - Area: Stellar interaction, Graph Pane, editor chrome, Connections rail,
   Properties, graph selection/provenance
@@ -433,9 +433,10 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     gone and frame-all is explicit.
   - The editor Graph action, App-owned inspected Concept, Outline/Links split,
     and conditional History are implemented.
-  - Connections Graph remains a bounded custom SVG. It uses the canonical graph
-    context and inspected Concept, but not yet the full graph's projection and
-    presentation compiler.
+  - Connections Graph now adapts the canonical bounded neighborhood into compact
+    typed topology, then uses the full Graph Pane's deterministic scene, focal
+    labels, presentation compiler, and Canvas renderer without adding another
+    worker, gesture model, or idle loop.
 - Required:
   - [x] Before main, fix the three defects confirmed by Fable: backlink source
     Notes missing from local neighborhoods; Expand passing a MouseEvent as
@@ -451,7 +452,7 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     Graph Pane with the current Note selected and framed.
   - [x] Give Outline only headings; give Links backlinks, internal outgoing,
     and external links.
-  - [ ] Make Graph a local spatial neighborhood compiled from the same
+  - [x] Make Graph a local spatial neighborhood compiled from the same
     projection/presentation path as the full graph; delete the custom SVG once
     parity passes.
   - [x] Keep editor Properties editable and graph/Connections properties

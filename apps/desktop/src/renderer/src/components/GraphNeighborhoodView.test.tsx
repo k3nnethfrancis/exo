@@ -25,7 +25,6 @@ describe("GraphNeighborhoodView", () => {
       onOpenCanvas,
       onOpenTarget: vi.fn(),
       onOpenExternal: vi.fn(),
-      onOpenTag: vi.fn(),
     });
     const button = findElement(tree, (element) => element.props["aria-label"] === "Open full graph");
 
@@ -40,12 +39,13 @@ describe("GraphNeighborhoodView", () => {
         neighborhood={neighborhood}
         onOpenTarget={() => {}}
         onOpenExternal={() => {}}
-        onOpenTag={() => {}}
       />,
     );
 
     expect(html).toContain("1 edges");
     expect(html).not.toContain("2 edges");
+    expect(html).toContain('data-testid="graph-neighborhood-canvas"');
+    expect(html).not.toContain("<svg");
   });
 });
 

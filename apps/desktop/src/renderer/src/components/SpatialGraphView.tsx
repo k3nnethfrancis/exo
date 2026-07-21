@@ -26,6 +26,7 @@ import {
   pickGraphSceneNode,
   zoomGraphCameraAt,
 } from "../graphSceneFoundation";
+import { resolveGraphPalette } from "../graphPalette";
 import { browserGraphFrameDriver } from "../graphRenderScheduler";
 import {
   GraphSnapshotRefreshCoordinator,
@@ -33,7 +34,6 @@ import {
   SpatialGraphPointerSession,
   initialGraphSummaryIndexes,
   pruneGraphSnapshotCache,
-  resolveGraphPalette,
   shouldRefreshGraphForWorkspaceChange,
   spatialGraphWheelIntent,
   type SpatialGraphRuntimeCounters,

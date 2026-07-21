@@ -27,6 +27,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Changed
 
+- Draws the Connections neighborhood through the same deterministic scene,
+  focal-label, presentation-compiler, and Canvas contracts as the full Graph
+  Pane instead of maintaining a separate circular SVG renderer.
 - Keeps first-run activation explicit when active Workspace settings are missing
   or invalid: saved registry entries remain selectable but never reopen on their
   own.

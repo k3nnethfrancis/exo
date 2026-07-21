@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { GraphTopology } from "@exo/core";
 
 import type { GraphCanvasContext, GraphCanvasSurface } from "../graphCanvasRenderer";
+import { cssColorToRgba } from "../graphPalette";
 import type { GraphPresentationPlan } from "../graphPresentation";
 import type { GraphPixelRenderer, GraphPixelRendererMeasurement } from "../graphRendererHost";
 import type { GraphFrameDriver } from "../graphRenderScheduler";
@@ -12,7 +13,6 @@ import {
   GraphSnapshotRefreshCoordinator,
   SpatialGraphPointerSession,
   SpatialGraphRuntime,
-  cssColorToRgba,
   initialGraphSummaryIndexes,
   pruneGraphSnapshotCache,
   shouldRefreshGraphForWorkspaceChange,

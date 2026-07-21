@@ -118,7 +118,7 @@ export function InspectorDock(props: InspectorDockProps) {
           ) : activeTab === "links" ? (
             <LinksTab isMarkdown={isMarkdown} backlinks={backlinks} references={referenceLinks} externalLinks={externalLinks} tags={tags} activeTag={activeTag} tagResults={tagResults} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
           ) : activeTab === "graph" ? (
-            <GraphNeighborhoodView neighborhood={graphContext?.neighborhood ?? null} onOpenCanvas={onOpenGraphCanvas} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
+            <GraphNeighborhoodView neighborhood={graphContext?.neighborhood ?? null} onOpenCanvas={onOpenGraphCanvas} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} />
           ) : activeTab === "history" ? (
             <InvocationHistoryTab items={invocationHistory} onOpen={onOpenInvocationHistory} onResume={onResumeInvocation} />
           ) : null}

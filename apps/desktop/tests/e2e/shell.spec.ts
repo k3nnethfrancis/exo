@@ -383,6 +383,17 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     await page.getByTestId("connections-tab-graph").click();
     const localGraph = page.getByTestId("connections-panel-graph");
     await expect(localGraph.getByTestId("graph-neighborhood-panel")).toBeVisible();
+    const localCanvas = localGraph.getByTestId("graph-neighborhood-canvas");
+    await expect(localCanvas).toBeVisible();
+    await expect.poll(() => localCanvas.evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      const context = canvas.getContext("2d");
+      if (!context || canvas.width === 0 || canvas.height === 0) return 0;
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      let visible = 0;
+      for (let index = 3; index < pixels.length; index += 4) visible += Number((pixels[index] ?? 0) > 0);
+      return visible;
+    })).toBeGreaterThan(0);
     await expect(localGraph).toContainText("1 edges");
     await localGraph.getByRole("button", { name: "Open full graph" }).click();
     await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");

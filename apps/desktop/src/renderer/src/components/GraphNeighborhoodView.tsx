@@ -1,52 +1,38 @@
 import { Expand } from "lucide-react";
+import { useEffect, useRef } from "react";
 
 import type { RendererGraphNeighborhood } from "../graphAffordances";
+import { GraphCanvasRenderer, type GraphCanvasSurface } from "../graphCanvasRenderer";
+import { resolveGraphPalette } from "../graphPalette";
+import {
+  compileGraphNeighborhoodPresentation,
+  projectGraphNeighborhoodTopology,
+} from "../graphNeighborhoodPresentation";
+import { GraphPresentationCompiler } from "../graphPresentation";
 
 interface GraphNeighborhoodViewProps {
   neighborhood: RendererGraphNeighborhood | null;
   onOpenTarget: (target: string) => void;
   onOpenExternal: (target: string) => void;
-  onOpenTag: (tag: string) => void;
   onOpenCanvas?: (focusPath: string) => void;
 }
 
 export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
   const { neighborhood, onOpenTarget, onOpenExternal, onOpenCanvas } = props;
-  const nodes = neighborhood?.nodes.filter((node) => node.kind !== "note" || node.target) ?? [];
+  const projected = neighborhood ? projectGraphNeighborhoodTopology(neighborhood) : null;
+  const nodes = projected?.nodes ?? [];
 
   if (!neighborhood || nodes.length <= 1) {
     return <div className="footer-empty">No neighborhood yet</div>;
   }
 
-  const visibleNodes = nodes.slice(0, 8);
-  const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
-  const visibleEdges = neighborhood.edges.filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target));
+  const visibleNodes = nodes;
+  const visibleEdges = projected?.edges ?? [];
 
   return (
     <section className="graph-neighborhood" data-testid="graph-neighborhood-panel">
       <div className="connections-panel__section-title">Neighborhood</div>
-      <div className="graph-neighborhood__map" aria-label="Local graph neighborhood">
-        <svg viewBox="0 0 240 156" role="img">
-          {visibleEdges.map((edge) => {
-            const source = visibleNodes.findIndex((node) => node.id === edge.source);
-            const target = visibleNodes.findIndex((node) => node.id === edge.target);
-            if (source < 0 || target < 0) return null;
-            const sourcePoint = localPoint(source, visibleNodes.length);
-            const targetPoint = localPoint(target, visibleNodes.length);
-            return <line key={edge.id} x1={sourcePoint.x} y1={sourcePoint.y} x2={targetPoint.x} y2={targetPoint.y} className="graph-neighborhood__edge" />;
-          })}
-          {visibleNodes.map((node, index) => {
-            const point = localPoint(index, visibleNodes.length);
-            return (
-              <g key={node.id} className="graph-neighborhood__point" transform={`translate(${point.x} ${point.y})`}>
-                <circle r={index === 0 ? 6 : 4} />
-                <text x={index === 0 ? 10 : 8} y="3">{truncateLabel(node.label)}</text>
-                <title>{node.label}</title>
-              </g>
-            );
-          })}
-        </svg>
-      </div>
+      <GraphNeighborhoodCanvas neighborhood={neighborhood} visibleLabels={visibleNodes.map((node) => node.label)} />
       <div className="graph-neighborhood__nodes">
         {visibleNodes.map((node) => (
           <button
@@ -72,12 +58,57 @@ export function GraphNeighborhoodView(props: GraphNeighborhoodViewProps) {
   );
 }
 
-function localPoint(index: number, count: number): { x: number; y: number } {
-  if (index === 0) return { x: 120, y: 78 };
-  const angle = ((index - 1) / Math.max(1, count - 1)) * Math.PI * 2 - Math.PI / 2;
-  return { x: 120 + Math.cos(angle) * 54, y: 78 + Math.sin(angle) * 48 };
-}
+function GraphNeighborhoodCanvas(props: {
+  neighborhood: RendererGraphNeighborhood;
+  visibleLabels: readonly string[];
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-function truncateLabel(label: string): string {
-  return label.length > 18 ? `${label.slice(0, 16)}…` : label;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const renderer = new GraphCanvasRenderer(canvas as unknown as GraphCanvasSurface);
+    const compiler = new GraphPresentationCompiler();
+    const draw = () => {
+      const bounds = canvas.getBoundingClientRect();
+      const viewport = {
+        width: Math.max(1, Math.round(bounds.width || 240)),
+        height: Math.max(1, Math.round(bounds.height || 156)),
+      };
+      renderer.resize({ ...viewport, dpr: window.devicePixelRatio || 1 });
+      const compiled = compileGraphNeighborhoodPresentation(
+        props.neighborhood,
+        viewport,
+        resolveGraphPalette(canvas),
+        compiler,
+      );
+      renderer.render(compiled.plan);
+    };
+    const resizeObserver = new ResizeObserver(draw);
+    resizeObserver.observe(canvas);
+    const themeObserver = new MutationObserver(draw);
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme", "data-appearance-mode"],
+    });
+    draw();
+    return () => {
+      resizeObserver.disconnect();
+      themeObserver.disconnect();
+      renderer.destroy();
+    };
+  }, [props.neighborhood]);
+
+  return (
+    <div className="graph-neighborhood__map">
+      <canvas
+        ref={canvasRef}
+        aria-label={`Local graph neighborhood: ${props.visibleLabels.join(", ")}`}
+        data-testid="graph-neighborhood-canvas"
+        role="img"
+      >
+        Local graph neighborhood for {props.visibleLabels.join(", ")}
+      </canvas>
+    </div>
+  );
 }
