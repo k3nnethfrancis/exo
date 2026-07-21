@@ -385,20 +385,20 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-119: Experimental Graph View transport is not yet 10K-safe
 
-- Status: open; blocks production-scale Graph View claims, not the dev tracer
-- Severity: high before Graph View leaves experimental status
+- Status: resolved 2026-07-20 by Launch Gate D
+- Severity: resolved
 - Area: Knowledge Graph projection, derived-process IPC, Graph Pane
-- Review evidence: removing the duplicated semantic snapshot materially shrank
-  the hot response, but a synthetic 10,000-node / 50,000-edge object projection
-  still exceeds the utility process's 8 MiB response ceiling. The Stellar lab's
-  10K result does not prove the current production Canvas transport or paint
-  path.
+- Resolution evidence: the object projection and its duplicate graph models
+  were deleted. The compact packet measures 0.66 / 3.30 / 6.60 MB at
+  10K/50K, 50K/250K, and 100K/500K nodes/edges; source and package exercise the
+  same scene through hardware WebGPU and Canvas recovery.
 - Required:
   - [x] Transfer compact typed topology and fetch bounded label/concept detail
     by `sourceSnapshotId` on demand.
   - [x] Record transport/profile hashes and payload bytes at 10K/50K/100K.
-  - [ ] Gate Graph-open, orbit, zoom, selection, editor concurrency, idle
+  - [x] Gate Graph-open, orbit, zoom, selection, editor concurrency, idle
     quiescence, and Canvas fallback before removing the Experimental label.
+  - Evidence: `docs/reviews/output/2026-07-20-launch-gate-d.md`.
 
 ### EXO-ISSUE-120: Mixed dev candidate must re-earn editor latency gates
 
@@ -419,33 +419,29 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-121: Graph navigation and Connections do not yet form one system
 
-- Status: open; blocks production Graph Pane acceptance, not the experimental
-  renderer or benchmark work
-- Severity: high before Graph becomes canonical product navigation
+- Status: production navigation contract resolved by Launch Gate D; compact
+  Connections projection and physical-device polish remain
+- Severity: medium follow-up; no longer blocks the production Graph Pane
 - Area: Stellar interaction, Graph Pane, editor chrome, Connections rail,
   Properties, graph selection/provenance
 - Observed:
-  - GraphBench now separates normalized four-pixel benchmark nodes from
-    zoom-aware exploration/capture profiles, but the public preview and
-    integrated tracer do not yet share that system. Ordinary nodes remain hard
-    to read at useful overview distances and legibility is not a product gate.
-  - Trackpad/pinch zoom is too insensitive and requires repeated gestures; the
-    lab and integrated Canvas tracer use separate fixed exponential factors.
-  - Stellar double-click focuses a node and resets to overview on empty space,
-    while the integrated tracer double-clicks a node open. The behaviors are not
-    one contract and empty-space reset is surprising.
-  - The editor has no adjacent Graph action that opens the current Note's node.
-  - Connections puts backlinks/internal links under Outline, leaves Links as
-    external-only, represents Graph as a button list, and exposes Activity even
-    though the current app wiring supplies no invocation history.
-  - Editor, Connections, and graph-detail Properties do not share an explicit
-    inspected-Concept owner, so focus changes can produce empty or wrong context.
+  - Production now has adaptive node/hit radii, bounded focal labels, anchored
+    wheel zoom, coarse-pointer pinch/pan, and one WebGPU/Canvas scene. Broader
+    physical-device legibility evidence remains a polish gate rather than a
+    renderer split.
+  - Canvas and WebGPU now use one interaction contract; empty-space reset is
+    gone and frame-all is explicit.
+  - The editor Graph action, App-owned inspected Concept, Outline/Links split,
+    and conditional History are implemented.
+  - Connections Graph remains a bounded custom SVG. It uses the canonical graph
+    context and inspected Concept, but not yet the full graph's projection and
+    presentation compiler.
 - Required:
   - [x] Before main, fix the three defects confirmed by Fable: backlink source
     Notes missing from local neighborhoods; Expand passing a MouseEvent as
     `focusPath`; and unchanged-snapshot Refresh resetting the relaxed layout
     without rerunning it.
-  - [ ] Define and test one interaction contract across Canvas and Stellar:
+  - [x] Define and test one interaction contract across Canvas and WebGPU:
     click selects; double-click opens the Note; double-click of an already open
     Note focuses/zooms; frame-all is explicit; no accidental empty-space reset.
   - [ ] Tune adaptive wheel/pinch dolly and node visual/hit radii on real desktop
@@ -453,13 +449,15 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     gesture-count evidence.
   - [x] Add an icon-only Graph action beside editor Properties that opens the
     Graph Pane with the current Note selected and framed.
-  - [ ] Give Outline only headings; give Links backlinks, internal outgoing, and
-    external links; make Graph a local spatial neighborhood derived from the
-    same projection and selection as the full graph.
-  - [ ] Keep editor Properties editable and graph/Connections properties
+  - [x] Give Outline only headings; give Links backlinks, internal outgoing,
+    and external links.
+  - [ ] Make Graph a local spatial neighborhood compiled from the same
+    projection/presentation path as the full graph; delete the custom SVG once
+    parity passes.
+  - [x] Keep editor Properties editable and graph/Connections properties
     explanatory; share one inspected Concept and show Relation authority,
     Evidence, profile interpretation, and the visual mappings a property drives.
-  - [ ] Hide Activity until it has a real invocation/change/provenance stream,
+  - [x] Hide Activity until it has a real invocation/change/provenance stream,
     then define its empty and populated states.
   - [x] Add a packaged-app E2E covering editor → focused graph → Note open →
     repeated-node focus → Properties/Links/Outline consistency → back navigation.

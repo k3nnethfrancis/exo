@@ -1,6 +1,6 @@
 # Exograph Roadmap
 
-Last updated: 2026-07-10
+Last updated: 2026-07-20
 
 Exograph is Exo's active product frame:
 
@@ -21,9 +21,9 @@ The current objective is no longer to complete the old plugin/routine/harness ro
 1. **Markdown workspace:** trustworthy files, authoring, properties, roots, canvas, and packaging.
 2. **Modular Search:** reliable filesystem and QMD retrieval behind the one earned provider seam.
 3. **Actionable graph:** links, backlinks, tags, properties, neighborhoods,
-   Folder Overview, and Connections today; a consolidated schema-agnostic graph,
-   optional Knowledge Profiles, and the production spatial Graph View are the
-   next graph-system slices.
+   Folder Overview, Connections, and the production spatial Graph View share a
+   consolidated schema-agnostic graph today. User-owned ontology, conformance,
+   and reviewable graph-maintenance Skills are the next graph-system slices.
 4. **Inline invocation:** configured Commands run only on explicit invocation; Exo observes and reviews changes. The first user-editable graph-management Skill is next-slice work.
 
 The product test is simple: a person can open an existing Markdown folder, resume thought, find context, understand the connection, explicitly invoke a configured Command, and review observed Markdown changes without surrendering file ownership. A bounded graph-management Skill is the next vertical slice.
@@ -82,19 +82,24 @@ Keep or reuse:
 
 ### WP2: Graph Read Path
 
+Status: production foundation shipped in Launch Gate D; ontology and
+graph-maintenance work continue above it.
+
 - Preserve the shipped link, backlink, tag, property, Folder Overview, and
   Connections behavior through the single `WorkspaceGraph` boundary.
 - Maintain knowledge snapshot 0.2 with open Concept types, lossless Properties,
   Relation predicates, authority, resolution, and Evidence.
-- Keep Generic Markdown as the zero-requirement interpretation and add Open
+- Keep Generic Markdown as the zero-requirement interpretation and Open
   Knowledge Format 0.1 as the first permissive interoperability profile.
 - Add a small user-owned Knowledge Profile contract only after interoperability
   fixtures and expected facts are frozen.
 - Keep identity, resolution, Evidence, and profile conformance covered by
   deterministic graph contract tests.
-- Keep renderer-neutral dense topology and bounded cold metadata reads, then
-  integrate Stellar as a Graph Pane without placing semantic logic in WebGPU or
-  Canvas code.
+- Keep the shipped renderer-neutral dense topology, bounded cold metadata
+  reads, deterministic layout, and shared WebGPU/Canvas scene free of semantic
+  ownership.
+- Compile the compact Connections neighborhood through that same presentation
+  path and remove its current custom SVG.
 - Keep all graph/index/layout work off the editor critical path and preserve
   ordinary CLI graph/read/search status where appropriate.
 

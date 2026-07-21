@@ -1,6 +1,6 @@
 # Exo graph system: experiment report and production plan
 
-Status: accepted direction; knowledge model and compact production transport implemented, Launch Gate D acceptance pending
+Status: Launch Gate D complete; production graph foundation accepted
 Date: 2026-07-20
 
 ## Executive decision
@@ -388,7 +388,7 @@ unknown data without affecting editor latency.
 Gate: the same projection drives WebGPU and Canvas fallback with identical
 selection, path, labels, and relation explanations.
 
-### Phase 5 — Integrate Stellar into Exo
+### Phase 5 — Integrate the spatial graph into Exo — complete
 
 1. Add Graph as a normal Workspace Canvas Pane using the renderer-neutral scene.
 2. Stream topology/layout epochs from isolated derived work; never block Note
@@ -412,9 +412,12 @@ selection, path, labels, and relation explanations.
 9. Persist only derived layout state under `.exo/`; never write canonical Notes
    from graph navigation.
 
-Gate: packaged-app E2E passes interaction, accessibility, device-loss fallback,
-idle quiescence, Note-update continuity, and editor-latency-under-graph-load
-budgets on a private real-Workspace copy.
+Gate passed: source and packaged-app journeys cover interaction, hardware
+WebGPU, Canvas/device-loss fallback, idle quiescence, Note-update continuity,
+Terminal coexistence, and editor/navigation latency under graph/index load.
+The guarded private-copy journey covers both renderer paths without modifying
+the source. Evidence:
+`docs/reviews/output/2026-07-20-launch-gate-d.md`.
 
 ### Phase 6 — Ship the first graph-maintenance Skill
 

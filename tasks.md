@@ -75,27 +75,29 @@ Fable approved the execution order: decide P0, then run Settings preservation an
   drift conflict, restart recovery, and Gate B latency preservation.
   Evidence: `docs/reviews/output/2026-07-20-launch-gate-c.md`.
 
-### Launch Gate D — Graph as a product surface — in progress
+### Launch Gate D — Graph as a product surface — complete
 
-- [ ] Replace object-heavy Graph View IPC with compact typed topology,
+- [x] Replace object-heavy Graph View IPC with compact typed topology,
   version/profile/transport hashes, and bounded node/Relation detail reads;
   prove payload bounds at 10K/50K/100K.
-- [ ] Make editor, Graph Pane, Connections, and explanatory Properties share
+- [x] Make editor, Graph Pane, Connections, and explanatory Properties share
   one inspected Concept and one renderer-neutral selection/path model.
-- [ ] Close one interaction contract across Canvas and WebGPU: click selects,
+- [x] Close one interaction contract across Canvas and WebGPU: click selects,
   double-click opens, repeated open focuses, frame-all is explicit, and
   keyboard/reduced-motion behavior is deterministic.
-- [ ] Tune legible node/hit radii, focal label budgets, direct orbit/pan/dolly,
-  and adaptive wheel/pinch zoom against desktop trackpads and mobile gestures.
-- [ ] Keep the finite layout deterministic and continuous across graph updates;
+- [x] Tune legible node/hit radii, focal label budgets, direct orbit/pan/dolly,
+  and adaptive wheel/pinch zoom for desktop trackpads and coarse-pointer
+  gestures; retain broader physical-device tuning as product polish.
+- [x] Keep the finite layout deterministic and continuous across graph updates;
   prove accurate picking, zero redraw/worker wakeups at rest, bounded labels,
   Canvas fallback, and WebGPU device-loss recovery.
-- [ ] Prove the Graph Pane under concurrent graph/index work without weakening
+- [x] Prove the Graph Pane under concurrent graph/index work without weakening
   Gate B editor/navigation budgets, then dogfood a guarded private real-vault
   copy in both renderer paths.
-- [ ] Remove the Experimental label only after source and exact packaged-app
+- [x] Remove the Experimental label only after source and exact packaged-app
   journeys, hardware-stamped scale evidence, truthful docs, and a clean launch
-  surface ledger all pass.
+  surface ledger all pass. Evidence:
+  `docs/reviews/output/2026-07-20-launch-gate-d.md`.
 
 ### Embedding sync strategy — research complete
 
@@ -237,8 +239,8 @@ Start only after the trust gates above pass.
 - [x] Create `feat/graph-system-foundation` from `main` and write the branch-
   executable plan in `docs/graph-system-implementation-plan.md`. This branch
   stops at the canonical knowledge model, Generic/OKF profiles, utility tracer,
-  and renderer-neutral projection contract; production Stellar integration is a
-  separate merge decision.
+  and renderer-neutral projection contract; Launch Gate D subsequently earned
+  the production spatial integration.
 - [x] Distill the visualization work, benchmark evidence, quality findings,
   domain model, and production gates in
   `docs/graph-system-report-and-plan.md`.
@@ -267,25 +269,26 @@ Start only after the trust gates above pass.
     configuration remains unearned.
 - [x] Phase 3: cover identity, resolution, Evidence, and profile conformance in
   deterministic graph contract tests. Keep AI-system evaluation outside Exo.
-- [ ] Phase 4: compile renderer-neutral dense topology and stable layout epochs
+- [x] Phase 4: compile renderer-neutral dense topology and stable layout epochs
   from the consolidated graph; keep ontology strings and semantics out of hot
   renderer paths.
   - [x] Add deterministic projection, a finite worker layout, and scene-level
     picking/path/camera tests.
   - [x] Replace object IPC with compact typed topology plus epoch-qualified,
-    bounded detail reads and deterministic 10K/50K/100K payload gates. Stable
-    persisted layout epochs and product scale corpus gates remain
-    (`EXO-ISSUE-119`).
-- [ ] Phase 5: integrate Stellar as a normal Graph Pane only after packaged-app
+    bounded detail reads and deterministic 10K/50K/100K payload gates; preserve
+    stable surviving scene state across graph generations (`EXO-ISSUE-119`).
+- [x] Phase 5: integrate the spatial renderer as a normal Graph Pane after
+  source and packaged-app
   interaction, fallback, accessibility, quiescence, continuity, and editor-
   latency-under-load gates pass on a private real-Workspace copy.
-  - [x] Prove the pane and IPC boundary with a Canvas tracer in Connections and
-    the Workspace Canvas; real development-Electron selection and path dogfood
-    passed. This does not complete the Stellar/WebGPU acceptance gate.
-  - [ ] Close `EXO-ISSUE-121`: tune node legibility and trackpad/pinch zoom;
+  - [x] Prove the pane and IPC boundary through hardware WebGPU and the complete
+    Canvas recovery path; source and exact-package interaction passed.
+  - [x] Close the production portion of `EXO-ISSUE-121`: tune node legibility and trackpad/pinch zoom;
     add an editor Graph action focused on the current Note; unify single-select,
     double-click-open, repeated-node-focus, and explicit frame-all semantics;
-    and rebuild Connections/Properties around one inspected Concept.
+    and rebuild Connections/Properties around one inspected Concept. Compiling
+    the compact Connections neighborhood through the full presentation path and
+    broader physical-device polish remain follow-ups.
 - [ ] Phase 6: ship **Find and connect relevant context** through the existing
   configured-Command review loop and measure product behavior before adding
   another Skill.

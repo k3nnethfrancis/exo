@@ -267,12 +267,40 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
   frame work during the recorded 2026-07-16 run. This is lab evidence, not yet
   authorization to integrate the surface into production Exo.
 
+### Launch Gate D — production graph — 2026-07-20
+
+- Replaced the object-heavy Graph View transport with compact, string-free,
+  versioned typed topology and bounded snapshot-qualified Concept/Relation
+  reads. The hot packet is 0.66 MB at 10K/50K and 6.60 MB at 100K/500K
+  nodes/edges.
+- Deleted the superseded graph snapshot/query model, object projection IPC,
+  unbounded detail route, and duplicate renderer scene. `WorkspaceGraph` is the
+  production knowledge boundary.
+- Added one App-owned inspected Concept and one renderer-neutral scene for
+  camera, picking, selection, route, focal labels, and interaction. Hardware
+  WebGPU and complete Canvas fallback now consume that scene.
+- Proved source and exact packaged WebGPU shader/pipeline/draw submission on an
+  Apple Metal 3 adapter with Electron's default GPU policy. Re-ran the complete
+  direct-PTY stability matrix after that global policy change.
+- Preserved Gate B responsiveness with the full Graph Pane open during graph,
+  indexing, Search, Terminal, typing, navigation, and forced Canvas recovery:
+  about 6.7/11.8/14.2 ms typing p50/p90/p99, about 40/43 ms navigation p50/p90,
+  and zero long tasks.
+- Added a fail-closed, copy-only private-workspace gate. Source and package
+  exercised WebGPU, Canvas recovery, gestures, selection/path, Note identity,
+  close/reopen, and live rebuild while the original fingerprint remained
+  unchanged and no private identities entered durable output.
+- Canonical acceptance evidence:
+  `docs/reviews/output/2026-07-20-launch-gate-d.md`.
+
 ## Next Priorities
 
 1. Use installed Exo as the default environment for daily work and record every friction point as live bug-bash input.
 2. Stand up the GitHub issue-fix loop with conservative labels, isolated worktrees, test/app-QA requirements, and draft PR output.
-3. Harden the experimental graph tracer: compact transport, stable layout continuity, truthful evidence, accessible navigation, and packaged-runtime gates.
-4. Expand GraphBench with frozen visual profiles, scale/hardware matrices, real corpora, and task-conditioned utility measurements.
+3. Ship user-owned `ontology.yaml`, conformance/explanation UX, and the first
+   reviewable graph-maintenance Skill on the completed Gate D graph foundation.
+4. Expand the internal graph performance suite with frozen visual profiles,
+   cross-hardware matrices, real corpora, and optional GPU timestamps.
 5. Continue multi-agent coordination: roster, objectives, direct messages, changed-file/review links, file+SQLite transport, CLI/MCP access.
 6. Exograph architecture: write the profile/schema/proposal spec, add read-only graph/document context primitives, then add scoped maintainer writes.
 

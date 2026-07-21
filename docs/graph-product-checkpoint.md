@@ -85,17 +85,22 @@ any published number.
 - Speed and readable layout are separate engineering properties and need
   separate tests.
 
-## What is still unfinished
+## What remains after Launch Gate D
 
-1. Finish cross-renderer GPU timing, pixel parity, browser-delivered device loss,
-   and multi-hardware engineering evidence.
+Launch Gate D is complete for the current macOS product surface. Source and the
+exact packaged app now run the production shaders on hardware WebGPU, recover
+to the same complete Canvas scene, remain idle at rest, and preserve editor
+latency under graph/index/Search/Terminal load. The guarded private-copy journey
+passes both renderer paths without touching its source. Canonical evidence:
+[`2026-07-20-launch-gate-d.md`](./reviews/output/2026-07-20-launch-gate-d.md).
+
+The next work is product capability, not unfinished renderer integration:
+
+1. Add cross-adapter GPU timestamps and expand the multi-hardware evidence.
 2. Freeze the OKF/OpenWiki fixtures and schema/compatibility expectations.
-3. Finish stable persisted layout epochs and the remaining production graph
-   acceptance gates. Compact typed topology, bounded cold reads, and the legacy
-   object-transport deletion are complete.
-4. Integrate the real Stellar renderer into packaged Exo with accessibility,
-   Canvas/device-loss fallback, idle quiescence, continuity, and editor latency
-   under graph load.
+3. Define and ship user-owned `ontology.yaml`, conformance, and explanations.
+4. Compile the compact Connections neighborhood through the same production
+   projection/presentation path, then delete its custom SVG.
 5. Run the bounded embeddings-index projection after those graph contracts
    settle, using only a supported provider export seam.
 6. Ship and evaluate the first reviewable graph-maintenance Skill only after the
@@ -103,20 +108,16 @@ any published number.
 
 ## Interaction and product work we have not finished
 
-Node size is only partially addressed. The performance-suite version now has separate
-comparison, exploration, and image-capture presentation profiles. Exploration
-and capture increase node radius with semantic zoom while the normalized
-comparison profile deliberately keeps every node at four pixels. That is the
-right technical separation, but the public preview and integrated Exo tracer do
-not yet share it, and the real graph still looks too faint at useful overview
-distances. We have not accepted legibility targets at overview, middle, and
-focus distances against the real graph.
+Production Exo now uses adaptive visual/hit radii and a bounded focal-label
+planner. The normalized performance profile deliberately remains visually
+plain so benchmark comparisons do not silently change workload. Continued
+real-device tuning at overview, middle, and focus distances remains product
+polish and must not alter that normalized benchmark profile.
 
-The integrated Canvas tracer now uses a normalized, higher-gain wheel rule and
-supports line-mode wheel deltas; its node floor/radius is also larger at normal
-zoom. Stellar still needs to consume the same rule, and both surfaces need a
-real-trackpad/touch measurement of gestures and time from overview to one Note
-and back.
+Canvas and WebGPU now consume the same anchored camera and gesture intentions,
+including pixel-trackpad pan, modifier/discrete-wheel zoom, and two-pointer
+pinch/pan. The remaining evidence is physical-device gesture counts and visual
+captures, not another input implementation.
 
 The intended navigation contract is:
 
@@ -131,12 +132,11 @@ The intended navigation contract is:
 
 ## Connections and Properties direction
 
-The current Connections rail is transitional and its information architecture
-is wrong. Outline should contain only document headings. Links should contain
-backlinks, outgoing Note links, and external links in clear groups. Graph should
-be a real local neighborhood for the selected Note, with an action to expand to
-the full graph. Activity should be hidden until Exo has a meaningful
-invocation/change/provenance stream to show.
+Connections now gives Outline only headings, groups backlinks/internal/external
+links under Links, uses the shared inspected Concept, and hides History until
+it has content. Its local Graph is still a bounded custom SVG. The next slice is
+to compile that neighborhood through the same projection/presentation path as
+the full graph, then delete the special renderer.
 
 The local graph may be two-dimensional, but only if it consumes the same
 Knowledge Graph projection, Relation semantics, and selected Concept as the
