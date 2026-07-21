@@ -64,6 +64,11 @@ test('mini trace assessment runs fresh Claude and Codex sessions without changin
   assert.match(dashboard, /Trace overlay/);
   assert.match(dashboard, /Pairwise Jaccard/);
   assert.match(dashboard, /Inter-run agreement/);
+  assert.match(dashboard, /Session fixture-/);
+  assert.match(dashboard, /Evidence/);
+  assert.match(dashboard, /one\.md/);
+  assert.match(dashboard, /links to two\.md/);
+  assert.match(dashboard, /Observed ambiguity/);
 });
 
 test('mini trace assessment stops before the next run when a harness changes the workspace', async () => {
@@ -137,7 +142,7 @@ function fixtureProposal(provider) {
       validationRules: [],
     },
     evidence: [{ path: 'one.md', detail: 'links to two.md' }],
-    conflicts: [],
+    conflicts: ['Observed ambiguity'],
     question: null,
   };
 }
