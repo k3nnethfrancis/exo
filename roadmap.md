@@ -83,8 +83,8 @@ Keep or reuse:
 ### WP2: Graph Read Path
 
 - Preserve the shipped link, backlink, tag, property, Folder Overview, and
-  Connections behavior while consolidating `GraphSnapshot` and `WorkspaceGraph`.
-- Introduce graph snapshot 0.2 with open Concept types, lossless Properties,
+  Connections behavior through the single `WorkspaceGraph` boundary.
+- Maintain knowledge snapshot 0.2 with open Concept types, lossless Properties,
   Relation predicates, authority, resolution, and Evidence.
 - Keep Generic Markdown as the zero-requirement interpretation and add Open
   Knowledge Format 0.1 as the first permissive interoperability profile.
@@ -92,7 +92,7 @@ Keep or reuse:
   fixtures and expected facts are frozen.
 - Keep identity, resolution, Evidence, and profile conformance covered by
   deterministic graph contract tests.
-- Compile renderer-neutral dense topology from the consolidated graph, then
+- Keep renderer-neutral dense topology and bounded cold metadata reads, then
   integrate Stellar as a Graph Pane without placing semantic logic in WebGPU or
   Canvas code.
 - Keep all graph/index/layout work off the editor critical path and preserve

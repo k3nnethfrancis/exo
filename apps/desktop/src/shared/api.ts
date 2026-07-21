@@ -5,13 +5,11 @@ import type {
   FolderIndexResult,
   FolderIndexStatus,
   FolderOverview,
-  GraphConceptDetail,
   GraphConceptDetailByIndexResult,
   GraphConceptLookupReference,
   GraphConceptLookupResult,
   GraphConceptSummaryResult,
   GraphTopology,
-  GraphViewBundle,
   NoteDocument,
   WorkspaceGraphContext,
   SearchResult,
@@ -281,12 +279,10 @@ export interface DesktopApi {
     save: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<void>;
     stat: (filePath: string) => Promise<FileStatInfo | null>;
     getGraphContext: (filePath: string) => Promise<WorkspaceGraphContext | null>;
-    getGraphView: (profileId?: string | null) => Promise<GraphViewBundle>;
     getGraphTopology: (profileId?: string | null) => Promise<GraphTopology>;
     getGraphConceptSummaries: (indexes: number[], sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptSummaryResult>;
     graphConceptLookup: (reference: GraphConceptLookupReference, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptLookupResult>;
     getGraphConceptDetailByIndex: (index: number, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptDetailByIndexResult>;
-    getGraphConceptDetail: (conceptId: string, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptDetail | null>;
     resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
     resolveMarkdownImage: (sourceFilePath: string, target: string) => Promise<ResolvedMarkdownImage>;
     ensureTarget: (sourceFilePath: string, target: string) => Promise<string>;

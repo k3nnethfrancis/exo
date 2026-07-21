@@ -252,14 +252,14 @@ Start only after the trust gates above pass.
   contracts exist.
 - [ ] Phase 0: pin one public Google OKF bundle and one OpenWiki wiki fixture and
   define deterministic schema/compatibility cases with expected facts.
-- [ ] Phase 1: consolidate `GraphSnapshot` and `WorkspaceGraph` behind snapshot
+- [x] Phase 1: consolidate `GraphSnapshot` and `WorkspaceGraph` behind snapshot
   0.2 with open Concept types, lossless Properties, Relation predicates,
   authority, resolution, and Evidence; preserve current Connections, Folder
   Overview, and search behavior through compatibility tests.
-  - [x] Land the snapshot 0.2 tracer behind `WorkspaceGraph`: open Concept types,
-    recursive Properties, Relation authority/resolution/Evidence, deterministic
-    identity, and compatibility coverage. Duplicate legacy APIs still need the
-    protected caller/deletion pass.
+  - [x] Land snapshot 0.2 behind `WorkspaceGraph`: open Concept types, recursive
+    Properties, Relation authority/resolution/Evidence, deterministic identity,
+    and compatibility coverage; remove the legacy snapshot/query, object Graph
+    View, unbounded detail, and duplicate renderer-scene contracts after audit.
 - [ ] Phase 2: add Generic Markdown and permissive OKF 0.1 Knowledge Profiles,
   then earn the smallest user-owned profile contract from the fixtures.
   - [x] Add built-in Generic Markdown and permissive OKF 0.1 interpretation;
@@ -272,9 +272,10 @@ Start only after the trust gates above pass.
   renderer paths.
   - [x] Add deterministic projection, a finite worker layout, and scene-level
     picking/path/camera tests.
-  - [ ] Replace object IPC with compact typed topology plus epoch-qualified,
-    bounded detail reads before claiming 10K production scale. Stable persisted
-    layout epochs and scale corpus gates remain (`EXO-ISSUE-119`).
+  - [x] Replace object IPC with compact typed topology plus epoch-qualified,
+    bounded detail reads and deterministic 10K/50K/100K payload gates. Stable
+    persisted layout epochs and product scale corpus gates remain
+    (`EXO-ISSUE-119`).
 - [ ] Phase 5: integrate Stellar as a normal Graph Pane only after packaged-app
   interaction, fallback, accessibility, quiescence, continuity, and editor-
   latency-under-load gates pass on a private real-Workspace copy.

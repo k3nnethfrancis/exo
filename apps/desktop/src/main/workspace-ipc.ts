@@ -38,12 +38,10 @@ export interface WorkspaceIpcHandlers {
   resumeInvocationInTerminal: WorkspaceApi["resumeInvocationInTerminal"];
   resolvePreviewTarget: WorkspaceApi["resolvePreviewTarget"];
   getGraphContext: NotesApi["getGraphContext"];
-  getGraphView: NotesApi["getGraphView"];
   getGraphTopology: NotesApi["getGraphTopology"];
   getGraphConceptSummaries: NotesApi["getGraphConceptSummaries"];
   graphConceptLookup: NotesApi["graphConceptLookup"];
   getGraphConceptDetailByIndex: NotesApi["getGraphConceptDetailByIndex"];
-  getGraphConceptDetail: NotesApi["getGraphConceptDetail"];
   getMainWindow: () => BrowserWindow | null;
   getModel: () => WorkspaceModel;
   getSettings: WorkspaceApi["getSettings"];
@@ -204,7 +202,6 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const authorizedPath = await workspaceFiles().existing(filePath);
     return handlers.getGraphContext(authorizedPath);
   });
-  handleDesktopInvoke("notes:get-graph-view", async (_event, profileId) => handlers.getGraphView(profileId));
   handleDesktopInvoke("notes:get-graph-topology", async (_event, profileId) => handlers.getGraphTopology(profileId));
   handleDesktopInvoke("notes:get-graph-concept-summaries", async (_event, indexes, sourceSnapshotId, profileId) =>
     handlers.getGraphConceptSummaries(indexes, sourceSnapshotId, profileId),
@@ -214,9 +211,6 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   );
   handleDesktopInvoke("notes:get-graph-concept-detail-by-index", async (_event, index, sourceSnapshotId, profileId) =>
     handlers.getGraphConceptDetailByIndex(index, sourceSnapshotId, profileId),
-  );
-  handleDesktopInvoke("notes:get-graph-concept-detail", async (_event, conceptId, sourceSnapshotId, profileId) =>
-    handlers.getGraphConceptDetail(conceptId, sourceSnapshotId, profileId),
   );
   handleDesktopInvoke("notes:resolve-target", async (_event, sourceFilePath, target) => handlers.resolveTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:resolve-markdown-image", async (_event, sourceFilePath, target) =>

@@ -21,9 +21,7 @@ import {
   GRAPH_CONCEPT_SUMMARY_MAX_BYTES,
   GRAPH_CONCEPT_SUMMARY_MAX_ITEMS,
   compileGraphTopology,
-  compileGraphView,
   type BoundedGraphConceptDetail,
-  type GraphConceptDetail,
   type GraphConceptDetailByIndexResult,
   type GraphConceptLookupReference,
   type GraphConceptLookupResult,
@@ -32,7 +30,6 @@ import {
   type GraphConceptSummaryResult,
   type GraphTopology,
   type GraphTopologyCompilation,
-  type GraphViewBundle,
 } from "./graph-projection";
 import type { WorkspaceModel, NoteDocument } from "./types";
 import { listMarkdownFiles, WorkspaceFiles } from "./workspace";
@@ -286,11 +283,6 @@ export class WorkspaceGraph {
     return snapshot;
   }
 
-  async graphView(profileId?: string | null): Promise<GraphViewBundle> {
-    const snapshot = await this.knowledgeSnapshot(profileId);
-    return { projection: compileGraphView(snapshot) };
-  }
-
   async graphTopology(profileId?: string | null): Promise<GraphTopology> {
     const snapshot = await this.knowledgeSnapshot(profileId);
     return this.topologyForSnapshot(snapshot, profileId).topology;
@@ -389,17 +381,6 @@ export class WorkspaceGraph {
       detailIndex.relations.get(conceptId) ?? [],
       detailIndex.findings.get(conceptId) ?? [],
     );
-  }
-
-  async graphConceptDetail(conceptId: string, sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptDetail | null> {
-    const snapshot = await this.knowledgeSnapshot(profileId);
-    if (snapshot.snapshotId !== sourceSnapshotId) return null;
-    const concept = snapshot.concepts.find((candidate) => candidate.id === conceptId);
-    if (!concept) return null;
-    return {
-      concept,
-      findings: snapshot.findings.filter((finding) => finding.conceptIds.includes(conceptId)),
-    };
   }
 
   async status(): Promise<WorkspaceGraphStatus> {

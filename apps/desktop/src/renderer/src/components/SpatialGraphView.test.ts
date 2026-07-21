@@ -138,7 +138,6 @@ describe("SpatialGraph runtime", () => {
     expect(source).toContain("getGraphConceptSummaries");
     expect(source).toContain("graphConceptLookup");
     expect(source).toContain("getGraphConceptDetailByIndex");
-    expect(source).not.toContain("getGraphView");
   });
 
   it("draws a deterministic scene immediately, rejects late layout, and becomes quiescent", () => {

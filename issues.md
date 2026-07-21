@@ -394,9 +394,9 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   10K result does not prove the current production Canvas transport or paint
   path.
 - Required:
-  - [ ] Transfer compact typed topology and fetch bounded label/concept detail
+  - [x] Transfer compact typed topology and fetch bounded label/concept detail
     by `sourceSnapshotId` on demand.
-  - [ ] Record transport/profile hashes and payload bytes at 10K/50K/100K.
+  - [x] Record transport/profile hashes and payload bytes at 10K/50K/100K.
   - [ ] Gate Graph-open, orbit, zoom, selection, editor concurrency, idle
     quiescence, and Canvas fallback before removing the Experimental label.
 

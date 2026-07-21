@@ -1,7 +1,7 @@
 # Exo graph system: experiment report and production plan
 
-Status: accepted direction; foundation and Canvas interaction tracer implemented on `feat/graph-system-foundation`, acceptance pending
-Date: 2026-07-17
+Status: accepted direction; knowledge model and compact production transport implemented, Launch Gate D acceptance pending
+Date: 2026-07-20
 
 ## Executive decision
 
@@ -210,10 +210,9 @@ silently rewrite them, or reject unknown data.
 **Graph View** maps a selected graph projection into encodings and layout
 weights. It changes presentation, not knowledge.
 
-### Proposed graph snapshot 0.2
+### Knowledge graph snapshot 0.2
 
-The exact TypeScript may change during the tracer implementation, but these
-semantic fields are required:
+The implemented semantic snapshot preserves these fields:
 
 ```ts
 type PropertyValue =
@@ -256,19 +255,20 @@ Closed renderer enums must not become ontology enums. Dense numeric node kinds
 and edge styles may still exist inside a compiled Graph View, but they are
 projection-local performance data rather than the durable graph contract.
 
-### Current model gap
+### Consolidated production contract
 
-Exo currently has two overlapping graph representations:
+`WorkspaceGraph` is the only production knowledge-graph boundary. Its
+schema-agnostic 0.2 snapshot owns open Concept types, lossless Properties,
+Relations, resolution, authority, and Evidence. Connections adapts that graph
+to a bounded focused-Note context. The full Graph Pane receives a compact,
+string-free typed topology with profile/topology/transport hashes and retrieves
+labels, paths, Properties, Findings, and Relation Evidence through bounded,
+snapshot-qualified lookup, summary, and index-detail reads.
 
-- `packages/core/src/graph.ts` models `note | tag | external | unresolved` nodes
-  and `wikilink | markdownLink | hasTag` edges.
-- `packages/core/src/workspace-graph.ts` independently models Note identities,
-  Markdown links, backlinks, and neighborhoods.
-
-Both preserve useful behavior, but their closed kinds cannot express arbitrary
-concept types, relation predicates, evidence, or declared versus derived
-authority. Production work should consolidate them, not add a third graph model
-for Stellar.
+The former 0.1 `GraphSnapshot`/query modules, object `GraphViewProjection`
+compiler and IPC route, unbounded concept-id detail route, and duplicate
+renderer scene have been deleted. Canvas and WebGPU now share the same scene
+contract rather than carrying a compatibility graph representation.
 
 ## How properties become useful without becoming mandatory
 
@@ -334,14 +334,15 @@ pixels, positions, interactions, memory, resilience, and latency.
 
 Gate: the fixtures and expected facts are reviewable without any renderer.
 
-### Phase 1 — Consolidate the knowledge graph
+### Phase 1 — Consolidate the knowledge graph — complete
 
 1. Inventory consumers of `GraphSnapshot` and `WorkspaceGraph`.
-2. Introduce graph snapshot 0.2 behind a compatibility adapter.
+2. Introduce knowledge snapshot 0.2 behind `WorkspaceGraph`.
 3. Preserve arbitrary nested frontmatter values and stable Note identity.
 4. Add Relation authority, resolution, predicate, and Evidence.
-5. Move backlinks, neighborhoods, and graph context onto the consolidated model.
-6. Delete the superseded graph representation only after parity tests pass.
+5. Keep backlinks, neighborhoods, and graph context on the consolidated model.
+6. Delete the superseded snapshot/query, object-IPC, and renderer-scene paths
+   after their consumer and parity audits pass.
 
 Gate: current links, backlinks, tags, Folder Overview, Connections, and search
 hydration remain behaviorally identical; unknown fields survive a round trip.

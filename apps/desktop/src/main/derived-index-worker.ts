@@ -67,8 +67,6 @@ function run(request: DerivedIndexRequest): Promise<DerivedIndexResult> {
       return index.rebuild();
     case "graph-context":
       return graphFor(model).contextForNote(request.filePath);
-    case "graph-view":
-      return graphFor(model).graphView(request.profileId);
     case "graph-topology":
       return graphFor(model).graphTopology(request.profileId);
     case "graph-concept-summaries":
@@ -77,8 +75,6 @@ function run(request: DerivedIndexRequest): Promise<DerivedIndexResult> {
       return graphFor(model).graphConceptLookup(request.reference, request.sourceSnapshotId, request.profileId);
     case "graph-concept-detail-by-index":
       return graphFor(model).graphConceptDetailByIndex(request.index, request.sourceSnapshotId, request.profileId);
-    case "graph-concept-detail":
-      return graphFor(model).graphConceptDetail(request.conceptId, request.sourceSnapshotId, request.profileId);
     case "graph-refresh":
       return graphFor(model).refreshFile(request.filePath).then(() => null);
     case "graph-invalidate":
@@ -119,7 +115,7 @@ function isRequest(value: unknown): value is DerivedIndexRequest {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<DerivedIndexRequest>;
   return Number.isSafeInteger(candidate.id)
-    && ["status", "search", "update", "embed", "sync", "graph-context", "graph-view", "graph-topology", "graph-concept-summaries", "graph-concept-lookup", "graph-concept-detail-by-index", "graph-concept-detail", "graph-refresh", "graph-invalidate"].includes(String(candidate.operation))
+    && ["status", "search", "update", "embed", "sync", "graph-context", "graph-topology", "graph-concept-summaries", "graph-concept-lookup", "graph-concept-detail-by-index", "graph-refresh", "graph-invalidate"].includes(String(candidate.operation))
     && Boolean(candidate.context?.model)
     && typeof candidate.context?.runtimeRoot === "string";
 }

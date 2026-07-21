@@ -75,30 +75,9 @@ describe("UtilityDerivedIndexClient", () => {
     worker.emit("message", { id: 1, ok: true, result: null });
     await expect(context).resolves.toBeNull();
 
-    const view = client.graphView(model(), "/workspace/.exo", "okf");
-    expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-view", profileId: "okf" });
-    worker.emit("message", {
-      id: 2,
-      ok: true,
-      result: {
-        projection: {
-          version: "0.1",
-          layoutVersion: "finite-force-0.1",
-          sourceSnapshotId: "fixture",
-          seed: 1,
-          nodes: [],
-          edges: [],
-          omitted: { tagConcepts: 0, tagRelations: 0 },
-        },
-      },
-    });
-    await expect(view).resolves.toMatchObject({
-      projection: { sourceSnapshotId: "fixture" },
-    });
-
     const refresh = client.graphRefresh(model(), "/workspace/.exo", "/workspace/notes/focus.md");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-refresh", filePath: "/workspace/notes/focus.md" });
-    worker.emit("message", { id: 3, ok: true, result: null });
+    worker.emit("message", { id: 2, ok: true, result: null });
     await expect(refresh).resolves.toBeUndefined();
   });
 

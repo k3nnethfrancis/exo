@@ -5,13 +5,11 @@ import type {
   IndexSearchOptions,
   IndexStatus,
   IndexSyncResult,
-  GraphConceptDetail,
   GraphConceptDetailByIndexResult,
   GraphConceptLookupReference,
   GraphConceptLookupResult,
   GraphConceptSummaryResult,
   GraphTopology,
-  GraphViewBundle,
   WorkspaceGraphContext,
   WorkspaceIndexSearchResponse,
   WorkspaceModel,
@@ -42,12 +40,10 @@ export interface DerivedIndexClient {
   ): Promise<IndexStatus>;
   sync(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<IndexSyncResult>;
   graphContext(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<WorkspaceGraphContext | null>;
-  graphView(model: WorkspaceModel, runtimeRoot: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphViewBundle>;
   graphTopology(model: WorkspaceModel, runtimeRoot: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphTopology>;
   graphConceptSummaries(model: WorkspaceModel, runtimeRoot: string, indexes: number[], sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptSummaryResult>;
   graphConceptLookup(model: WorkspaceModel, runtimeRoot: string, reference: GraphConceptLookupReference, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptLookupResult>;
   graphConceptDetailByIndex(model: WorkspaceModel, runtimeRoot: string, index: number, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptDetailByIndexResult>;
-  graphConceptDetail(model: WorkspaceModel, runtimeRoot: string, conceptId: string, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptDetail | null>;
   graphRefresh(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<void>;
   graphInvalidate(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<void>;
   dispose(): void;
@@ -136,15 +132,6 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
     return this.request({ operation: "graph-context", context: { model, runtimeRoot }, filePath }, signal);
   }
 
-  graphView(
-    model: WorkspaceModel,
-    runtimeRoot: string,
-    profileId?: string | null,
-    signal?: AbortSignal,
-  ): Promise<GraphViewBundle> {
-    return this.request({ operation: "graph-view", context: { model, runtimeRoot }, profileId }, signal);
-  }
-
   graphTopology(
     model: WorkspaceModel,
     runtimeRoot: string,
@@ -185,17 +172,6 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
     signal?: AbortSignal,
   ): Promise<GraphConceptDetailByIndexResult> {
     return this.request({ operation: "graph-concept-detail-by-index", context: { model, runtimeRoot }, index, sourceSnapshotId, profileId }, signal);
-  }
-
-  graphConceptDetail(
-    model: WorkspaceModel,
-    runtimeRoot: string,
-    conceptId: string,
-    sourceSnapshotId: string,
-    profileId?: string | null,
-    signal?: AbortSignal,
-  ): Promise<GraphConceptDetail | null> {
-    return this.request({ operation: "graph-concept-detail", context: { model, runtimeRoot }, conceptId, sourceSnapshotId, profileId }, signal);
   }
 
   async graphRefresh(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<void> {

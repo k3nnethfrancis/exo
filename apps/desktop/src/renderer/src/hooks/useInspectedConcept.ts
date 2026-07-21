@@ -1,5 +1,4 @@
 import { useCallback, useReducer } from "react";
-import type { GraphViewProjection } from "@exo/core";
 
 export type InspectionSource = "editor" | "graph" | "connections";
 
@@ -48,20 +47,6 @@ export function reduceInspectedConcept(
       sequence: (state.focusRequest?.sequence ?? 0) + 1,
     },
   };
-}
-
-export function graphNodeIndexForConcept(
-  projection: GraphViewProjection | null,
-  concept: InspectedConcept | null,
-): number {
-  if (!projection || !concept) return -1;
-  if (concept.conceptId) {
-    const byId = projection.nodes.findIndex((node) => node.id === concept.conceptId);
-    if (byId >= 0) return byId;
-  }
-  return concept.filePath
-    ? projection.nodes.findIndex((node) => node.path === concept.filePath)
-    : -1;
 }
 
 export function useInspectedConcept() {

@@ -1,6 +1,6 @@
 # Graph product checkpoint
 
-Date: 2026-07-17
+Date: 2026-07-20
 
 ## Source packet for a short technical post
 
@@ -90,8 +90,9 @@ any published number.
 1. Finish cross-renderer GPU timing, pixel parity, browser-delivered device loss,
    and multi-hardware engineering evidence.
 2. Freeze the OKF/OpenWiki fixtures and schema/compatibility expectations.
-3. Finish the compact typed topology transport, stable persisted layout epochs,
-   clean branch replay, and existing Exo latency regressions.
+3. Finish stable persisted layout epochs and the remaining production graph
+   acceptance gates. Compact typed topology, bounded cold reads, and the legacy
+   object-transport deletion are complete.
 4. Integrate the real Stellar renderer into packaged Exo with accessibility,
    Canvas/device-loss fallback, idle quiescence, continuity, and editor latency
    under graph load.

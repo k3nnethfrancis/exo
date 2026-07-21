@@ -210,7 +210,7 @@ describe("WorkspaceGraph", () => {
     expect(workspaceNoteId("notes", "Folder/Foo.md")).not.toBe(workspaceNoteId("notes", "folder/foo.md"));
   });
 
-  it("rejects concept detail from a stale graph epoch", async () => {
+  it("rejects bounded concept detail from a stale graph epoch", async () => {
     const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
@@ -218,12 +218,14 @@ describe("WorkspaceGraph", () => {
     const notePath = path.join(notes, "focus.md");
     await writeFile(notePath, "# Focus\n");
     const graph = new WorkspaceGraph(model(workspace, notes));
-    const first = await graph.graphView();
-    const conceptId = first.projection.nodes[0]?.id ?? "";
+    const first = await graph.graphTopology();
     await writeFile(notePath, "# Changed\n");
     await graph.refreshFile(notePath);
 
-    await expect(graph.graphConceptDetail(conceptId, first.projection.sourceSnapshotId)).resolves.toBeNull();
+    await expect(graph.graphConceptDetailByIndex(0, first.sourceSnapshotId)).resolves.toMatchObject({
+      status: "stale",
+      index: 0,
+    });
   });
 
   it("serves cold summaries and bounded evidenced detail by topology index", async () => {
@@ -310,7 +312,7 @@ describe("WorkspaceGraph", () => {
     await writeFile(focusPath, "# Focus\n");
     const graph = new WorkspaceGraph(model(workspace, notes));
     const topology = await graph.graphTopology();
-    const conceptId = (await graph.graphView()).projection.nodes[0]?.id ?? "";
+    const conceptId = workspaceNoteId("notes", "folder/focus.md");
 
     const byId = await graph.graphConceptLookup({ conceptId }, topology.sourceSnapshotId);
     const byPath = await graph.graphConceptLookup(

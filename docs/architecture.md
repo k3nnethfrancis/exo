@@ -1,6 +1,6 @@
 # Exo Architecture
 
-Last updated: 2026-07-17
+Last updated: 2026-07-20
 
 Exo is a local, user-owned Markdown exocortex with modular, tunable search, inline agent invocation, and graph management skills.
 
@@ -58,12 +58,14 @@ View for performance; they are not the ontology contract. Semantic similarity
 and inferred relationships remain versioned Derived Signals until accepted as
 Markdown changes.
 
-Exo still has overlapping legacy `GraphSnapshot` and `WorkspaceGraph`
-representations. The feature branch adds snapshot 0.2 and the dense Graph View
-behind `WorkspaceGraph`, but the protected caller/deletion pass remains before
-the consolidation can be called complete. The Canvas Graph Pane is an
-interaction tracer consuming that projection, not a third semantic model. Do
-not move ontology or relation meaning into Canvas/WebGPU code.
+`WorkspaceGraph` is now the single production graph boundary. It derives the
+schema-agnostic knowledge snapshot used by Connections and compiles the Graph
+Pane's hot path into compact typed topology. Labels, paths, Properties,
+Findings, and Relation Evidence remain cold and are fetched through bounded,
+snapshot-qualified lookup, summary, and index-detail reads. The former object
+Graph View IPC, unbounded concept-detail route, and standalone `GraphSnapshot`
+0.1/query modules have been removed. The Canvas and WebGPU renderers consume
+the same renderer-neutral scene and cannot invent graph semantics.
 
 Two kinds of verification remain deliberately separate. Graph contract tests
 cover identity, resolution, Evidence, and profile conformance. The repo-local
@@ -86,9 +88,10 @@ Owns Note Root identity, path authorization, containment, symlink policy, absolu
 Owns the derived Knowledge Graph: Note/Concept identity, lossless Properties,
 Relation resolution and Evidence, backlinks, neighborhoods, graph context, and
 invalidation. Markdown is canonical; graph snapshots and profile interpretations
-are derived. During migration it also owns compatibility for the older graph
-representations. Folder Overview and Graph Views consume this boundary rather
-than creating their own graph models.
+are derived. Folder Overview, Connections, and Graph Views consume this
+boundary rather than creating their own graph models. Connections receives a
+bounded Note-local context; the full Graph Pane receives string-free typed
+topology and fetches cold metadata only for inspected/focal Concepts.
 
 ### `WorkspaceIndex`
 
@@ -131,7 +134,7 @@ The future Skill flow adds a reviewed, bounded proposal step; it is not claimed 
 | Note Roots and files | `WorkspaceModel`, `WorkspaceFiles` | Exo reads and mutates only authorized Note Roots | containment tests; `../issues.md#exo-issue-103`, `../CONTEXT.md` |
 | Workspace settings | `WorkspaceConfigStore`, revisioned `WorkspaceSettings` | Settings preserve unowned/unknown data and configured Commands | settings tests; `../issues.md#exo-issue-102` |
 | Notes and properties | Markdown/frontmatter, `NoteDocument` | Source on disk remains canonical | note/Markdown tests; `../CONTEXT.md` |
-| Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context; the planned schema-agnostic graph preserves open properties, relation authority, and evidence | search/graph tests; `graph-system-report-and-plan.md` |
+| Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context; the schema-agnostic graph preserves open properties, relation authority, and evidence while the Graph Pane uses compact topology plus bounded cold reads | search/graph/transport tests; `graph-system-report-and-plan.md` |
 | Canvas and panes | `WorkspaceCanvasLayoutSettings`, pane tree | Notes, Terminal, Preview, and Connections share one canvas | pane E2E; `../README.md` |
 | Terminal | `TerminalManager`, direct `node-pty`, xterm | Live terminal with bounded reload tail; no durable session history | terminal suite; `terminal-runtime-decision.md` |
 | Commands and invocation | `AgentCommand`, `InvocationRunner`, invocation records | Explicit inline invocation, headless document work, optional session handoff, observed-change review | invocation E2E; `../issues.md#exo-issue-106` |
