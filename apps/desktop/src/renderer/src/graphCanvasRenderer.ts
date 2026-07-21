@@ -111,6 +111,21 @@ export class GraphCanvasRenderer {
   }
 
   render(plan: GraphPresentationPlan): GraphCanvasRenderMeasurement {
+    return this.renderLayers(plan, true);
+  }
+
+  /** Draw only the scene-owned labels on a transparent overlay canvas. */
+  renderLabels(plan: GraphPresentationPlan): GraphCanvasRenderMeasurement {
+    return this.renderLayers(plan, false);
+  }
+
+  clear(): void {
+    if (this.destroyed) return;
+    this.context.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.context.clearRect(0, 0, this.width, this.height);
+  }
+
+  private renderLayers(plan: GraphPresentationPlan, includeTopology: boolean): GraphCanvasRenderMeasurement {
     const started = this.now();
     try {
       validatePlan(plan);
@@ -125,22 +140,24 @@ export class GraphCanvasRenderer {
       context.lineJoin = "round";
       context.clearRect(0, 0, this.width, this.height);
       let drawCalls = 0;
-      if (plan.clearColor !== null) {
+      if (includeTopology && plan.clearColor !== null) {
         context.globalAlpha = 1;
         context.fillStyle = this.color(plan.clearColor);
         context.fillRect(0, 0, this.width, this.height);
         drawCalls += 1;
       }
-      drawCalls += this.drawEdges(plan);
-      drawCalls += this.drawNodeFills(plan);
-      drawCalls += this.drawNodeStrokes(plan);
+      if (includeTopology) {
+        drawCalls += this.drawEdges(plan);
+        drawCalls += this.drawNodeFills(plan);
+        drawCalls += this.drawNodeStrokes(plan);
+      }
       drawCalls += this.drawLabels(plan);
       context.globalAlpha = 1;
       return {
         cpuMilliseconds: Math.max(0, this.now() - started),
         drawCalls,
-        nodes: plan.nodes.indices.length,
-        edges: plan.edges.indices.length,
+        nodes: includeTopology ? plan.nodes.indices.length : 0,
+        edges: includeTopology ? plan.edges.indices.length : 0,
         labels: plan.labels.placements.length,
         width: this.width,
         height: this.height,

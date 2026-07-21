@@ -679,9 +679,9 @@ struct VertexOutput {
 fn curve(edge: Edge, t: f32) -> vec2<f32> {
   let source = edge.sourceControl.xy;
   let control = edge.sourceControl.zw;
-  let target = edge.targetStyle.xy;
+  let destination = edge.targetStyle.xy;
   let a = mix(source, control, t);
-  let b = mix(control, target, t);
+  let b = mix(control, destination, t);
   return mix(a, b, t);
 }
 @vertex fn vertexMain(@builtin(vertex_index) vertexIndex: u32, @builtin(instance_index) instanceIndex: u32) -> VertexOutput {

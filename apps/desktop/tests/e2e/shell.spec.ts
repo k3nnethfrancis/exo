@@ -212,6 +212,36 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
       return (canvas as HTMLCanvasElement & { __exoGraphSnapshot?: () => unknown }).__exoGraphSnapshot?.();
     })).toMatchObject({ pendingWork: 0, pendingFrame: false, moving: false });
 
+    const beforeFallback = await graphCanvas.evaluate((canvas) => {
+      const debug = canvas as HTMLCanvasElement & {
+        __exoGraphSnapshot?: () => {
+          selected: number;
+          pathTarget: number;
+          sourceSnapshotId: string | null;
+          inspectedFilePath: string | null;
+          rendererGeneration: number;
+          rendererRecoveryState: string;
+        };
+      };
+      return debug.__exoGraphSnapshot?.() ?? null;
+    });
+    expect(beforeFallback).not.toBeNull();
+    await graphCanvas.evaluate(async (canvas) => {
+      const debug = canvas as HTMLCanvasElement & { __exoGraphForceCanvasFallback?: () => Promise<void> };
+      await debug.__exoGraphForceCanvasFallback?.();
+    });
+    await expect.poll(async () => graphCanvas.evaluate((canvas) => {
+      return (canvas as HTMLCanvasElement & { __exoGraphSnapshot?: () => unknown }).__exoGraphSnapshot?.();
+    })).toMatchObject({
+      rendererKind: "canvas2d",
+      rendererTransitionReason: "recovery-fallback",
+      rendererRecoveryState: "fallback",
+      selected: beforeFallback!.selected,
+      pathTarget: beforeFallback!.pathTarget,
+      sourceSnapshotId: beforeFallback!.sourceSnapshotId,
+      inspectedFilePath: beforeFallback!.inspectedFilePath,
+    });
+
     const initialNodeCount = Number.parseInt((await graphPane.locator(".spatial-graph__count").textContent()) ?? "0", 10);
     await writeFile(path.join(workspaceRoot, "notes/test-notes/graph-live.md"), "# Graph Live\n\n[[graph-target]]\n", "utf8");
     await expect.poll(async () => Number.parseInt((await graphPane.locator(".spatial-graph__count").textContent()) ?? "0", 10))

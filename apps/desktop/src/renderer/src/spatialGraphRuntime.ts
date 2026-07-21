@@ -1,8 +1,20 @@
 import type { GraphConceptSummary, GraphTopology } from "@exo/core";
 
 import { GraphCanvasRenderer, type GraphCanvasSurface } from "./graphCanvasRenderer";
-import { createGraphPresentationPlan, type GraphPresentationPalette } from "./graphPresentation";
+import {
+  GraphPresentationCompiler,
+  type GraphPresentationPalette,
+  type GraphPresentationPlan,
+} from "./graphPresentation";
 import { GraphRenderScheduler, type GraphFrameDriver } from "./graphRenderScheduler";
+import {
+  GraphRendererHost,
+  GraphRendererHostError,
+  type GraphPixelRenderer,
+  type GraphPixelRendererMeasurement,
+  type GraphRendererHostSnapshot,
+  type GraphRendererTransition,
+} from "./graphRendererHost";
 import {
   applyGraphSceneLayoutFrame,
   createGraphScene,
@@ -20,6 +32,11 @@ import {
   type GraphSceneContract,
   type GraphViewport,
 } from "./graphSceneFoundation";
+import {
+  GraphWebGpuRenderer,
+  type GraphGpuRuntime,
+  type GraphWebGpuSurface,
+} from "./graphWebGpuRenderer";
 
 const MAXIMUM_INITIAL_LABELS = 64;
 const CAMERA_TRANSITION_MILLISECONDS = 340;
@@ -33,6 +50,18 @@ export interface SpatialGraphRuntimeCounters {
   pendingWork: number;
   pendingFrame: boolean;
   moving: boolean;
+  rendererKind: GraphRendererHostSnapshot["kind"];
+  rendererGeneration: number;
+  rendererTransitionReason: GraphRendererHostSnapshot["transitionReason"];
+  rendererRecoveryState: GraphRendererHostSnapshot["recoveryState"];
+  rendererTransitions: number;
+  rendererFailures: number;
+  rendererRecreationAttempts: number;
+  rendererFallbacks: number;
+  rendererStaleCallbacks: number;
+  compilerCompilations: number;
+  compilerNumericReuseHits: number;
+  compilerResidentCapacityBytes: number;
 }
 
 export interface SpatialGraphRuntimeOptions {
@@ -40,6 +69,15 @@ export interface SpatialGraphRuntimeOptions {
   palette: GraphPresentationPalette;
   dpr?: number;
   onDrawError?: (error: Error) => void;
+  webGpuSurface?: GraphWebGpuSurface;
+  /** Undefined uses truthful runtime detection; null is a controlled unavailable runtime. */
+  webGpuRuntime?: GraphGpuRuntime | null;
+  createWebGpu?: (
+    surface: GraphWebGpuSurface,
+    runtime: GraphGpuRuntime,
+    reportFailure: (error: Error) => void,
+  ) => Promise<GraphPixelRenderer>;
+  onRendererTransition?: (transition: GraphRendererTransition<GraphSceneContract>) => void;
 }
 
 export interface GraphRefreshTimer {
@@ -240,7 +278,9 @@ interface CameraTransition {
  * and makes idle work observable.
  */
 export class SpatialGraphRuntime {
-  private readonly renderer: GraphCanvasRenderer;
+  private readonly canvasRenderer: GraphCanvasRenderer;
+  private readonly presentationCompiler = new GraphPresentationCompiler();
+  private readonly rendererHost: GraphRendererHost<GraphSceneContract>;
   private readonly scheduler: GraphRenderScheduler;
   private scene: GraphSceneContract | null = null;
   private palette: GraphPresentationPalette;
@@ -256,8 +296,35 @@ export class SpatialGraphRuntime {
   constructor(canvas: GraphCanvasSurface, private readonly options: SpatialGraphRuntimeOptions) {
     this.palette = options.palette;
     this.dpr = options.dpr ?? 1;
-    this.renderer = new GraphCanvasRenderer(canvas, { reportError: options.onDrawError });
+    this.canvasRenderer = new GraphCanvasRenderer(canvas, { reportError: options.onDrawError });
+    const webGpuSurface = options.webGpuSurface;
+    this.rendererHost = new GraphRendererHost<GraphSceneContract>({
+      webGpuRuntime: webGpuSurface ? options.webGpuRuntime : null,
+      createWebGpu: async (runtime, reportFailure) => {
+        if (!webGpuSurface) throw new Error("A WebGPU graph surface is unavailable.");
+        return options.createWebGpu
+          ? options.createWebGpu(webGpuSurface, runtime, reportFailure)
+          : GraphWebGpuRenderer.create(webGpuSurface, runtime, { reportFailure });
+      },
+      createCanvas: () => new SharedGraphCanvasPixelRenderer(this.canvasRenderer),
+      onTransition: (transition) => {
+        // Keep the last complete Canvas frame until the prepared GPU submission
+        // has crossed one display boundary; the next frame swaps to labels only.
+        this.scheduler.invalidate("renderer-transition");
+        options.onRendererTransition?.(transition);
+      },
+      onError: (error) => {
+        const retained = this.rendererHost.frame;
+        if (retained) this.canvasRenderer.render(retained.plan);
+        if (error instanceof GraphRendererHostError && error.code === "recovery-failed") {
+          options.onDrawError?.(error);
+        }
+      },
+    });
     this.scheduler = new GraphRenderScheduler(options.frameDriver, (time) => this.render(time));
+    void this.rendererHost.start().catch((error) => {
+      if (!this.disposed) options.onDrawError?.(error instanceof Error ? error : new Error(String(error)));
+    });
   }
 
   getScene(): GraphSceneContract | null {
@@ -275,7 +342,7 @@ export class SpatialGraphRuntime {
       next.projection = projectGraphScene(next.layout.positions, next.camera, viewport);
     }
     this.scene = next;
-    this.renderer.resize({ ...viewport, dpr: this.dpr });
+    this.resizeRenderers(viewport, this.dpr);
     this.scheduler.invalidate("topology");
     return next;
   }
@@ -284,7 +351,7 @@ export class SpatialGraphRuntime {
     if (!this.scene || this.disposed) return;
     this.dpr = dpr;
     this.scene.projection = projectGraphScene(this.scene.layout.positions, this.scene.camera, viewport);
-    this.renderer.resize({ ...viewport, dpr });
+    this.resizeRenderers(viewport, dpr);
     this.scheduler.invalidate("resize");
   }
 
@@ -397,6 +464,8 @@ export class SpatialGraphRuntime {
 
   snapshot(): SpatialGraphRuntimeCounters {
     const scheduler = this.scheduler.snapshot();
+    const renderer = this.rendererHost.snapshot();
+    const compiler = this.presentationCompiler.stats();
     return {
       invalidations: scheduler.invalidations,
       renderedFrames: scheduler.renderedFrames,
@@ -406,7 +475,23 @@ export class SpatialGraphRuntime {
       pendingWork: this.externalPendingWork + Number(scheduler.pending) + Number(scheduler.moving),
       pendingFrame: scheduler.pending,
       moving: scheduler.moving,
+      rendererKind: renderer.kind,
+      rendererGeneration: renderer.generation,
+      rendererTransitionReason: renderer.transitionReason,
+      rendererRecoveryState: renderer.recoveryState,
+      rendererTransitions: renderer.transitions,
+      rendererFailures: renderer.failures,
+      rendererRecreationAttempts: renderer.recreationAttempts,
+      rendererFallbacks: renderer.fallbacks,
+      rendererStaleCallbacks: renderer.staleCallbacks,
+      compilerCompilations: compiler.compilations,
+      compilerNumericReuseHits: compiler.numericReuseHits,
+      compilerResidentCapacityBytes: compiler.residentCapacityBytes,
     };
+  }
+
+  async forceCanvasFallbackForTesting(): Promise<void> {
+    await this.rendererHost.forceCanvasFallbackForTesting();
   }
 
   dispose(): void {
@@ -414,7 +499,8 @@ export class SpatialGraphRuntime {
     this.disposed = true;
     this.transition = null;
     this.scheduler.dispose();
-    this.renderer.destroy();
+    this.rendererHost.destroy();
+    this.canvasRenderer.destroy();
   }
 
   private mutateCamera(update: (camera: GraphCamera) => GraphCamera, reason: string): void {
@@ -440,13 +526,23 @@ export class SpatialGraphRuntime {
     });
     this.labelPlans += 1;
     try {
-      this.renderer.render(createGraphPresentationPlan(this.scene, labelPlan, { palette: this.palette }));
+      const plan = this.presentationCompiler.compile(this.scene, labelPlan, { palette: this.palette });
+      const kind = this.rendererHost.kind;
+      this.rendererHost.render({ plan, state: this.scene });
+      if (kind === "webgpu") this.canvasRenderer.renderLabels(plan);
+      else if (kind === null) this.canvasRenderer.render(plan);
     } catch (error) {
       this.transition = null;
       this.options.onDrawError?.(error instanceof Error ? error : new Error(String(error)));
       return { continueMotion: false };
     }
     return { continueMotion };
+  }
+
+  private resizeRenderers(viewport: GraphViewport, dpr: number): void {
+    const next = { ...viewport, dpr };
+    this.canvasRenderer.resize(next);
+    this.rendererHost.resize(next);
   }
 
   private advanceTransition(time: number): boolean {
@@ -464,6 +560,23 @@ export class SpatialGraphRuntime {
     this.scene.camera = interpolateCamera(this.transition.from, this.transition.to, response);
     this.scene.projection = projectGraphScene(this.scene.layout.positions, this.scene.camera, this.scene.projection.viewport);
     return true;
+  }
+}
+
+/** Host adapter; the runtime owns the one persistent accessible Canvas surface. */
+class SharedGraphCanvasPixelRenderer implements GraphPixelRenderer {
+  constructor(private readonly renderer: GraphCanvasRenderer) {}
+
+  resize(viewport: { width: number; height: number; dpr: number }): void {
+    this.renderer.resize(viewport);
+  }
+
+  render(plan: GraphPresentationPlan): GraphPixelRendererMeasurement {
+    return this.renderer.render(plan);
+  }
+
+  destroy(): void {
+    // The overlay survives renderer transitions and is destroyed by the runtime.
   }
 }
 

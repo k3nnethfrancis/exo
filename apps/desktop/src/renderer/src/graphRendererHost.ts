@@ -32,6 +32,27 @@ export interface GraphRendererTransition<State> {
   frame: GraphRendererFrame<State> | null;
 }
 
+export type GraphRendererRecoveryState =
+  | "idle"
+  | "booting"
+  | "ready"
+  | "recreating"
+  | "fallback"
+  | "failed"
+  | "disposed";
+
+export interface GraphRendererHostSnapshot {
+  kind: GraphPixelRendererKind | null;
+  generation: number;
+  transitionReason: GraphRendererTransition<unknown>["reason"] | null;
+  recoveryState: GraphRendererRecoveryState;
+  transitions: number;
+  failures: number;
+  recreationAttempts: number;
+  fallbacks: number;
+  staleCallbacks: number;
+}
+
 export interface GraphRendererHostOptions<State> {
   /** Undefined detects the actual runtime; null explicitly represents unavailable WebGPU. */
   webGpuRuntime?: GraphGpuRuntime | null;
@@ -71,6 +92,13 @@ export class GraphRendererHost<State> {
   private recoveryTask: Promise<void> | null = null;
   private recreationAttempted = false;
   private destroyed = false;
+  private transitionReason: GraphRendererTransition<State>["reason"] | null = null;
+  private recoveryState: GraphRendererRecoveryState = "idle";
+  private transitions = 0;
+  private failures = 0;
+  private recreationAttempts = 0;
+  private fallbacks = 0;
+  private staleCallbacks = 0;
 
   constructor(private readonly options: GraphRendererHostOptions<State>) {
     this.webGpuRuntime = options.webGpuRuntime === undefined ? runtimeGraphGpu() : options.webGpuRuntime;
@@ -93,7 +121,11 @@ export class GraphRendererHost<State> {
     this.assertNotDestroyed();
     if (this.rendererKind) return Promise.resolve(this.rendererKind);
     if (this.startTask) return this.startTask;
-    const task = this.installInitial();
+    this.recoveryState = "booting";
+    const task = this.installInitial().catch((cause) => {
+      if (!this.destroyed) this.recoveryState = "failed";
+      throw cause;
+    });
     this.startTask = task;
     const clear = () => {
       if (this.startTask === task) this.startTask = null;
@@ -125,6 +157,26 @@ export class GraphRendererHost<State> {
     while (this.recoveryTask) await this.recoveryTask;
   }
 
+  snapshot(): GraphRendererHostSnapshot {
+    return {
+      kind: this.rendererKind,
+      generation: this.currentGeneration,
+      transitionReason: this.transitionReason,
+      recoveryState: this.recoveryState,
+      transitions: this.transitions,
+      failures: this.failures,
+      recreationAttempts: this.recreationAttempts,
+      fallbacks: this.fallbacks,
+      staleCallbacks: this.staleCallbacks,
+    };
+  }
+
+  /** Controlled product-E2E hook; production capability detection never calls this. */
+  async forceCanvasFallbackForTesting(): Promise<void> {
+    this.assertNotDestroyed();
+    await this.installCanvas("recovery-fallback");
+  }
+
   destroy(): void {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -134,6 +186,7 @@ export class GraphRendererHost<State> {
     this.rendererKind = null;
     this.currentFrame = null;
     this.viewport = null;
+    this.recoveryState = "disposed";
   }
 
   private async installInitial(): Promise<GraphPixelRendererKind> {
@@ -153,7 +206,11 @@ export class GraphRendererHost<State> {
   }
 
   private handleFailure(error: Error, generation: number): void {
-    if (this.destroyed || generation !== this.currentGeneration || this.rendererKind !== "webgpu") return;
+    if (this.destroyed || generation !== this.currentGeneration || this.rendererKind !== "webgpu") {
+      this.staleCallbacks += Number(!this.destroyed && generation !== this.currentGeneration);
+      return;
+    }
+    this.failures += 1;
     this.options.onError?.(error);
     if (this.recoveryTask) return;
     const task = this.recover().catch((cause) => this.failRecovery(cause));
@@ -166,6 +223,8 @@ export class GraphRendererHost<State> {
   private async recover(): Promise<void> {
     if (!this.recreationAttempted && this.webGpuRuntime) {
       this.recreationAttempted = true;
+      this.recreationAttempts += 1;
+      this.recoveryState = "recreating";
       try {
         await this.installWebGpu("recreated");
         return;
@@ -246,6 +305,10 @@ export class GraphRendererHost<State> {
     const previous = this.renderer;
     this.renderer = renderer;
     this.rendererKind = kind;
+    this.transitionReason = reason;
+    this.recoveryState = kind === "webgpu" ? "ready" : "fallback";
+    this.transitions += 1;
+    if (kind === "canvas2d") this.fallbacks += 1;
     previous?.destroy();
     this.options.onTransition?.({ kind, generation, reason, frame: this.currentFrame });
   }
@@ -258,6 +321,7 @@ export class GraphRendererHost<State> {
     this.renderer?.destroy();
     this.renderer = null;
     this.rendererKind = null;
+    this.recoveryState = "failed";
     this.options.onError?.(error);
   }
 

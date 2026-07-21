@@ -51,6 +51,22 @@ describe("Canvas graph renderer", () => {
     expect(context.count("clearRect")).toBe(1);
     expect(context.count("fillRect")).toBe(0);
   });
+
+  it("draws the identical resolved label plan on a transparent WebGPU overlay", () => {
+    const fullContext = new MockContext();
+    const overlayContext = new MockContext();
+    const graphPlan = plan();
+
+    new GraphCanvasRenderer(surface(fullContext)).render(graphPlan);
+    const measurement = new GraphCanvasRenderer(surface(overlayContext)).renderLabels(graphPlan);
+
+    expect(overlayContext.calls.filter(([name]) => name === "fillText"))
+      .toEqual(fullContext.calls.filter(([name]) => name === "fillText"));
+    expect(overlayContext.count("arc")).toBe(0);
+    expect(overlayContext.count("quadraticCurveTo")).toBe(0);
+    expect(overlayContext.count("fillRect")).toBe(0);
+    expect(measurement).toMatchObject({ nodes: 0, edges: 0, labels: 1 });
+  });
 });
 
 class MockContext implements GraphCanvasContext {

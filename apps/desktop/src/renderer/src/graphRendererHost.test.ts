@@ -64,6 +64,15 @@ describe("graph renderer recovery host", () => {
     expect(host.frame!.state.path).toBe(frame.state.path);
     expect(host.frame!.state.layout).toBe(frame.state.layout);
     expect(host.frame!.state.detail).toBe(frame.state.detail);
+    expect(host.snapshot()).toMatchObject({
+      kind: "webgpu",
+      transitionReason: "recreated",
+      recoveryState: "ready",
+      transitions: 2,
+      failures: 1,
+      recreationAttempts: 1,
+      fallbacks: 0,
+    });
     expect(transitions).toEqual([
       expect.objectContaining({ kind: "webgpu", reason: "boot", frame }),
       expect.objectContaining({ kind: "webgpu", reason: "recreated", frame }),
@@ -96,6 +105,13 @@ describe("graph renderer recovery host", () => {
     expect(first.destroyCalls).toBe(1);
     expect(canvas.plans).toEqual([frame.plan]);
     expect(host.frame).toBe(frame);
+    expect(host.snapshot()).toMatchObject({
+      transitionReason: "recovery-fallback",
+      recoveryState: "fallback",
+      failures: 1,
+      recreationAttempts: 1,
+      fallbacks: 1,
+    });
   });
 
   it("falls back to Canvas when initial WebGPU creation or shader setup fails", async () => {
@@ -261,6 +277,28 @@ describe("graph renderer recovery host", () => {
 
     expect(recovery.kind).toBeNull();
     expect(errors).toContainEqual(expect.objectContaining({ code: "recovery-failed" }));
+    expect(recovery.snapshot().recoveryState).toBe("failed");
+  });
+
+  it("exposes a controlled fallback transition without replacing retained CPU state", async () => {
+    const gpu = new MockRenderer();
+    const canvas = new MockRenderer();
+    const frame = recoveryFrame();
+    const host = new GraphRendererHost<RecoveryState>({
+      webGpuRuntime: fakeRuntime(),
+      createWebGpu: async () => gpu,
+      createCanvas: () => canvas,
+    });
+    host.render(frame);
+    await host.start();
+
+    await host.forceCanvasFallbackForTesting();
+
+    expect(host.kind).toBe("canvas2d");
+    expect(host.frame).toBe(frame);
+    expect(host.frame!.state).toBe(frame.state);
+    expect(canvas.plans).toEqual([frame.plan]);
+    expect(host.snapshot()).toMatchObject({ transitionReason: "recovery-fallback", fallbacks: 1 });
   });
 });
 

@@ -4,7 +4,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { GraphTopology } from "@exo/core";
 
 import type { GraphCanvasContext, GraphCanvasSurface } from "../graphCanvasRenderer";
+import type { GraphPresentationPlan } from "../graphPresentation";
+import type { GraphPixelRenderer, GraphPixelRendererMeasurement } from "../graphRendererHost";
 import type { GraphFrameDriver } from "../graphRenderScheduler";
+import type { GraphGpuRuntime, GraphWebGpuSurface } from "../graphWebGpuRenderer";
 import {
   GraphSnapshotRefreshCoordinator,
   SpatialGraphPointerSession,
@@ -67,16 +70,40 @@ class MockContext implements GraphCanvasContext {
   lineJoin: CanvasLineJoin = "miter";
   textBaseline: CanvasTextBaseline = "alphabetic";
   imageSmoothingEnabled = false;
+  arcs = 0;
+  labels = 0;
   setTransform() {}
   clearRect() {}
   fillRect() {}
   beginPath() {}
   moveTo() {}
   quadraticCurveTo() {}
-  arc() {}
+  arc() { this.arcs += 1; }
   fill() {}
   stroke() {}
-  fillText() {}
+  fillText() { this.labels += 1; }
+}
+
+class MockPixelRenderer implements GraphPixelRenderer {
+  plans: GraphPresentationPlan[] = [];
+  viewports: Array<{ width: number; height: number; dpr: number }> = [];
+  destroyCalls = 0;
+  failure: ((error: Error) => void) | null = null;
+
+  resize(viewport: { width: number; height: number; dpr: number }): void { this.viewports.push({ ...viewport }); }
+  render(plan: GraphPresentationPlan): GraphPixelRendererMeasurement {
+    this.plans.push(plan);
+    return {
+      cpuMilliseconds: 0,
+      drawCalls: 2,
+      nodes: plan.nodes.indices.length,
+      edges: plan.edges.indices.length,
+      width: plan.viewport.width,
+      height: plan.viewport.height,
+      dpr: 1,
+    };
+  }
+  destroy(): void { this.destroyCalls += 1; }
 }
 
 function surface(context: GraphCanvasContext = new MockContext()): GraphCanvasSurface {
@@ -129,6 +156,22 @@ function palette() {
     external: 0x78699cff,
     nodeColors: new Uint32Array([0x3f7d72ff, 0xbf6840ff, 0x78699cff]),
   };
+}
+
+function fakeGpuRuntime(): GraphGpuRuntime {
+  return {
+    gpu: { requestAdapter: async () => null, getPreferredCanvasFormat: () => "rgba8unorm" },
+    bufferUsage: { copyDestination: 1, uniform: 2, storage: 4 },
+    shaderStage: { vertex: 1, fragment: 2 },
+  };
+}
+
+async function waitFor(predicate: () => boolean): Promise<void> {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (predicate()) return;
+    await Promise.resolve();
+  }
+  throw new Error("condition did not become true");
 }
 
 describe("SpatialGraph runtime", () => {
@@ -198,6 +241,84 @@ describe("SpatialGraph runtime", () => {
     frames.flush();
     expect(onDrawError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining("drawing failed") }));
     expect(runtime.snapshot()).toMatchObject({ pendingFrame: false, moving: false });
+  });
+
+  it("draws Canvas during asynchronous WebGPU boot, then keeps one scene through GPU and fallback", async () => {
+    const frames = new FakeFrameDriver();
+    const context = new MockContext();
+    const gpu = new MockPixelRenderer();
+    const replacementGpu = new MockPixelRenderer();
+    let gpuCreates = 0;
+    let resolveGpu!: (renderer: MockPixelRenderer) => void;
+    const gpuReady = new Promise<MockPixelRenderer>((resolve) => { resolveGpu = resolve; });
+    const transitions: Array<{ kind: string; reason: string; state: object | null }> = [];
+    const runtime = new SpatialGraphRuntime(surface(context), {
+      frameDriver: frames,
+      palette: palette(),
+      webGpuSurface: {} as GraphWebGpuSurface,
+      webGpuRuntime: fakeGpuRuntime(),
+      createWebGpu: async (_surface, _runtime, reportFailure) => {
+        gpuCreates += 1;
+        const renderer = gpuCreates === 1 ? await gpuReady : replacementGpu;
+        renderer.failure = reportFailure;
+        return renderer;
+      },
+      onRendererTransition: (transition) => transitions.push({
+        kind: transition.kind,
+        reason: transition.reason,
+        state: transition.frame?.state ?? null,
+      }),
+    });
+    runtime.setTopology(topology(), { width: 800, height: 600 });
+    runtime.setSummaries([{ index: 0, label: "Node", filePath: "/notes/node.md" }]);
+    frames.settle();
+    const scene = runtime.getScene()!;
+    const bootstrapArcs = context.arcs;
+    expect(bootstrapArcs).toBeGreaterThan(0);
+    expect(runtime.snapshot()).toMatchObject({ rendererKind: null, rendererRecoveryState: "booting" });
+
+    resolveGpu(gpu);
+    await waitFor(() => runtime.snapshot().rendererKind === "webgpu");
+    expect(gpu.plans).toHaveLength(1);
+    expect(context.arcs).toBe(bootstrapArcs);
+    frames.settle();
+    expect(gpu.plans).toHaveLength(2);
+    expect(context.labels).toBeGreaterThan(0);
+    expect(transitions[0]).toMatchObject({ kind: "webgpu", reason: "boot", state: scene });
+    expect(runtime.getScene()).toBe(scene);
+
+    const overlayOnlyArcs = context.arcs;
+    gpu.failure?.(new Error("device lost"));
+    expect(context.arcs).toBeGreaterThan(overlayOnlyArcs);
+    expect(runtime.getScene()).toBe(scene);
+    await waitFor(() => runtime.snapshot().rendererTransitionReason === "recreated");
+    frames.settle();
+    expect(replacementGpu.plans.length).toBeGreaterThan(0);
+    expect(runtime.snapshot()).toMatchObject({
+      rendererKind: "webgpu",
+      rendererRecoveryState: "ready",
+      rendererFailures: 1,
+      rendererRecreationAttempts: 1,
+    });
+    expect(runtime.getScene()).toBe(scene);
+
+    runtime.setPalette(palette());
+    frames.settle();
+    expect(runtime.snapshot().compilerNumericReuseHits).toBeGreaterThan(0);
+    await runtime.forceCanvasFallbackForTesting();
+    expect(runtime.snapshot()).toMatchObject({
+      rendererKind: "canvas2d",
+      rendererTransitionReason: "recovery-fallback",
+      rendererRecoveryState: "fallback",
+      rendererFallbacks: 1,
+    });
+    expect(runtime.getScene()).toBe(scene);
+    expect(context.arcs).toBeGreaterThan(bootstrapArcs);
+    frames.settle();
+    expect(runtime.snapshot()).toMatchObject({ pendingFrame: false, moving: false });
+    runtime.dispose();
+    expect(gpu.destroyCalls).toBe(1);
+    expect(replacementGpu.destroyCalls).toBe(1);
   });
 });
 

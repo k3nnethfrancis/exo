@@ -39,6 +39,7 @@ import {
   type SpatialGraphRuntimeCounters,
 } from "../spatialGraphRuntime";
 import type { GraphCanvasSurface } from "../graphCanvasRenderer";
+import type { GraphWebGpuSurface } from "../graphWebGpuRenderer";
 import type { GraphLayoutWorkerRequest, GraphLayoutWorkerResponse } from "../graphLayoutWorkerProtocol";
 import type { GraphFocusRequest, InspectedConcept } from "../hooks/useInspectedConcept";
 
@@ -74,6 +75,7 @@ type DebugCanvas = HTMLCanvasElement & {
   }) | null;
   __exoGraphPointForIndex?: (index: number) => { x: number; y: number; visible: boolean } | null;
   __exoGraphPickAt?: (x: number, y: number) => number;
+  __exoGraphForceCanvasFallback?: () => Promise<void>;
 };
 
 const PROFILE_ID = "generic-markdown" as const;
@@ -91,6 +93,7 @@ export function SpatialGraphView({
   onOpenTarget,
 }: SpatialGraphViewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const webGpuCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const runtimeRef = useRef<SpatialGraphRuntime | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const refreshCoordinatorRef = useRef<GraphSnapshotRefreshCoordinator | null>(null);
@@ -256,7 +259,8 @@ export function SpatialGraphView({
 
   useEffect(() => {
     const canvas = canvasRef.current as DebugCanvas | null;
-    if (!canvas) return;
+    const webGpuCanvas = webGpuCanvasRef.current;
+    if (!canvas || !webGpuCanvas) return;
     setError(null);
     let runtime: SpatialGraphRuntime;
     try {
@@ -264,6 +268,7 @@ export function SpatialGraphView({
         frameDriver: browserGraphFrameDriver(),
         palette: resolveGraphPalette(canvas),
         dpr: window.devicePixelRatio || 1,
+        webGpuSurface: webGpuCanvas as unknown as GraphWebGpuSurface,
         onDrawError: (reason) => setError(reason.message),
       });
     } catch (reason) {
@@ -300,6 +305,7 @@ export function SpatialGraphView({
       if (!scene) return -1;
       return pickGraphSceneNode(scene.topology, scene.projection, scene.camera, x, y, { pointer: "fine" });
     };
+    canvas.__exoGraphForceCanvasFallback = () => runtime.forceCanvasFallbackForTesting();
     const refreshCoordinator = new GraphSnapshotRefreshCoordinator(
       {
         schedule: (callback, delay) => window.setTimeout(callback, delay),
@@ -367,6 +373,7 @@ export function SpatialGraphView({
       delete canvas.__exoGraphSnapshot;
       delete canvas.__exoGraphPointForIndex;
       delete canvas.__exoGraphPickAt;
+      delete canvas.__exoGraphForceCanvasFallback;
     };
   }, [rendererNonce, updatePendingWork]);
 
@@ -574,8 +581,14 @@ export function SpatialGraphView({
       </div>
       <div className="spatial-graph__viewport">
         <canvas
+          ref={webGpuCanvasRef}
+          aria-hidden="true"
+          className="spatial-graph__pixels"
+        />
+        <canvas
           ref={canvasRef}
           aria-label="Interactive knowledge graph"
+          className="spatial-graph__interaction"
           onContextMenu={(event) => event.preventDefault()}
           onDoubleClick={onDoubleClick}
           onKeyDown={(event) => {

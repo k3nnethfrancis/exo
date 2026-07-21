@@ -1666,6 +1666,8 @@ button svg,
 }
 
 .spatial-graph canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
@@ -1674,8 +1676,14 @@ button svg,
   touch-action: none;
 }
 
-.spatial-graph canvas:active { cursor: grabbing; }
-.spatial-graph canvas:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
+.spatial-graph__pixels {
+  z-index: 0;
+  pointer-events: none;
+}
+
+.spatial-graph__interaction { z-index: 1; }
+.spatial-graph__interaction:active { cursor: grabbing; }
+.spatial-graph__interaction:focus-visible { box-shadow: inset 0 0 0 1px var(--accent); }
 
 .spatial-graph__state {
   position: absolute;

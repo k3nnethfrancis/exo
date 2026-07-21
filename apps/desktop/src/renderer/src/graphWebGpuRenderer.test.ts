@@ -1,3 +1,5 @@
+import os from "node:os";
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import type { GraphPresentationPlan } from "./graphPresentation";
@@ -20,6 +22,12 @@ import {
 } from "./graphWebGpuRenderer";
 
 describe("WebGPU graph pixel adapter", () => {
+  it("keeps WGSL locals clear of Chromium-reserved target syntax", () => {
+    const source = readFileSync(new URL("./graphWebGpuRenderer.ts", import.meta.url), "utf8");
+    expect(source).not.toContain("let target = edge.targetStyle.xy");
+    expect(source).toContain("let destination = edge.targetStyle.xy");
+  });
+
   it("detects only a complete actual-runtime WebGPU contract without flags", () => {
     const mock = gpuHarness();
     expect(runtimeGraphGpu({
@@ -169,6 +177,40 @@ describe("WebGPU graph pixel adapter", () => {
     expect(reportFailure).toHaveBeenCalledWith(expect.objectContaining({ code: "resource-limit" }));
     renderer.destroy();
   });
+
+  it("records hardware-stamped live-adapter pack and queue-submit CPU cost separately from presentation compile", async () => {
+    const hardware = os.cpus()[0]?.model ?? "unknown CPU";
+    const scales = [
+      { nodes: 10_000, edges: 50_000, samples: 16 },
+      { nodes: 50_000, edges: 250_000, samples: 8 },
+    ];
+    for (const scale of scales) {
+      const mock = gpuHarness({ storageLimit: 64 * 1024 * 1024 });
+      const renderer = await GraphWebGpuRenderer.create(mock.surface, mock.runtime);
+      renderer.resize({ width: 1_440, height: 900, dpr: 2 });
+      const graphPlan = scalePlan(scale.nodes, scale.edges);
+      renderer.render(graphPlan);
+      const bufferCount = mock.device.buffers.length;
+      const samples = Array.from({ length: scale.samples }, () => renderer.render(graphPlan).cpuMilliseconds);
+      const ordered = [...samples].sort((left, right) => left - right);
+      const measurement = {
+        hardware,
+        runtime: `${process.platform}/${process.arch} Node ${process.version}`,
+        workload: "GraphWebGpuRenderer pack + mocked queue.writeBuffer/submit CPU",
+        nodes: scale.nodes,
+        edges: scale.edges,
+        p50: percentile(ordered, 0.5),
+        p95: percentile(ordered, 0.95),
+        max: ordered.at(-1) ?? 0,
+        samples: samples.length,
+      };
+      console.info("graph-webgpu-pack-submit-measurement", measurement);
+      expect(mock.device.buffers).toHaveLength(bufferCount);
+      expect(mock.device.queue.submissions).toHaveLength(scale.samples + 1);
+      expect(measurement.p95).toBeGreaterThanOrEqual(0);
+      renderer.destroy();
+    }
+  }, 20_000);
 });
 
 class MockBuffer implements GraphGpuBuffer {
@@ -323,4 +365,39 @@ function plan(): GraphPresentationPlan {
     },
     labelStyle: { font: "11px monospace", requiredFont: "600 11px monospace", color: 0x202522ff, requiredColor: 0x3f7d72ff, opacity: 0.9 },
   };
+}
+
+function scalePlan(nodeCount: number, edgeCount: number): GraphPresentationPlan {
+  return {
+    ...plan(),
+    topologyHash: `topology:${nodeCount}:${edgeCount}`,
+    nodes: {
+      indices: Uint32Array.from({ length: nodeCount }, (_, index) => index),
+      centers: new Float32Array(nodeCount * 2),
+      depths: new Float32Array(nodeCount),
+      visualClasses: new Uint8Array(nodeCount),
+      radii: new Float32Array(nodeCount).fill(3),
+      opacities: new Float32Array(nodeCount).fill(0.8),
+      fillColors: new Uint32Array(nodeCount).fill(0x3f7d72ff),
+      strokeColors: new Uint32Array(nodeCount).fill(0x3f7d72ff),
+      strokeWidths: new Float32Array(nodeCount),
+      strokeOpacities: new Float32Array(nodeCount),
+      emphasis: new Uint8Array(nodeCount),
+    },
+    edges: {
+      indices: Uint32Array.from({ length: edgeCount }, (_, index) => index),
+      curves: new Float32Array(edgeCount * 6),
+      depths: new Float32Array(edgeCount),
+      visualClasses: new Uint8Array(edgeCount),
+      widths: new Float32Array(edgeCount).fill(0.75),
+      opacities: new Float32Array(edgeCount).fill(0.14),
+      strokeColors: new Uint32Array(edgeCount).fill(0x3f7d72ff),
+      emphasis: new Uint8Array(edgeCount),
+    },
+    labels: { placements: [], omittedRequired: [] },
+  };
+}
+
+function percentile(ordered: readonly number[], quantile: number): number {
+  return ordered[Math.min(ordered.length - 1, Math.floor(ordered.length * quantile))] ?? 0;
 }
