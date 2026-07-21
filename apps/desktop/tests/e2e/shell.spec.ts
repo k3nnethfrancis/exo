@@ -80,18 +80,66 @@ async function selectFocusedGraphNode(
   canvas: import("@playwright/test").Locator,
   detailTitle: import("@playwright/test").Locator,
   expectedTitle: string,
+  filePath: string,
 ) {
-  const offsets = [0, -12, 12, -24, 24, -36, 36];
-  for (const dy of offsets) {
-    for (const dx of offsets) {
-      const box = await canvas.boundingBox();
-      expect(box).not.toBeNull();
-      const point = { x: box!.x + box!.width / 2 + dx, y: box!.y + box!.height / 2 + dy };
-      await page.mouse.click(point.x, point.y);
-      if ((await detailTitle.textContent()) === expectedTitle) return point;
-    }
+  let projected = await projectedGraphNode(canvas, filePath);
+  for (let attempt = 0; projected.picked !== projected.index && attempt < 8; attempt += 1) {
+    const frame = await canvas.boundingBox();
+    expect(frame).not.toBeNull();
+    const center = { x: frame!.x + frame!.width / 2, y: frame!.y + frame!.height / 2 };
+    await page.mouse.move(center.x, center.y);
+    await page.mouse.down();
+    await page.mouse.move(center.x + 36, center.y + (attempt % 2 === 0 ? 8 : -8), { steps: 3 });
+    await page.mouse.up();
+    projected = await projectedGraphNode(canvas, filePath);
   }
-  throw new Error(`Could not select focused graph node ${expectedTitle}`);
+  expect(projected.picked, `Expected ${filePath} to be pickable after orbit`).toBe(projected.index);
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  await canvas.click({ position: { x: projected.x, y: projected.y } });
+  await expect.poll(async () => canvas.evaluate((element) => {
+    return (element as HTMLCanvasElement & { __exoGraphSnapshot?: () => { selected: number } }).__exoGraphSnapshot?.().selected ?? -1;
+  })).toBe(projected.index);
+  await expect.poll(async () => canvas.evaluate((element) => {
+    return (element as HTMLCanvasElement & {
+      __exoGraphSnapshot?: () => { inspectedFilePath: string | null };
+    }).__exoGraphSnapshot?.().inspectedFilePath ?? null;
+  })).toBe(filePath);
+  await expect(detailTitle).toHaveText(expectedTitle);
+  return { x: box!.x + projected.x, y: box!.y + projected.y, localX: projected.x, localY: projected.y };
+}
+
+async function projectedGraphNode(canvas: import("@playwright/test").Locator, filePath: string) {
+  await expect.poll(async () => canvas.evaluate((element) => {
+    return (element as HTMLCanvasElement & {
+      __exoGraphSnapshot?: () => { pendingWork: number; moving: boolean };
+    }).__exoGraphSnapshot?.();
+  })).toMatchObject({ pendingWork: 0, moving: false });
+  const projected = await canvas.evaluate(async (element, targetPath) => {
+    const graphCanvas = element as HTMLCanvasElement & {
+      __exoGraphSnapshot?: () => { sourceSnapshotId: string | null } | null;
+      __exoGraphPointForIndex?: (index: number) => { x: number; y: number; visible: boolean } | null;
+      __exoGraphPickAt?: (x: number, y: number) => number;
+    };
+    const sourceSnapshotId = graphCanvas.__exoGraphSnapshot?.()?.sourceSnapshotId;
+    if (!sourceSnapshotId) return null;
+    const lookup = await window.exo.notes.graphConceptLookup(
+      { filePath: targetPath },
+      sourceSnapshotId,
+      "generic-markdown",
+    );
+    if (lookup.status !== "ok" || !lookup.summary) return null;
+    const point = graphCanvas.__exoGraphPointForIndex?.(lookup.summary.index) ?? null;
+    if (!point) return null;
+    return {
+      ...point,
+      index: lookup.summary.index,
+      picked: graphCanvas.__exoGraphPickAt?.(point.x, point.y) ?? -1,
+    };
+  }, filePath);
+  expect(projected, `Expected a projected point for ${filePath}`).not.toBeNull();
+  expect(projected!.visible, `Expected ${filePath} to be visible`).toBe(true);
+  return projected!;
 }
 
 function runGit(cwd: string, args: string[]) {
@@ -142,7 +190,7 @@ test("boots the shell, opens notes, and creates terminals on demand", async () =
 });
 
 test("keeps editor, full graph, and backlink-only Connections on one navigation contract", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,
     initialNoteLabel: "graph-target",
     prepareWorkspace: async (workspaceRoot) => {
@@ -160,6 +208,20 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     const graphCanvas = graphPane.locator('canvas[aria-label="Interactive knowledge graph"]');
     await expect(graphPane).toBeVisible();
     await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
+    await expect.poll(async () => graphCanvas.evaluate((canvas) => {
+      return (canvas as HTMLCanvasElement & { __exoGraphSnapshot?: () => unknown }).__exoGraphSnapshot?.();
+    })).toMatchObject({ pendingWork: 0, pendingFrame: false, moving: false });
+
+    const initialNodeCount = Number.parseInt((await graphPane.locator(".spatial-graph__count").textContent()) ?? "0", 10);
+    await writeFile(path.join(workspaceRoot, "notes/test-notes/graph-live.md"), "# Graph Live\n\n[[graph-target]]\n", "utf8");
+    await expect.poll(async () => Number.parseInt((await graphPane.locator(".spatial-graph__count").textContent()) ?? "0", 10))
+      .toBeGreaterThan(initialNodeCount);
+    await expect.poll(async () => graphCanvas.evaluate((canvas) => {
+      return (canvas as HTMLCanvasElement & { __exoGraphSnapshot?: () => unknown }).__exoGraphSnapshot?.();
+    })).toMatchObject({ pendingWork: 0, pendingFrame: false, moving: false });
+    expect(await graphCanvas.evaluate((canvas) => {
+      return (canvas as HTMLCanvasElement & { __exoGraphSnapshot?: () => { metadataCacheEntries: number } }).__exoGraphSnapshot?.().metadataCacheEntries ?? 0;
+    })).toBeLessThanOrEqual(192);
 
     await page.getByTestId("sidebar").getByRole("button", { name: "graph-source" }).click();
     await expect(page.getByTestId("editor-title")).toHaveText("graph-source");
@@ -171,6 +233,60 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
       x: canvasBox!.x + canvasBox!.width / 2,
       y: canvasBox!.y + canvasBox!.height / 2,
     };
+    await page.mouse.click(focusPoint.x, focusPoint.y);
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
+    await graphCanvas.evaluate((canvas, point) => {
+      canvas.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        clientX: point.x,
+        clientY: point.y,
+        ctrlKey: true,
+        deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+        deltaY: -12,
+      }));
+    }, focusPoint);
+    await page.mouse.click(focusPoint.x, focusPoint.y);
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
+    await expect.poll(async () => graphCanvas.evaluate((canvas) => {
+      return (canvas as HTMLCanvasElement & { __exoGraphSnapshot?: () => { moving: boolean; pendingFrame: boolean } }).__exoGraphSnapshot?.();
+    })).toMatchObject({ moving: false, pendingFrame: false });
+    await expect.poll(async () => graphCanvas.evaluate((canvas) => {
+      return (canvas as HTMLCanvasElement & {
+        __exoGraphSnapshot?: () => { activeEditorPath: string | null; inspectedFilePath: string | null };
+      }).__exoGraphSnapshot?.();
+    })).toMatchObject({
+      activeEditorPath: path.join(workspaceRoot, "notes/test-notes/graph-source.md"),
+      inspectedFilePath: path.join(workspaceRoot, "notes/test-notes/graph-target.md"),
+    });
+    await graphCanvas.focus();
+    await page.keyboard.press("Escape");
+    await expect.poll(async () => graphCanvas.evaluate((canvas) => {
+      return (canvas as HTMLCanvasElement & {
+        __exoGraphSnapshot?: () => { inspectedFilePath: string | null; moving: boolean };
+      }).__exoGraphSnapshot?.();
+    })).toMatchObject({
+      inspectedFilePath: path.join(workspaceRoot, "notes/test-notes/graph-source.md"),
+      moving: false,
+    });
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Source");
+    const sourceRoutePoint = await projectedGraphNode(
+      graphCanvas,
+      path.join(workspaceRoot, "notes/test-notes/graph-source.md"),
+    );
+    const targetRoutePoint = await projectedGraphNode(
+      graphCanvas,
+      path.join(workspaceRoot, "notes/test-notes/graph-target.md"),
+    );
+    expect(await graphCanvas.evaluate((canvas) => {
+      return (canvas as HTMLCanvasElement & { __exoGraphSnapshot?: () => { selected: number } }).__exoGraphSnapshot?.().selected ?? -1;
+    })).toBe(sourceRoutePoint.index);
+    expect(targetRoutePoint.picked).toBe(targetRoutePoint.index);
+    await graphCanvas.click({ position: targetRoutePoint, modifiers: ["Shift"] });
+    await expect(graphPane.getByTestId("graph-route-status")).toContainText("Route · 2");
+    await graphCanvas.focus();
+    await page.keyboard.press("Escape");
+    await expect(graphPane.getByTestId("graph-route-status")).toHaveCount(0);
     await page.mouse.click(focusPoint.x, focusPoint.y);
     await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
     await expect(page.getByTestId("editor-title")).toHaveText("graph-source");
@@ -211,6 +327,7 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
       graphCanvas,
       graphPane.locator(".spatial-graph__detail-title"),
       "Graph Unopened",
+      path.join(workspaceRoot, "notes/test-notes/graph-unopened.md"),
     );
     await expect(page.getByTestId("editor-title")).toHaveText("graph-source");
     await page.mouse.dblclick(unopenedPoint.x, unopenedPoint.y);
@@ -243,6 +360,42 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     await graphPane.getByRole("button", { name: "Close graph" }).click();
     await expect(graphPane).toHaveCount(0);
     await expect(page.getByTestId("editor-title")).toHaveText("graph-target");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("recovers graph Canvas initialization without taking down the workspace", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture({ initialNoteLabel: "focus-note" });
+  try {
+    await page.evaluate(() => {
+      const prototype = HTMLCanvasElement.prototype as HTMLCanvasElement["getContext"] extends never
+        ? never
+        : HTMLCanvasElement & { getContext: (...args: unknown[]) => unknown };
+      const original = HTMLCanvasElement.prototype.getContext;
+      let failGraphCanvasOnce = true;
+      (prototype as unknown as { getContext: (...args: unknown[]) => unknown }).getContext = function getContext(
+        this: HTMLCanvasElement,
+        ...args: unknown[]
+      ) {
+        if (failGraphCanvasOnce && this.getAttribute("aria-label") === "Interactive knowledge graph") {
+          failGraphCanvasOnce = false;
+          return null;
+        }
+        return original.apply(this, args as Parameters<typeof original>);
+      };
+    });
+    await page.getByTestId("editor-panel").hover();
+    await page.getByTestId("open-note-graph").click();
+    const graphPane = page.getByTestId("graph-pane");
+    await expect(graphPane.getByRole("button", { name: /Graph unavailable/ })).toBeVisible();
+    await graphPane.getByRole("button", { name: /Graph unavailable/ }).click();
+    const graphCanvas = graphPane.locator('canvas[aria-label="Interactive knowledge graph"]');
+    await expect(graphCanvas).toBeVisible();
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Focus Note");
+    await expect.poll(async () => graphCanvas.evaluate((canvas) => {
+      return (canvas as HTMLCanvasElement & { __exoGraphSnapshot?: () => unknown }).__exoGraphSnapshot?.();
+    })).toMatchObject({ pendingWork: 0, pendingFrame: false, moving: false });
   } finally {
     await cleanup();
   }

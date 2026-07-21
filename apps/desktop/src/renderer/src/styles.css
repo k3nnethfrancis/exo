@@ -1630,8 +1630,7 @@ button svg,
   border-bottom: 1px solid var(--divider);
 }
 
-.spatial-graph__toolbar > button,
-.spatial-graph__profiles button {
+.spatial-graph__toolbar > button {
   display: inline-grid;
   place-items: center;
   min-width: 24px;
@@ -1646,31 +1645,15 @@ button svg,
   letter-spacing: 0.04em;
 }
 
-.spatial-graph__toolbar > button:hover,
-.spatial-graph__profiles button:hover,
-.spatial-graph__profiles button.is-active {
+.spatial-graph__toolbar > button:hover {
   background: var(--surface-hover);
   color: var(--text);
-}
-
-.spatial-graph__profiles {
-  display: flex;
-  align-items: center;
-  gap: 1px;
 }
 
 .spatial-graph__count {
   margin-right: auto;
   color: var(--muted);
   font: 9px var(--mono);
-}
-
-.spatial-graph__phase {
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
 }
 
 .spatial-graph__viewport {
