@@ -69,6 +69,9 @@ test('mini trace assessment runs fresh Claude and Codex sessions without changin
   assert.match(dashboard, /one\.md/);
   assert.match(dashboard, /links to two\.md/);
   assert.match(dashboard, /Observed ambiguity/);
+  assert.match(dashboard, /Recurring features/);
+  assert.match(dashboard, /One-off features/);
+  assert.match(dashboard, /Candidate ontology/);
 });
 
 test('mini trace assessment stops before the next run when a harness changes the workspace', async () => {

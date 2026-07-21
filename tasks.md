@@ -41,9 +41,10 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
 - [x] Prove the real Codex harness boundary on a checked-in Markdown Workspace;
   it returned supported `ontology_schema: 1` with relative evidence while the
   source manifest remained byte-identical.
-- [ ] Restore Claude subscription authentication on this machine, then run the
-  frozen Skill five times per harness against the real vault and generate the
-  one private local dashboard.
+- [x] Run the frozen Skill five times per harness against the real vault after
+  Claude subscription authentication. All ten fresh sessions completed, the
+  1,866-file source manifest remained byte-identical, and the private local
+  dashboard was generated at `/tmp/exo-ontology-vault-study-2026-07-21`.
 - [ ] Kenneth reviews that dashboard and alone decides whether ontology
   discovery proceeds. Do not add a corpus, judge, threshold, or synthetic eval
   before this review exposes concrete failure modes.
