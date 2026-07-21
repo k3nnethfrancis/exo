@@ -99,11 +99,9 @@ The next work is product capability, not unfinished renderer integration:
 1. Add cross-adapter GPU timestamps and expand the multi-hardware evidence.
 2. Freeze the OKF/OpenWiki fixtures and schema/compatibility expectations.
 3. Define and ship user-owned `ontology.yaml`, conformance, and explanations.
-4. Compile the compact Connections neighborhood through the same production
-   projection/presentation path, then delete its custom SVG.
-5. Run the bounded embeddings-index projection after those graph contracts
+4. Run the bounded embeddings-index projection after those graph contracts
    settle, using only a supported provider export seam.
-6. Ship and evaluate the first reviewable graph-maintenance Skill only after the
+5. Ship and evaluate the first reviewable graph-maintenance Skill only after the
    graph can show trustworthy evidence for its proposals.
 
 ## Interaction and product work we have not finished
@@ -134,14 +132,15 @@ The intended navigation contract is:
 
 Connections now gives Outline only headings, groups backlinks/internal/external
 links under Links, uses the shared inspected Concept, and hides History until
-it has content. Its local Graph is still a bounded custom SVG. The next slice is
-to compile that neighborhood through the same projection/presentation path as
-the full graph, then delete the special renderer.
+it has content. Its local Graph adapts the bounded canonical neighborhood into
+compact topology and compiles it through the full graph's scene, focal labels,
+palette, presentation compiler, and Canvas renderer. It has no second worker,
+gesture model, animation loop, or SVG renderer.
 
-The local graph may be two-dimensional, but only if it consumes the same
-Knowledge Graph projection, Relation semantics, and selected Concept as the
-full spatial graph. That makes it a small view of one system rather than another
-graph implementation to maintain.
+The local graph is deliberately passive and uses deterministic seed positions
+rather than the full Pane worker's relaxed coordinates. Exact coordinate
+continuity would require App-owned layout state and is not implied by sharing
+Knowledge Graph meaning, inspected Concept, scene, and pixels.
 
 Keep both property surfaces for now. Editor Properties edits canonical Markdown
 frontmatter. Connections/graph Properties explains the currently inspected

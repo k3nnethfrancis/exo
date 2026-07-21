@@ -82,8 +82,8 @@ Fable approved the execution order: decide P0, then run Settings preservation an
   prove payload bounds at 10K/50K/100K.
 - [x] Make editor, Graph Pane, Connections, and explanatory Properties share
   one inspected Concept; make Canvas and WebGPU share one renderer-neutral
-  selection/path model. The bounded Connections thumbnail shares that compiler
-  in the next non-blocking slice.
+  selection/path model. The bounded Connections thumbnail now compiles through
+  that same scene, label, palette, and Canvas presentation path.
 - [x] Close one interaction contract across Canvas and WebGPU: click selects,
   double-click opens, repeated open focuses, frame-all is explicit, and
   keyboard/reduced-motion behavior is deterministic.
@@ -288,9 +288,9 @@ Start only after the trust gates above pass.
   - [x] Close the production portion of `EXO-ISSUE-121`: tune node legibility and trackpad/pinch zoom;
     add an editor Graph action focused on the current Note; unify single-select,
     double-click-open, repeated-node-focus, and explicit frame-all semantics;
-    and rebuild Connections/Properties around one inspected Concept. Compiling
-    the compact Connections neighborhood through the full presentation path and
-    broader physical-device polish remain follow-ups.
+    rebuild Connections/Properties around one inspected Concept, and compile
+    the compact Connections neighborhood through the full presentation path.
+    Broader physical-device polish remains a follow-up.
 - [ ] Phase 6: ship **Find and connect relevant context** through the existing
   configured-Command review loop and measure product behavior before adding
   another Skill.

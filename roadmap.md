@@ -98,8 +98,9 @@ graph-maintenance work continue above it.
 - Keep the shipped renderer-neutral dense topology, bounded cold metadata
   reads, deterministic layout, and shared WebGPU/Canvas scene free of semantic
   ownership.
-- Compile the compact Connections neighborhood through that same presentation
-  path and remove its current custom SVG.
+- Keep the compact Connections neighborhood on the shared scene,
+  focal-label, presentation-compiler, and Canvas path without adding a second
+  worker, gesture model, or idle loop.
 - Keep all graph/index/layout work off the editor critical path and preserve
   ordinary CLI graph/read/search status where appropriate.
 

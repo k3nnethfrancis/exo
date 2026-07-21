@@ -416,7 +416,9 @@ Gate passed: source and packaged-app journeys cover interaction, hardware
 WebGPU, Canvas/device-loss fallback, idle quiescence, Note-update continuity,
 Terminal coexistence, and editor/navigation latency under graph/index load.
 The guarded private-copy journey covers both renderer paths without modifying
-the source. Evidence:
+the source. The bounded Connections neighborhood now also uses the same scene,
+focal-label planner, presentation compiler, palette, and Canvas renderer while
+remaining passive and worker-free. Evidence:
 `docs/reviews/output/2026-07-20-launch-gate-d.md`.
 
 ### Phase 6 — Ship the first graph-maintenance Skill
