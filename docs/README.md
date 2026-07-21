@@ -42,7 +42,7 @@ First-run can optionally install Exo's bounded, read-only MCP tools into the loc
 - `adr/0002-folder-indexes-as-ontology.md` — accepted Folder Index ontology decision.
 - `adr/0003-plugins-are-distribution-bundles.md` — accepted ruling that Plugins are future distribution bundles, not runtime seams.
 - `adr/0004-workspace-is-the-scope-object.md` — accepted ruling that Workspace is the unit of Markdown scope; any future global view is a read-only projection, not a Workspace.
-- `adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` — accepted ruling that Exo preserves open graph facts and interprets them through optional user-owned profiles.
+- `adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` — historical foundation for open graph facts and optional interpretation. ADR 0006 and `workspace-ontology.md` now own the user-facing Ontology contract; the remaining `KnowledgeProfile` name is a bounded internal Format-compatibility seam.
 - `adr/0006-workspace-ontology-is-a-reviewed-passive-interpreter.md` — accepted Candidate/Active, storage, evidence, and separation contract for `ontology.yaml`.
 - `workspace-ontology.md` — supported YAML shape and exact foundation behavior.
 - `terminal-runtime-decision.md` — current direct-PTY decision.

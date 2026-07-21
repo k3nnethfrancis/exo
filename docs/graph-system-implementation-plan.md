@@ -1,8 +1,20 @@
 # Graph system foundation implementation plan
 
-Status: implementation tracer complete; acceptance and clean replay pending
-Branch: `feat/graph-system-foundation`
-Date: 2026-07-17
+Status: historical implementation record. The foundation, clean replay,
+production Graph Pane (Gate D), and reviewed Workspace Ontology activation
+(Gate E) are complete on the clean launch branch. Current execution lives in
+`../tasks.md`, `launch-surface-ledger.md`, and `ontology-review-implementation-plan.md`.
+Branch recorded here: `feat/graph-system-foundation`
+Date: 2026-07-17; status recentered 2026-07-20
+
+Terminology note: this plan predates the final separation between Note Root
+Formats and the user-owned Workspace `ontology.yaml`. Its `KnowledgeProfile`
+code name now refers only to the bounded internal Format-compatibility seam;
+it is not a second user-facing profile or ontology system.
+
+All branch, worktree, pending-gate, and test-count statements below record the
+2026-07-17 implementation checkpoint. They are retained as engineering history,
+not current instructions.
 
 ## Outcome
 

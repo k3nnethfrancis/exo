@@ -240,7 +240,7 @@ Start only after the trust gates above pass.
 
 - [x] Create `feat/graph-system-foundation` from `main` and write the branch-
   executable plan in `docs/graph-system-implementation-plan.md`. This branch
-  stops at the canonical knowledge model, Generic/OKF profiles, utility tracer,
+  stops at the canonical knowledge model, Generic/OKF Formats, utility tracer,
   and renderer-neutral projection contract; Launch Gate D subsequently earned
   the production spatial integration.
 - [x] Distill the visualization work, benchmark evidence, quality findings,
@@ -251,9 +251,10 @@ Start only after the trust gates above pass.
   align `CONTEXT.md`, architecture, roadmap, insight, and research logs.
 - [x] Add the repo-owned `graph-system-stability` engineering skill and expose it
   to Claude/Codex contributors; formally retire the fixed-taxonomy, scheduled-
-  mutation `graph-evolve` vault skill. Defer `evaluate-exograph`,
-  `find-connect-context`, and `propose-knowledge-profile` until their underlying
-  contracts exist.
+  mutation `graph-evolve` vault skill. Defer `evaluate-exograph` and
+  `find-connect-context` until their underlying contracts exist. The now-earned
+  `design-workspace-ontology` Skill is the next optional, evaluation-gated slice
+  after the interoperability fixtures.
 - [ ] Phase 0: pin one public Google OKF bundle and one OpenWiki wiki fixture and
   define deterministic schema/compatibility cases with expected facts.
 - [x] Phase 1: consolidate `GraphSnapshot` and `WorkspaceGraph` behind snapshot
@@ -264,7 +265,7 @@ Start only after the trust gates above pass.
     Properties, Relation origin/resolution/Evidence, deterministic identity,
     and compatibility coverage; remove the legacy snapshot/query, object Graph
     View, unbounded detail, and duplicate renderer-scene contracts after audit.
-- [ ] Phase 2: add Generic Markdown and permissive OKF 0.1 Formats, then earn
+- [x] Phase 2: add Generic Markdown and permissive OKF 0.1 Formats, then earn
   the smallest reviewed Workspace Ontology contract from fixtures.
   - [x] Add built-in Generic Markdown and permissive OKF 0.1 interpretation;
     missing OKF type is a finding and unknown fields survive. User-owned
@@ -272,7 +273,8 @@ Start only after the trust gates above pass.
     implemented.
   - [x] Add bounded Candidate graph-effect preview and explicit Keep/Reject in
     Workspace Settings with disk-fresh stale guards, atomic activation,
-    restart proof, and graph-only Ontology Relations in Connections.
+    restart proof, and graph-only Ontology Relations in Connections. Evidence:
+    `docs/reviews/output/2026-07-20-launch-gate-e.md`.
 - [x] Phase 3: cover identity, resolution, Evidence, and Format/Ontology conformance in
   deterministic graph contract tests. Keep AI-system evaluation outside Exo.
 - [x] Phase 4: compile renderer-neutral dense topology and stable layout epochs

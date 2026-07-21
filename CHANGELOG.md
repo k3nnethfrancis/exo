@@ -13,7 +13,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
   parser/compiler, Candidate/Active revision store, persisted accepted source,
   exact rule Evidence, and Generic Markdown fallback without modifying Notes.
 - Adds the experimental feature-branch graph-system tracer: an open Knowledge Graph 0.3,
-  Generic Markdown and permissive OKF profiles, evidence-backed utility
+  Generic Markdown and permissive OKF Formats, evidence-backed utility
   dimensions, dense renderer-neutral projection, and an interactive Canvas
   Graph Pane whose semantic construction and finite layout run outside the
   editor critical path. Canvas projection and painting remain renderer work.

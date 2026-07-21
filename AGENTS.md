@@ -12,9 +12,10 @@ The `refactor/note-native-exo` branch is intentionally simplifying to Note Roots
 The note-native simplification, Folder Overview, inline invocation, derived-work
 isolation, and isolated graph lab are now established substrate. Current graph
 work must follow `docs/graph-system-report-and-plan.md`: consolidate the knowledge
-model, prove optional profiles and utility on fixtures, then integrate the
-spatial Graph View. Do not import the lab as a third semantics path or add a new
-public contract without assignment and review.
+model, keep Note Root Formats separate from the reviewed Workspace Ontology,
+prove utility on fixtures, then integrate the spatial Graph View. Do not import
+the lab as a third semantics path or add a new public contract without assignment
+and review.
 
 ## Start Here
 
@@ -183,7 +184,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
 - UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.
 - Before changing terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior, use `skills/terminal-stability/SKILL.md` and follow its ownership rules, fallback discipline, invariants, checks, and manual QA script.
-- Before changing graph domain types, snapshots, profile interpretation, graph
+- Before changing graph domain types, snapshots, Format or Ontology interpretation, graph
   queries, layout, scene, WebGPU/Canvas rendering, Graph Pane integration, or
   graph benchmarks, use `skills/graph-system-stability/SKILL.md` and identify
   which graph layer owns the change before editing.
