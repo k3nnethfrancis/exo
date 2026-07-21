@@ -9,6 +9,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Adds a reusable, harness-only mini trace assessment that runs a Skill through
   fresh read-only Claude and Codex sessions and generates a private local
   comparison dashboard without defining an automated quality gate.
+- Adds `Mod+B` and `Mod+Alt+B` shell shortcuts for Explorer and Utility,
+  plus a compact lower-menu Help surface sourced from Exo's current
+  keybinding and CLI command catalogs.
 - Adds explicit Workspace Ontology review in Settings: bounded graph effects,
   exact stale-review guards, atomic Keep/Reject, restart-stable activation, and
   Ontology-origin Connections edges without changing authored Links or Notes.

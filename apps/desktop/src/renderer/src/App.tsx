@@ -442,6 +442,8 @@ export function App() {
     createShellTerminal: async () => {
       await createUtilityTerminal("shell");
     },
+    toggleExplorerPanel: () => shellLayout.setSidebarCollapsed((current) => !current),
+    toggleUtilityPanel: toggleUtilitySurface,
     updateFocusedSurfaceZoom,
   });
 

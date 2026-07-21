@@ -16,6 +16,7 @@
     "./invocation-activity": "./src/invocation-activity.ts",
     "./types": "./src/types.ts",
     "./note-title": "./src/note-title.ts",
+    "./operator-help": "./src/operator-help.ts",
     "./terminal-settings": "./src/terminal-settings.ts",
     "./workspace-settings": "./src/workspace-settings.ts"
   },

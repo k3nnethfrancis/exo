@@ -79,7 +79,10 @@ import {
   workspaceSettingsStructuralDraftKey,
   workspaceSettingsStructuralKeyFromSettings,
 } from "./workspaceSettingsModel";
-import { isNewTerminalShortcut } from "./hooks/useAppKeybindings";
+import { isNewTerminalShortcut, shellPanelShortcut } from "./hooks/useAppKeybindings";
+import { WorkspaceHelpPanel } from "./components/WorkspaceMenu";
+import { APP_KEYBINDINGS } from "./shellHelpModel";
+import { EXO_CLI_COMMANDS } from "@exo/core/operator-help";
 import {
   buildNoteGraphContext,
   getWikilinkCompletionContext,
@@ -108,6 +111,31 @@ describe("invocation review positioning", () => {
 });
 
 describe("app keybindings", () => {
+  it("maps familiar primary and secondary sidebar shortcuts without accepting noisy variants", () => {
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false })).toBe("explorer");
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false, repeat: false })).toBe("explorer");
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: true, ctrlKey: false, shiftKey: false, altKey: true, repeat: false })).toBe("utility");
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: false, ctrlKey: true, shiftKey: false, altKey: true, repeat: false })).toBe("utility");
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: true, ctrlKey: false, shiftKey: true, altKey: false, repeat: false })).toBeNull();
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: true })).toBeNull();
+    expect(shellPanelShortcut({ code: "KeyN", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false })).toBeNull();
+  });
+
+  it("renders one compact help surface from the current keybinding and CLI catalogs", () => {
+    const html = renderToStaticMarkup(<WorkspaceHelpPanel isMac onBack={() => {}} />);
+
+    expect(html).toContain("Keyboard");
+    expect(html).toContain("CLI");
+    for (const shortcut of APP_KEYBINDINGS) {
+      expect(html).toContain(shortcut.label);
+      expect(html).toContain(shortcut.mac);
+    }
+    for (const command of EXO_CLI_COMMANDS) {
+      expect(html).toContain(command.syntax.replaceAll("<", "&lt;").replaceAll(">", "&gt;"));
+    }
+    expect(html).toContain('aria-label="Back to workspace menu"');
+  });
+
   it("recognizes Mod+T as the new terminal shortcut", () => {
     expect(isNewTerminalShortcut({ key: "t", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false })).toBe(true);
     expect(isNewTerminalShortcut({ key: "T", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false, repeat: false })).toBe(true);

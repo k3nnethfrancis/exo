@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { EXO_CLI_COMMANDS } from "@exo/core/operator-help";
 import { runCli } from "./index";
 
 const client = {
@@ -10,6 +11,14 @@ const client = {
 const connect = async () => client;
 
 describe("minimal Exo operator CLI", () => {
+  it("prints every command from the shared operator catalog", async () => {
+    let help = "";
+    expect(await runCli(["node", "exo", "--help"], { stderr: { write: (text) => { help += text; } } })).toBe(0);
+    for (const command of EXO_CLI_COMMANDS) {
+      expect(help).toContain(command.usageToken);
+    }
+  });
+
   it("routes the compact search/index/open/invoke contract", async () => {
     let output = "";
     const options = { stdout: { write: (text: string) => { output += text; } }, stderr: { write: () => {} }, connectAppClient: connect };
