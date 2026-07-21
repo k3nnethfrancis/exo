@@ -1,7 +1,7 @@
 # Launch Gate D — source and packaged WebGPU proof
 
-Date: 2026-07-20  
-Integration base: `d6a5141`  
+Date: 2026-07-20
+Integration base: `d6a5141`
 Probe commit: `9c6e381`
 
 ## Outcome
