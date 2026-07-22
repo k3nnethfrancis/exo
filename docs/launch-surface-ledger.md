@@ -1,6 +1,13 @@
 # Launch Surface Ledger
 
-Last verified: 2026-07-20 at `abe0dde`
+Last verified: 2026-07-22 for release artifact source `80d62c8`.
+
+Verification recorded for this candidate:
+
+- `pnpm ci:check` — repository, type, unit, build, and local-installer gates passed.
+- 112 desktop Electron end-to-end journeys passed with no failure traces.
+- `pnpm pack:mac`, `pnpm probe:gpu:packaged`, and
+  `pnpm test:packaged:containment` passed against the generated arm64 app bundle.
 
 This is the code-grounded launch inventory for Exo. It records surfaces a user,
 installer, or external agent can actually reach. Preload and main-process IPC are
