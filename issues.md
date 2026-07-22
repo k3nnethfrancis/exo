@@ -137,8 +137,14 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   active-`@agent` input paint. All samples remained live with no long tasks.
   This broadens deterministic liveness coverage but did not reproduce the
   reported blank renderer, so the issue remains open.
+- Instrumentation, 2026-07-22: each editor pane now has a non-retrying error
+  boundary. On a renderer exception it keeps the failed pane explicit instead
+  of silently blank and writes a local main-log record with note path, editor
+  mode, selection, agent handle, and a content-free error signature. The live
+  renderer console retains the original error for the active debugging session.
+  This makes the next occurrence diagnosable; it is not a resolution.
 - Next evidence:
-  - [ ] Add a small renderer error boundary / diagnostic capture around the
+  - [x] Add a small renderer error boundary / diagnostic capture around the
     editor and inline composer that records the active note path, mode,
     selection, agent handle, and error without logging document content.
   - [ ] On the next occurrence, preserve the renderer console error and main

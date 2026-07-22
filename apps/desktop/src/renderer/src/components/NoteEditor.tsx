@@ -20,6 +20,7 @@ import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterVa
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
 import { inlineAgentComposerExtension, isPersistedInvocationPosition, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
 import { invocationInlineReviewExtension, invocationReviewOriginal } from "../invocationInlineReview";
+import type { EditorFaultContext } from "./editorFaultDiagnostics";
 import { InvocationReviewControls, type InvocationReviewPosition, type InvocationReviewQueueProjection } from "./invocation";
 import {
   buildNoteGraphContext,
@@ -91,6 +92,7 @@ interface NoteEditorProps {
   isNoteDocument: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
   scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
+  onDiagnosticContext: (context: EditorFaultContext) => void;
 }
 
 const STANDARD_NOTE_PROPERTY_KEYS = ["title", "date", "tags"] as const;
@@ -124,6 +126,7 @@ export function NoteEditor(props: NoteEditorProps) {
     isNoteDocument,
     revealLineRequest,
     scrollRestoreRequest,
+    onDiagnosticContext,
   } = props;
   const [rawMarkdownMode, setRawMarkdownMode] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(false);
@@ -143,6 +146,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const [agentSuggestions, setAgentSuggestions] = useState<AgentSuggestionState | null>(null);
   const [wikilinkPreview, setWikilinkPreview] = useState<WikilinkPreviewState | null>(null);
   const [inlineComposerActive, setInlineComposerActive] = useState(false);
+  const [inlineComposerHandle, setInlineComposerHandle] = useState<string | null>(null);
   const [newPropertyKey, setNewPropertyKey] = useState("");
   const [newPropertyValue, setNewPropertyValue] = useState("");
   const [reviewPosition, setReviewPosition] = useState<InvocationReviewPosition | undefined>(undefined);
@@ -163,6 +167,15 @@ export function NoteEditor(props: NoteEditorProps) {
   }
   const useMarkdownEditing = shouldUseMarkdownRenderer(document);
   const showNoteMetadata = useMarkdownEditing && isNoteDocument;
+
+  useEffect(() => {
+    onDiagnosticContext({
+      notePath: document?.filePath ?? null,
+      mode: !document ? "empty" : !useMarkdownEditing ? "code" : rawMarkdownMode ? "markdown-raw" : "markdown-live",
+      selection: selectionByPathRef.current.get(document?.filePath ?? "") ?? null,
+      agentHandle: inlineComposerHandle,
+    });
+  }, [document?.filePath, inlineComposerHandle, onDiagnosticContext, rawMarkdownMode, useMarkdownEditing]);
   const displayTitle = document ? getDocumentDisplayTitle(document.filePath, document.kind) : "";
   const suppressedGeneratedTitle = useMemo(
     () => (document && showNoteMetadata ? generatedDailyTitleForPath(document.filePath) : null),
@@ -228,10 +241,12 @@ export function NoteEditor(props: NoteEditorProps) {
     () => inlineAgentComposerExtension({
       onSend: (draft) => {
         setInlineComposerActive(false);
+        setInlineComposerHandle(null);
         invokeAgentRef.current(draft);
       },
       onClose: (documentBody) => {
         setInlineComposerActive(false);
+        setInlineComposerHandle(null);
         startTransition(() => bodyChangeRef.current(documentBody));
       },
       onRestore: (documentBody) => {
@@ -267,8 +282,14 @@ export function NoteEditor(props: NoteEditorProps) {
         }
         const range = update.state.selection.main;
         selectionByPathRef.current.set(documentPath, { anchor: range.anchor, head: range.head });
+        onDiagnosticContext({
+          notePath: documentPath,
+          mode: !useMarkdownEditing ? "code" : rawMarkdownMode ? "markdown-raw" : "markdown-live",
+          selection: { anchor: range.anchor, head: range.head },
+          agentHandle: inlineComposerHandle,
+        });
       }),
-    [documentPath],
+    [documentPath, inlineComposerHandle, onDiagnosticContext, rawMarkdownMode, useMarkdownEditing],
   );
   const maybeUpdateWikilinkSuggestions = useMemo(
     () =>
@@ -382,6 +403,7 @@ export function NoteEditor(props: NoteEditorProps) {
         if (!view || !active) return;
         openInlineAgentComposer(view, { from: active.from, to: active.to, handle: command.handle });
         setInlineComposerActive(true);
+        setInlineComposerHandle(command.handle);
         setAgentSuggestions(null);
       },
     [agentSuggestions],

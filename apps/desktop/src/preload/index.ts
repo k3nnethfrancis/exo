@@ -51,6 +51,7 @@ const api: DesktopApi = {
     testAgentCommand: (input) => invokeDesktop("workspace:test-agent-command", input),
     configureProviderMcp: (input) => invokeDesktop("workspace:configure-provider-mcp", input),
     getCliInstallationStatus: () => invokeDesktop("workspace:get-cli-installation-status"),
+    recordRendererDiagnostic: (diagnostic) => invokeDesktop("workspace:record-renderer-diagnostic", diagnostic),
     endAgentInvocation: (invocationId) => invokeDesktop("workspace:end-agent-invocation", invocationId),
     listPendingInvocationReviews: () => invokeDesktop("workspace:list-pending-invocation-reviews"),
     listInvocationHistory: (notePath) => invokeDesktop("workspace:list-invocation-history", notePath),

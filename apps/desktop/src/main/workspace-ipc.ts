@@ -2,7 +2,7 @@ import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import path from "node:path";
 import { assertOntologyReviewGuard, WorkspaceFiles, type WorkspaceModel } from "@exo/core";
 
-import type { DesktopApi, FileStatInfo, WorkspaceRegistryEntry } from "../shared/api";
+import type { DesktopApi, FileStatInfo, RendererEditorDiagnostic, WorkspaceRegistryEntry } from "../shared/api";
 import { handleDesktopInvoke } from "./typed-ipc";
 
 type WorkspaceApi = DesktopApi["workspace"];
@@ -32,6 +32,7 @@ export interface WorkspaceIpcHandlers {
   testAgentCommand: WorkspaceApi["testAgentCommand"];
   configureProviderMcp: WorkspaceApi["configureProviderMcp"];
   getCliInstallationStatus: WorkspaceApi["getCliInstallationStatus"];
+  recordRendererDiagnostic: WorkspaceApi["recordRendererDiagnostic"];
   endAgentInvocation: WorkspaceApi["endAgentInvocation"];
   listPendingInvocationReviews: WorkspaceApi["listPendingInvocationReviews"];
   listInvocationHistory: WorkspaceApi["listInvocationHistory"];
@@ -105,6 +106,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:test-agent-command", async (_event, input) => handlers.testAgentCommand(input));
   handleDesktopInvoke("workspace:configure-provider-mcp", async (_event, input) => handlers.configureProviderMcp(input));
   handleDesktopInvoke("workspace:get-cli-installation-status", async () => handlers.getCliInstallationStatus());
+  handleDesktopInvoke("workspace:record-renderer-diagnostic", async (_event, diagnostic) =>
+    handlers.recordRendererDiagnostic(assertRendererEditorDiagnostic(diagnostic)),
+  );
   handleDesktopInvoke("workspace:end-agent-invocation", async (_event, invocationId) => handlers.endAgentInvocation(invocationId));
   handleDesktopInvoke("workspace:list-pending-invocation-reviews", async () => handlers.listPendingInvocationReviews());
   handleDesktopInvoke("workspace:list-invocation-history", async (_event, notePath) =>
@@ -234,4 +238,31 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
 
 function assertReviewAction(action: unknown): asserts action is "keep" | "reject" {
   if (action !== "keep" && action !== "reject") throw new Error("Invocation review action must be keep or reject.");
+}
+
+function assertRendererEditorDiagnostic(value: unknown): RendererEditorDiagnostic {
+  if (!value || typeof value !== "object") throw new Error("Invalid renderer diagnostic.");
+  const diagnostic = value as Partial<RendererEditorDiagnostic>;
+  if (diagnostic.kind !== "editor-render-fault" || typeof diagnostic.occurredAt !== "string") {
+    throw new Error("Invalid renderer diagnostic.");
+  }
+  if (diagnostic.notePath !== null && typeof diagnostic.notePath !== "string") throw new Error("Invalid renderer diagnostic path.");
+  if (!(["markdown-live", "markdown-raw", "code", "empty"] as const).includes(diagnostic.mode as RendererEditorDiagnostic["mode"])) {
+    throw new Error("Invalid renderer diagnostic mode.");
+  }
+  if (diagnostic.agentHandle !== null && typeof diagnostic.agentHandle !== "string") throw new Error("Invalid renderer diagnostic agent.");
+  if (typeof diagnostic.errorSignature !== "string") throw new Error("Invalid renderer diagnostic signature.");
+  const selection = diagnostic.selection;
+  if (selection !== null && (!selection || !Number.isInteger(selection.anchor) || !Number.isInteger(selection.head))) {
+    throw new Error("Invalid renderer diagnostic selection.");
+  }
+  return {
+    kind: "editor-render-fault",
+    occurredAt: diagnostic.occurredAt.slice(0, 40),
+    notePath: diagnostic.notePath?.slice(0, 4096) ?? null,
+    mode: diagnostic.mode as RendererEditorDiagnostic["mode"],
+    selection: selection ?? null,
+    agentHandle: diagnostic.agentHandle?.slice(0, 120) ?? null,
+    errorSignature: diagnostic.errorSignature.slice(0, 160),
+  };
 }

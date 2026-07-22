@@ -289,6 +289,9 @@ function registerIpcHandlers() {
     testAgentCommand: (input) => invocationRunner.testCommand(input.commandId, input.expectedFingerprint),
     configureProviderMcp,
     getCliInstallationStatus: () => inspectCliInstallation({ sourceProjectRoot }),
+    recordRendererDiagnostic: async (diagnostic) => {
+      logMain("renderer editor diagnostic", diagnostic);
+    },
     endAgentInvocation: (invocationId) => invocationRunner.endObservation(invocationId),
     listPendingInvocationReviews: () => invocationRunner.listPendingReviews(),
     listInvocationHistory: (notePath) => invocationRunner.listHistoryForNote(notePath),

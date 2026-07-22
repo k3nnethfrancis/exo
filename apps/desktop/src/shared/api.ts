@@ -224,6 +224,17 @@ export interface CliInstallationStatus {
   installCommand?: string;
 }
 
+/** A content-free renderer fault record, retained only in Exo's local main log. */
+export interface RendererEditorDiagnostic {
+  kind: "editor-render-fault";
+  occurredAt: string;
+  notePath: string | null;
+  mode: "markdown-live" | "markdown-raw" | "code" | "empty";
+  selection: { anchor: number; head: number } | null;
+  agentHandle: string | null;
+  errorSignature: string;
+}
+
 export interface DesktopApi {
   /** Present only in explicit test launches; absent from ordinary production. */
   test?: { graphHooks: true };
@@ -251,6 +262,7 @@ export interface DesktopApi {
     testAgentCommand: (input: TestAgentCommandInput) => Promise<LaunchAgentInvocationResponse>;
     configureProviderMcp: (input: ProviderMcpSetupInput) => Promise<ProviderMcpSetupResult[]>;
     getCliInstallationStatus: () => Promise<CliInstallationStatus>;
+    recordRendererDiagnostic: (diagnostic: RendererEditorDiagnostic) => Promise<void>;
     endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;
     listPendingInvocationReviews: () => Promise<InvocationReviewListItem[]>;
     listInvocationHistory: (notePath: string) => Promise<InvocationHistoryItem[]>;

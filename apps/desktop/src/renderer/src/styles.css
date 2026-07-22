@@ -236,6 +236,22 @@ button svg,
   gap: 8px;
 }
 
+.editor-fault {
+  align-self: center;
+  display: grid;
+  gap: 4px;
+  max-width: 280px;
+  margin: auto;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.editor-fault strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
 .editor-panel__header {
   min-width: 0;
   justify-content: space-between;

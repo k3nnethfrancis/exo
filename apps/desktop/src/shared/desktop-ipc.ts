@@ -30,6 +30,7 @@ export interface DesktopInvokeHandlers {
   "workspace:test-agent-command": WorkspaceApi["testAgentCommand"];
   "workspace:configure-provider-mcp": WorkspaceApi["configureProviderMcp"];
   "workspace:get-cli-installation-status": WorkspaceApi["getCliInstallationStatus"];
+  "workspace:record-renderer-diagnostic": WorkspaceApi["recordRendererDiagnostic"];
   "workspace:end-agent-invocation": WorkspaceApi["endAgentInvocation"];
   "workspace:list-pending-invocation-reviews": WorkspaceApi["listPendingInvocationReviews"];
   "workspace:list-invocation-history": WorkspaceApi["listInvocationHistory"];

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import type { InvocationFileReviewPayload } from "../../../shared/api";
@@ -8,6 +8,8 @@ import type { ExoThemeVariant } from "../theme/types";
 
 import { ChromeTab } from "./Chrome";
 import { getDocumentDisplayTitle } from "./documentDisplay";
+import { EditorFaultBoundary } from "./EditorFaultBoundary";
+import type { EditorFaultContext } from "./editorFaultDiagnostics";
 import { NoteEditor } from "./NoteEditor";
 import { FolderOverviewPane } from "./FolderOverviewPane";
 import type { InlineAgentDraft } from "./inlineAgentComposer";
@@ -105,6 +107,20 @@ export function EditorPane(props: EditorPaneProps) {
   const activeDocument = pane.activePath ? documents[pane.activePath] ?? null : null;
   const activeGraphContext = pane.activePath ? graphContextByPath[pane.activePath] ?? null : null;
   const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
+  const faultContextRef = useRef<EditorFaultContext>({
+    notePath: activeDocument?.filePath ?? null,
+    mode: activeDocument?.kind === "markdown" ? "markdown-live" : activeDocument ? "code" : "empty",
+    selection: null,
+    agentHandle: null,
+  });
+  const updateFaultContext = useCallback((context: EditorFaultContext) => {
+    faultContextRef.current = context;
+  }, []);
+  faultContextRef.current = {
+    ...faultContextRef.current,
+    notePath: activeDocument?.filePath ?? null,
+    mode: activeDocument?.kind === "markdown" ? "markdown-live" : activeDocument ? "code" : "empty",
+  };
 
   return (
     <div
@@ -164,7 +180,7 @@ export function EditorPane(props: EditorPaneProps) {
         ) : null}
       </div>
 
-      {pane.activeFolderPath ? <FolderOverviewPane directoryPath={pane.activeFolderPath} onOpenFolder={onOpenFolder} onOpenFile={onOpenFile} onClose={() => onCloseFolder(pane.activeFolderPath!)} /> : <NoteEditor
+      {pane.activeFolderPath ? <FolderOverviewPane directoryPath={pane.activeFolderPath} onOpenFolder={onOpenFolder} onOpenFile={onOpenFile} onClose={() => onCloseFolder(pane.activeFolderPath!)} /> : <EditorFaultBoundary key={pane.activePath ?? "empty"} getContext={() => faultContextRef.current}><NoteEditor
         document={activeDocument}
         graphContext={activeGraphContext}
         saveStatus={pane.activePath ? saveStatuses[pane.activePath] ?? "idle" : "idle"}
@@ -192,7 +208,8 @@ export function EditorPane(props: EditorPaneProps) {
         isNoteDocument={activeDocument ? isNoteDocument(activeDocument.filePath) : false}
         revealLineRequest={revealLineRequest}
         scrollRestoreRequest={scrollRestoreRequest}
-      />}
+        onDiagnosticContext={updateFaultContext}
+      /></EditorFaultBoundary>}
     </div>
   );
 }
