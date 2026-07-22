@@ -106,7 +106,7 @@ async function selectFocusedGraphNode(
     }).__exoGraphSnapshot?.().inspectedFilePath ?? null;
   })).toBe(filePath);
   await expect(detailTitle).toHaveText(expectedTitle);
-  return { x: box!.x + projected.x, y: box!.y + projected.y, localX: projected.x, localY: projected.y };
+  return { x: box!.x + projected.x, y: box!.y + projected.y, localX: projected.x, localY: projected.y, index: projected.index };
 }
 
 async function projectedGraphNode(canvas: import("@playwright/test").Locator, filePath: string) {
@@ -364,6 +364,14 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     await expect(page.getByTestId("editor-title")).toHaveText("graph-unopened");
     await expect(page.locator(".tab-strip__tab")).toHaveCount(tabCountWithUnopened);
     await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Unopened");
+    await expect.poll(async () => graphCanvas.evaluate((canvas) => {
+      return (canvas as HTMLCanvasElement & {
+        __exoGraphSnapshot?: () => { selected: number; inspectedFilePath: string | null };
+      }).__exoGraphSnapshot?.();
+    })).toMatchObject({
+      selected: unopenedPoint.index,
+      inspectedFilePath: path.join(workspaceRoot, "notes/test-notes/graph-unopened.md"),
+    });
 
     await graphPane.getByRole("button", { name: "Frame graph" }).click();
     await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Unopened");
