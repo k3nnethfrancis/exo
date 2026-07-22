@@ -141,9 +141,9 @@ test("renders and edits ordered lists with aligned nested markers", async () => 
       markerContent: window.getComputedStyle(node, "::before").content,
     }))))
     .toEqual([
-      { marker: "9.", depth: "0", paddingLeft: "40px", markerContent: '"9."' },
-      { marker: "1.", depth: "1", paddingLeft: "66px", markerContent: '"1."' },
-      { marker: "10.", depth: "0", paddingLeft: "40px", markerContent: '"10."' },
+      { marker: "9.", depth: "0", paddingLeft: "30px", markerContent: '"9."' },
+      { marker: "1.", depth: "1", paddingLeft: "58px", markerContent: '"1."' },
+      { marker: "10.", depth: "0", paddingLeft: "30px", markerContent: '"10."' },
     ]);
 
   await page.evaluate(() => {

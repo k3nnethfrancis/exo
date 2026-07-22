@@ -98,6 +98,9 @@ test("keeps MCP and CLI setup independent without touching real provider state",
   await expect(page.getByRole("heading", { name: "Agent access" })).toBeVisible();
   await expect(page.getByText("MCP for tools. CLI for shells.")).toBeVisible();
   await expect(page.getByText("MCP setup never changes the CLI.")).toBeVisible();
+  // CLI inspection is asynchronous; wait for the deliberately fake existing
+  // command before taking the control snapshot for the MCP-isolation check.
+  await expect(page.locator(".onboarding-cli-installation")).toContainText("Existing command kept");
   const cliStateBefore = await page.locator(".onboarding-cli-installation").innerText();
 
   await page.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" }).click();
