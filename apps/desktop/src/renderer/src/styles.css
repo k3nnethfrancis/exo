@@ -1707,6 +1707,7 @@ button svg,
 .spatial-graph__state {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: grid;
   place-items: center;
   border: 0;

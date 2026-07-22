@@ -179,9 +179,17 @@ test("boots the shell, opens notes, and creates terminals on demand", async () =
   await page.getByTestId("utility-pane-connections").click();
   await page.getByTestId("connections-tab-links").click();
   await expect(page.getByTestId("utility-pane")).toBeVisible();
-  await expect(page.locator('[data-testid="tags-panel"] .tag-pill').first()).toBeVisible();
-  await page.locator('[data-testid="tags-panel"] .tag-pill').first().click();
-  await expect(page.getByText(/Results for #/)).toBeVisible();
+  const tag = page.locator('[data-testid="tags-panel"] .tag-pill').first();
+  await expect(tag).toBeVisible();
+  const tagName = (await tag.textContent())?.replace(/^#/, "") ?? "";
+  await tag.click();
+  // Tags now navigate like other knowledge links rather than opening a
+  // second, competing results view inside Connections.
+  await expect(page.getByTestId("editor-title")).toHaveText(tagName);
+
+  // Restore the source note before exercising its Connections links.
+  await page.locator(".tab-strip .chrome-tab", { hasText: "focus-note" }).click();
+  await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
 
   await page.getByTestId("connections-panel-links").getByRole("button", { name: "Related Note" }).first().click();
   await expect(page.getByTestId("editor-title")).toHaveText("related-note");
