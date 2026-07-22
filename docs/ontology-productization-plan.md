@@ -105,23 +105,13 @@ workspace merely because it resembles an OKF bundle.
 
 ## Ontology library contract
 
-The product needs multiple saved Ontologies and one active interpretation. The
-exact source layout is a design/compatibility decision before implementation;
-do not quietly overload the current root-file contract.
-
-The preferred direction is a user-owned Workspace-visible library, with active
-selection stored only as derived Exo runtime state. The implementation plan
-must answer all of these before code lands:
-
-1. Where saved YAML files live and how a pre-existing root `ontology.yaml` is
-   imported without destructive migration.
-2. Whether the selected file may remain editable at its source path.
-3. How Candidate, Active, and Generic identity/guards name a selected library
-   item without weakening stale-review protection.
-4. How a missing, moved, malformed, or externally edited saved Ontology falls
-   back safely while preserving the prior known-good Active source.
-5. How the UI labels an Ontology without reusing the internal legacy term
-   `KnowledgeProfile`.
+The library decision is recorded in
+[`ADR 0007`](./adr/0007-ontology-library-is-user-owned-and-single-active.md):
+the existing root `ontology.yaml` remains a supported default source, while
+additional saved sources live in a flat user-owned `ontologies/` directory.
+Exactly one source or Generic Markdown may be active. Exo stores only the exact
+accepted snapshot and source identity as derived runtime state; it never copies
+one selection over another user's YAML file.
 
 ## Delivery sequence
 
