@@ -147,14 +147,28 @@ function directionalMatches(source, target) {
 }
 
 function semanticFeatures(response) {
-  const features = [];
+  const features = new Map();
   for (const [kind, key] of featureCategories) {
     for (const value of response.features?.[key] ?? []) {
-      const normalized = normalizeText(value);
-      if (normalized) features.push({ kind, value: normalized });
+      const normalized = semanticFeatureIdentity(kind, value);
+      if (normalized) features.set(`${kind}\0${normalized}`, { kind, value: normalized });
     }
   }
-  return features;
+  return [...features.values()];
+}
+
+export function semanticFeatureIdentity(kind, value) {
+  const normalized = normalizeText(value);
+  if (kind === 'type') return normalized.split(/\s*\(|\s*:\s*/u, 1)[0].trim();
+  if (kind === 'property') return normalized.split(/\s*:\s*|\s*\(/u, 1)[0].trim();
+  if (kind === 'relation') return normalized.split(/\s*\(|\s*->\s*|\s*>\s*|\s*→\s*|\s*:\s*/u, 1)[0].trim();
+  if (kind === 'path-default') {
+    const parts = normalized.split(/\s*->\s*|\s*>\s*|\s*→\s*/u).map((part) => part.trim());
+    if (parts.length > 1) return (parts.find((part) => !/[/*]/u.test(part)) ?? parts[0]).trim();
+    return normalized.split(/\s*:\s*/u, 1)[0].trim();
+  }
+  if (kind === 'validation') return normalized.split(/\s*:\s*|\s+recommends?\b|\s+requires?\b/u, 1)[0].trim();
+  return normalized;
 }
 
 function canonicalMatch(left, right, score) {

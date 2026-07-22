@@ -5,9 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { renderDashboard, semanticIdentity } from './trace-assessment/dashboard.mjs';
+import { renderDashboard } from './trace-assessment/dashboard.mjs';
 import { enrichSemanticAssessment } from './trace-assessment/semantic-enrichment.mjs';
-import { calculateSemanticAlignment } from './trace-assessment/semantic.mjs';
+import { calculateSemanticAlignment, semanticFeatureIdentity } from './trace-assessment/semantic.mjs';
 
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const cliPath = path.join(repoRoot, 'scripts', 'trace-assessment', 'cli.mjs');
@@ -96,12 +96,12 @@ test('semantic match explanations omit punctuation-only and word-order variants'
 });
 
 test('semantic proposal identity separates property names from their shapes', () => {
-  assert.equal(semanticIdentity('property', 'date'), 'date');
-  assert.equal(semanticIdentity('property', 'date:string'), 'date');
-  assert.equal(semanticIdentity('property', 'date (string)'), 'date');
-  assert.equal(semanticIdentity('property', 'date: string'), 'date');
-  assert.equal(semanticIdentity('property', 'triage_date:string'), 'triage date');
-  assert.notEqual(semanticIdentity('property', 'date:string'), semanticIdentity('property', 'triage_date:string'));
+  assert.equal(semanticFeatureIdentity('property', 'date'), 'date');
+  assert.equal(semanticFeatureIdentity('property', 'date:string'), 'date');
+  assert.equal(semanticFeatureIdentity('property', 'date (string)'), 'date');
+  assert.equal(semanticFeatureIdentity('property', 'date: string'), 'date');
+  assert.equal(semanticFeatureIdentity('property', 'triage_date:string'), 'triage date');
+  assert.notEqual(semanticFeatureIdentity('property', 'date:string'), semanticFeatureIdentity('property', 'triage_date:string'));
 });
 
 test('semantic enrichment adds model-backed alignment without changing run records', async () => {

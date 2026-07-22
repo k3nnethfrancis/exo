@@ -1,3 +1,5 @@
+import { semanticFeatureIdentity } from './semantic.mjs';
+
 export function renderDashboard(assessment) {
   const data = JSON.stringify(assessment).replaceAll('<', '\\u003c');
   const completed = assessment.runs.filter((run) => run.status === 'completed').length;
@@ -35,7 +37,7 @@ export function renderDashboard(assessment) {
         ${metric('Completed', `${completed}/${assessment.runs.length}`, 'Fresh harness sessions that returned a structured result.', 'all runs')}
         ${metric('Vault integrity', assessment.workspace.unchanged ? 'Exact' : 'Changed', 'SHA-256 manifest before and after every run. Exact means no source file bytes changed.', `${assessment.workspace.fileCount} files`)}
         ${metric('Exact overlap', percent(assessment.agreement.overall.pairwiseMeanJaccard), 'Pairwise Jaccard: for every pair of runs, exact normalized feature strings shared by both divided by all strings proposed by either. Averaged across all pairs. Semantic synonyms still count as different.', 'all run pairs')}
-        ${semantic ? metric('Semantic alignment', percent(semantic.overall.pairwiseMeanSimilarity), 'Symmetric best-match cosine similarity from local sentence-transformer embeddings. Features only match within the same kind, so a type never matches a property. This measures conceptual alignment, not proposal quality.', semanticModelName(semantic.model)) : ''}
+        ${semantic ? metric('Semantic alignment', percent(semantic.overall.pairwiseMeanSimilarity), 'Symmetric best-match cosine similarity over canonical ontology identifiers. Definition suffixes are removed first, and identifiers only match within the same kind. This measures conceptual alignment, not proposal quality.', semanticModelName(semantic.model)) : ''}
         ${metric('Cross-provider', percent(assessment.agreement.crossProvider.pairwiseMeanJaccard), 'The same exact-string Jaccard calculation, but only Claude–Codex pairs. This exposes provider vocabulary and scope differences.', 'Claude ↔ Codex')}
         ${metric('Recurring', `${recurringRows.length}/${matrix.rows.length}`, 'Features proposed by at least two runs. One-off wording and one-off evidence paths are excluded from this count.', `${oneOffRows.length} one-off`)}
       </div>
@@ -58,7 +60,7 @@ export function renderDashboard(assessment) {
           ${semantic ? `<section class="panel"><div class="panel-head"><div><h2>Semantic alignment by cohort</h2><p>Higher means proposals express closer concepts, even with different wording.</p></div></div><div class="bar-list">${cohortBar('Claude', semantic.claude.pairwiseMeanSimilarity, 'claude')}${cohortBar('Codex', semantic.codex.pairwiseMeanSimilarity, 'codex')}${cohortBar('Cross', semantic.crossProvider.pairwiseMeanSimilarity, 'cross')}</div></section>` : ''}
           <section class="panel"><div class="panel-head"><div><h2>Visual key</h2><p>Color identifies provider; size and opacity encode frequency.</p></div></div><div class="legend">
             <span class="legend-item"><i class="swatch claude"></i>Claude</span><span class="legend-item"><i class="swatch codex"></i>Codex</span><span class="legend-item"><i class="swatch faint"></i>rare</span><span class="legend-item"><i class="swatch full"></i>frequent</span><span class="legend-item"><i class="swatch finish"></i>finished</span>
-          </div><details class="method"><summary>How to read “agreement”</summary><p>Exact overlap is deliberately strict. It compares normalized strings across outcome, types, properties, relations, path defaults, validation rules, and evidence paths. Semantic alignment instead embeds ontology features locally and gives each feature partial credit for its closest same-kind match in the other run. That reveals conceptual convergence despite different vocabulary, but shared technical language can also raise cosine similarity. Inspect the match examples; neither metric is a quality score. The exploratory Inter-run agreement score is ${decimal(assessment.agreement.overall.interRunAgreement)}.</p></details></section>
+          </div><details class="method"><summary>How to read “agreement”</summary><p>Exact overlap is deliberately strict. It compares normalized proposal strings, including definition forms. Semantic alignment first reduces each form to its canonical identifier, embeds those identifiers locally, and gives each one partial credit for its closest same-kind match in the other run. That reveals conceptual convergence despite different vocabulary, but shared words can still raise cosine similarity. Inspect the candidates; neither metric is a quality score. The exploratory Inter-run agreement score is ${decimal(assessment.agreement.overall.interRunAgreement)}.</p></details></section>
         </div>
       </div>
     </section>
@@ -239,7 +241,7 @@ function semanticGroups(matches, matrixRows, runs) {
     const kind = featureKind(row.feature);
     if (kind === 'evidence') continue;
     const value = row.feature.slice(row.feature.indexOf(':') + 1);
-    const identity = semanticIdentity(kind, value);
+    const identity = semanticFeatureIdentity(kind, value);
     if (!identity) continue;
     const key = `${kind}\0${identity}`;
     const group = groups.get(key) ?? {
@@ -257,8 +259,8 @@ function semanticGroups(matches, matrixRows, runs) {
 
   const eligible = matches.filter((match) => match.similarity >= .7 && match.pairSupport >= 2);
   for (const match of eligible) {
-    const leftIdentity = semanticIdentity(match.kind, match.left);
-    const rightIdentity = semanticIdentity(match.kind, match.right);
+    const leftIdentity = semanticFeatureIdentity(match.kind, match.left);
+    const rightIdentity = semanticFeatureIdentity(match.kind, match.right);
     if (!leftIdentity || !rightIdentity || leftIdentity === rightIdentity) continue;
     const alias = { ...match, leftIdentity, rightIdentity };
     groups.get(`${match.kind}\0${leftIdentity}`)?.aliases.push(alias);
@@ -287,20 +289,6 @@ function deduplicateAliasEdges(edges) {
     if (!current || edge.pairSupport > current.pairSupport || edge.similarity > current.similarity) unique.set(key, edge);
   }
   return [...unique.values()].sort((left, right) => right.pairSupport - left.pairSupport || right.similarity - left.similarity);
-}
-
-export function semanticIdentity(kind, value) {
-  const normalized = String(value).replace(/[_-]+/gu, ' ').trim().toLocaleLowerCase();
-  if (kind === 'type') return normalized.split(/\s*\(|\s*:\s*/u, 1)[0].trim();
-  if (kind === 'property') return normalized.split(/\s*:\s*|\s*\(/u, 1)[0].trim();
-  if (kind === 'relation') return normalized.split(/\s*\(|\s*->\s*|\s*>\s*|\s*→\s*|\s*:\s*/u, 1)[0].trim();
-  if (kind === 'path-default') {
-    const parts = normalized.split(/\s*->\s*|\s*>\s*|\s*→\s*/u).map((part) => part.trim());
-    if (parts.length > 1) return (parts.find((part) => !/[/*]/u.test(part)) ?? parts[0]).trim();
-    return normalized.split(/\s*:\s*/u, 1)[0].trim();
-  }
-  if (kind === 'validation') return normalized.split(/\s*:\s*|\s+recommends?\b|\s+requires?\b/u, 1)[0].trim();
-  return normalized;
 }
 
 function semanticSummary(kind, value) {

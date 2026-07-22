@@ -31,8 +31,9 @@ pnpm trace:semantic -- --assessment /tmp/ontology-traces/assessment.json
 ```
 
 This downloads and runs `sentence-transformers/all-MiniLM-L6-v2` through an
-ephemeral `uv` environment. It compares types with types, properties with
-properties, and so on; outcomes and evidence paths are excluded. The dashboard
+ephemeral `uv` environment. It strips definition suffixes and compares canonical
+identifiers—types with types, properties with properties, and so on; outcomes
+and evidence paths are excluded. The dashboard
 keeps exact overlap and semantic alignment separate because neither is a quality
 score. The overview shows recurring, thresholded alias candidates for atomic
 Type and Property identifiers. Run-pair and run support stay visible beside the
