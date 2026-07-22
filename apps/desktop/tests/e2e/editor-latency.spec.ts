@@ -456,10 +456,12 @@ test("routes the first edit after a rapid tab switch to the active note", async 
 
     await page.evaluate(async (input) => {
       await new Promise<void>((resolve, reject) => {
-        const title = document.querySelector("[data-testid='editor-title']");
         const timeout = window.setTimeout(() => reject(new Error("Tab switch did not commit.")), 2_000);
         const observer = new MutationObserver(() => {
-          if (title?.textContent !== "switch-b") return;
+          // The active editor header can be replaced during a pane/tab commit.
+          // Observe the stable document and query the active header each time,
+          // rather than holding a stale node from the prior editor.
+          if (document.querySelector("[data-testid='editor-title']")?.textContent !== "switch-b") return;
           observer.disconnect();
           window.clearTimeout(timeout);
           const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
@@ -471,7 +473,7 @@ test("routes the first edit after a rapid tab switch to the active note", async 
           view.dispatch({ changes: { from: view.state.doc.length, insert: input.marker } });
           resolve();
         });
-        observer.observe(title ?? document.body, { childList: true, subtree: true, characterData: true });
+        observer.observe(document.body, { childList: true, subtree: true, characterData: true });
         const tab = [...document.querySelectorAll<HTMLElement>(".tab-strip__tab")]
           .find((candidate) => candidate.textContent?.includes("switch-b"));
         if (!tab) {
