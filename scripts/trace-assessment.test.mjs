@@ -190,8 +190,8 @@ test('mini trace assessment runs fresh Claude and Codex sessions without changin
   assert.match(dashboard, /one\.md/);
   assert.match(dashboard, /links to two\.md/);
   assert.match(dashboard, /Observed ambiguity/);
-  assert.match(dashboard, /Recurring features/);
-  assert.match(dashboard, /One-off features/);
+  assert.match(dashboard, /Proposal elements/);
+  assert.match(dashboard, /Exact strings/);
   assert.match(dashboard, /Candidate ontology/);
   assert.match(dashboard, /role="tablist"/);
   assert.match(dashboard, /data-panel="overview"/);
@@ -207,7 +207,13 @@ test('mini trace assessment runs fresh Claude and Codex sessions without changin
 
   assessment.semanticAlignment = {
     model: 'sentence-transformers/all-MiniLM-L6-v2',
-    overall: { pairwiseMeanSimilarity: .72 },
+    overall: {
+      pairwiseMeanSimilarity: .72,
+      matches: [{
+        kind: 'type', left: 'human', right: 'person', similarity: .91,
+        pairSupport: 4, pairRate: 1, runSupport: 4, runIds: ['claude-01', 'claude-02', 'codex-01', 'codex-02'],
+      }],
+    },
     claude: { pairwiseMeanSimilarity: .75 },
     codex: { pairwiseMeanSimilarity: .69 },
     crossProvider: {
@@ -225,6 +231,12 @@ test('mini trace assessment runs fresh Claude and Codex sessions without changin
   assert.match(semanticDashboard, /Semantic alignment/);
   assert.match(semanticDashboard, /Candidate aliases/);
   assert.match(semanticDashboard, /4\/4 run pairs · 4\/4 runs/);
+  assert.match(semanticDashboard, /Proposal elements/);
+  assert.match(semanticDashboard, /data-element-view="exact"/);
+  assert.match(semanticDashboard, /data-element-view="semantic"/);
+  assert.match(semanticDashboard, /Validation rules/);
+  assert.match(semanticDashboard, /Supporting evidence/);
+  assert.match(semanticDashboard, /4 variants|2 variants/);
   assert.match(semanticDashboard, /human/);
   assert.match(semanticDashboard, /person/);
   assert.match(semanticDashboard, /all-MiniLM-L6-v2/);
