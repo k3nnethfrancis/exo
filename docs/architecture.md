@@ -15,7 +15,7 @@ Exo is a local, user-owned Markdown exocortex with modular, tunable search, inli
 - One Workspace Canvas hosts Note, Terminal, Preview, Graph, and Diff panes.
 - One focused Connections surface exposes Outline, Links, Graph, and earned Activity.
 
-## Folder Index ontology
+## Folder structure and indexes
 
 The current Folder model is:
 
@@ -32,15 +32,29 @@ schema or ontology database. One optional user-owned `ontology.yaml` may
 interpret these facts across the Workspace; it does not replace Folder Indexes
 or become another canonical store.
 
-## Workspace Ontology and Note Root Formats
+## Note Root Formats and Workspace Ontology
 
-Each Note Root first uses a Format: Generic Markdown by default or permissive
-OKF 0.1. An explicitly kept `<Workspace Root>/ontology.yaml` can then interpret
-open Concept Types, Property shapes, reference-valued Relations, and validation
-rules. The user-edited file is a Candidate; only a separately reviewed Keep may
-persist its exact accepted source under `.exo/ontology` and publish a new graph
-generation. Candidate watcher events alone never invalidate the graph. See
-`workspace-ontology.md` and ADR 0006.
+Every Note Root is first projected by a Format. **Generic Markdown** is the
+zero-configuration default: one resolved Markdown file becomes one Concept,
+headings only label or structure it, authored links connect existing file
+Concepts, and tags are shared tag Concepts. Frontmatter remains lossless;
+`type: project` is an open classification of that same Note, not a separate
+node or edge.
+
+Permissive **OKF 0.1** is a built-in interoperability Format for an existing
+OKF workspace. It is not selected automatically and is not a public format
+setting today. Under that external convention, `index.md` and `log.md` remain
+openable/searchable/editable Notes but do not enter the Concept graph. See
+`note-root-formats.md` for the exact boundary.
+
+An explicitly kept `<Workspace Root>/ontology.yaml` applies after Format
+projection. It may interpret open Concept Types, Property shapes,
+reference-valued Relations, and validation rules. The user-edited file is a
+Candidate; only a separately reviewed Keep may persist its exact accepted
+source under `.exo/ontology` and publish a new graph generation. Candidate
+watcher events alone never invalidate the graph. The Ontology never changes
+Markdown or source document Relations. See `workspace-ontology.md` and ADR
+0006.
 
 ## Accepted graph direction — feature-branch tracer
 
@@ -50,8 +64,9 @@ enforces this separation:
 
 ```text
 canonical Markdown
+  → Note Root Format projection
   → schema-agnostic Knowledge Graph
-  → Format and explicitly kept Workspace Ontology interpretation
+  → explicitly kept Workspace Ontology interpretation
   → Graph View projection
   → deterministic layout
   → renderer-independent scene
@@ -60,10 +75,12 @@ canonical Markdown
 
 The Knowledge Graph preserves open Concept types, arbitrary frontmatter
 Properties, Relations, resolution, origin, and Evidence. Generic Markdown is
-the zero-configuration Format. Open Knowledge Format 0.1 is the first built-in
+the zero-configuration Format. Open Knowledge Format 0.1 is a built-in
 interoperability Format. A kept Workspace Ontology may interpret a Property as
 a Concept reference or declare validation rules, but unknown Properties and
-Types survive and remain usable.
+Types survive and remain usable. Relation origin is always `document`,
+`ontology`, or `inferred`: an Ontology explains a derived relation from
+existing Markdown; it cannot turn it into a document-authored fact.
 
 Graph Views compile this cold semantic model into dense numeric topology and
 visual classes. Closed numeric node/edge kinds are allowed inside a compiled

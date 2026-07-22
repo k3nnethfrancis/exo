@@ -20,13 +20,31 @@ Search helps recover context, but it is not the whole problem. Exo makes relatio
 
 Agents help maintain the exocortex without becoming the product spine. A user explicitly invokes a configured Command inline; Exo shows observed Markdown changes for review. The first editable graph-management Skill is the next vertical slice.
 
+## How the graph begins
+
+An existing Markdown folder works without setup. Each resolved Markdown file is
+one graph Concept; its first H1 can label it, but a heading does not create a
+second node. Wikilinks and Markdown links connect those existing file Concepts,
+and tags create shared tag Concepts. Frontmatter remains on its Note: for
+example, `type: project` classifies the Note rather than creating a separate
+`project` node or an edge.
+
+That baseline is **Generic Markdown**, Exo's zero-configuration Note Root
+Format. An optional, user-owned `ontology.yaml` can later interpret selected
+properties—for example, make `supports` into a typed reference relation or
+check that a project has expected fields—without changing the Markdown. It is
+reviewed before activation and stays separate from Graph View presentation.
+See [Note Root Formats](./docs/note-root-formats.md) and
+[Workspace Ontology](./docs/workspace-ontology.md) for the precise boundary.
+
 Folders are meaningful graph structure. Double-click a Folder to open its Overview: optional user-owned `index.md` metadata, direct children, and local graph context. Viewing never creates an index; creation is explicit. The raw `index.md` remains ordinary Markdown and is hidden only as a duplicate Explorer row. Paths provide a primary home while tags and relationships preserve multiple membership.
 
 Exo's accepted graph direction is schema-agnostic. Markdown remains canonical;
 an optional user-owned `ontology.yaml` interprets open Concept Types, Property
 shapes, reference Relations, and validation rules without changing Notes.
-Generic Markdown and permissive OKF 0.1 remain Note Root Formats, while Graph
-Views remain separate derived projections.
+Generic Markdown is the default Note Root Format. Permissive OKF 0.1 is an
+explicit interoperability format, not an automatic behavior change. Graph Views
+remain separate derived projections.
 Rendering/layout performance and knowledge utility are evaluated separately.
 
 Plugins are a later distribution concern, not the launch architecture. Skills author behavior, Commands/providers execute capabilities, and a future Plugin may package proven combinations for installation, versioning, updates, and sharing.

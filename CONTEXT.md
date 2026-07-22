@@ -30,7 +30,10 @@ _Avoid_: arbitrary filesystem root
 A Markdown document under a Note Root. Its body and frontmatter are canonical user data.
 
 **Concept**
-A knowledge identity projected from a Note by its Note Root Format and optionally interpreted by the Workspace Ontology. Generic Markdown and OKF normally project one Concept per Note; the Note remains canonical.
+A knowledge identity projected from a resolved Note by its Note Root Format and
+optionally interpreted by the Workspace Ontology. Generic Markdown and OKF
+normally project one Concept per Note; headings label or structure that Note,
+not additional Concepts. The Note remains canonical.
 _Avoid_: graph node as source of truth, database entity
 
 **Indexed Root**
@@ -54,15 +57,26 @@ The Folder-based classification implied by a Note's path. It supplies a default 
 _Avoid_: exclusive type, enforced taxonomy
 
 **Ontology**
-An optional, user-owned `<Workspace Root>/ontology.yaml` that passively interprets Concept Types, Property shapes, reference Relations, and validation rules across the Workspace. It complements the vocabulary already expressed in folders and Markdown; it never owns or mutates that data.
+An optional, user-owned `<Workspace Root>/ontology.yaml` that passively
+interprets Concept Types, Property shapes, reference Relations, and validation
+rules across the Workspace. One reviewed Ontology may be active at a time. It
+complements the vocabulary already expressed in folders and Markdown; it never
+owns or mutates that data.
 _Avoid_: fixed taxonomy, app-owned schema
 
 **Format**
-The interoperability convention used to project base Concepts from a Note Root, currently Generic Markdown or permissive OKF 0.1. Format is not the Workspace Ontology and does not control graph presentation.
+The interoperability convention used to project base Concepts from a Note Root.
+Generic Markdown is the zero-configuration default; permissive OKF 0.1 is an
+explicit compatibility format. Format is not the Workspace Ontology, does not
+control graph presentation, and does not change source files.
 _Avoid_: ontology, plugin, visual profile
 
 **Properties**
-Losslessly preserved document facts projected from a Note's raw frontmatter. A Property identifier and its Property Shape are distinct: `date` identifies the fact while `string` describes its expected value. Editing Properties edits the Markdown source.
+Losslessly preserved document facts projected from a Note's raw frontmatter. A
+Property identifier and its Property Shape are distinct: `date` identifies the
+fact while `string` describes its expected value. `type: project` classifies
+the existing Note; it does not create another Concept or Relation. Editing
+Properties edits the Markdown source.
 _Avoid_: app metadata, inspector fields
 
 **Property Shape**

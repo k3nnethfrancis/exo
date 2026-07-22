@@ -10,8 +10,8 @@ must compare the exact reviewed revision before persisting accepted source as
 derived state under `.exo/ontology`. The following service/UI slice will publish
 that accepted transition and invalidate derived graph state atomically. Reject
 leaves both Markdown and the previously kept
-interpreter unchanged. A missing or invalid kept state falls back to Generic
-Markdown.
+interpreter unchanged. A missing or invalid kept state falls back to the base
+graph without additional Ontology interpretation.
 
 The Ontology may interpret open Concept Types, Property shapes,
 reference-valued Relations, and validation rules. It preserves unknown data,

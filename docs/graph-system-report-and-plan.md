@@ -194,8 +194,9 @@ this section describes the architectural relationships.
 
 **Note** is the Markdown file and remains canonical. **Property** is a lossless
 frontmatter fact on that Note. **Concept** is the graph identity projected from
-a Note by its Format and optional kept Ontology rules. Generic Markdown and OKF both default
-to one Concept per Note.
+a Note by its Format and optional kept Ontology rules. Generic Markdown and
+OKF normally project one Concept per Note; headings label or structure that
+Note rather than becoming Concepts themselves.
 
 **Relation** connects two Concepts. It records a family, optional user-defined
 predicate, origin, resolution, and Evidence. Origin is `document` for Markdown,
@@ -275,7 +276,9 @@ contract rather than carrying a compatibility graph representation.
 
 The base graph preserves every supported YAML value and exposes it through a
 generic property inspector and filter. A Workspace Ontology may then interpret
-selected keys:
+selected keys. A property alone is not a Relation: for example, `type: project`
+classifies its existing Note, while a reference-valued property needs an
+Ontology rule before it produces an ontology-origin Relation.
 
 | Fact | Possible Graph View projection |
 | --- | --- |
@@ -307,7 +310,7 @@ lineage, ontology, semantic, and temporal views without changing its Notes.
 - bounded update, query, traversal, and render latency; and
 - graceful behavior under malformed or partially available documents.
 
-### Profile conformance checks
+### Format and Ontology conformance checks
 
 - required properties and valid value shapes;
 - Ontology-defined relationship expectations;
@@ -361,8 +364,8 @@ hydration remain behaviorally identical; unknown fields survive a round trip.
 5. Expose Format/Ontology status and Findings without blocking ordinary Markdown use.
 
 Gate: Exo loads both fixtures without mutation, preserves unknown data, explains
-every interpreted edge, and falls back to Generic Markdown when no Ontology is
-selected.
+every interpreted edge, and retains the chosen Format's base graph when no
+Ontology is active.
 
 ### Phase 3 — Complete graph contract verification
 
@@ -463,6 +466,8 @@ only their appropriate slice:
 - `graph-product-checkpoint.md` — plain-English progress, remaining work, and
   the accepted navigation/Connections/Properties direction.
 - `../CONTEXT.md` — canonical product language.
+- `note-root-formats.md` — Generic Markdown and OKF compatibility boundary.
+- `workspace-ontology.md` — reviewed `ontology.yaml` contract.
 - `adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` — durable decision.
 - `architecture.md` — production boundaries and current/planned ownership.
 - `../roadmap.md` — sequencing and gates.
