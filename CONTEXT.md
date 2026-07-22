@@ -62,8 +62,12 @@ The interoperability convention used to project base Concepts from a Note Root, 
 _Avoid_: ontology, plugin, visual profile
 
 **Properties**
-Losslessly preserved document facts projected from a Note's raw frontmatter. A Workspace Ontology may interpret their value shapes or relationships; editing Properties edits the Markdown source.
+Losslessly preserved document facts projected from a Note's raw frontmatter. A Property identifier and its Property Shape are distinct: `date` identifies the fact while `string` describes its expected value. Editing Properties edits the Markdown source.
 _Avoid_: app metadata, inspector fields
+
+**Property Shape**
+The optional Workspace Ontology interpretation of a Property's value type, cardinality, allowed values, or reference constraints. It describes a Property without becoming part of its identifier.
+_Avoid_: decorated property name, semantic alias
 
 **Relation**
 A directed connection between Concepts with a family, optional user-defined predicate, origin, resolution, and Evidence. Origin is `document`, `ontology`, or `inferred`; those states are never interchangeable.

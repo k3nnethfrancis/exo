@@ -226,55 +226,81 @@ function exactElementRow(row, runs) {
 }
 
 function semanticElementSections(matches = [], model, matrix, runs) {
-  const groups = semanticGroups(matches, matrix.rows);
-  return `<div class="semantic-intro"><span>${escapeHtml(semanticModelName(model))}</span><p>Review groups join recurring proposal strings at ≥70% similarity. Expand a short label to inspect every underlying variant and match.</p></div><div class="element-sections">${elementKinds.filter(([kind]) => kind !== 'evidence').map(([kind, label]) => {
+  const groups = semanticGroups(matches, matrix.rows, matrix.runs);
+  return `<div class="semantic-intro"><span>${escapeHtml(semanticModelName(model))}</span><p>Formatting and definition suffixes collapse under one identifier first. Embeddings suggest—but never merge—different identifiers.</p></div><div class="element-sections">${elementKinds.filter(([kind]) => kind !== 'evidence').map(([kind, label]) => {
     const grouped = groups.filter((group) => group.kind === kind);
     return `<section class="element-section"><header><div><span class="element-kind">${escapeHtml(label)}</span><small>${grouped.length} groups</small></div><span class="kicker">Semantic</span></header><div class="element-list">${grouped.map((group) => semanticGroupRow(group, runs.length)).join('') || '<p class="note">No recurring matches above threshold.</p>'}</div></section>`;
   }).join('')}</div>`;
 }
 
-function semanticGroups(matches, matrixRows) {
+function semanticGroups(matches, matrixRows, runs) {
+  const groups = new Map();
+  for (const row of matrixRows) {
+    const kind = featureKind(row.feature);
+    if (kind === 'evidence') continue;
+    const value = row.feature.slice(row.feature.indexOf(':') + 1);
+    const identity = semanticIdentity(kind, value);
+    if (!identity) continue;
+    const key = `${kind}\0${identity}`;
+    const group = groups.get(key) ?? {
+      kind,
+      label: semanticSummary(kind, identity),
+      identity,
+      members: [],
+      present: Array.from({ length: runs.length }, () => false),
+      aliases: [],
+    };
+    group.members.push(value);
+    row.present.forEach((present, index) => { group.present[index] ||= present; });
+    groups.set(key, group);
+  }
+
   const eligible = matches.filter((match) => match.similarity >= .7 && match.pairSupport >= 2);
-  const frequencies = new Map(matrixRows.map((row) => [semanticKey(featureKind(row.feature), row.feature.slice(row.feature.indexOf(':') + 1)), row.count]));
-  const byKind = new Map();
   for (const match of eligible) {
-    const edges = byKind.get(match.kind) ?? [];
-    edges.push(match);
-    byKind.set(match.kind, edges);
+    const leftIdentity = semanticIdentity(match.kind, match.left);
+    const rightIdentity = semanticIdentity(match.kind, match.right);
+    if (!leftIdentity || !rightIdentity || leftIdentity === rightIdentity) continue;
+    const alias = { ...match, leftIdentity, rightIdentity };
+    groups.get(`${match.kind}\0${leftIdentity}`)?.aliases.push(alias);
+    groups.get(`${match.kind}\0${rightIdentity}`)?.aliases.push(alias);
   }
-  const result = [];
-  for (const [kind, edges] of byKind) {
-    const parents = new Map();
-    const find = (value) => { const parent = parents.get(value) ?? value; if (parent === value) return value; const root = find(parent); parents.set(value, root); return root; };
-    const join = (left, right) => { const leftRoot = find(left); const rightRoot = find(right); parents.set(leftRoot, rightRoot); parents.set(rightRoot, rightRoot); };
-    for (const edge of edges) { parents.set(edge.left, parents.get(edge.left) ?? edge.left); parents.set(edge.right, parents.get(edge.right) ?? edge.right); join(edge.left, edge.right); }
-    const components = new Map();
-    for (const value of parents.keys()) { const root = find(value); const values = components.get(root) ?? []; values.push(value); components.set(root, values); }
-    for (const members of components.values()) {
-      const memberSet = new Set(members);
-      const componentEdges = edges.filter((edge) => memberSet.has(edge.left) && memberSet.has(edge.right));
-      const runIds = new Set(componentEdges.flatMap((edge) => edge.runIds ?? []));
-      const names = new Map();
-      for (const member of members) {
-        const name = semanticSummary(kind, member);
-        names.set(name, Math.max(names.get(name) ?? 0, frequencies.get(semanticKey(kind, member)) ?? 0));
-      }
-      const rankedNames = [...names].sort((left, right) => right[1] - left[1] || left[0].length - right[0].length || left[0].localeCompare(right[0])).map(([name]) => name);
-      result.push({
-        kind,
-        label: rankedNames[0] ?? members[0],
-        members: [...members].sort(),
-        edges: componentEdges.sort((left, right) => right.pairSupport - left.pairSupport || right.similarity - left.similarity),
-        runSupport: runIds.size,
-        maxSimilarity: Math.max(...componentEdges.map((edge) => edge.similarity)),
-      });
-    }
-  }
-  return result.sort((left, right) => right.runSupport - left.runSupport || right.maxSimilarity - left.maxSimilarity || left.label.localeCompare(right.label));
+
+  return [...groups.values()].map((group) => ({
+    ...group,
+    members: [...new Set(group.members)].sort(),
+    aliases: deduplicateAliasEdges(group.aliases),
+    runSupport: group.present.filter(Boolean).length,
+  })).filter((group) => group.members.length > 1 || group.aliases.length > 0)
+    .sort((left, right) => right.runSupport - left.runSupport || right.members.length - left.members.length || left.label.localeCompare(right.label));
 }
 
 function semanticGroupRow(group, runCount) {
-  return `<details class="element-row semantic-group"><summary><span class="semantic-group-name"><strong>${escapeHtml(group.label)}</strong><small>${group.members.length} variants · ${group.runSupport}/${runCount} runs</small></span><span class="bar-track"><span class="bar-fill cross" style="display:block;width:${Math.max(4, Math.round((group.runSupport / runCount) * 100))}%"></span></span><span class="element-count">${percent(group.maxSimilarity)}</span></summary><div class="semantic-group-detail"><div><span class="kicker">Variants</span><ul>${group.members.map((member) => `<li>${escapeHtml(member)}</li>`).join('')}</ul></div><div><span class="kicker">Matches</span><ul>${group.edges.map((edge) => `<li><span>${escapeHtml(edge.left)} ↔ ${escapeHtml(edge.right)}</span><small>${percent(edge.similarity)} · ${edge.pairSupport} run pairs</small></li>`).join('')}</ul></div></div></details>`;
+  const bestAlias = group.aliases[0];
+  return `<details class="element-row semantic-group"><summary><span class="semantic-group-name"><strong>${escapeHtml(group.label)}</strong><small>${group.members.length} forms · ${group.runSupport}/${runCount} runs${group.aliases.length ? ` · ${group.aliases.length} alias ${group.aliases.length === 1 ? 'candidate' : 'candidates'}` : ''}</small></span><span class="bar-track"><span class="bar-fill cross" style="display:block;width:${Math.max(4, Math.round((group.runSupport / runCount) * 100))}%"></span></span><span class="element-count">${bestAlias ? percent(bestAlias.similarity) : 'same ID'}</span></summary><div class="semantic-group-detail"><div><span class="kicker">Definition forms</span><ul>${group.members.map((member) => `<li>${escapeHtml(member)}</li>`).join('')}</ul></div><div><span class="kicker">Different identifiers</span>${group.aliases.length ? `<ul>${group.aliases.map((edge) => { const other = edge.leftIdentity === group.identity ? edge.rightIdentity : edge.leftIdentity; return `<li><span>${escapeHtml(other)}</span><small>${percent(edge.similarity)} · ${edge.pairSupport} run pairs · review only</small></li>`; }).join('')}</ul>` : '<p class="note">None suggested. The forms at left share one identifier.</p>'}</div></div></details>`;
+}
+
+function deduplicateAliasEdges(edges) {
+  const unique = new Map();
+  for (const edge of edges) {
+    const key = [edge.leftIdentity, edge.rightIdentity].sort().join('\0');
+    const current = unique.get(key);
+    if (!current || edge.pairSupport > current.pairSupport || edge.similarity > current.similarity) unique.set(key, edge);
+  }
+  return [...unique.values()].sort((left, right) => right.pairSupport - left.pairSupport || right.similarity - left.similarity);
+}
+
+export function semanticIdentity(kind, value) {
+  const normalized = String(value).replace(/[_-]+/gu, ' ').trim().toLocaleLowerCase();
+  if (kind === 'type') return normalized.split(/\s*\(|\s*:\s*/u, 1)[0].trim();
+  if (kind === 'property') return normalized.split(/\s*:\s*|\s*\(/u, 1)[0].trim();
+  if (kind === 'relation') return normalized.split(/\s*\(|\s*->\s*|\s*>\s*|\s*→\s*|\s*:\s*/u, 1)[0].trim();
+  if (kind === 'path-default') {
+    const parts = normalized.split(/\s*->\s*|\s*>\s*|\s*→\s*/u).map((part) => part.trim());
+    if (parts.length > 1) return (parts.find((part) => !/[/*]/u.test(part)) ?? parts[0]).trim();
+    return normalized.split(/\s*:\s*/u, 1)[0].trim();
+  }
+  if (kind === 'validation') return normalized.split(/\s*:\s*|\s+recommends?\b|\s+requires?\b/u, 1)[0].trim();
+  return normalized;
 }
 
 function semanticSummary(kind, value) {
@@ -288,7 +314,6 @@ function semanticSummary(kind, value) {
   return summary.split(/\s+/u).slice(0, 2).join(' ');
 }
 
-function semanticKey(kind, value) { return `${kind}\0${String(value).replace(/[_-]+/gu, ' ').trim().toLocaleLowerCase()}`; }
 
 function traceLane(run, maxDuration) {
   return `<section class="lane" data-provider="${run.provider}"><div class="lane-label"><strong>${title(run)}</strong><span>${formatDuration(run.durationMs)}</span></div><div class="events">${eventBars(run.events, maxDuration)}</div><details class="trace-detail"><summary>Trace · ${run.eventCount} events</summary><div class="trace-summary"><span>${run.status}</span><span>${run.response?.evidence?.length ?? 0} evidence</span><span>${run.response?.conflicts?.length ?? 0} conflicts</span><span>${escapeHtml(run.sessionId)}</span></div><pre>${escapeHtml(JSON.stringify(run.events, null, 2))}</pre></details></section>`;

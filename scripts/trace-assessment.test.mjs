@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { renderDashboard } from './trace-assessment/dashboard.mjs';
+import { renderDashboard, semanticIdentity } from './trace-assessment/dashboard.mjs';
 import { enrichSemanticAssessment } from './trace-assessment/semantic-enrichment.mjs';
 import { calculateSemanticAlignment } from './trace-assessment/semantic.mjs';
 
@@ -93,6 +93,15 @@ test('semantic match explanations omit punctuation-only and word-order variants'
   const alignment = await calculateSemanticAlignment(runs, async (texts) => texts.map((text) => text.includes('author') ? [1, 0] : [0, 1]));
 
   assert.deepEqual(alignment.crossProvider.matches, []);
+});
+
+test('semantic proposal identity separates property names from their shapes', () => {
+  assert.equal(semanticIdentity('property', 'date'), 'date');
+  assert.equal(semanticIdentity('property', 'date:string'), 'date');
+  assert.equal(semanticIdentity('property', 'date (string)'), 'date');
+  assert.equal(semanticIdentity('property', 'date: string'), 'date');
+  assert.equal(semanticIdentity('property', 'triage_date:string'), 'triage date');
+  assert.notEqual(semanticIdentity('property', 'date:string'), semanticIdentity('property', 'triage_date:string'));
 });
 
 test('semantic enrichment adds model-backed alignment without changing run records', async () => {
@@ -236,7 +245,6 @@ test('mini trace assessment runs fresh Claude and Codex sessions without changin
   assert.match(semanticDashboard, /data-element-view="semantic"/);
   assert.match(semanticDashboard, /Validation rules/);
   assert.match(semanticDashboard, /Supporting evidence/);
-  assert.match(semanticDashboard, /4 variants|2 variants/);
   assert.match(semanticDashboard, /human/);
   assert.match(semanticDashboard, /person/);
   assert.match(semanticDashboard, /all-MiniLM-L6-v2/);
