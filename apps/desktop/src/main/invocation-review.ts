@@ -20,6 +20,8 @@ export interface InvocationFileReviewPayload {
   change: InvocationFileChange;
   beforeText: string | null;
   afterText: string | null;
+  beforeTextOmitted?: boolean;
+  afterTextOmitted?: boolean;
   canKeep: boolean;
   canReject: boolean;
 }
@@ -36,6 +38,7 @@ interface ReviewResolution {
 }
 
 const IMPLICIT_TAGGED_CLEAN_BASE_CHANGE_ID = "implicit:tagged-clean-base";
+const MAX_INLINE_REVIEW_TEXT_BYTES = 1_000_000;
 
 interface ImplicitTaggedRestore {
   cleanBase: InvocationFileState;
@@ -72,17 +75,29 @@ export class InvocationReviewService {
     await assertAuthorizedChange(authority, change);
     const reviewBefore = rejectionBeforeState(record, change, cleanBase);
     const [before, after] = await Promise.all([
-      reviewBefore ? this.store.readSnapshot(record.id, reviewBefore) : null,
-      change.after ? this.store.readSnapshot(record.id, change.after) : null,
+      this.readInlineText(record.id, reviewBefore),
+      this.readInlineText(record.id, change.after),
     ]);
     return {
       invocation: record,
       change,
-      beforeText: reviewBefore?.mediaType === "text" && before ? before.toString("utf8") : null,
-      afterText: change.after?.mediaType === "text" && after ? after.toString("utf8") : null,
+      beforeText: before.text,
+      afterText: after.text,
+      ...(before.omitted ? { beforeTextOmitted: true } : {}),
+      ...(after.omitted ? { afterTextOmitted: true } : {}),
       canKeep: change.decision.status === "pending" || change.decision.status === "conflict",
       canReject: change.decision.status === "pending",
     };
+  }
+
+  private async readInlineText(
+    invocationId: string,
+    state: InvocationFileState | null | undefined,
+  ): Promise<{ text: string | null; omitted: boolean }> {
+    if (!state || state.mediaType !== "text") return { text: null, omitted: false };
+    if (state.byteLength > MAX_INLINE_REVIEW_TEXT_BYTES) return { text: null, omitted: true };
+    const bytes = await this.store.readSnapshot(invocationId, state);
+    return { text: bytes?.toString("utf8") ?? null, omitted: false };
   }
 
   async resolve(record: InvocationRecord, resolutions: readonly ReviewResolution[]): Promise<InvocationRecord> {

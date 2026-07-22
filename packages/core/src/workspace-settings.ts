@@ -310,10 +310,15 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
 
   const workspaceRoot = typeof input.workspaceRoot === "string" ? input.workspaceRoot.trim() : "";
   const defaultTerminalCwd = typeof input.defaultTerminalCwd === "string" ? input.defaultTerminalCwd.trim() : "";
-  const noteRoots = Array.isArray(input.noteRoots)
+  const configuredNoteRoots = Array.isArray(input.noteRoots)
     ? input.noteRoots.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean)
     : [];
-  const indexedRoots = Array.isArray(input.indexedRoots)
+  // A Workspace has one authoritative wiki in this release.  Older builds
+  // could persist multiple note roots; retain the explicitly selected first
+  // root and leave the other folders untouched on disk.  Keeping this rule at
+  // the persistence boundary ensures the app, CLI, MCP, and index all agree.
+  const noteRoots = configuredNoteRoots.slice(0, 1);
+  const configuredIndexedRoots = Array.isArray(input.indexedRoots)
     ? input.indexedRoots.reduce<WorkspaceSettings["indexedRoots"]>((roots, entry, index) => {
         if (!entry || typeof entry !== "object" || typeof entry.path !== "string" || !entry.path.trim()) {
           return roots;
@@ -327,6 +332,9 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
         }));
         return roots;
       }, [])
+    : [];
+  const indexedRoots = noteRoots.length === 1
+    ? configuredIndexedRoots.filter((entry) => isPathWithinRoot(noteRoots[0], entry.path))
     : [];
   const mode: IndexMode = input.indexing?.mode === "lexical" || input.indexing?.mode === "semantic" || input.indexing?.mode === "hybrid" ? input.indexing.mode : input.indexing?.mode === "off" ? "off" : indexedRoots.length > 0 ? "lexical" : "off";
   const indexing = input.indexing && typeof input.indexing === "object"
@@ -384,6 +392,11 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
     layout: normalizeWorkspaceLayout(input.layout),
   };
+}
+
+function isPathWithinRoot(rootPath: string, targetPath: string): boolean {
+  const relative = path.relative(path.resolve(rootPath), path.resolve(targetPath));
+  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
 }
 
 /** Paths dropped by the Note-Root-only settings migration. Kept separate from

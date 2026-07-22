@@ -280,7 +280,7 @@ function discoveryFailureMessage(
 ): string {
   switch (code) {
     case "runtime-root-missing":
-      return `Exo runtime root is missing or is not a directory. Start Exo with \`exo start\`, run \`exo runtime status\` to confirm the active workspace, or set EXO_RUNTIME_ROOT.`;
+      return `Exo runtime root is missing or is not a directory. Start Exo with \`exo start\`, run \`exo status\` to confirm the active workspace, or set EXO_RUNTIME_ROOT.`;
     case "server-json-missing":
       return `Exo command server discovery file is missing. Start Exo with \`exo start\`, or set EXO_RUNTIME_ROOT to the runtime containing server.json.`;
     case "server-json-invalid":

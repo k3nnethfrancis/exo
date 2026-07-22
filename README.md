@@ -25,7 +25,9 @@ Agents help maintain the exocortex without becoming the product spine. A user ex
 An existing Markdown folder works without setup. Each resolved Markdown file is
 one graph Concept; its first H1 can label it, but a heading does not create a
 second node. Wikilinks and Markdown links connect those existing file Concepts,
-and tags create shared tag Concepts. Frontmatter remains on its Note: for
+and tags create shared tag Concepts in the semantic graph. The spatial map
+intentionally suppresses tag hubs and groups tagged Notes instead, so a common
+tag cannot turn the view into a starburst. Frontmatter remains on its Note: for
 example, `type: project` classifies the Note rather than creating a separate
 `project` node or an edge.
 

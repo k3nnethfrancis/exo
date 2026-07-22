@@ -1,11 +1,11 @@
-import { chmod, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createDefaultClaudeAgentCommand } from "@exo/core";
 
-import { executableToken, inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
+import { bindResolvedExecutable, executableToken, inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
 
 const temporaryRoots: string[] = [];
 
@@ -33,7 +33,7 @@ describe("agent command launch facts", () => {
       cwd: root,
       cwdReady: true,
       executable: "fake-agent",
-      executablePath: executable,
+      executablePath: await realpath(executable),
       executableReady: true,
       launchable: true,
     });
@@ -63,11 +63,41 @@ describe("agent command launch facts", () => {
       { HOME: root, PATH: "/usr/bin:/bin" },
     );
 
-    expect(facts).toMatchObject({ executablePath: executable, executableReady: true, launchable: true });
+    expect(facts).toMatchObject({ executablePath: await realpath(executable), executableReady: true, launchable: true });
   });
 
   it("extracts quoted executable tokens without interpreting the shell command", () => {
     expect(executableToken("'/Applications/Fake Agent/bin/fake' --test")).toBe("/Applications/Fake Agent/bin/fake");
     expect(executableToken("fake\\ agent --test")).toBe("fake agent");
+  });
+
+  it("changes the launch fingerprint when a resolved executable is replaced in place", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-command-facts-"));
+    temporaryRoots.push(root);
+    const executable = path.join(root, "agent");
+    await writeFile(executable, "#!/bin/sh\nprintf first\n");
+    await chmod(executable, 0o755);
+    const command = { ...createDefaultClaudeAgentCommand(), command: executable };
+
+    const before = await inspectAgentCommandLaunchFacts(command, { kind: "cli", workspaceRoot: root }, { PATH: "" });
+    await writeFile(executable, "#!/bin/sh\nprintf second\n");
+    const after = await inspectAgentCommandLaunchFacts(command, { kind: "cli", workspaceRoot: root }, { PATH: "" });
+
+    expect(before.launchable).toBe(true);
+    expect(after.launchable).toBe(true);
+    expect(after.fingerprint).not.toBe(before.fingerprint);
+  });
+
+  it("binds the resolved executable path so a later PATH shadow cannot change the process launched", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-command-facts-"));
+    temporaryRoots.push(root);
+    const first = path.join(root, "first-agent");
+    const second = path.join(root, "second-agent");
+    await writeFile(first, "#!/bin/sh\nexit 0\n");
+    await writeFile(second, "#!/bin/sh\nexit 0\n");
+    await Promise.all([chmod(first, 0o755), chmod(second, 0o755)]);
+
+    expect(bindResolvedExecutable("agent --flag", await realpath(first))).toBe(`'${await realpath(first)}' --flag`);
+    expect(bindResolvedExecutable("'agent' --flag", await realpath(second))).toBe(`'${await realpath(second)}' --flag`);
   });
 });

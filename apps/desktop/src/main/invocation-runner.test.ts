@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { writeFileSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -95,14 +95,15 @@ describe("InvocationRunner readiness parity", () => {
     };
     const runner = createRunner(settings(root, command));
 
-    await expect(runner.getInvocationAuthorization(command.handle, notePath)).resolves.toMatchObject({
+    const authorization = await runner.getInvocationAuthorization(command.handle, notePath);
+    expect(authorization).toMatchObject({
       command,
       cwd: noteDirectory,
-      fingerprint: agentCommandExecutableFingerprint(command),
       launchable: true,
       trusted: false,
     });
-    await new AgentCommandTrustStore(root, root).trust(command);
+    expect(authorization.fingerprint).not.toBe(agentCommandExecutableFingerprint(command));
+    await new AgentCommandTrustStore(root, root).trust(command, undefined, authorization.fingerprint);
     await expect(runner.getInvocationAuthorization(command.handle, notePath)).resolves.toMatchObject({ trusted: true });
   });
 
@@ -220,10 +221,11 @@ describe("InvocationRunner readiness parity", () => {
     await runner.authorizeAndStart(prepared, authorizationFor(prepared, "always-allow"));
 
     const store = new AgentCommandTrustStore(root, root);
-    await expect(store.status(command)).resolves.toMatchObject({
+    await expect(store.status(command, prepared.pending.command.executableFingerprint)).resolves.toMatchObject({
       trusted: true,
-      executableFingerprint: agentCommandExecutableFingerprint(command),
+      executableFingerprint: prepared.pending.command.executableFingerprint,
     });
+    expect(prepared.pending.command.executableFingerprint).not.toBe(agentCommandExecutableFingerprint(command));
     await expect(store.status({ ...command, command: "/bin/echo" })).resolves.toMatchObject({ trusted: false });
     await expect(runner.resetCommandTrust(command.handle)).resolves.toEqual({ revoked: true });
     await expect(store.status(command)).resolves.toMatchObject({ trusted: false });
@@ -260,6 +262,32 @@ describe("InvocationRunner readiness parity", () => {
       await expect(store.status(changed)).resolves.toMatchObject({ trusted: false });
     },
   );
+
+  it("rejects an in-place executable replacement before launch", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-executable-drift-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const executable = path.join(root, "agent");
+    await writeFile(executable, "#!/bin/sh\nexit 0\n", "utf8");
+    await chmod(executable, 0o755);
+    const command = {
+      ...createDefaultClaudeAgentCommand(),
+      command: executable,
+      adapter: "generic" as const,
+      continuityPolicy: "fresh" as const,
+    };
+    const documentBody = protocolNoteBody("# Note\n", command.handle, "Review this.");
+    await writeFile(notePath, documentBody, "utf8");
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
+    const prepared = await runner.prepare(invocationRequest(notePath, documentBody));
+
+    await writeFile(executable, "#!/bin/sh\nprintf replaced\n", "utf8");
+    await expect(runner.authorizeAndStart(prepared, authorizationFor(prepared))).rejects.toMatchObject({
+      code: "fingerprint-drift",
+    });
+    expect(processFactory.processes).toHaveLength(0);
+  });
 
   it("runs inline invocations headlessly and delivers the current note body and frontmatter once", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
@@ -326,11 +354,11 @@ describe("InvocationRunner readiness parity", () => {
 
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
     activeSettings = settings(workspaceB, command);
-    await writeFile(notePath, `# Changed in Workspace A\n\n${formatDocumentAgentResponse({
-      invocationId: TEST_PROTOCOL_INVOCATION_ID,
-      agent: command.handle,
-      message: "Changed in Workspace A.",
-    })}\n`, "utf8");
+    await writeFile(notePath, withProtocolResponse(
+      documentBody.replace("# Workspace A", "# Changed in Workspace A"),
+      command.handle,
+      "Changed in Workspace A.",
+    ), "utf8");
     processFactory.process.exit(0, "done");
 
     const completed = await updated;
@@ -586,10 +614,17 @@ describe("InvocationRunner readiness parity", () => {
     const promptPath = path.join(root, "received-prompt.txt");
     const documentBody = protocolNoteBody("# Before\n", "fake-headless", "Replace the title.");
     await writeFile(notePath, documentBody, "utf8");
+    const afterBody = withProtocolResponse(documentBody.replace("# Before", "# After"), "fake-headless", "Updated the title.");
+    const scriptPath = path.join(root, "write-response.mjs");
+    await writeFile(scriptPath, `
+import { readFileSync, writeFileSync } from "node:fs";
+writeFileSync(${JSON.stringify(promptPath)}, readFileSync(0, "utf8"));
+writeFileSync(${JSON.stringify(notePath)}, ${JSON.stringify(afterBody)});
+`, "utf8");
     const command = {
       ...createDefaultClaudeAgentCommand(), id: "fake-headless", handle: "fake-headless", label: "Fake headless",
       adapter: "generic" as const, continuityPolicy: "fresh" as const,
-      command: `/bin/sh -c 'cat > "${promptPath}"; printf "# After\\n" > "${notePath}"'`,
+      command: `${shellQuote(process.execPath)} ${shellQuote(scriptPath)}`,
     };
     const terminalManager = new FakeTerminalManager();
     const runner = createRunner(settings(root, command), terminalManager, new DirectInvocationProcessFactory());
@@ -685,11 +720,7 @@ describe("InvocationRunner readiness parity", () => {
     const documentBody = protocolNoteBody("# Before\n", "claude", "Update this.");
     await writeFile(notePath, documentBody, "utf8");
     const sessionId = "ce4b9e26-2574-4433-a054-1110cd403792";
-    const afterBody = `# After\n\n${formatDocumentAgentResponse({
-      invocationId: TEST_PROTOCOL_INVOCATION_ID,
-      agent: "claude",
-      message: "Updated.",
-    })}\n`;
+    const afterBody = withProtocolResponse(documentBody.replace("# Before", "# After"), "claude", "Updated.");
     const scriptPath = path.join(root, "invoke.mjs");
     await writeFile(scriptPath, `
 import { writeFileSync } from "node:fs";
@@ -788,6 +819,39 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     });
   });
 
+  it("does not accept a matching response from another file or a detached response in the invoked note", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "note.md");
+    const decoyPath = path.join(root, "decoy.md");
+    const documentBody = protocolNoteBody("# Before\n", "claude", "What do you think?");
+    await writeFile(notePath, documentBody, "utf8");
+    await writeFile(decoyPath, formatDocumentAgentResponse({
+      invocationId: TEST_PROTOCOL_INVOCATION_ID,
+      agent: "claude",
+      message: "A decoy response.",
+    }), "utf8");
+    const processFactory = new FakeInvocationProcessFactory();
+    const runner = createRunner(settings(root, { ...createDefaultClaudeAgentCommand(), command: process.execPath }), new FakeTerminalManager(), processFactory);
+    const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+
+    await startPrepared(runner, {
+      context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude",
+      message: "What do you think?", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody,
+    });
+    await writeFile(notePath, `${documentBody}\nOrdinary human text.\n${formatDocumentAgentResponse({
+      invocationId: TEST_PROTOCOL_INVOCATION_ID,
+      agent: "claude",
+      message: "Detached response.",
+    })}\n`, "utf8");
+    processFactory.process.exit(0, "done");
+
+    await expect(updated).resolves.toMatchObject({
+      status: "failed",
+      failureReason: "@claude finished without writing its linked response into the note.",
+    });
+  });
+
   it("serializes overlapping Note Roots until the prior changeset is reviewed, then releases them", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-root-lock-"));
     temporaryRoots.push(root);
@@ -804,11 +868,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     await expect(runner.authorizeAndStart(overlapping, authorizationFor(overlapping))).rejects.toMatchObject({ code: "review-busy" });
 
     const cleanBase = removeDocumentAgentInvocation(documentBody, TEST_PROTOCOL_INVOCATION_ID, command.handle)!;
-    await writeFile(notePath, `${cleanBase}${formatDocumentAgentResponse({
-      invocationId: TEST_PROTOCOL_INVOCATION_ID,
-      agent: command.handle,
-      message: "Updated.",
-    })}\n`);
+    await writeFile(notePath, withProtocolResponse(documentBody, command.handle, "Updated."));
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     processFactory.process.exit(0, "done");
     const completed = await updated;
@@ -839,11 +899,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const prepared = await runner.prepare(invocationRequest(notePath, body));
     const overlapping = await runner.prepare(invocationRequest(notePath, body));
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
-    await writeFile(notePath, `${removeDocumentAgentInvocation(body, TEST_PROTOCOL_INVOCATION_ID, command.handle)}${formatDocumentAgentResponse({
-      invocationId: TEST_PROTOCOL_INVOCATION_ID,
-      agent: command.handle,
-      message: "Updated.",
-    })}\n`);
+    await writeFile(notePath, withProtocolResponse(body, command.handle, "Updated."));
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     processFactory.process.exit(0, "done");
     const completed = await updated;
@@ -874,11 +930,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
     const prepared = await runner.prepare(invocationRequest(notePath, body));
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
-    await writeFile(notePath, `${removeDocumentAgentInvocation(body, TEST_PROTOCOL_INVOCATION_ID, command.handle)}${formatDocumentAgentResponse({
-      invocationId: TEST_PROTOCOL_INVOCATION_ID,
-      agent: command.handle,
-      message: "History response.",
-    })}\n`);
+    await writeFile(notePath, withProtocolResponse(body, command.handle, "History response."));
     await writeFile(createdPath, "created\n");
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     processFactory.process.exit(0, "done");
@@ -1190,11 +1242,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const updates: import("@exo/core").InvocationRecord[] = [];
     runner.on("updated", (record) => updates.push(record));
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
-    await writeFile(notePath, `${removeDocumentAgentInvocation(body, TEST_PROTOCOL_INVOCATION_ID, command.handle)}${formatDocumentAgentResponse({
-      invocationId: TEST_PROTOCOL_INVOCATION_ID,
-      agent: command.handle,
-      message: "Finished after returning to Workspace A.",
-    })}\n`);
+    await writeFile(notePath, withProtocolResponse(body, command.handle, "Finished after returning to Workspace A."));
     processFactory.process.exit(0, "done");
     const completed = await updated;
 
@@ -1227,11 +1275,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     processFactory.process.exit(0, "done");
     await new Promise((resolve) => setTimeout(resolve, 30));
-    await writeFile(notePath, `${removeDocumentAgentInvocation(body, TEST_PROTOCOL_INVOCATION_ID, command.handle)}${formatDocumentAgentResponse({
-      invocationId: TEST_PROTOCOL_INVOCATION_ID,
-      agent: command.handle,
-      message: "Late response.",
-    })}\n`);
+    await writeFile(notePath, withProtocolResponse(body, command.handle, "Late response."));
     watcher.emit(root, notePath);
 
     const completed = await updated;
@@ -1252,11 +1296,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
     const prepared = await runner.prepare(invocationRequest(notePath, body));
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
-    await writeFile(notePath, `${removeDocumentAgentInvocation(body, TEST_PROTOCOL_INVOCATION_ID, command.handle)}${formatDocumentAgentResponse({
-      invocationId: TEST_PROTOCOL_INVOCATION_ID,
-      agent: command.handle,
-      message: "Durable response.",
-    })}\n`);
+    await writeFile(notePath, withProtocolResponse(body, command.handle, "Durable response."));
     const invocationDir = path.join(root, ".exo", "invocations", prepared.id);
     await mkdir(path.join(invocationDir, "files", "objects", "stale-directory"));
     const compactionError = new Promise<{ invocationId: string; error: unknown }>((resolve) =>
@@ -1304,6 +1344,14 @@ function protocolNoteBody(prefix: string, handle: string, message: string): stri
   })}\n`;
 }
 
+function withProtocolResponse(documentBody: string, handle: string, message: string): string {
+  return `${documentBody}${formatDocumentAgentResponse({
+    invocationId: TEST_PROTOCOL_INVOCATION_ID,
+    agent: handle,
+    message,
+  })}\n`;
+}
+
 function invocationRequest(notePath: string, documentBody: string) {
   return {
     context: "note" as const,
@@ -1346,11 +1394,7 @@ async function multiFileReviewFixture() {
   const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
   const prepared = await runner.prepare(invocationRequest(notePath, body));
   await runner.authorizeAndStart(prepared, authorizationFor(prepared));
-  await writeFile(notePath, `${removeDocumentAgentInvocation(body, TEST_PROTOCOL_INVOCATION_ID, command.handle)}${formatDocumentAgentResponse({
-    invocationId: TEST_PROTOCOL_INVOCATION_ID,
-    agent: command.handle,
-    message: "Bulk-safe response.",
-  })}\n`);
+  await writeFile(notePath, withProtocolResponse(body, command.handle, "Bulk-safe response."));
   await writeFile(createdPath, "created\n");
   const updated = new Promise<import("@exo/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
   processFactory.process.exit(0, "done");

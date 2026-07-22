@@ -8,6 +8,18 @@ import type { WorkspaceModel } from "@exo/core";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 
 describe("WorkspaceNotesService", () => {
+  it("authorizes only existing files inside the active wiki for operator opens", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const notePath = path.join(noteRoot, "opened.md");
+    const outsidePath = path.join(path.dirname(noteRoot), "outside.md");
+    await writeFile(notePath, "# Opened\n", "utf8");
+    await writeFile(outsidePath, "# Outside\n", "utf8");
+
+    await expect(service.authorizeOpenFile(notePath)).resolves.toBe(notePath);
+    await expect(service.authorizeOpenFile(outsidePath)).rejects.toThrow("outside configured note roots");
+    await expect(service.authorizeOpenFile(noteRoot)).rejects.toThrow("only open an existing file");
+  });
+
   it("searches body and frontmatter tags across note roots", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     await writeFile(path.join(noteRoot, "focus.md"), "---\ntags: [research]\n---\n# Focus\n\n#daily\n", "utf8");

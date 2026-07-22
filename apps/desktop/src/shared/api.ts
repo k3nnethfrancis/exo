@@ -141,6 +141,9 @@ export interface InvocationFileReviewPayload {
   change: InvocationFileChange;
   beforeText: string | null;
   afterText: string | null;
+  /** The artifact is valid but deliberately too large to move across IPC. */
+  beforeTextOmitted?: boolean;
+  afterTextOmitted?: boolean;
   canKeep: boolean;
   canReject: boolean;
 }

@@ -499,9 +499,9 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   had drained, so autocomplete frames could be misattributed to invocation
   typing.
 - Repair: preserve the exact trailing-newline contract on save; assert exact
-  on-disk Markdown rather than normalizing the expected body; scope the input
-  probe to the editor and drain the prior interaction before measuring the
-  next one.
+  on-disk Markdown rather than normalizing the expected body; make invocation
+  preflight compare those same exact persisted bytes; scope the input probe to
+  the editor and drain the prior interaction before measuring the next one.
 - Verification: focused core tests (178) and typechecks pass. The full Electron
   journey passed once plus three consecutive repetitions with no long tasks:
   ordinary 2,000-character typing p90 `14.9–15.1 ms`, accelerated Backspace

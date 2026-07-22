@@ -96,6 +96,7 @@ import {
   mergeInvocationReviewHydration,
   navigateInvocationReview,
   openInvocationHistoryReview,
+  type InvocationReviewQueueEntry,
   type InvocationReviewQueueState,
 } from "./invocationReviewQueue";
 
@@ -268,10 +269,6 @@ export function App() {
   const activeReviewPayload = activeReviewEntry && activeReviewChangeId
     ? activeReviewEntry.payloads[activeReviewChangeId] ?? null
     : null;
-  const missingActiveReviewPayloadIds = activeReviewEntry
-    ? activeReviewEntry.changeIds.filter((changeId) => !activeReviewEntry.payloads[changeId])
-    : [];
-  const activeReviewPayloadsReady = Boolean(activeReviewEntry && missingActiveReviewPayloadIds.length === 0);
 
   useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
@@ -362,27 +359,21 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!activeReviewEntry || missingActiveReviewPayloadIds.length === 0) return;
+    if (!activeReviewEntry || !activeReviewChangeId || activeReviewPayload) return;
     let cancelled = false;
-    void Promise.allSettled(missingActiveReviewPayloadIds.map((changeId) =>
-      window.exo.workspace.getInvocationFileReview({
-        invocationId: activeReviewEntry.invocationId,
-        changeId,
-      }),
-    )).then((results) => {
+    void window.exo.workspace.getInvocationFileReview({
+      invocationId: activeReviewEntry.invocationId,
+      changeId: activeReviewChangeId,
+    }).then((payload) => {
       if (cancelled) return;
-      const payloads = results.flatMap((result) => result.status === "fulfilled" ? [result.value] : []);
-      if (payloads.length > 0) {
-        setInvocationReviewQueue((current) => payloads.reduce(cacheInvocationFileReview, current));
-      }
-      const failure = results.find((result) => result.status === "rejected");
-      if (failure?.status === "rejected") {
-        console.warn("[exo] failed to load invocation file review", failure.reason);
-        setInvocationActivity(failInvocationActivity(activeReviewEntry.command, failure.reason));
-      }
+      setInvocationReviewQueue((current) => cacheInvocationFileReview(current, payload));
+    }).catch((error) => {
+      if (cancelled) return;
+      console.warn("[exo] failed to load invocation file review", error);
+      setInvocationActivity(failInvocationActivity(activeReviewEntry.command, error));
     });
     return () => { cancelled = true; };
-  }, [activeReviewEntry?.invocationId, missingActiveReviewPayloadIds.join("\0")]);
+  }, [activeReviewChangeId, activeReviewEntry?.invocationId, activeReviewPayload]);
 
   useEffect(() => {
     if (activeReviewPayload) openInvocationReviewDocument(activeReviewPayload, activeReviewEntry?.source ?? "pending");
@@ -627,10 +618,7 @@ export function App() {
     try {
       await saveDocument(pending.document.filePath);
       const persisted = await window.exo.notes.read(pending.document.filePath);
-      const expectedBody = pending.document.kind === "markdown"
-        ? markdownBodyAsSaved(pending.draft.documentBody)
-        : pending.draft.documentBody;
-      if (persisted.body !== expectedBody) {
+      if (persisted.body !== pending.draft.documentBody) {
         throw new Error("The document changed after this invocation was composed. Review the note and send it again.");
       }
       const result = await window.exo.workspace.launchAgentInvocation({
@@ -686,13 +674,16 @@ export function App() {
     const path = invocationReviewSourcePath(payload);
     if (!path) return;
     const mediaType = payload.change.after?.mediaType ?? payload.change.before?.mediaType;
-    if (source === "pending" && payload.change.operation !== "deleted" && mediaType !== "binary") {
+    const textPreviewOmitted = Boolean(payload.beforeTextOmitted || payload.afterTextOmitted);
+    if (source === "pending" && payload.change.operation !== "deleted" && mediaType !== "binary" && !textPreviewOmitted) {
       void openFile(invocationReviewNavigablePath(payload) ?? path);
       return;
     }
     const virtualPath = invocationReviewVirtualPath(payload);
     if (!virtualPath) return;
-    const body = mediaType === "binary" || payload.change.operation === "deleted"
+    const body = textPreviewOmitted
+      ? "This file is too large for an inline review. Keep or reject it from the review controls.\n"
+      : mediaType === "binary" || payload.change.operation === "deleted"
       ? ""
       : payload.afterText ?? "";
     openVirtualDocument({
@@ -741,11 +732,15 @@ export function App() {
   }
 
   async function resolveAllInvocationReviews(action: "keep" | "reject") {
-    if (!activeReviewEntry || !activeReviewPayloadsReady || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
+    if (!activeReviewEntry || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
     const entry = activeReviewEntry;
-    const payloads = entry.changeIds.map((changeId) => entry.payloads[changeId]!);
-    const frozenPaths = beginInvocationReviewDecision(payloads);
+    beginInvocationReviewDecision([]);
     try {
+      // Loading every diff is deliberate only for an explicit all-files
+      // action. Opening an invocation otherwise hydrates exactly one file.
+      const payloads = await loadAllInvocationReviewPayloads(entry);
+      const frozenPaths = invocationReviewAffectedOpenPaths(payloads, Object.keys(openDocuments));
+      flushSync(() => setInvocationReviewFrozenPaths(frozenPaths));
       await prepareDocumentsForReview(frozenPaths);
       const record = await window.exo.workspace.reviewInvocationAll({ invocationId: entry.invocationId, action });
       setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, record));
@@ -759,6 +754,20 @@ export function App() {
     } finally {
       finishInvocationReviewDecision();
     }
+  }
+
+  async function loadAllInvocationReviewPayloads(entry: InvocationReviewQueueEntry): Promise<InvocationFileReviewPayload[]> {
+    const payloads: InvocationFileReviewPayload[] = [];
+    for (const changeId of entry.changeIds) {
+      const cached = entry.payloads[changeId];
+      const payload = cached ?? await window.exo.workspace.getInvocationFileReview({
+        invocationId: entry.invocationId,
+        changeId,
+      });
+      if (!cached) setInvocationReviewQueue((current) => cacheInvocationFileReview(current, payload));
+      payloads.push(payload);
+    }
+    return payloads;
   }
 
   function beginInvocationReviewDecision(payloads: readonly InvocationFileReviewPayload[]): string[] {
@@ -1770,8 +1779,8 @@ export function App() {
                       onNavigate: (index) => setInvocationReviewQueue((current) => navigateInvocationReview(current, index)),
                       onKeepCurrent: () => void resolveInvocationReview("keep"),
                       onRejectCurrent: () => void resolveInvocationReview("reject"),
-                      onKeepAll: activeReviewPayloadsReady ? () => void resolveAllInvocationReviews("keep") : undefined,
-                      onRejectAll: activeReviewPayloadsReady ? () => void resolveAllInvocationReviews("reject") : undefined,
+                      onKeepAll: () => void resolveAllInvocationReviews("keep"),
+                      onRejectAll: () => void resolveAllInvocationReviews("reject"),
                       onRefreshConflict: () => {
                         setInvocationReviewQueue((current) => ({
                           ...current,
@@ -1938,10 +1947,6 @@ function uniqueMessages(messages: string[]): string[] {
 
 function joinPath(parentPath: string, name: string): string {
   return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
-}
-
-function markdownBodyAsSaved(body: string): string {
-  return body.endsWith("\n") ? body : `${body}\n`;
 }
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {

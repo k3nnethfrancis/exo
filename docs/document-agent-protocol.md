@@ -51,7 +51,9 @@ It can use the files, credentials, network, and provider tools available to the
 current operating-system user. Note Roots bound what Exo snapshots, reviews,
 and restores; they do not restrict what that process can read or write. Trust is
 Workspace-scoped and bound to the executable fingerprint, so a changed binary
-requires a new decision before its pre-exec gate opens.
+requires a new decision before its pre-exec gate opens. Exo resolves and hashes
+the canonical executable immediately before release, then launches that exact
+path rather than asking the shell to resolve `PATH` again.
 
 Exo reports exact file state, not guessed authorship. Launch and settled
 manifests produce one Changeset of created, modified, deleted, and conservatively

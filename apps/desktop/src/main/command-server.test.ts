@@ -37,6 +37,35 @@ describe("CommandServer operator contract", () => {
     }
   });
 
+  it("does not report a file open until the app authorizes it", async () => {
+    const opened: string[] = [];
+    const { server, port, token } = await startServer({
+      onOpenFile: async (filePath) => {
+        if (filePath === "/outside.md") throw new Error("Refusing to access a path outside configured note roots.");
+        opened.push(filePath);
+      },
+    });
+    try {
+      const denied = await commandFetch(token, port, "/open", {
+        method: "POST",
+        body: JSON.stringify({ path: "/outside.md" }),
+      });
+      expect(denied.status).toBe(400);
+      await expect(denied.json()).resolves.toEqual({ error: "Refusing to access a path outside configured note roots." });
+      expect(opened).toEqual([]);
+
+      const accepted = await commandFetch(token, port, "/open", {
+        method: "POST",
+        body: JSON.stringify({ path: "/wiki/note.md" }),
+      });
+      expect(accepted.status).toBe(200);
+      await expect(accepted.json()).resolves.toEqual({ ok: true });
+      expect(opened).toEqual(["/wiki/note.md"]);
+    } finally {
+      await server.stop();
+    }
+  });
+
   it("returns a stable invocation launch summary instead of the internal review record", async () => {
     const { server, port, token } = await startServer({
       onSpawnAgentCommand: async () => ({
@@ -129,6 +158,6 @@ async function fetchJson(token: string, port: number, route: string, init: Reque
 function options(runtimeRoot: string): CommandServerOptions {
   const status = { available: false, backend: "qmd", roots: [], warnings: [] } as unknown as IndexStatus;
   return {
-    runtimeRoot, onShowWindow: () => {}, onOpenFile: () => {}, onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }), onIndexStatus: async () => status, onIndexSync: async () => ({ status, phases: [], warnings: [] }), onGetStatus: () => ({ ok: true }), onSpawnAgentCommand: async () => { throw new Error("not used"); },
+    runtimeRoot, onShowWindow: () => {}, onOpenFile: async () => {}, onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }), onIndexStatus: async () => status, onIndexSync: async () => ({ status, phases: [], warnings: [] }), onGetStatus: () => ({ ok: true }), onSpawnAgentCommand: async () => { throw new Error("not used"); },
   };
 }

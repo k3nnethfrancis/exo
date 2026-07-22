@@ -1,5 +1,6 @@
-import { constants } from "node:fs";
-import { access, stat } from "node:fs/promises";
+import { constants, createReadStream } from "node:fs";
+import { access, realpath, stat } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 import {
@@ -42,6 +43,9 @@ export async function inspectAgentCommandLaunchFacts(
   ]);
   const executable = executableToken(command.command);
   const executableReady = executablePath !== null;
+  const boundFingerprint = executablePath
+    ? await executableLaunchFingerprint(command, executablePath)
+    : fingerprint;
   const detail = !cwdReady
     ? `Working folder does not exist: ${derived.cwd}`
     : !executableReady
@@ -52,7 +56,7 @@ export async function inspectAgentCommandLaunchFacts(
     commandId: command.id,
     handle: command.handle,
     label: command.label,
-    fingerprint,
+    fingerprint: boundFingerprint,
     cwd: derived.cwd,
     cwdReady,
     executable,
@@ -65,14 +69,29 @@ export async function inspectAgentCommandLaunchFacts(
 }
 
 export function executableToken(command: string): string {
+  const span = executableTokenSpan(command);
+  return span ? span.token : "";
+}
+
+/** Replaces only the configured executable token with the canonical file that
+ * readiness just fingerprinted. The rest of the configured argument string is
+ * preserved verbatim, so user-visible command editing stays simple. */
+export function bindResolvedExecutable(command: string, executablePath: string): string {
+  const span = executableTokenSpan(command);
+  if (!span) throw new Error("A configured Command must start with an executable.");
+  return `${command.slice(0, span.from)}${shellQuote(executablePath)}${command.slice(span.to)}`;
+}
+
+function executableTokenSpan(command: string): { token: string; from: number; to: number } | null {
   const input = command.trimStart();
-  if (!input) return "";
+  if (!input) return null;
+  const from = command.length - input.length;
   const quote = input[0] === "\"" || input[0] === "'" ? input[0] : null;
   let token = "";
   for (let index = quote ? 1 : 0; index < input.length; index += 1) {
     const character = input[index];
-    if (quote && character === quote) break;
-    if (!quote && /\s/.test(character)) break;
+    if (quote && character === quote) return { token, from, to: from + index + 1 };
+    if (!quote && /\s/.test(character)) return { token, from, to: from + index };
     if (character === "\\" && quote !== "'") {
       index += 1;
       token += input[index] ?? "";
@@ -80,7 +99,7 @@ export function executableToken(command: string): string {
       token += character;
     }
   }
-  return token;
+  return quote ? null : { token, from, to: command.length };
 }
 
 async function directoryExists(target: string): Promise<boolean> {
@@ -95,13 +114,27 @@ async function resolveExecutable(executable: string, cwd: string, pathValue: str
   if (!executable) return null;
   if (executable.includes(path.sep)) {
     const candidate = path.isAbsolute(executable) ? executable : path.resolve(cwd, executable);
-    return await executableFile(candidate) ? candidate : null;
+    return await executableFile(candidate) ? realpath(candidate) : null;
   }
   for (const directory of (pathValue ?? "").split(path.delimiter).filter(Boolean)) {
     const candidate = path.join(directory, executable);
-    if (await executableFile(candidate)) return candidate;
+    if (await executableFile(candidate)) return realpath(candidate);
   }
   return null;
+}
+
+async function executableLaunchFingerprint(command: AgentCommand, executablePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  for await (const chunk of createReadStream(executablePath)) hash.update(chunk);
+  return createHash("sha256").update(JSON.stringify({
+    configuration: agentCommandExecutableFingerprint(command),
+    executablePath,
+    executableSha256: hash.digest("hex"),
+  })).digest("hex");
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\"'\"")}'`;
 }
 
 async function executableFile(target: string): Promise<boolean> {

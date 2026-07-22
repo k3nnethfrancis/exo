@@ -17,6 +17,26 @@ import {
 } from "../workspace-settings";
 
 describe("workspace settings registry", () => {
+  it("normalizes legacy multi-root settings to one wiki and keeps its contained index roots only", () => {
+    const settings = normalizeWorkspaceSettings({
+      workspaceRoot: "/tmp/exo-one-wiki",
+      defaultTerminalCwd: "/tmp/exo-one-wiki",
+      noteRoots: ["/tmp/exo-one-wiki/notes", "/tmp/exo-one-wiki/other-notes"],
+      indexedRoots: [
+        { id: "notes", label: "notes", path: "/tmp/exo-one-wiki/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" },
+        { id: "nested", label: "nested", path: "/tmp/exo-one-wiki/notes/docs", kind: "docs", pattern: "**/*.md", ignore: [], backend: "qmd" },
+        { id: "other", label: "other", path: "/tmp/exo-one-wiki/other-notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" },
+      ],
+      indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
+    });
+
+    expect(settings?.noteRoots).toEqual(["/tmp/exo-one-wiki/notes"]);
+    expect(settings?.indexedRoots.map((root) => root.path)).toEqual([
+      "/tmp/exo-one-wiki/notes",
+      "/tmp/exo-one-wiki/notes/docs",
+    ]);
+  });
+
   it("migrates legacy active QMD settings and off settings to an explicit search engine", () => {
     const base = {
       workspaceRoot: "/tmp/exo-search-engine",
@@ -98,7 +118,7 @@ describe("workspace settings registry", () => {
       await writeFile(resolveWorkspaceRegistryPath(env), JSON.stringify(registry), { mode: 0o600 });
 
       const loaded = await loadWorkspaceSettings(env);
-      expect(loaded).toMatchObject({ noteRoots: legacySettings.noteRoots, agentCommands: legacySettings.agentCommands, migrationMetadata: legacySettings.migrationMetadata, futureSetting: legacySettings.futureSetting, layout: { ...legacySettings.layout, version: 3 } });
+      expect(loaded).toMatchObject({ noteRoots: [legacySettings.noteRoots[0]], agentCommands: legacySettings.agentCommands, migrationMetadata: legacySettings.migrationMetadata, futureSetting: legacySettings.futureSetting, layout: { ...legacySettings.layout, version: 3 } });
       expect(loaded).not.toHaveProperty("projectRoots");
 
       const persisted = JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8"));
@@ -106,6 +126,8 @@ describe("workspace settings registry", () => {
       expect(persisted).not.toHaveProperty("projectRoots");
       expect(persistedRegistry.workspaces[0].settings).not.toHaveProperty("projectRoots");
       expect(persistedRegistry.workspaces[0].settings.futureSetting).toEqual({ retained: true });
+      expect(persisted.noteRoots).toEqual([legacySettings.noteRoots[0]]);
+      expect(persistedRegistry.workspaces[0].settings.noteRoots).toEqual([legacySettings.noteRoots[0]]);
       for (const key of [
         "terminalHistoryLines", "terminalTranscriptRetention", "terminalTranscriptRetentionDays",
         "terminalInputCoalesceMs", "terminalAgentStartupGraceMs", "terminalAgentSubmitDelayMs",

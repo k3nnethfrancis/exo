@@ -78,6 +78,18 @@ export class WorkspaceNotesService {
     }
   }
 
+  /** Validates an operator-requested file before a command-server response can
+   * claim that Exo opened it.  This shares the same root and symlink boundary
+   * as every other workspace read. */
+  async authorizeOpenFile(filePath: string): Promise<string> {
+    const authorizedPath = await this.workspaceFiles().existing(filePath);
+    const fileStat = await stat(authorizedPath);
+    if (!fileStat.isFile()) {
+      throw new Error("Exo can only open an existing file inside the active wiki.");
+    }
+    return authorizedPath;
+  }
+
   async searchFilenames(query: string): Promise<WorkspaceSearchResults> {
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) {

@@ -21,7 +21,8 @@ See [[Graph work]].
 This creates one Concept for the Markdown file. The first H1 may supply its
 label, but it is not another Concept. `[[Graph work]]` resolves to the one
 Concept for that target file; every other link to it joins the same target.
-Tags are shared tag Concepts. Frontmatter is preserved as Properties. In this
+Tags are shared tag Concepts in the semantic graph; the default spatial view
+groups tagged Notes rather than drawing tag hubs. Frontmatter is preserved as Properties. In this
 example `type: project` classifies the same Note; it does not create a
 `project` Concept or a relation by itself.
 

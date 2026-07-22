@@ -32,8 +32,7 @@ export class AgentCommandTrustStore {
     private readonly workspaceRoot: string,
   ) {}
 
-  async status(command: AgentCommand): Promise<AgentCommandTrustStatus> {
-    const executableFingerprint = agentCommandExecutableFingerprint(command);
+  async status(command: AgentCommand, executableFingerprint = agentCommandExecutableFingerprint(command)): Promise<AgentCommandTrustStatus> {
     const data = await this.read();
     const trustedCommand = data.trustedCommands.find(
       (entry) =>
@@ -49,8 +48,11 @@ export class AgentCommandTrustStore {
     };
   }
 
-  async trust(command: AgentCommand, trustedAt = new Date().toISOString()): Promise<TrustedAgentCommand> {
-    const executableFingerprint = agentCommandExecutableFingerprint(command);
+  async trust(
+    command: AgentCommand,
+    trustedAt = new Date().toISOString(),
+    executableFingerprint = agentCommandExecutableFingerprint(command),
+  ): Promise<TrustedAgentCommand> {
     const data = await this.read();
     const trustedCommand: TrustedAgentCommand = {
       workspaceRoot: this.workspaceRoot,

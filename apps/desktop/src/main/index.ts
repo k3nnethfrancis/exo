@@ -100,8 +100,9 @@ function createCommandServer() {
   return new CommandServer({
     runtimeRoot,
     onShowWindow: () => appLifecycle.showMainWindow(),
-    onOpenFile: (filePath: string) => {
-      sendToRenderer("command:open-file", filePath);
+    onOpenFile: async (filePath: string) => {
+      const authorizedPath = await workspaceNotesService.authorizeOpenFile(filePath);
+      sendToRenderer("command:open-file", authorizedPath);
     },
     onIndexSearch: (query, options) => indexingService.search(query, options),
     onIndexStatus: () => indexingService.getMeasuredStatus(),

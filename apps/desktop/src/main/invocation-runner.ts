@@ -35,7 +35,7 @@ import { commandForClaudeResume as buildClaudeResumeCommand } from "@exo/core/pr
 
 import type { TerminalSessionInfo } from "../shared/api";
 import type { AgentCommandContinuityStatus, AgentCommandLaunchFacts, AgentInvocationAuthorizationFacts } from "../shared/api";
-import { inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
+import { bindResolvedExecutable, inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
 import {
   DirectInvocationProcessFactory,
   terminateOwnedInvocationProcessGroup,
@@ -78,6 +78,7 @@ export interface PreparedInvocation {
   id: string;
   request: InvocationRequest;
   command: AgentCommand;
+  executablePath: string;
   cwd: string;
   workspaceRoot: string;
   noteRoots: string[];
@@ -215,7 +216,7 @@ export class InvocationRunner extends EventEmitter {
       message: request.message,
       continuity: { policy: command.continuityPolicy, outcome: "fresh" },
       promptDelivery: command.promptDelivery,
-      command: agentCommandSnapshot(command), cwd, createdAt: now,
+      command: { ...agentCommandSnapshot(command), executableFingerprint: facts.fingerprint }, cwd, createdAt: now,
     };
     let before = request.context === "note" ? await snapshotTextFile(request.documentPath!) : undefined;
     let cleanBaseContent: string | undefined;
@@ -263,6 +264,7 @@ export class InvocationRunner extends EventEmitter {
       id,
       request,
       command,
+      executablePath: facts.executablePath!,
       cwd,
       workspaceRoot: settings.workspaceRoot,
       noteRoots: [...settings.noteRoots],
@@ -279,11 +281,11 @@ export class InvocationRunner extends EventEmitter {
     authorization: InvocationAuthorization,
   ): Promise<InvocationStartResult> {
     const store = new InvocationStore(prepared.workspaceRoot);
-    this.assertAuthorizationCurrent(prepared, authorization.expectedFingerprint);
+    const launchFacts = await this.assertAuthorizationCurrent(prepared, authorization.expectedFingerprint);
     if (authorization.decision.kind === "always-allow") {
-      await new AgentCommandTrustStore(this.options.trustStateRoot, prepared.workspaceRoot).trust(prepared.command);
+      await new AgentCommandTrustStore(this.options.trustStateRoot, prepared.workspaceRoot).trust(prepared.command, undefined, launchFacts.fingerprint);
     } else if (authorization.decision.kind === "trusted") {
-      const trust = await new AgentCommandTrustStore(this.options.trustStateRoot, prepared.workspaceRoot).status(prepared.command);
+      const trust = await new AgentCommandTrustStore(this.options.trustStateRoot, prepared.workspaceRoot).status(prepared.command, launchFacts.fingerprint);
       if (!trust.trusted) throw new InvocationRunnerError("untrusted", `AgentCommand @${prepared.command.handle} must be trusted before launch.`, { handle: prepared.command.handle });
     }
     const continuityLockKey = prepared.continuityLane
@@ -416,7 +418,7 @@ export class InvocationRunner extends EventEmitter {
       const launchHeadless = async (head: InvocationConversationHead | null, fallback: boolean): Promise<void> => {
         const activityAdapter = new InvocationActivityAdapter(prepared.command.adapter);
         invocationProcess = (this.options.invocationProcessFactory ?? new DirectInvocationProcessFactory()).launch({
-          command: buildHeadlessInvocationCommand(prepared.command, head),
+          command: bindResolvedExecutable(buildHeadlessInvocationCommand(prepared.command, head), launchFacts.executablePath!),
           cwd: prepared.cwd,
           env: globalThis.process.env,
         });
@@ -466,7 +468,10 @@ export class InvocationRunner extends EventEmitter {
       if (prepared.request.context === "note") {
         await launchHeadless(continuityHead, false);
       } else {
-        terminal = await this.options.terminalManager.createAgentCommand(prepared.command, prepared.cwd);
+        terminal = await this.options.terminalManager.createAgentCommand({
+          ...prepared.command,
+          command: bindResolvedExecutable(prepared.command.command, launchFacts.executablePath!),
+        }, prepared.cwd);
         const delivered = await this.options.terminalManager.sendMessage(terminal.id, prompt, true);
         if (!delivered.ok) throw new InvocationRunnerError("prompt-delivery-failed", "Agent prompt could not be delivered.");
       }
@@ -564,7 +569,7 @@ export class InvocationRunner extends EventEmitter {
       workspaceRoot: settings.workspaceRoot,
       documentPath,
     });
-    const trust = await new AgentCommandTrustStore(this.options.trustStateRoot, settings.workspaceRoot).status(command);
+    const trust = await new AgentCommandTrustStore(this.options.trustStateRoot, settings.workspaceRoot).status(command, facts.fingerprint);
     return { ...facts, command, trusted: trust.trusted };
   }
 
@@ -618,7 +623,9 @@ export class InvocationRunner extends EventEmitter {
   async getCommandTrust(handleInput: string) {
     const settings = this.options.getWorkspaceSettings();
     const command = this.resolveCommand(settings, handleInput);
-    return new AgentCommandTrustStore(this.options.trustStateRoot, settings.workspaceRoot).status(command);
+    const facts = await inspectAgentCommandLaunchFacts(command, { kind: "cli", workspaceRoot: settings.workspaceRoot });
+    const trust = await new AgentCommandTrustStore(this.options.trustStateRoot, settings.workspaceRoot).status(command, facts.fingerprint);
+    return facts.launchable ? trust : { ...trust, trusted: false };
   }
 
   async resetCommandTrust(handleInput: string): Promise<{ revoked: boolean }> {
@@ -908,7 +915,14 @@ export class InvocationRunner extends EventEmitter {
       const changeset = buildInvocationChangeset(launch, settled);
       const missingDurableResponse = status === "process-exited" &&
         isDocumentAgentProtocolId(observation.record.protocolInvocationId) &&
-        !await hasDurableResponse(store, id, settled, observation.record.protocolInvocationId, observation.record.command.handle);
+        !await hasDurableResponse(
+          store,
+          id,
+          settled,
+          observation.record.taggedDocumentPath,
+          observation.record.protocolInvocationId,
+          observation.record.command.handle,
+        );
       const settledStatus = missingDurableResponse ? "failed" : status;
       const settledFailureReason = missingDurableResponse
         ? `@${observation.record.command.handle} finished without writing its linked response into the note.`
@@ -1161,8 +1175,8 @@ export class InvocationRunner extends EventEmitter {
     return command;
   }
 
-  private assertAuthorizationCurrent(prepared: PreparedInvocation, expectedFingerprint: string): void {
-    const preparedFingerprint = agentCommandExecutableFingerprint(prepared.command);
+  private async assertAuthorizationCurrent(prepared: PreparedInvocation, expectedFingerprint: string): Promise<AgentCommandLaunchFacts> {
+    const preparedFingerprint = prepared.pending.command.executableFingerprint;
     if (expectedFingerprint !== preparedFingerprint) {
       throw new InvocationRunnerError(
         "fingerprint-drift",
@@ -1177,12 +1191,16 @@ export class InvocationRunner extends EventEmitter {
       );
     }
     const current = this.resolveCommand(settings, prepared.command.handle);
-    if (agentCommandExecutableFingerprint(current) !== expectedFingerprint) {
+    const facts = await inspectAgentCommandLaunchFacts(current, prepared.request.context === "note"
+      ? { kind: "note", workspaceRoot: prepared.workspaceRoot, documentPath: prepared.request.documentPath! }
+      : { kind: "cli", workspaceRoot: prepared.workspaceRoot });
+    if (!facts.launchable || facts.fingerprint !== expectedFingerprint) {
       throw new InvocationRunnerError(
         "fingerprint-drift",
         `Command @${prepared.command.handle} changed after confirmation. Review it and try again.`,
       );
     }
+    return facts;
   }
 }
 
@@ -1239,17 +1257,40 @@ async function hasDurableResponse(
   store: InvocationStore,
   invocationId: string,
   manifest: InvocationWorkspaceManifest,
+  taggedDocumentPath: string | undefined,
   protocolInvocationId: string,
   handle: string,
 ): Promise<boolean> {
-  for (const state of Object.values(manifest.files)) {
-    if (state.mediaType !== "text") continue;
-    const bytes = await store.readSnapshot(invocationId, state);
-    if (!bytes) continue;
-    if (findDocumentAgentEnvelopes(bytes.toString("utf8")).some((envelope) =>
-      envelope.kind === "response" && envelope.invocationId === protocolInvocationId && envelope.agent === handle)) return true;
+  if (!taggedDocumentPath) return false;
+  // Invocation manifests use canonical file identities; the record retains
+  // the user-facing path captured at compose time (which may traverse /var on
+  // macOS). Resolve once, then inspect that one immutable document only.
+  let canonicalDocumentPath: string;
+  try {
+    canonicalDocumentPath = await realpath(taggedDocumentPath);
+  } catch {
+    return false;
   }
-  return false;
+  const state = manifest.files[canonicalDocumentPath];
+  if (!state || state.mediaType !== "text") return false;
+  const bytes = await store.readSnapshot(invocationId, state);
+  if (!bytes) return false;
+
+  const envelopes = findDocumentAgentEnvelopes(bytes.toString("utf8"));
+  const invocation = envelopes.find((envelope) =>
+    envelope.kind === "invocation" &&
+    envelope.id === protocolInvocationId &&
+    envelope.agent === handle,
+  );
+  if (!invocation) return false;
+  return envelopes.some((envelope) =>
+    envelope.kind === "response" &&
+    envelope.invocationId === protocolInvocationId &&
+    envelope.agent === handle &&
+    // The response belongs to this exact request, not a similarly named
+    // envelope elsewhere in the document or workspace.
+    envelope.from === invocation.to + 1,
+  );
 }
 
 function reviewListItem(record: InvocationRecord): InvocationReviewListItem {

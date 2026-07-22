@@ -4,6 +4,10 @@ status: accepted
 
 # Keep an ontology library user-owned and activate one interpretation at a time
 
+**Implementation status: planned, not shipped.** The current release supports
+one reviewed root `ontology.yaml`; this ADR records the accepted library and
+selection direction before its user-facing implementation begins.
+
 The first Workspace Ontology foundation reads one user-owned
 `<Workspace Root>/ontology.yaml` as a Candidate and stores the exact kept
 source under `.exo/ontology/activation.json`. That is sufficient for one

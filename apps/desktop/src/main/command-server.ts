@@ -20,7 +20,7 @@ import { InvocationRunnerError, type InvocationResult } from "./invocation-runne
 export interface CommandServerOptions {
   runtimeRoot: string;
   onShowWindow: () => void;
-  onOpenFile: (filePath: string) => void;
+  onOpenFile: (filePath: string) => Promise<void>;
   onIndexSearch: (query: string, options: { limit?: number; offset?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
   onIndexStatus: () => Promise<IndexStatus>;
   onIndexSync: () => Promise<IndexSyncResult>;
@@ -146,7 +146,12 @@ export class CommandServer {
           json(res, { error: "Missing path in body" }, 400);
           return;
         }
-        this.options.onOpenFile(filePath);
+        try {
+          await this.options.onOpenFile(filePath);
+        } catch (error) {
+          json(res, { error: error instanceof Error ? error.message : String(error) }, 400);
+          return;
+        }
         json(res, { ok: true });
         return;
       }
