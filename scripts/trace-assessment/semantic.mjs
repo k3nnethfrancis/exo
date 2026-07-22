@@ -13,7 +13,9 @@ export async function calculateSemanticAlignment(runs, embed, options = {}) {
     provider: run.provider,
     features: semanticFeatures(run.response),
   }));
-  const texts = [...new Set(runFeatures.flatMap((run) => run.features.map((feature) => feature.value)))];
+  const featureTexts = runFeatures.flatMap((run) => run.features.map((feature) => feature.value));
+  const tokenTexts = featureTexts.flatMap(tokenize);
+  const texts = [...new Set([...featureTexts, ...tokenTexts])];
   const vectors = texts.length === 0 ? [] : await embed(texts);
   if (vectors.length !== texts.length) {
     throw new Error(`Sentence transformer returned ${vectors.length} vectors for ${texts.length} texts`);
@@ -23,13 +25,44 @@ export async function calculateSemanticAlignment(runs, embed, options = {}) {
     for (const feature of run.features) feature.vector = byText.get(feature.value);
   }
 
-  return {
+  const alignment = {
     model: options.model ?? 'sentence-transformer',
     featureScope: featureCategories.map(([kind]) => kind),
     overall: summarizePairs(runFeatures),
     claude: summarizePairs(runFeatures.filter((run) => run.provider === 'claude')),
     codex: summarizePairs(runFeatures.filter((run) => run.provider === 'codex')),
     crossProvider: summarizePairs(runFeatures, (left, right) => left.provider !== right.provider),
+  };
+  for (const cohort of ['overall', 'claude', 'codex', 'crossProvider']) {
+    alignment[cohort] = addTokenAlignments(alignment[cohort], byText);
+  }
+  return alignment;
+}
+
+function addTokenAlignments(summary, byText) {
+  return {
+    ...summary,
+    matches: summary.matches.map((match) => ({
+      ...match,
+      tokenAlignment: compareTokens(match.left, match.right, byText),
+    })),
+  };
+}
+
+function compareTokens(leftText, rightText, byText) {
+  const left = tokenize(leftText);
+  const right = tokenize(rightText);
+  const matrix = left.map((leftToken) => right.map((rightToken) => cosine(byText.get(leftToken), byText.get(rightToken))));
+  const bestLeft = matrix.map((row) => row.length === 0 ? 0 : Math.max(...row));
+  const bestRight = right.map((_, rightIndex) => {
+    const column = matrix.map((row) => row[rightIndex]);
+    return column.length === 0 ? 0 : Math.max(...column);
+  });
+  return {
+    left,
+    right,
+    matrix,
+    symmetricMean: mean([...bestLeft, ...bestRight]),
   };
 }
 
@@ -129,6 +162,10 @@ function lexicalSignature(value) {
     .filter(Boolean)
     .sort()
     .join(' ');
+}
+
+function tokenize(value) {
+  return value.match(/[\p{L}\p{N}]+/gu) ?? [];
 }
 
 function normalizeVector(vector) {

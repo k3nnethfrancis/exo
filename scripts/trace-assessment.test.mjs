@@ -27,6 +27,8 @@ test('semantic alignment gives equivalent ontology language partial credit', asy
     ['person', [1, 0, 0]], ['human', [.98, .2, 0]],
     ['literature review', [0, 1, 0]], ['lit review', [.1, .99, 0]],
     ['member of', [0, 0, 1]], ['belongs to', [0, .1, .99]],
+    ['literature', [0, 1, 0]], ['lit', [.1, .99, 0]], ['review', [0, 1, 0]],
+    ['member', [0, 0, 1]], ['of', [0, 0, .9]], ['belongs', [0, .1, .99]], ['to', [0, 0, .9]],
   ]);
 
   const alignment = await calculateSemanticAlignment(
@@ -43,6 +45,10 @@ test('semantic alignment gives equivalent ontology language partial credit', asy
     ['type', 'lit review', 'literature review'],
     ['type', 'human', 'person'],
   ]);
+  const humanPerson = alignment.crossProvider.matches.find((match) => match.left === 'human' && match.right === 'person');
+  assert.deepEqual(humanPerson?.tokenAlignment.left, ['human']);
+  assert.deepEqual(humanPerson?.tokenAlignment.right, ['person']);
+  assert.equal(humanPerson?.tokenAlignment.matrix[0]?.[0] > .97, true);
 });
 
 test('semantic alignment never matches different ontology feature kinds', async () => {
@@ -63,7 +69,7 @@ test('semantic match explanations omit punctuation-only and word-order variants'
     semanticRun('codex-01', 'codex', { properties: ['authors:string[]'], pathDefaults: ['logs/daily/** > daily log'] }),
   ];
 
-  const alignment = await calculateSemanticAlignment(runs, async () => [[1, 0], [0, 1], [1, 0], [0, 1]]);
+  const alignment = await calculateSemanticAlignment(runs, async (texts) => texts.map((text) => text.includes('author') ? [1, 0] : [0, 1]));
 
   assert.deepEqual(alignment.crossProvider.matches, []);
 });
@@ -185,7 +191,10 @@ test('mini trace assessment runs fresh Claude and Codex sessions without changin
     codex: { pairwiseMeanSimilarity: .69 },
     crossProvider: {
       pairwiseMeanSimilarity: .71,
-      matches: [{ kind: 'type', left: 'human', right: 'person', similarity: .91 }],
+      matches: [{
+        kind: 'type', left: 'human', right: 'person', similarity: .91,
+        tokenAlignment: { left: ['human'], right: ['person'], matrix: [[.76]], symmetricMean: .76 },
+      }],
     },
   };
   const semanticDashboard = renderDashboard(assessment);
@@ -193,6 +202,7 @@ test('mini trace assessment runs fresh Claude and Codex sessions without changin
   assert.match(semanticDashboard, /human/);
   assert.match(semanticDashboard, /person/);
   assert.match(semanticDashboard, /all-MiniLM-L6-v2/);
+  assert.match(semanticDashboard, /Token alignment/);
 });
 
 test('mini trace assessment stops before the next run when a harness changes the workspace', async () => {
