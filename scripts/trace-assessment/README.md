@@ -23,3 +23,16 @@ Only the generator and response schema belong in this repository.
 
 Agreement values describe run-to-run stability. They do not decide whether the
 Skill is good. The person reviewing the dashboard is the exit gate.
+
+Add local sentence-transformer similarity after the runs complete:
+
+```bash
+pnpm trace:semantic -- --assessment /tmp/ontology-traces/assessment.json
+```
+
+This downloads and runs `sentence-transformers/all-MiniLM-L6-v2` through an
+ephemeral `uv` environment. It compares types with types, properties with
+properties, and so on; outcomes and evidence paths are excluded. The dashboard
+keeps exact overlap and semantic alignment separate because neither is a quality
+score. Semantic matches are shown directly so reviewers can inspect why the
+score moved.

@@ -5,8 +5,102 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import { renderDashboard } from './trace-assessment/dashboard.mjs';
+import { enrichSemanticAssessment } from './trace-assessment/semantic-enrichment.mjs';
+import { calculateSemanticAlignment } from './trace-assessment/semantic.mjs';
+
 const repoRoot = path.resolve(import.meta.dirname, '..');
 const cliPath = path.join(repoRoot, 'scripts', 'trace-assessment', 'cli.mjs');
+
+test('semantic alignment gives equivalent ontology language partial credit', async () => {
+  const runs = [
+    semanticRun('claude-01', 'claude', {
+      conceptTypes: ['person', 'literature review'],
+      relations: ['member of'],
+    }),
+    semanticRun('codex-01', 'codex', {
+      conceptTypes: ['human', 'lit review'],
+      relations: ['belongs to'],
+    }),
+  ];
+  const vectors = new Map([
+    ['person', [1, 0, 0]], ['human', [.98, .2, 0]],
+    ['literature review', [0, 1, 0]], ['lit review', [.1, .99, 0]],
+    ['member of', [0, 0, 1]], ['belongs to', [0, .1, .99]],
+  ]);
+
+  const alignment = await calculateSemanticAlignment(
+    runs,
+    async (texts) => texts.map((text) => vectors.get(text)),
+    { model: 'fixture-embeddings' },
+  );
+
+  assert.equal(alignment.model, 'fixture-embeddings');
+  assert.equal(alignment.overall.pairCount, 1);
+  assert.equal(alignment.overall.pairwiseMeanSimilarity > .97, true);
+  assert.deepEqual(alignment.crossProvider.matches.map((match) => [match.kind, match.left, match.right]), [
+    ['relation', 'belongs to', 'member of'],
+    ['type', 'lit review', 'literature review'],
+    ['type', 'human', 'person'],
+  ]);
+});
+
+test('semantic alignment never matches different ontology feature kinds', async () => {
+  const runs = [
+    semanticRun('claude-01', 'claude', { conceptTypes: ['person'] }),
+    semanticRun('codex-01', 'codex', { properties: ['human'] }),
+  ];
+
+  const alignment = await calculateSemanticAlignment(runs, async () => [[1, 0], [1, 0]]);
+
+  assert.equal(alignment.overall.pairwiseMeanSimilarity, 0);
+  assert.deepEqual(alignment.overall.matches, []);
+});
+
+test('semantic match explanations omit punctuation-only and word-order variants', async () => {
+  const runs = [
+    semanticRun('claude-01', 'claude', { properties: ['authors: string[]'], pathDefaults: ['daily log > logs/daily/**'] }),
+    semanticRun('codex-01', 'codex', { properties: ['authors:string[]'], pathDefaults: ['logs/daily/** > daily log'] }),
+  ];
+
+  const alignment = await calculateSemanticAlignment(runs, async () => [[1, 0], [0, 1], [1, 0], [0, 1]]);
+
+  assert.deepEqual(alignment.crossProvider.matches, []);
+});
+
+test('semantic enrichment adds model-backed alignment without changing run records', async () => {
+  const runs = [
+    semanticRun('claude-01', 'claude', { conceptTypes: ['person'] }),
+    semanticRun('codex-01', 'codex', { conceptTypes: ['human'] }),
+  ];
+  const assessment = { runs };
+  const enriched = await enrichSemanticAssessment(assessment, {
+    model: 'fixture-model',
+    embed: async () => [[1, 0], [.9, .1]],
+  });
+
+  assert.equal(enriched.runs, runs);
+  assert.equal(enriched.semanticAlignment.model, 'fixture-model');
+  assert.equal(enriched.semanticAlignment.overall.pairwiseMeanSimilarity > .99, true);
+  assert.equal(assessment.semanticAlignment, undefined);
+});
+
+function semanticRun(id, provider, features) {
+  return {
+    id,
+    provider,
+    status: 'completed',
+    response: {
+      features: {
+        conceptTypes: features.conceptTypes ?? [],
+        properties: features.properties ?? [],
+        relations: features.relations ?? [],
+        pathDefaults: features.pathDefaults ?? [],
+        validationRules: features.validationRules ?? [],
+      },
+    },
+  };
+}
 
 test('mini trace assessment runs fresh Claude and Codex sessions without changing the workspace', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'exo-trace-assessment-'));
@@ -83,6 +177,22 @@ test('mini trace assessment runs fresh Claude and Codex sessions without changin
   assert.match(dashboard, /compare-left/);
   assert.match(dashboard, /compare-right/);
   assert.match(dashboard, /Feature frequency/);
+
+  assessment.semanticAlignment = {
+    model: 'sentence-transformers/all-MiniLM-L6-v2',
+    overall: { pairwiseMeanSimilarity: .72 },
+    claude: { pairwiseMeanSimilarity: .75 },
+    codex: { pairwiseMeanSimilarity: .69 },
+    crossProvider: {
+      pairwiseMeanSimilarity: .71,
+      matches: [{ kind: 'type', left: 'human', right: 'person', similarity: .91 }],
+    },
+  };
+  const semanticDashboard = renderDashboard(assessment);
+  assert.match(semanticDashboard, /Semantic alignment/);
+  assert.match(semanticDashboard, /human/);
+  assert.match(semanticDashboard, /person/);
+  assert.match(semanticDashboard, /all-MiniLM-L6-v2/);
 });
 
 test('mini trace assessment stops before the next run when a harness changes the workspace', async () => {
