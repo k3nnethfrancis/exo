@@ -45,9 +45,18 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
   Claude subscription authentication. All ten fresh sessions completed, the
   1,866-file source manifest remained byte-identical, and the private local
   dashboard was generated at `/tmp/exo-ontology-vault-study-2026-07-21`.
-- [ ] Kenneth reviews that dashboard and alone decides whether ontology
-  discovery proceeds. Do not add a corpus, judge, threshold, or synthetic eval
-  before this review exposes concrete failure modes.
+- [x] Kenneth reviewed the private dashboard and approved moving forward with
+  a review-first ontology-discovery product slice. The study remains
+  exploratory: do not add a corpus, judge, threshold, or synthetic eval before
+  real product traces expose concrete failure modes.
+- [ ] Productize optional ontology discovery after configured Command setup:
+  read-only agent proposal, host-staged candidate YAML, editable review,
+  qualitative before/after graph comparison, and explicit Keep/Reject. Keep
+  the base Markdown graph intact; note migration is a separate reviewed action.
+- [ ] Design a user-owned ontology library with one active interpretation at a
+  time plus Generic Markdown as no-ontology. Do not overload the internal
+  Note Root Format/`KnowledgeProfile` compatibility seam or claim profile
+  switching is already shipped.
 
 ## Loop 01 architectural ruling — 2026-07-12
 
