@@ -46,6 +46,8 @@ test('semantic alignment gives equivalent ontology language partial credit', asy
     ['type', 'human', 'person'],
   ]);
   const humanPerson = alignment.crossProvider.matches.find((match) => match.left === 'human' && match.right === 'person');
+  assert.equal(humanPerson?.pairSupport, 1);
+  assert.equal(humanPerson?.runSupport, 2);
   assert.deepEqual(humanPerson?.tokenAlignment.left, ['human']);
   assert.deepEqual(humanPerson?.tokenAlignment.right, ['person']);
   assert.equal(humanPerson?.tokenAlignment.matrix[0]?.[0] > .97, true);
@@ -61,6 +63,25 @@ test('semantic alignment never matches different ontology feature kinds', async 
 
   assert.equal(alignment.overall.pairwiseMeanSimilarity, 0);
   assert.deepEqual(alignment.overall.matches, []);
+});
+
+test('semantic matches report recurrence across run pairs', async () => {
+  const runs = [
+    semanticRun('claude-01', 'claude', { conceptTypes: ['person'] }),
+    semanticRun('claude-02', 'claude', { conceptTypes: ['person'] }),
+    semanticRun('codex-01', 'codex', { conceptTypes: ['human'] }),
+    semanticRun('codex-02', 'codex', { conceptTypes: ['human'] }),
+  ];
+  const alignment = await calculateSemanticAlignment(
+    runs,
+    async (texts) => texts.map((text) => text === 'person' ? [1, 0] : [.98, .2]),
+  );
+
+  const match = alignment.crossProvider.matches.find((candidate) => candidate.left === 'human' && candidate.right === 'person');
+  assert.equal(alignment.crossProvider.pairCount, 4);
+  assert.equal(match?.pairSupport, 4);
+  assert.equal(match?.pairRate, 1);
+  assert.equal(match?.runSupport, 4);
 });
 
 test('semantic match explanations omit punctuation-only and word-order variants', async () => {
@@ -193,12 +214,17 @@ test('mini trace assessment runs fresh Claude and Codex sessions without changin
       pairwiseMeanSimilarity: .71,
       matches: [{
         kind: 'type', left: 'human', right: 'person', similarity: .91,
+        pairSupport: 4, pairRate: 1, runSupport: 4, runIds: ['claude-01', 'claude-02', 'codex-01', 'codex-02'],
         tokenAlignment: { left: ['human'], right: ['person'], matrix: [[.76]], symmetricMean: .76 },
       }],
+      pairCount: 4,
+      runCount: 4,
     },
   };
   const semanticDashboard = renderDashboard(assessment);
   assert.match(semanticDashboard, /Semantic alignment/);
+  assert.match(semanticDashboard, /Candidate aliases/);
+  assert.match(semanticDashboard, /4\/4 run pairs · 4\/4 runs/);
   assert.match(semanticDashboard, /human/);
   assert.match(semanticDashboard, /person/);
   assert.match(semanticDashboard, /all-MiniLM-L6-v2/);

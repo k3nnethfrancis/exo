@@ -80,7 +80,7 @@ function summarizePairs(runs, includePair = () => true) {
       });
     }
   }
-  const matches = deduplicateMatches(pairs.flatMap((pair) => pair.matches));
+  const matches = aggregateMatches(pairs);
   return {
     runCount: runs.length,
     pairCount: pairs.length,
@@ -88,6 +88,34 @@ function summarizePairs(runs, includePair = () => true) {
     matches,
     pairs,
   };
+}
+
+function aggregateMatches(pairs) {
+  const unique = new Map();
+  for (const pair of pairs) {
+    for (const match of pair.matches) {
+      const key = `${match.kind}\0${match.left}\0${match.right}`;
+      const current = unique.get(key) ?? {
+        ...match,
+        pairSupport: 0,
+        runIds: new Set(),
+      };
+      current.similarity = Math.max(current.similarity, match.similarity);
+      current.pairSupport += 1;
+      current.runIds.add(pair.left);
+      current.runIds.add(pair.right);
+      unique.set(key, current);
+    }
+  }
+  return [...unique.values()].map(({ runIds, ...match }) => ({
+    ...match,
+    pairRate: pairs.length === 0 ? 0 : match.pairSupport / pairs.length,
+    runSupport: runIds.size,
+    runIds: [...runIds].sort(),
+  })).sort((left, right) => right.pairSupport - left.pairSupport
+    || right.similarity - left.similarity
+    || left.kind.localeCompare(right.kind)
+    || left.left.localeCompare(right.left));
 }
 
 function compareFeatureSets(left, right) {

@@ -34,5 +34,9 @@ This downloads and runs `sentence-transformers/all-MiniLM-L6-v2` through an
 ephemeral `uv` environment. It compares types with types, properties with
 properties, and so on; outcomes and evidence paths are excluded. The dashboard
 keeps exact overlap and semantic alignment separate because neither is a quality
-score. Semantic matches are shown directly so reviewers can inspect why the
-score moved.
+score. The overview shows recurring, thresholded alias candidates for atomic
+Type and Property identifiers. Run-pair and run support stay visible beside the
+embedding score; paths, validation bodies, and other structural statements are
+not presented as aliases. Expanding a candidate reveals independently embedded
+token comparisons for calibration. Candidates remain review suggestions and
+never mutate or merge an Ontology automatically.

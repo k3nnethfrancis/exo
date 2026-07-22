@@ -86,6 +86,20 @@ Return the schema-bound response supplied by the caller:
 
 Use stable, portable identifiers. Never expose absolute paths.
 
+Feature lists are comparison keys, not prose summaries. Keep them atomic and
+copy identifiers exactly from `candidateSource`:
+
+- `conceptTypes`: only keys under `types`;
+- `properties`: only keys under `properties`;
+- `relations`: only Property keys that declare a `predicate`;
+- `pathDefaults`: one `type-id:path-glob` entry per configured path;
+- `validationRules`: only each Rule's exact `id`.
+
+Identifiers should be short, singular kebab-case nouns or noun phrases. Human
+labels should be concise noun phrases. Never append paths, value types,
+explanations, evidence, or rule bodies to an identifier. Those details already
+have structured homes in `candidateSource` and `evidence`.
+
 ## Boundaries
 
 - Do not write, edit, move, rename, or delete any file.
