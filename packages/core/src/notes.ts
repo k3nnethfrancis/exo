@@ -67,8 +67,18 @@ export async function saveWorkspaceDocument(
     frontmatter.date instanceof Date && !Number.isNaN(frontmatter.date.getTime())
       ? { ...frontmatter, date: frontmatter.date.toISOString().slice(0, 10) }
       : frontmatter;
-  const serialized = matter.stringify(body, serializedFrontmatter);
+  const serialized = preserveTrailingNewline(body, matter.stringify(body, serializedFrontmatter));
   await writeFile(filePath, serialized, "utf8");
+}
+
+/**
+ * gray-matter helpfully adds a final newline during serialization. That is a
+ * formatting change, not an editor edit: preserving the source body avoids a
+ * later file-watch refresh inserting a newline that the person never typed.
+ */
+function preserveTrailingNewline(body: string, serialized: string): string {
+  if (body.endsWith("\n") || !serialized.endsWith("\n")) return serialized;
+  return serialized.slice(0, -1);
 }
 
 export function extractWikilinks(body: string): WikilinkReference[] {

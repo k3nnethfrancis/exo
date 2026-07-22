@@ -239,6 +239,8 @@ test("keeps sustained Markdown typing within the input-to-frame-ready budget", a
     // the preceding digit line makes the fixture's intended structure
     // ambiguous and can turn a timing probe into a content-normalization test.
     const deletionFixture = `\n${Array.from({ length: 8 }, (_, index) => `- trusted deletion line ${index}\n`).join("")}`;
+    const bodyBeforeDeletionFixture = await editorBody(page);
+    expect(bodyBeforeDeletionFixture, textMismatchSummary(expectedAfterTyping, bodyBeforeDeletionFixture)).toBe(expectedAfterTyping);
     await page.evaluate((fixture) => {
       const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
       const view = content?.cmView?.view;
@@ -330,7 +332,7 @@ test("keeps sustained Markdown typing within the input-to-frame-ready budget", a
     // 24 ms/character is 41 characters/second: well above human burst typing,
     // while still catching the prior 25-30 ms/character composer churn.
     expect(invocationElapsed / invocationText.length).toBeLessThanOrEqual(24);
-    const expectedInvocationBody = `${expectedAfterTyping}\n@claude ${invocationText}\n`;
+    const expectedInvocationBody = `${expectedAfterTyping}\n@claude ${invocationText}`;
     expect(await editorBody(page)).toBe(expectedInvocationBody);
     await page.keyboard.press(process.platform === "darwin" ? "Meta+s" : "Control+s");
     await expectSavedBody(page, notePath, expectedInvocationBody);
@@ -557,8 +559,13 @@ async function moveEditorCursorToEnd(page: Page): Promise<void> {
 
 async function expectSavedBody(page: Page, notePath: string, expectedBody: string): Promise<void> {
   await expect(page.getByTestId("editor-save-status")).toHaveText("Saved", { timeout: 10_000 });
-  const serializedBody = expectedBody.endsWith("\n") ? expectedBody : `${expectedBody}\n`;
-  await expect.poll(() => readFile(notePath, "utf8"), { timeout: 10_000 }).toBe(serializedBody);
+  await expect.poll(() => readFile(notePath, "utf8"), { timeout: 10_000 }).toBe(expectedBody);
+}
+
+function textMismatchSummary(expected: string, actual: string): string {
+  const firstDifference = Array.from({ length: Math.max(expected.length, actual.length) }, (_, index) => index)
+    .find((index) => expected[index] !== actual[index]) ?? -1;
+  return `editor body changed after a completed save (expected=${expected.length}, actual=${actual.length}, firstDifference=${firstDifference})`;
 }
 
 function expectLatencyBudget(route: string, samples: number[]): void {
@@ -663,7 +670,8 @@ async function installInputToFrameReadyProbe(page: Page): Promise<void> {
     const backspaceSamples: number[] = [];
     const longTasks: number[] = [];
     const editorLiveness: boolean[] = [];
-    document.addEventListener("beforeinput", () => {
+    document.addEventListener("beforeinput", (event) => {
+      if (!(event.target as HTMLElement | null)?.closest?.(".editor-surface .cm-editor")) return;
       const startedAt = performance.now();
       requestAnimationFrame(() => {
         const editor = document.querySelector<HTMLElement>("[data-testid='editor-panel'] .cm-editor");
@@ -701,7 +709,11 @@ async function installInputToFrameReadyProbe(page: Page): Promise<void> {
 }
 
 async function resetInputToFrameReadyProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
+  await page.evaluate(async () => {
+    // Drain rAF callbacks from the preceding interaction before clearing the
+    // sample buffers. Without this, a just-accepted agent completion can be
+    // counted as the first few characters of the measured composer request.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     const scoped = window as typeof window & {
       __exoTypingSamples?: number[];
       __exoBackspaceSamples?: number[];

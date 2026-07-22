@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { extractMarkdownLinks, extractTags, extractWikilinks, noteTitle, readNoteDocument, saveWorkspaceDocument } from "../notes";
+import { extractMarkdownLinks, extractTags, extractWikilinks, noteTitle, readNoteDocument, readWorkspaceDocument, saveWorkspaceDocument } from "../notes";
 
 const fixtureRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/test-workspace/notes/test-notes");
 
@@ -37,6 +37,22 @@ describe("notes", () => {
       await expect(readFile(notePath, "utf8")).resolves.toMatch(
         /date: ['"]?2026-07-11['"]?\nstatus: draft/,
       );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("does not add a final newline that was absent from the Markdown body", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-note-newline-"));
+    const plainPath = path.join(root, "plain.md");
+    const frontmatterPath = path.join(root, "frontmatter.md");
+    try {
+      await saveWorkspaceDocument(plainPath, {}, "Plain body");
+      await saveWorkspaceDocument(frontmatterPath, { status: "draft" }, "Frontmatter body");
+
+      await expect(readFile(plainPath, "utf8")).resolves.toBe("Plain body");
+      const frontmatter = await readWorkspaceDocument(frontmatterPath);
+      expect(frontmatter.body).toBe("Frontmatter body");
     } finally {
       await rm(root, { recursive: true, force: true });
     }
