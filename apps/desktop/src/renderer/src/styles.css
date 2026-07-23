@@ -1721,6 +1721,46 @@ button svg,
   cursor: pointer;
 }
 
+.workspace-migration-notice {
+  position: fixed;
+  z-index: 40;
+  right: 18px;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: min(330px, calc(100vw - 36px));
+  padding: 10px 10px 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--divider) 82%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-elevated) 91%, transparent);
+  box-shadow: 0 10px 30px color-mix(in srgb, #000 18%, transparent);
+  backdrop-filter: blur(18px) saturate(150%);
+  color: var(--text-soft);
+}
+
+.workspace-migration-notice > svg { color: var(--accent); flex: 0 0 auto; }
+.workspace-migration-notice > div { min-width: 0; display: grid; gap: 2px; }
+.workspace-migration-notice strong { color: var(--text); font-size: 12px; line-height: 1.2; }
+.workspace-migration-notice span { font-size: 11px; line-height: 1.35; }
+.workspace-migration-notice button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.workspace-migration-notice button:hover { background: color-mix(in srgb, var(--accent-soft) 55%, transparent); color: var(--text); }
+.workspace-migration-notice button:active { transform: scale(0.96); }
+
+@media (prefers-reduced-transparency: reduce) {
+  .workspace-migration-notice { background: var(--bg-elevated); backdrop-filter: none; }
+}
+
 .spatial-graph__hint,
 .spatial-graph__detail {
   min-width: 0;

@@ -151,6 +151,49 @@ function runGit(cwd: string, args: string[]) {
 
 test.describe.configure({ mode: "parallel" });
 
+test("makes a legacy multi-root migration visible once without touching retired folders", async () => {
+  const fixture = await launchExoWorkspaceFixture({
+    configured: false,
+    expectOnboarding: false,
+    initialNoteLabel: null,
+    workspaceRootEnv: false,
+    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
+      const primaryRoot = path.join(workspaceRoot, "notes/test-notes");
+      const retiredRoot = path.join(workspaceRoot, "projects/sample-project");
+      await writeFile(settingsPath, JSON.stringify({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [primaryRoot, retiredRoot],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        appearanceMode: "dark",
+        colorThemeId: "exo-neutral",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+      }), "utf8");
+    },
+  });
+
+  try {
+    const notice = fixture.page.getByTestId("main-wiki-migration-notice");
+    await expect(notice).toContainText("One main wiki");
+    await expect(notice).toContainText("Other folders were left untouched.");
+    await notice.getByRole("button", { name: "Acknowledge main wiki migration" }).click();
+    await expect(notice).toBeHidden();
+
+    const saved = JSON.parse(await readFile(fixture.settingsPath, "utf8"));
+    expect(saved.noteRoots).toEqual([path.join(fixture.workspaceRoot, "notes/test-notes")]);
+    expect(saved.migrationMetadata.mainWiki).toMatchObject({
+      retiredNoteRoots: [path.join(fixture.workspaceRoot, "projects/sample-project")],
+      acknowledgedAt: expect.any(String),
+    });
+  } finally {
+    await fixture.cleanup();
+  }
+});
 
 test("boots the shell, opens notes, and creates terminals on demand", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();

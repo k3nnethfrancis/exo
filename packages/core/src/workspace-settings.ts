@@ -6,6 +6,9 @@ import path from "node:path";
 import type { IndexMode, LegacyWorkspaceLayoutSettings, WorkspaceCanvasLayoutSettings, WorkspaceLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
 import { normalizeAgentCommands, normalizeAgentInvocationPrompt } from "./agent-invocation";
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
+import { normalizeMigrationMetadata } from "./workspace-migration";
+
+export { acknowledgeMainWikiMigration, pendingMainWikiMigration } from "./workspace-migration";
 
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
 export const DEFAULT_COLOR_THEME_ID: WorkspaceSettings["colorThemeId"] = "exo-neutral";
@@ -67,9 +70,10 @@ export function resolveWorkspaceSettingsTransactionPath(env: NodeJS.ProcessEnv =
 export async function loadWorkspaceSettings(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceSettings | null> {
   await recoverWorkspaceSettingsTransaction(env);
   const settings = await loadWorkspaceSettingsFile(env);
+  const retiredNoteRoots = await legacyAdditionalNoteRootsInPersistence(env);
   const droppedProjectRoots = await legacyProjectRootsInPersistence(env);
   const droppedTerminalSettings = await retiredTerminalSettingsInPersistence(env);
-  if (settings && (droppedProjectRoots.length > 0 || droppedTerminalSettings.length > 0)) {
+  if (settings && (retiredNoteRoots.length > 0 || droppedProjectRoots.length > 0 || droppedTerminalSettings.length > 0)) {
     // Reuse the existing two-file transaction so primary settings and registry
     // snapshots lose the retired authorization atomically.
     await saveWorkspaceSettings(settings, env);
@@ -126,7 +130,11 @@ export async function saveWorkspaceSettings(settings: WorkspaceSettings, env: No
 export async function loadWorkspaceRegistry(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceRegistry> {
   await recoverWorkspaceSettingsTransaction(env);
   const registry = await loadWorkspaceRegistryFile(env);
-  if ((await legacyProjectRootsInPersistence(env)).length > 0 || (await retiredTerminalSettingsInPersistence(env)).length > 0) {
+  if (
+    (await legacyAdditionalNoteRootsInPersistence(env)).length > 0 ||
+    (await legacyProjectRootsInPersistence(env)).length > 0 ||
+    (await retiredTerminalSettingsInPersistence(env)).length > 0
+  ) {
     await writeJsonAtomically(resolveWorkspaceRegistryPath(env), registry);
   }
   return registry;
@@ -318,6 +326,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
   // root and leave the other folders untouched on disk.  Keeping this rule at
   // the persistence boundary ensures the app, CLI, MCP, and index all agree.
   const noteRoots = configuredNoteRoots.slice(0, 1);
+  const retiredNoteRoots = configuredNoteRoots.slice(1);
   const configuredIndexedRoots = Array.isArray(input.indexedRoots)
     ? input.indexedRoots.reduce<WorkspaceSettings["indexedRoots"]>((roots, entry, index) => {
         if (!entry || typeof entry !== "object" || typeof entry.path !== "string" || !entry.path.trim()) {
@@ -373,6 +382,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     terminalIdleThresholdMs: _removedTerminalIdleThresholdMs,
     ...preservedInput
   } = input as Partial<WorkspaceSettings> & Record<string, unknown>;
+  const migrationMetadata = normalizeMigrationMetadata(preservedInput.migrationMetadata, retiredNoteRoots);
   return {
     ...preservedInput,
     workspaceRoot,
@@ -391,6 +401,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     exploreIndexSearchOnEnter: typeof input.exploreIndexSearchOnEnter === "boolean" ? input.exploreIndexSearchOnEnter : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0,
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
     layout: normalizeWorkspaceLayout(input.layout),
+    ...(migrationMetadata ? { migrationMetadata } : {}),
   };
 }
 
@@ -411,6 +422,50 @@ export function legacyProjectRootsFromSettings(input: unknown): string[] {
     return [];
   }
   return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim());
+}
+
+/** Extra note roots belong to older multi-wiki Workspaces. The first root is
+ * retained as the main wiki; remaining roots are recorded for the one-time
+ * migration notice before the durable settings snapshot is rewritten. */
+export function legacyAdditionalNoteRootsFromSettings(input: unknown): string[] {
+  if (!input || typeof input !== "object") {
+    return [];
+  }
+  const value = (input as { noteRoots?: unknown }).noteRoots;
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .slice(1)
+    .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+    .map((entry) => entry.trim());
+}
+
+export async function legacyAdditionalNoteRootsInPersistence(env: NodeJS.ProcessEnv): Promise<string[]> {
+  const paths = new Set<string>();
+  const collect = (value: unknown) => {
+    for (const targetPath of legacyAdditionalNoteRootsFromSettings(value)) {
+      paths.add(targetPath);
+    }
+  };
+  try {
+    collect(JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8")));
+  } catch {
+    // Missing/corrupt settings already follow the normal load path.
+  }
+  try {
+    const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as { workspaces?: unknown };
+    if (Array.isArray(registry.workspaces)) {
+      for (const workspace of registry.workspaces) {
+        if (workspace && typeof workspace === "object") {
+          collect((workspace as { settings?: unknown }).settings);
+        }
+      }
+    }
+  } catch {
+    // A registry is optional during first-run onboarding.
+  }
+  return [...paths];
 }
 
 export async function legacyProjectRootsInPersistence(env: NodeJS.ProcessEnv): Promise<string[]> {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Check, Database, Search, ShieldCheck, SquareTerminal } from "lucide-react";
+import { Check, Database, Folder, Search, ShieldCheck, SquareTerminal } from "lucide-react";
 import type {
   AgentCommand,
   FolderIndexStatus,
@@ -9,6 +9,7 @@ import type {
   WorkspaceModel,
   WorkspaceSettings,
 } from "@exo/core";
+import { acknowledgeMainWikiMigration, pendingMainWikiMigration } from "@exo/core/workspace-migration";
 import type { InvocationActivityEvent } from "@exo/core/invocation-activity";
 
 import type { CliInstallationStatus, InvocationFileReviewPayload, InvocationHistoryItem, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
@@ -126,6 +127,7 @@ export function App() {
     errorMessage: null as string | null,
   });
   const [cliInstallation, setCliInstallation] = useState<CliInstallationStatus | null>(null);
+  const [mainWikiMigrationNotice, setMainWikiMigrationNotice] = useState<{ retiredNoteRoots: string[] } | null>(null);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
@@ -211,7 +213,12 @@ export function App() {
     dialog: workspaceSettingsDialog,
     setDialog: setWorkspaceSettingsDialog,
     indexBusy,
+    saveSettingsPatch,
   } = workspaceSettingsController;
+  useEffect(() => {
+    if (!workspaceModel) return;
+    setMainWikiMigrationNotice(workspaceSettingsRef.current ? pendingMainWikiMigration(workspaceSettingsRef.current) : null);
+  }, [workspaceModel, workspaceSettingsRef]);
   const openDocumentsState = useOpenDocuments({
     workspaceModel,
     getOpenEditorPaths: () => collectOpenEditorPaths(shellLayout.canvasPaneTree.tree),
@@ -449,6 +456,13 @@ export function App() {
     setExplorerScale(settings.explorerScale);
     setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
     setQmdSearchSelected(settings.searchEngine === "qmd");
+  }
+
+  async function dismissMainWikiMigrationNotice() {
+    const settings = workspaceSettingsRef.current;
+    if (!settings) return;
+    await saveSettingsPatch(acknowledgeMainWikiMigration(settings));
+    setMainWikiMigrationNotice(null);
   }
 
   function applyPersistedLayout(layout: WorkspaceSettings["layout"] | undefined) {
@@ -1846,6 +1860,19 @@ export function App() {
       onRenamePath={(targetPath) => workspaceMutations.renameWorkspacePath(targetPath)}
       onDeletePath={(targetPath) => workspaceMutations.deleteWorkspacePath(targetPath)}
     />
+
+      {mainWikiMigrationNotice ? (
+        <aside className="workspace-migration-notice" data-testid="main-wiki-migration-notice" role="status">
+          <Folder aria-hidden="true" size={16} strokeWidth={1.8} />
+          <div>
+            <strong>One main wiki</strong>
+            <span>Other folders were left untouched.</span>
+          </div>
+          <button aria-label="Acknowledge main wiki migration" onClick={() => void dismissMainWikiMigrationNotice()} title="Got it" type="button">
+            <Check aria-hidden="true" size={15} strokeWidth={2} />
+          </button>
+        </aside>
+      ) : null}
 
       {workspaceDialog ? (
         <div className="dialog-overlay" data-testid="workspace-dialog-overlay">

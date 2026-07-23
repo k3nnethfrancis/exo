@@ -8,7 +8,9 @@ import {
   loadWorkspaceSettings,
   listWorkspaceRegistryEntries,
   loadActiveWorkspaceSettings,
+  acknowledgeMainWikiMigration,
   normalizeWorkspaceSettings,
+  pendingMainWikiMigration,
   resolveWorkspaceRegistryPath,
   resolveWorkspaceSettingsPath,
   resolveWorkspaceSettingsTransactionPath,
@@ -35,6 +37,35 @@ describe("workspace settings registry", () => {
       "/tmp/exo-one-wiki/notes",
       "/tmp/exo-one-wiki/notes/docs",
     ]);
+    expect(pendingMainWikiMigration(settings!)).toEqual({
+      retiredNoteRoots: ["/tmp/exo-one-wiki/other-notes"],
+    });
+    expect(pendingMainWikiMigration(acknowledgeMainWikiMigration(settings!))).toBeNull();
+  });
+
+  it("persists the one-main-wiki migration even when no other legacy settings exist", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-main-wiki-migration-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const primaryRoot = "/tmp/exo-main-wiki/notes";
+    const retiredRoot = "/tmp/exo-main-wiki/archive";
+    try {
+      await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify({
+        workspaceRoot: "/tmp/exo-main-wiki",
+        defaultTerminalCwd: "/tmp/exo-main-wiki",
+        noteRoots: [primaryRoot, retiredRoot],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+      }), { mode: 0o600 });
+
+      const loaded = await loadWorkspaceSettings(env);
+      expect(pendingMainWikiMigration(loaded!)).toEqual({ retiredNoteRoots: [retiredRoot] });
+
+      const persisted = JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8"));
+      expect(persisted.noteRoots).toEqual([primaryRoot]);
+      expect(persisted.migrationMetadata.mainWiki).toEqual({ retiredNoteRoots: [retiredRoot] });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
   });
 
   it("migrates legacy active QMD settings and off settings to an explicit search engine", () => {

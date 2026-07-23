@@ -18,7 +18,8 @@
     "./note-title": "./src/note-title.ts",
     "./operator-help": "./src/operator-help.ts",
     "./terminal-settings": "./src/terminal-settings.ts",
-    "./workspace-settings": "./src/workspace-settings.ts"
+    "./workspace-settings": "./src/workspace-settings.ts",
+    "./workspace-migration": "./src/workspace-migration.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
