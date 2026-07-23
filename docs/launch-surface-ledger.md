@@ -1,11 +1,11 @@
 # Launch Surface Ledger
 
-Last verified: 2026-07-22 for release artifact source `80d62c8`.
+Last verified: 2026-07-22 for release artifact source `39f65b7`.
 
 Verification recorded for this candidate:
 
-- `pnpm ci:check` — repository, type, unit, build, and local-installer gates passed.
-- 112 desktop Electron end-to-end journeys passed with no failure traces.
+- `pnpm ci:check` — repository, type, 737 unit, build, and local-installer gates passed.
+- 113 desktop Electron end-to-end journeys passed with no failure traces.
 - `pnpm pack:mac`, `pnpm probe:gpu:packaged`, and
   `pnpm test:packaged:containment` passed against the generated arm64 app bundle.
 
@@ -27,7 +27,7 @@ separate list of supposed product features.
 
 | Surface | Class | Implementation owner | Test evidence | Public docs | Launch relevance | Gap / next action |
 | --- | --- | --- | --- | --- | --- | --- |
-| First-run workspace and main Note Root setup | shipped | `apps/desktop/src/renderer/src/App.tsx`; `packages/core/src/onboarding-state.ts`; desktop workspace setup/store | `workspace-setup-gate.test.ts`; `workspace-config-store.test.ts`; `shell.spec.ts` first-run flows | `README.md`; `docs/provider-mcp-onboarding.md` | Required | Preserve the one-workspace/one-main-root launch path; do not imply attached projects or a machine-wide scan. |
+| First-run workspace and main Note Root setup | shipped | `apps/desktop/src/renderer/src/App.tsx`; `packages/core/src/onboarding-state.ts`; desktop workspace setup/store | `workspace-setup-gate.test.ts`; `workspace-config-store.test.ts`; `shell.spec.ts` first-run and legacy-migration flows | `README.md`; `docs/provider-mcp-onboarding.md` | Required | Preserve the one-workspace/one-main-root launch path; legacy extra roots are left untouched and identified once rather than silently absorbed. |
 | Agent access setup (CLI plus optional MCP for Claude/Codex) | shipped | onboarding in `App.tsx`; `provider-mcp-setup.ts`; `cli-installation.ts` | `provider-mcp-setup.test.ts`; `cli-installation.test.ts`; CLI/MCP tests | `docs/provider-mcp-onboarding.md`; `README.md` | Required | Keep MCP copy explicit: two read-only tools. CLI and MCP are separate access modes. |
 | Invocation Command setup | shipped | onboarding in `App.tsx`; `WorkspaceSettingsDialog.tsx`; `agent-invocation.ts` | `agent-invocation.spec.ts`; core invocation tests | `README.md`; `docs/document-agent-protocol.md` | Required | Keep recommended defaults editable; keep prompt editing advanced rather than primary. |
 | Workspace switching | shipped | `App.tsx`; workspace setup/config store | `shell.spec.ts` workspace-switch journey | `README.md` | Required | No global merged workspace is promised. |
