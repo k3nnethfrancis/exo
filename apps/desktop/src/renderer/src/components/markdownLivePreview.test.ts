@@ -3,9 +3,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   markdownLivePreview,
-  shouldSuppressGeneratedTitleLine,
-  visibleLineNumbers,
 } from "./markdownLivePreview";
+import { shouldSuppressGeneratedTitleLine, visibleLineNumbers } from "./markdown-live-preview/decorations";
 import {
   collectListMetadata,
   markdownPreviewMetadata,
