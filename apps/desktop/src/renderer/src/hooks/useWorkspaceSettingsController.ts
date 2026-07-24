@@ -108,18 +108,21 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     await settingsSaveTailRef.current;
     if (!runtimeApplyIssueRef.current) return;
     const saved = await enqueueSettingsSave((currentSettings) => currentSettings);
-    reconcileRuntimeApply(saved);
-    if (saved.runtimeApply.status === "failed") throw new Error(saved.runtimeApply.errorMessage);
-    optionsRef.current.applyWorkspaceSettings(saved.settings);
-    await optionsRef.current.refreshWorkspaceModel();
     try {
+      if (saved.runtimeApply.status !== "applied") reconcileRuntimeApply(saved);
+      if (saved.runtimeApply.status === "failed") throw new Error(saved.runtimeApply.errorMessage);
+      optionsRef.current.applyWorkspaceSettings(saved.settings);
+      await optionsRef.current.refreshWorkspaceModel();
       optionsRef.current.setIndexStatus(await window.exo.workspace.getIndexStatus());
+      await optionsRef.current.onSettingsSaved?.();
     } catch (error) {
-      console.warn("[exo] failed to refresh search status", error);
-      optionsRef.current.setIndexStatus(null);
+      publishRuntimeApplyIssue({
+        message: error instanceof Error ? error.message : "Workspace settings could not be published.",
+      });
+      throw error;
     }
-    await optionsRef.current.onSettingsSaved?.();
-  }, [enqueueSettingsSave, reconcileRuntimeApply]);
+    if (saved.runtimeApply.status === "applied") reconcileRuntimeApply(saved);
+  }, [enqueueSettingsSave, publishRuntimeApplyIssue, reconcileRuntimeApply]);
 
   useEffect(() => {
     optionsRef.current = options;

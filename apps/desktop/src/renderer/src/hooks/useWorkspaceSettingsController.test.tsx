@@ -440,6 +440,46 @@ describe("workspace settings patch persistence", () => {
     expect(refreshWorkspaceModel).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps recovery available when retry applies but renderer publication fails", async () => {
+    const settingsRef = { current: workspaceSettings() };
+    const revisionRef = { current: "revision-0" };
+    let saveCount = 0;
+    const saveSettings = vi.fn(async (request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> => {
+      saveCount += 1;
+      return {
+        settings: request.settings,
+        revision: `revision-${saveCount}`,
+        runtimeApply: saveCount === 1
+          ? { status: "degraded", errorMessage: "Command discovery needs recovery." }
+          : { status: "applied" },
+      };
+    });
+    const refreshWorkspaceModel = vi.fn()
+      .mockRejectedValueOnce(new Error("Workspace model refresh failed."))
+      .mockResolvedValue(undefined);
+    vi.stubGlobal("window", workspaceWindow(settingsRef.current, revisionRef.current, saveSettings));
+    const controllerRef: { current: ReturnType<typeof useWorkspaceSettingsController> | null } = { current: null };
+    renderToStaticMarkup(
+      <WorkspaceSettingsControllerHarness
+        controllerRef={controllerRef}
+        options={{
+          workspaceSettingsRef: settingsRef,
+          workspaceSettingsRevisionRef: revisionRef,
+          applyWorkspaceSettings: vi.fn(),
+          refreshWorkspaceModel,
+          setIndexStatus: vi.fn(),
+        }}
+      />,
+    );
+
+    await controllerRef.current!.saveSettingsPatch({ terminalFontSize: 14 });
+    await expect(controllerRef.current!.retryRuntimeApply()).rejects.toThrow("Workspace model refresh failed.");
+    await expect(controllerRef.current!.retryRuntimeApply()).resolves.toBeUndefined();
+
+    expect(saveSettings).toHaveBeenCalledTimes(3);
+    expect(refreshWorkspaceModel).toHaveBeenCalledTimes(2);
+  });
+
   it("publishes the returned settings after a non-structural dialog save", async () => {
     const settingsRef = { current: workspaceSettings() };
     const revisionRef = { current: "revision-0" };
