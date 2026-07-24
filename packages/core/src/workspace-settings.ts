@@ -428,7 +428,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
   const workspaceRoot = typeof input.workspaceRoot === "string" ? input.workspaceRoot.trim() : "";
   const defaultTerminalCwd = typeof input.defaultTerminalCwd === "string" ? input.defaultTerminalCwd.trim() : "";
   const configuredNoteRoots = Array.isArray(input.noteRoots)
-    ? input.noteRoots.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean)
+    ? input.noteRoots.map((entry) => (typeof entry === "string" && entry.trim() ? lexicalNotesFolder(entry) : "")).filter(Boolean)
     : [];
   // A Workspace has one authoritative wiki in this release.  Older builds
   // could persist multiple note roots; retain the explicitly selected first
@@ -653,12 +653,16 @@ function normalizeColorThemeId(value: unknown): WorkspaceSettings["colorThemeId"
 }
 
 export function workspaceEntryFromSettings(settings: WorkspaceSettings): WorkspaceRegistryEntry {
-  const notesFolder = notesFolderFromSettings(settings);
+  const normalized = normalizeWorkspaceSettings(settings);
+  if (!normalized) {
+    throw new Error("Workspace settings are incomplete.");
+  }
+  const notesFolder = notesFolderFromSettings(normalized);
   return {
     id: workspaceIdForNotesFolder(notesFolder),
     label: path.basename(notesFolder) || notesFolder,
     notesFolder,
-    settings,
+    settings: normalized,
     updatedAt: new Date().toISOString(),
   };
 }
@@ -672,12 +676,10 @@ function normalizeRegistryEntry(value: unknown): WorkspaceRegistryEntry | null {
   if (!settings) {
     return null;
   }
-  const notesFolder = typeof candidate.notesFolder === "string" && candidate.notesFolder.trim()
-    ? candidate.notesFolder.trim()
-    : notesFolderFromSettings(settings);
+  const notesFolder = notesFolderFromSettings(settings);
   return {
     ...candidate,
-    id: workspaceIdForNotesFolder(notesFolderFromSettings(settings)),
+    id: workspaceIdForNotesFolder(notesFolder),
     label: typeof candidate.label === "string" && candidate.label.trim() ? candidate.label.trim() : path.basename(notesFolder) || notesFolder,
     notesFolder,
     settings,
@@ -704,7 +706,7 @@ function workspaceIdForNotesFolder(notesFolder: string): string {
 }
 
 function notesFolderFromSettings(settings: WorkspaceSettings): string {
-  return (settings.noteRoots[0] || settings.workspaceRoot).trim();
+  return lexicalNotesFolder(settings.noteRoots[0] || settings.workspaceRoot);
 }
 
 function workspaceIdentityFromSettings(settings: WorkspaceSettings): string {

@@ -17,6 +17,7 @@ import {
   resolveWorkspaceSettingsTransactionPath,
   saveWorkspaceSettings,
   workspaceEnvOverrides,
+  workspaceModelFromSettings,
 } from "../workspace-settings";
 
 describe("workspace settings registry", () => {
@@ -708,7 +709,7 @@ describe("workspace settings registry", () => {
     }
   });
 
-  it("deduplicates lexical aliases without rewriting the selected Notes Folder spelling", async () => {
+  it("deduplicates lexical aliases and persists their canonical absolute Notes Folder", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-canonical-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };
 
@@ -718,8 +719,8 @@ describe("workspace settings registry", () => {
 
       const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
       expect(registry.workspaces).toHaveLength(1);
-      expect(registry.workspaces[0]?.notesFolder).toBe("/tmp/exo-canonical/./notes");
-      expect(registry.workspaces[0]?.settings.noteRoots).toEqual(["/tmp/exo-canonical/./notes"]);
+      expect(registry.workspaces[0]?.notesFolder).toBe("/tmp/exo-canonical/notes");
+      expect(registry.workspaces[0]?.settings.noteRoots).toEqual(["/tmp/exo-canonical/notes"]);
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
     }
@@ -829,7 +830,7 @@ describe("workspace settings registry", () => {
         activeWorkspaceId: "legacy-active",
         workspaces: [
           { id: "legacy-first", label: "First custom label", notesFolder: first.noteRoots[0], settings: first, updatedAt: "2026-07-21T01:00:00.000Z", futureMetadata: { retained: true } },
-          { id: "legacy-active", label: "Keep this custom label", notesFolder: staleActive.noteRoots[0], settings: staleActive, updatedAt: "2026-07-22T02:00:00.000Z" },
+          { id: "legacy-active", label: "Keep this custom label", notesFolder: "/tmp/exo-stale-display-path", settings: staleActive, updatedAt: "2026-07-22T02:00:00.000Z" },
           { id: 17, label: "Third custom label", notesFolder: null, settings: third, updatedAt: "2026-07-23T03:00:00.000Z" },
         ],
       }), { mode: 0o600 });
@@ -928,14 +929,17 @@ describe("workspace settings registry", () => {
 
     try {
       await mkdir(existingNotesFolder);
+      const relativeSettings = workspaceSettingsFor(relativeNotesFolder);
+      expect(relativeSettings.noteRoots).toEqual([existingNotesFolder]);
+      expect(workspaceModelFromSettings(relativeSettings).noteRoots[0]?.path).toBe(existingNotesFolder);
       await saveWorkspaceSettings(workspaceSettingsFor(existingNotesFolder), env);
       const existingId = (JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot).workspaces[0]?.id;
-      await saveWorkspaceSettings(workspaceSettingsFor(relativeNotesFolder), env);
+      await saveWorkspaceSettings(relativeSettings, env);
       let registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
       expect(registry.workspaces).toHaveLength(1);
       expect(registry.workspaces[0]?.id).toBe(existingId);
-      expect(registry.workspaces[0]?.notesFolder).toBe(relativeNotesFolder);
-      expect(registry.workspaces[0]?.settings.noteRoots).toEqual([relativeNotesFolder]);
+      expect(registry.workspaces[0]?.notesFolder).toBe(existingNotesFolder);
+      expect(registry.workspaces[0]?.settings.noteRoots).toEqual([existingNotesFolder]);
 
       await saveWorkspaceSettings(workspaceSettingsFor(absentNotesFolder), env);
       const absentId = (JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot).workspaces[0]?.id;
@@ -943,7 +947,7 @@ describe("workspace settings registry", () => {
       registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
       expect(registry.workspaces).toHaveLength(2);
       expect(registry.workspaces[0]?.id).toBe(absentId);
-      expect(registry.workspaces[0]?.notesFolder).toBe(absentAlias);
+      expect(registry.workspaces[0]?.notesFolder).toBe(absentNotesFolder);
       expect(registry.workspaces.map((entry) => entry.id)).toContain(existingId);
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
