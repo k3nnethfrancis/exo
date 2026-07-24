@@ -305,7 +305,9 @@ async function migrateWorkspaceRegistryIdentity(settings: WorkspaceSettings, env
     const activeEntry = registry.workspaces[activeIndex];
     registry = {
       activeWorkspaceId: activeEntry.id,
-      workspaces: registry.workspaces.map((entry, index) => index === activeIndex ? { ...entry, settings } : entry),
+      workspaces: registry.workspaces.map((entry, index) => index === activeIndex
+        ? { ...entry, notesFolder: notesFolderFromSettings(settings), settings }
+        : entry),
     };
   }
   await commitWorkspaceSettingsTransaction({ version: 1, settings, registry }, env);
