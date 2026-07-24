@@ -81,6 +81,17 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Keeps active Workspace transitions atomic across settings, watchers, Search,
+  graph publication, terminals, and command discovery; stale asynchronous work
+  can no longer republish an older Workspace.
+- Makes the focused Canvas pane the sole document owner, so delayed Note loads
+  cannot steal focus from a newer Note, Graph, Terminal, or Preview choice.
+- Honors the configured Command list exactly—empty or disabled Commands remain
+  unavailable instead of silently restoring Claude.
+- Keeps folded Markdown lists attached to their actual parent through edits
+  instead of transferring the fold to whichever item later occupies a line.
+- Closes Note Root Format selection to immutable built-in Generic Markdown and
+  OKF semantics, with no arbitrary renderer, IPC, worker, or cache selector.
 - Keeps the Properties surface open or closed independently in each split
   editor pane instead of mirroring one pane's toggle across the canvas.
 - Makes inline `#tags` visible, highlighted, and clickable like wikilinks, and
