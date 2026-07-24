@@ -1,4 +1,4 @@
-import { access, chmod, mkdtemp, open, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, mkdtemp, open, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
@@ -7,6 +7,7 @@ import { createDefaultClaudeAgentCommand } from "../agent-invocation";
 import {
   loadWorkspaceSettings,
   listWorkspaceRegistryEntries,
+  loadWorkspaceRegistry,
   loadActiveWorkspaceSettings,
   acknowledgeMainWikiMigration,
   normalizeWorkspaceSettings,
@@ -707,7 +708,7 @@ describe("workspace settings registry", () => {
     }
   });
 
-  it("deduplicates duplicate canonical Notes Folder spellings", async () => {
+  it("deduplicates lexical aliases without rewriting the selected Notes Folder spelling", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-canonical-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };
 
@@ -717,8 +718,8 @@ describe("workspace settings registry", () => {
 
       const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
       expect(registry.workspaces).toHaveLength(1);
-      expect(registry.workspaces[0]?.notesFolder).toBe("/tmp/exo-canonical/notes");
-      expect(registry.workspaces[0]?.settings.noteRoots).toEqual(["/tmp/exo-canonical/notes"]);
+      expect(registry.workspaces[0]?.notesFolder).toBe("/tmp/exo-canonical/./notes");
+      expect(registry.workspaces[0]?.settings.noteRoots).toEqual(["/tmp/exo-canonical/./notes"]);
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
     }
@@ -778,6 +779,195 @@ describe("workspace settings registry", () => {
     }
   });
 
+  it.each(["settings", "registry"] as const)("recovers malformed registry identity fields through %s load without a rewrite loop", async (loadKind) => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), `exo-core-workspace-malformed-${loadKind}-`));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const active = workspaceSettingsFor("/tmp/exo-malformed-active/notes");
+    const other = workspaceSettingsFor("/tmp/exo-malformed-other/notes");
+
+    try {
+      await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify(active), { mode: 0o600 });
+      await writeFile(resolveWorkspaceRegistryPath(env), JSON.stringify({
+        activeWorkspaceId: 7,
+        workspaces: [
+          { id: 7, label: "Active", notesFolder: null, settings: active, updatedAt: "2026-07-24T01:00:00.000Z" },
+          { id: null, label: "Other", notesFolder: 42, settings: other, updatedAt: "2026-07-24T02:00:00.000Z" },
+          null,
+          { id: "invalid-settings", notesFolder: "/tmp/invalid", settings: null },
+        ],
+      }), { mode: 0o600 });
+
+      const load = loadKind === "settings" ? loadWorkspaceSettings : loadWorkspaceRegistry;
+      await expect(load(env)).resolves.toBeTruthy();
+      const afterMigration = await readFile(resolveWorkspaceRegistryPath(env), "utf8");
+      const registry = JSON.parse(afterMigration) as WorkspaceRegistrySnapshot;
+      expect(registry.workspaces).toHaveLength(2);
+      expect(registry.workspaces.map((entry) => entry.label)).toEqual(["Active", "Other"]);
+      expect(registry.workspaces.every((entry) => entry.id.startsWith("workspace-v1-"))).toBe(true);
+      expect(registry.activeWorkspaceId).toBe(registry.workspaces[0]?.id);
+      const migratedInode = (await stat(resolveWorkspaceRegistryPath(env))).ino;
+
+      await expect(load(env)).resolves.toBeTruthy();
+      expect(await readFile(resolveWorkspaceRegistryPath(env), "utf8")).toBe(afterMigration);
+      expect((await stat(resolveWorkspaceRegistryPath(env))).ino).toBe(migratedInode);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("migrates identity in place while preserving labels, order, timestamps, and unrelated settings", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-metadata-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const first = { ...workspaceSettingsFor("/tmp/exo-metadata-first/notes"), futureSetting: { retained: "first" } };
+    const staleActive = { ...workspaceSettingsFor("/tmp/exo-metadata-active/notes"), futureSetting: { retained: "stale" } };
+    const currentActive = { ...staleActive, futureSetting: { retained: "current" } };
+    const third = { ...workspaceSettingsFor("/tmp/exo-metadata-third/notes"), futureSetting: { retained: "third" } };
+
+    try {
+      await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify(currentActive), { mode: 0o600 });
+      await writeFile(resolveWorkspaceRegistryPath(env), JSON.stringify({
+        activeWorkspaceId: "legacy-active",
+        workspaces: [
+          { id: "legacy-first", label: "First custom label", notesFolder: first.noteRoots[0], settings: first, updatedAt: "2026-07-21T01:00:00.000Z", futureMetadata: { retained: true } },
+          { id: "legacy-active", label: "Keep this custom label", notesFolder: staleActive.noteRoots[0], settings: staleActive, updatedAt: "2026-07-22T02:00:00.000Z" },
+          { id: 17, label: "Third custom label", notesFolder: null, settings: third, updatedAt: "2026-07-23T03:00:00.000Z" },
+        ],
+      }), { mode: 0o600 });
+
+      await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({ futureSetting: { retained: "current" } });
+      const afterMigration = await readFile(resolveWorkspaceRegistryPath(env), "utf8");
+      const registry = JSON.parse(afterMigration) as WorkspaceRegistrySnapshot;
+      expect(registry.workspaces.map((entry) => entry.label)).toEqual([
+        "First custom label",
+        "Keep this custom label",
+        "Third custom label",
+      ]);
+      expect(registry.workspaces.map((entry) => entry.updatedAt)).toEqual([
+        "2026-07-21T01:00:00.000Z",
+        "2026-07-22T02:00:00.000Z",
+        "2026-07-23T03:00:00.000Z",
+      ]);
+      expect(registry.workspaces.map((entry) => entry.notesFolder)).toEqual([
+        first.noteRoots[0],
+        staleActive.noteRoots[0],
+        third.noteRoots[0],
+      ]);
+      expect(registry.activeWorkspaceId).toBe(registry.workspaces[1]?.id);
+      expect(registry.workspaces[0]?.settings.futureSetting).toEqual({ retained: "first" });
+      expect(registry.workspaces[1]?.settings.futureSetting).toEqual({ retained: "current" });
+      expect(registry.workspaces[2]?.settings.futureSetting).toEqual({ retained: "third" });
+      expect(registry.workspaces[0]?.futureMetadata).toEqual({ retained: true });
+      const migratedInode = (await stat(resolveWorkspaceRegistryPath(env))).ino;
+
+      await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({ futureSetting: { retained: "current" } });
+      await expect(loadWorkspaceRegistry(env)).resolves.toMatchObject({ activeWorkspaceId: registry.activeWorkspaceId });
+      expect(await readFile(resolveWorkspaceRegistryPath(env), "utf8")).toBe(afterMigration);
+      expect((await stat(resolveWorkspaceRegistryPath(env))).ino).toBe(migratedInode);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("uses one physical identity for a real Notes Folder and its symlink alias", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-symlink-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const realNotesFolder = path.join(userDataPath, "real-notes");
+    const aliasNotesFolder = path.join(userDataPath, "alias-notes");
+
+    try {
+      await mkdir(realNotesFolder);
+      await symlink(realNotesFolder, aliasNotesFolder, "dir");
+      await saveWorkspaceSettings(workspaceSettingsFor(realNotesFolder), env);
+      const firstRegistry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
+
+      await saveWorkspaceSettings(workspaceSettingsFor(aliasNotesFolder), env);
+      const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
+      expect(registry.workspaces).toHaveLength(1);
+      expect(registry.workspaces[0]?.id).toBe(firstRegistry.workspaces[0]?.id);
+      expect(registry.workspaces[0]?.notesFolder).toBe(aliasNotesFolder);
+      expect(registry.workspaces[0]?.settings.noteRoots).toEqual([aliasNotesFolder]);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("uses one physical identity for case aliases on a case-insensitive macOS volume", async () => {
+    if (process.platform !== "darwin") {
+      return;
+    }
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-case-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const notesFolder = path.join(userDataPath, "CaseSensitiveSpelling");
+    const aliasNotesFolder = path.join(userDataPath, "casesensitivespelling");
+
+    try {
+      await mkdir(notesFolder);
+      try {
+        await realpath(aliasNotesFolder);
+      } catch {
+        return;
+      }
+      await saveWorkspaceSettings(workspaceSettingsFor(notesFolder), env);
+      const firstRegistry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
+      await saveWorkspaceSettings(workspaceSettingsFor(aliasNotesFolder), env);
+      const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
+      expect(registry.workspaces).toHaveLength(1);
+      expect(registry.workspaces[0]?.id).toBe(firstRegistry.workspaces[0]?.id);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("uses physical identity for relative existing roots and lexical identity for absent roots", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-fallback-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const existingNotesFolder = path.join(userDataPath, "existing-notes");
+    const relativeNotesFolder = path.relative(process.cwd(), existingNotesFolder);
+    const absentNotesFolder = path.join(userDataPath, "absent-notes");
+    const absentAlias = path.join(userDataPath, "missing-parent", "..", "absent-notes");
+
+    try {
+      await mkdir(existingNotesFolder);
+      await saveWorkspaceSettings(workspaceSettingsFor(existingNotesFolder), env);
+      const existingId = (JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot).workspaces[0]?.id;
+      await saveWorkspaceSettings(workspaceSettingsFor(relativeNotesFolder), env);
+      let registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
+      expect(registry.workspaces).toHaveLength(1);
+      expect(registry.workspaces[0]?.id).toBe(existingId);
+      expect(registry.workspaces[0]?.notesFolder).toBe(relativeNotesFolder);
+      expect(registry.workspaces[0]?.settings.noteRoots).toEqual([relativeNotesFolder]);
+
+      await saveWorkspaceSettings(workspaceSettingsFor(absentNotesFolder), env);
+      const absentId = (JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot).workspaces[0]?.id;
+      await saveWorkspaceSettings(workspaceSettingsFor(absentAlias), env);
+      registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
+      expect(registry.workspaces).toHaveLength(2);
+      expect(registry.workspaces[0]?.id).toBe(absentId);
+      expect(registry.workspaces[0]?.notesFolder).toBe(absentAlias);
+      expect(registry.workspaces.map((entry) => entry.id)).toContain(existingId);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves all entries and selects the first for an underdetermined legacy collision", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-ambiguous-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const aa = workspaceSettingsFor("/tmp/Aa");
+    const bb = workspaceSettingsFor("/tmp/BB");
+
+    try {
+      await writeFile(resolveWorkspaceRegistryPath(env), JSON.stringify(legacyCollisionRegistry(aa, bb)), { mode: 0o600 });
+
+      const registry = await loadWorkspaceRegistry(env);
+      expect(registry.workspaces).toHaveLength(2);
+      expect(registry.workspaces.map((entry) => entry.notesFolder)).toEqual(["/tmp/BB", "/tmp/Aa"]);
+      expect(registry.activeWorkspaceId).toBe(registry.workspaces[0]?.id);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("treats explicit workspace env as an override", () => {
     expect(workspaceEnvOverrides({ EXO_WORKSPACE_ROOT: "/tmp/manual" })).toBe(true);
     expect(workspaceEnvOverrides({})).toBe(false);
@@ -790,7 +980,14 @@ interface WorkspaceRegistryAppearance {
 
 interface WorkspaceRegistrySnapshot {
   activeWorkspaceId: string | null;
-  workspaces: Array<{ id: string; notesFolder: string; settings: { noteRoots: string[] } }>;
+  workspaces: Array<{
+    id: string;
+    label: string;
+    notesFolder: string;
+    settings: { noteRoots: string[]; futureSetting?: unknown };
+    updatedAt: string;
+    futureMetadata?: unknown;
+  }>;
 }
 
 function workspaceSettingsFor(notesFolder: string) {

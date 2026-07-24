@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { chmod, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -73,10 +74,10 @@ export async function loadWorkspaceSettings(env: NodeJS.ProcessEnv = process.env
   const retiredNoteRoots = await legacyAdditionalNoteRootsInPersistence(env);
   const droppedProjectRoots = await legacyProjectRootsInPersistence(env);
   const droppedTerminalSettings = await retiredTerminalSettingsInPersistence(env);
-  const requiresIdentityMigration = settings
-    ? await workspaceRegistryRequiresIdentityMigration(env, notesFolderFromSettings(settings))
-    : false;
-  if (settings && (requiresIdentityMigration || retiredNoteRoots.length > 0 || droppedProjectRoots.length > 0 || droppedTerminalSettings.length > 0)) {
+  const requiresIdentityMigration = settings ? await workspaceRegistryRequiresIdentityMigration(env, settings) : false;
+  if (settings && requiresIdentityMigration) {
+    await migrateWorkspaceRegistryIdentity(settings, env);
+  } else if (settings && (retiredNoteRoots.length > 0 || droppedProjectRoots.length > 0 || droppedTerminalSettings.length > 0)) {
     // Reuse the existing two-file transaction so primary settings and registry
     // snapshots lose the retired authorization atomically.
     await saveWorkspaceSettings(settings, env);
@@ -109,21 +110,24 @@ export async function saveWorkspaceSettings(settings: WorkspaceSettings, env: No
   if (!normalized) {
     throw new Error("Workspace settings are incomplete.");
   }
-  const registry = await loadWorkspaceRegistryFile(env, notesFolderFromSettings(normalized));
+  const registry = await loadWorkspaceRegistryFile(env, normalized);
   const transaction: WorkspaceSettingsTransaction = {
     version: 1,
     settings: normalized,
     registry: registryWithActiveWorkspace(registry, normalized),
   };
+  await commitWorkspaceSettingsTransaction(transaction, env);
+  return normalized;
+}
+
+async function commitWorkspaceSettingsTransaction(transaction: WorkspaceSettingsTransaction, env: NodeJS.ProcessEnv): Promise<void> {
   await writeJsonAtomically(resolveWorkspaceSettingsTransactionPath(env), transaction);
   try {
     await applyWorkspaceSettingsTransaction(transaction, env);
     await removeFileDurably(resolveWorkspaceSettingsTransactionPath(env));
-    return normalized;
   } catch (error) {
     try {
       await recoverWorkspaceSettingsTransaction(env);
-      return normalized;
     } catch (recoveryError) {
       throw new WorkspaceSettingsTransactionError(recoveryError, error);
     }
@@ -133,13 +137,12 @@ export async function saveWorkspaceSettings(settings: WorkspaceSettings, env: No
 export async function loadWorkspaceRegistry(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceRegistry> {
   await recoverWorkspaceSettingsTransaction(env);
   const settings = await loadWorkspaceSettingsFile(env);
-  const activeNotesFolder = settings ? notesFolderFromSettings(settings) : undefined;
-  const registry = await loadWorkspaceRegistryFile(env, activeNotesFolder);
-  if (await workspaceRegistryRequiresIdentityMigration(env, activeNotesFolder)) {
+  const registry = await loadWorkspaceRegistryFile(env, settings ?? undefined);
+  if (await workspaceRegistryRequiresIdentityMigration(env, settings ?? undefined)) {
     const activeSettings = settings ?? registry.workspaces.find((entry) => entry.id === registry.activeWorkspaceId)?.settings;
     if (activeSettings) {
-      await saveWorkspaceSettings(activeSettings, env);
-      return loadWorkspaceRegistryFile(env, notesFolderFromSettings(activeSettings));
+      await migrateWorkspaceRegistryIdentity(activeSettings, env);
+      return loadWorkspaceRegistryFile(env, activeSettings);
     }
   }
   if (
@@ -152,13 +155,15 @@ export async function loadWorkspaceRegistry(env: NodeJS.ProcessEnv = process.env
   return registry;
 }
 
-async function loadWorkspaceRegistryFile(env: NodeJS.ProcessEnv, activeNotesFolder?: string): Promise<WorkspaceRegistry> {
+async function loadWorkspaceRegistryFile(env: NodeJS.ProcessEnv, activeSettings?: WorkspaceSettings): Promise<WorkspaceRegistry> {
+  let parsed: unknown;
   try {
     const raw = await readFile(resolveWorkspaceRegistryPath(env), "utf8");
-    return normalizeWorkspaceRegistry(JSON.parse(raw), activeNotesFolder);
+    parsed = JSON.parse(raw);
   } catch {
     return { activeWorkspaceId: null, workspaces: [] };
   }
+  return normalizeWorkspaceRegistry(parsed, activeSettings);
 }
 
 export async function listWorkspaceRegistryEntries(env: NodeJS.ProcessEnv = process.env, currentSettings?: WorkspaceSettings | null): Promise<WorkspaceRegistryEntry[]> {
@@ -194,45 +199,61 @@ export async function recoverWorkspaceSettingsTransaction(env: NodeJS.ProcessEnv
 
 function registryWithActiveWorkspace(registry: WorkspaceRegistry, settings: WorkspaceSettings): WorkspaceRegistry {
   const entry = workspaceEntryFromSettings(settings);
+  const identityKey = workspaceIdentityFromSettings(settings);
   return {
     activeWorkspaceId: entry.id,
-    workspaces: [entry, ...registry.workspaces.filter((workspace) => workspace.notesFolder !== entry.notesFolder)],
+    workspaces: [entry, ...registry.workspaces.filter((workspace) => workspaceIdentityFromSettings(workspace.settings) !== identityKey)],
   };
 }
 
-function normalizeWorkspaceRegistry(value: unknown, activeNotesFolder?: string): WorkspaceRegistry {
+interface NormalizedRegistryCandidate {
+  entry: WorkspaceRegistryEntry;
+  identityKey: string;
+  persistedId: string | null;
+}
+
+function normalizeWorkspaceRegistry(value: unknown, activeSettings?: WorkspaceSettings): WorkspaceRegistry {
   const parsed = value && typeof value === "object" ? value as Partial<WorkspaceRegistry> : {};
   const candidates = Array.isArray(parsed.workspaces)
-    ? parsed.workspaces.reduce<Array<{ entry: WorkspaceRegistryEntry; persistedId: string | null }>>((entries, value) => {
+    ? parsed.workspaces.reduce<NormalizedRegistryCandidate[]>((entries, value) => {
         const entry = normalizeRegistryEntry(value);
         if (entry) {
           const persistedId = value && typeof value === "object" && typeof (value as Partial<WorkspaceRegistryEntry>).id === "string"
             ? (value as Partial<WorkspaceRegistryEntry>).id!.trim() || null
             : null;
-          entries.push({ entry, persistedId });
+          entries.push({ entry, identityKey: workspaceIdentityFromSettings(entry.settings), persistedId });
         }
         return entries;
       }, [])
     : [];
-  const workspaces = candidates.reduce<WorkspaceRegistryEntry[]>((entries, candidate) => {
-    if (!entries.some((entry) => entry.notesFolder === candidate.entry.notesFolder)) {
-      entries.push(candidate.entry);
+  const activeIdentityKey = activeSettings ? workspaceIdentityFromSettings(activeSettings) : null;
+  const activeLexicalPath = activeSettings ? lexicalNotesFolder(notesFolderFromSettings(activeSettings)) : null;
+  const persistedActiveId = typeof parsed.activeWorkspaceId === "string" ? parsed.activeWorkspaceId : null;
+  const activeCandidate = activeIdentityKey
+    ? candidates.find((candidate) => lexicalNotesFolder(notesFolderFromSettings(candidate.entry.settings)) === activeLexicalPath)
+      ?? candidates.find((candidate) => candidate.identityKey === activeIdentityKey)
+    : candidates.find((candidate) => candidate.persistedId === persistedActiveId)
+      ?? candidates.find((candidate) => candidate.entry.id === persistedActiveId)
+      ?? candidates[0];
+  const retainedCandidates = candidates.reduce<NormalizedRegistryCandidate[]>((entries, candidate) => {
+    const duplicateIndex = entries.findIndex((entry) => entry.identityKey === candidate.identityKey);
+    if (duplicateIndex === -1) {
+      entries.push(candidate);
+    } else if (candidate === activeCandidate) {
+      entries[duplicateIndex] = candidate;
     }
     return entries;
   }, []);
-  const canonicalActiveNotesFolder = activeNotesFolder ? canonicalNotesFolder(activeNotesFolder) : null;
-  const activeWorkspace = canonicalActiveNotesFolder
-    ? workspaces.find((entry) => entry.notesFolder === canonicalActiveNotesFolder)
-    : candidates.find((candidate) => candidate.persistedId === parsed.activeWorkspaceId)?.entry
-      ?? workspaces.find((entry) => entry.id === parsed.activeWorkspaceId)
-      ?? workspaces[0];
+  const activeWorkspace = activeCandidate
+    ? retainedCandidates.find((candidate) => candidate.identityKey === activeCandidate.identityKey)?.entry
+    : retainedCandidates[0]?.entry;
   return {
     activeWorkspaceId: activeWorkspace?.id ?? null,
-    workspaces,
+    workspaces: retainedCandidates.map((candidate) => candidate.entry),
   };
 }
 
-async function workspaceRegistryRequiresIdentityMigration(env: NodeJS.ProcessEnv, activeNotesFolder?: string): Promise<boolean> {
+async function workspaceRegistryRequiresIdentityMigration(env: NodeJS.ProcessEnv, activeSettings?: WorkspaceSettings): Promise<boolean> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8"));
@@ -247,20 +268,47 @@ async function workspaceRegistryRequiresIdentityMigration(env: NodeJS.ProcessEnv
   if (!rawWorkspaces) {
     return false;
   }
-  const normalized = normalizeWorkspaceRegistry(parsed, activeNotesFolder);
-  const seenNotesFolders = new Set<string>();
+  const normalized = normalizeWorkspaceRegistry(parsed, activeSettings);
+  if (normalized.workspaces.length === 0) {
+    return false;
+  }
+  const seenIdentityKeys = new Set<string>();
   for (const value of rawWorkspaces) {
     const entry = normalizeRegistryEntry(value);
     if (!entry) {
-      continue;
-    }
-    const rawEntry = value as Partial<WorkspaceRegistryEntry>;
-    if (rawEntry.id?.trim() !== entry.id || rawEntry.notesFolder?.trim() !== entry.notesFolder || seenNotesFolders.has(entry.notesFolder)) {
       return true;
     }
-    seenNotesFolders.add(entry.notesFolder);
+    const rawEntry = value as Partial<WorkspaceRegistryEntry>;
+    const persistedId = typeof rawEntry.id === "string" ? rawEntry.id.trim() || null : null;
+    const persistedNotesFolder = typeof rawEntry.notesFolder === "string" ? rawEntry.notesFolder.trim() || null : null;
+    const identityKey = workspaceIdentityFromSettings(entry.settings);
+    if (persistedId !== entry.id || persistedNotesFolder !== entry.notesFolder || seenIdentityKeys.has(identityKey)) {
+      return true;
+    }
+    seenIdentityKeys.add(identityKey);
   }
-  return rawRegistry.activeWorkspaceId !== normalized.activeWorkspaceId;
+  const persistedActiveId = typeof rawRegistry.activeWorkspaceId === "string" ? rawRegistry.activeWorkspaceId : null;
+  return persistedActiveId !== normalized.activeWorkspaceId;
+}
+
+async function migrateWorkspaceRegistryIdentity(settings: WorkspaceSettings, env: NodeJS.ProcessEnv): Promise<void> {
+  let persistedRegistry: unknown;
+  try {
+    persistedRegistry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8"));
+  } catch {
+    return;
+  }
+  let registry = normalizeWorkspaceRegistry(persistedRegistry, settings);
+  const activeIdentityKey = workspaceIdentityFromSettings(settings);
+  const activeIndex = registry.workspaces.findIndex((entry) => workspaceIdentityFromSettings(entry.settings) === activeIdentityKey);
+  if (activeIndex !== -1) {
+    const activeEntry = registry.workspaces[activeIndex];
+    registry = {
+      activeWorkspaceId: activeEntry.id,
+      workspaces: registry.workspaces.map((entry, index) => index === activeIndex ? { ...entry, settings } : entry),
+    };
+  }
+  await commitWorkspaceSettingsTransaction({ version: 1, settings, registry }, env);
 }
 
 function parseWorkspaceSettingsTransaction(raw: string): WorkspaceSettingsTransaction {
@@ -269,7 +317,7 @@ function parseWorkspaceSettingsTransaction(raw: string): WorkspaceSettingsTransa
   if (parsed.version !== 1 || !settings) {
     throw new Error("Workspace settings transaction is invalid.");
   }
-  const registry = normalizeWorkspaceRegistry(parsed.registry, notesFolderFromSettings(settings));
+  const registry = normalizeWorkspaceRegistry(parsed.registry, settings);
   if (registry.workspaces.length === 0) {
     throw new Error("Workspace settings transaction is invalid.");
   }
@@ -380,7 +428,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
   const workspaceRoot = typeof input.workspaceRoot === "string" ? input.workspaceRoot.trim() : "";
   const defaultTerminalCwd = typeof input.defaultTerminalCwd === "string" ? input.defaultTerminalCwd.trim() : "";
   const configuredNoteRoots = Array.isArray(input.noteRoots)
-    ? input.noteRoots.map((entry) => (typeof entry === "string" && entry.trim() ? canonicalNotesFolder(entry) : "")).filter(Boolean)
+    ? input.noteRoots.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean)
     : [];
   // A Workspace has one authoritative wiki in this release.  Older builds
   // could persist multiple note roots; retain the explicitly selected first
@@ -624,9 +672,12 @@ function normalizeRegistryEntry(value: unknown): WorkspaceRegistryEntry | null {
   if (!settings) {
     return null;
   }
-  const notesFolder = notesFolderFromSettings(settings);
+  const notesFolder = typeof candidate.notesFolder === "string" && candidate.notesFolder.trim()
+    ? candidate.notesFolder.trim()
+    : notesFolderFromSettings(settings);
   return {
-    id: workspaceIdForNotesFolder(notesFolder),
+    ...candidate,
+    id: workspaceIdForNotesFolder(notesFolderFromSettings(settings)),
     label: typeof candidate.label === "string" && candidate.label.trim() ? candidate.label.trim() : path.basename(notesFolder) || notesFolder,
     notesFolder,
     settings,
@@ -649,15 +700,35 @@ function resolveDesktopUserDataPath(env: NodeJS.ProcessEnv): string {
 }
 
 function workspaceIdForNotesFolder(notesFolder: string): string {
-  return `workspace-v1-${createHash("sha256").update(canonicalNotesFolder(notesFolder)).digest("hex")}`;
+  return `workspace-v1-${createHash("sha256").update(workspaceIdentityKey(notesFolder)).digest("hex")}`;
 }
 
 function notesFolderFromSettings(settings: WorkspaceSettings): string {
-  return canonicalNotesFolder(settings.noteRoots[0] || settings.workspaceRoot);
+  return (settings.noteRoots[0] || settings.workspaceRoot).trim();
 }
 
-function canonicalNotesFolder(notesFolder: string): string {
+function workspaceIdentityFromSettings(settings: WorkspaceSettings): string {
+  return workspaceIdentityKey(notesFolderFromSettings(settings));
+}
+
+function workspaceIdentityKey(notesFolder: string): string {
+  const lexicalPath = lexicalNotesFolder(notesFolder);
+  try {
+    return realpathSync.native(lexicalPath);
+  } catch (error) {
+    if (!isMissingPathError(error)) {
+      throw error;
+    }
+    return lexicalPath;
+  }
+}
+
+function lexicalNotesFolder(notesFolder: string): string {
   return path.resolve(notesFolder.trim());
+}
+
+function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR");
 }
 
 function clampSettingsNumber(value: unknown, fallback: number, min: number, max: number): number {
