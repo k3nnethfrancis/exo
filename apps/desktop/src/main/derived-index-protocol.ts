@@ -34,10 +34,10 @@ export type DerivedIndexRequest =
   | { id: number; operation: "embed"; context: DerivedIndexContext; options?: DerivedIndexEmbedOptions }
   | { id: number; operation: "sync"; context: DerivedIndexContext }
   | { id: number; operation: "graph-context"; context: DerivedIndexContext; filePath: string }
-  | { id: number; operation: "graph-topology"; context: DerivedIndexContext; profileId?: string | null }
-  | { id: number; operation: "graph-concept-summaries"; context: DerivedIndexContext; indexes: number[]; sourceSnapshotId: string; profileId?: string | null }
-  | { id: number; operation: "graph-concept-lookup"; context: DerivedIndexContext; reference: GraphConceptLookupReference; sourceSnapshotId: string; profileId?: string | null }
-  | { id: number; operation: "graph-concept-detail-by-index"; context: DerivedIndexContext; index: number; sourceSnapshotId: string; profileId?: string | null }
+  | { id: number; operation: "graph-topology"; context: DerivedIndexContext }
+  | { id: number; operation: "graph-concept-summaries"; context: DerivedIndexContext; indexes: number[]; sourceSnapshotId: string }
+  | { id: number; operation: "graph-concept-lookup"; context: DerivedIndexContext; reference: GraphConceptLookupReference; sourceSnapshotId: string }
+  | { id: number; operation: "graph-concept-detail-by-index"; context: DerivedIndexContext; index: number; sourceSnapshotId: string }
   | { id: number; operation: "graph-refresh"; context: DerivedIndexContext; filePath: string }
   | { id: number; operation: "graph-invalidate"; context: DerivedIndexContext }
   | { id: number; operation: "ontology-preview"; context: DerivedIndexContext }

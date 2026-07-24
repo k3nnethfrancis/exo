@@ -67,6 +67,6 @@ particular Properties. It cannot modify the Markdown, select a Format, or
 control visual presentation. See [Workspace Ontology](./workspace-ontology.md)
 for the reviewed `ontology.yaml` contract.
 
-Internally, some compatibility code is still named `KnowledgeProfile`. That is
-not public product vocabulary and does not represent a second user-facing
+Internally, the closed `NoteRootFormat` boundary owns built-in Format selection.
+It is not public product vocabulary and does not represent a second user-facing
 configuration system.

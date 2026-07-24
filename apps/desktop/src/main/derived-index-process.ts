@@ -44,10 +44,10 @@ export interface DerivedIndexClient {
   ): Promise<IndexStatus>;
   sync(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<IndexSyncResult>;
   graphContext(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<WorkspaceGraphContext | null>;
-  graphTopology(model: WorkspaceModel, runtimeRoot: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphTopology>;
-  graphConceptSummaries(model: WorkspaceModel, runtimeRoot: string, indexes: number[], sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptSummaryResult>;
-  graphConceptLookup(model: WorkspaceModel, runtimeRoot: string, reference: GraphConceptLookupReference, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptLookupResult>;
-  graphConceptDetailByIndex(model: WorkspaceModel, runtimeRoot: string, index: number, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptDetailByIndexResult>;
+  graphTopology(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<GraphTopology>;
+  graphConceptSummaries(model: WorkspaceModel, runtimeRoot: string, indexes: number[], sourceSnapshotId: string, signal?: AbortSignal): Promise<GraphConceptSummaryResult>;
+  graphConceptLookup(model: WorkspaceModel, runtimeRoot: string, reference: GraphConceptLookupReference, sourceSnapshotId: string, signal?: AbortSignal): Promise<GraphConceptLookupResult>;
+  graphConceptDetailByIndex(model: WorkspaceModel, runtimeRoot: string, index: number, sourceSnapshotId: string, signal?: AbortSignal): Promise<GraphConceptDetailByIndexResult>;
   graphRefresh(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<void>;
   graphInvalidate(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<void>;
   ontologyPreview(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<OntologyReviewState>;
@@ -142,10 +142,9 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
   graphTopology(
     model: WorkspaceModel,
     runtimeRoot: string,
-    profileId?: string | null,
     signal?: AbortSignal,
   ): Promise<GraphTopology> {
-    return this.request({ operation: "graph-topology", context: { model, runtimeRoot }, profileId }, signal);
+    return this.request({ operation: "graph-topology", context: { model, runtimeRoot } }, signal);
   }
 
   graphConceptSummaries(
@@ -153,10 +152,9 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
     runtimeRoot: string,
     indexes: number[],
     sourceSnapshotId: string,
-    profileId?: string | null,
     signal?: AbortSignal,
   ): Promise<GraphConceptSummaryResult> {
-    return this.request({ operation: "graph-concept-summaries", context: { model, runtimeRoot }, indexes, sourceSnapshotId, profileId }, signal);
+    return this.request({ operation: "graph-concept-summaries", context: { model, runtimeRoot }, indexes, sourceSnapshotId }, signal);
   }
 
   graphConceptLookup(
@@ -164,10 +162,9 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
     runtimeRoot: string,
     reference: GraphConceptLookupReference,
     sourceSnapshotId: string,
-    profileId?: string | null,
     signal?: AbortSignal,
   ): Promise<GraphConceptLookupResult> {
-    return this.request({ operation: "graph-concept-lookup", context: { model, runtimeRoot }, reference, sourceSnapshotId, profileId }, signal);
+    return this.request({ operation: "graph-concept-lookup", context: { model, runtimeRoot }, reference, sourceSnapshotId }, signal);
   }
 
   graphConceptDetailByIndex(
@@ -175,10 +172,9 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
     runtimeRoot: string,
     index: number,
     sourceSnapshotId: string,
-    profileId?: string | null,
     signal?: AbortSignal,
   ): Promise<GraphConceptDetailByIndexResult> {
-    return this.request({ operation: "graph-concept-detail-by-index", context: { model, runtimeRoot }, index, sourceSnapshotId, profileId }, signal);
+    return this.request({ operation: "graph-concept-detail-by-index", context: { model, runtimeRoot }, index, sourceSnapshotId }, signal);
   }
 
   async graphRefresh(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<void> {

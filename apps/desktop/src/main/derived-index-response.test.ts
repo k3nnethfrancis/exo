@@ -12,7 +12,7 @@ describe("derived index response bounds", () => {
   it("measures typed topology buffers without JSON-expanding their entries", () => {
     const topology = createGraphTopology({
       sourceSnapshotId: "snapshot:fixture",
-      activeProfile: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
+      activeFormat: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
       activeOntology: { state: "generic" },
       seed: 7,
       nodes: {

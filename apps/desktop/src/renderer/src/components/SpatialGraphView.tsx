@@ -80,8 +80,6 @@ type DebugCanvas = HTMLCanvasElement & {
   __exoGraphForceCanvasFallback?: () => Promise<void>;
 };
 
-const PROFILE_ID = "generic-markdown" as const;
-
 export function SpatialGraphView({
   refreshKey,
   inspectedConcept,
@@ -153,7 +151,7 @@ export function SpatialGraphView({
     metadataPendingRef.current += 1;
     updatePendingWork();
     try {
-      const result = await window.exo.notes.getGraphConceptSummaries(unique, sourceSnapshotId, PROFILE_ID);
+      const result = await window.exo.notes.getGraphConceptSummaries(unique, sourceSnapshotId);
       if (result.status === "stale") {
         refreshForStaleRead(sourceSnapshotId);
         return;
@@ -182,7 +180,7 @@ export function SpatialGraphView({
     metadataPendingRef.current += 1;
     updatePendingWork();
     try {
-      const result = await window.exo.notes.getGraphConceptDetailByIndex(index, sourceSnapshotId, PROFILE_ID);
+      const result = await window.exo.notes.getGraphConceptDetailByIndex(index, sourceSnapshotId);
       if (result.status === "stale") {
         refreshForStaleRead(sourceSnapshotId);
         return null;
@@ -218,7 +216,7 @@ export function SpatialGraphView({
     metadataPendingRef.current += 1;
     updatePendingWork();
     try {
-      const result = await window.exo.notes.graphConceptLookup(reference, sourceSnapshotId, PROFILE_ID);
+      const result = await window.exo.notes.graphConceptLookup(reference, sourceSnapshotId);
       if (result.status === "stale") {
         refreshForStaleRead(sourceSnapshotId);
         return null;
@@ -392,7 +390,7 @@ export function SpatialGraphView({
     updatePendingWork();
     setLoading(topologyRef.current === null);
     setError(null);
-    void window.exo.notes.getGraphTopology(PROFILE_ID).then((next) => {
+    void window.exo.notes.getGraphTopology().then((next) => {
       if (request !== loadSequenceRef.current || runtimeRef.current !== runtime) return;
       const previous = topologyRef.current;
       if (previous?.sourceSnapshotId !== next.sourceSnapshotId) {

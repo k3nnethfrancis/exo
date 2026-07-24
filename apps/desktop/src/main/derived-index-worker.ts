@@ -71,13 +71,13 @@ function run(request: DerivedIndexRequest): Promise<DerivedIndexResult> {
     case "graph-context":
       return graphFor(model, runtimeRoot).contextForNote(request.filePath);
     case "graph-topology":
-      return graphFor(model, runtimeRoot).graphTopology(request.profileId);
+      return graphFor(model, runtimeRoot).graphTopology();
     case "graph-concept-summaries":
-      return graphFor(model, runtimeRoot).graphConceptSummaries(request.indexes, request.sourceSnapshotId, request.profileId);
+      return graphFor(model, runtimeRoot).graphConceptSummaries(request.indexes, request.sourceSnapshotId);
     case "graph-concept-lookup":
-      return graphFor(model, runtimeRoot).graphConceptLookup(request.reference, request.sourceSnapshotId, request.profileId);
+      return graphFor(model, runtimeRoot).graphConceptLookup(request.reference, request.sourceSnapshotId);
     case "graph-concept-detail-by-index":
-      return graphFor(model, runtimeRoot).graphConceptDetailByIndex(request.index, request.sourceSnapshotId, request.profileId);
+      return graphFor(model, runtimeRoot).graphConceptDetailByIndex(request.index, request.sourceSnapshotId);
     case "graph-refresh":
       return graphFor(model, runtimeRoot).refreshFile(request.filePath).then(() => null);
     case "graph-invalidate":

@@ -372,18 +372,17 @@ export class WorkspaceNotesService {
     return this.awaitCurrentScope(scope, this.workspaceGraph(scope).contextForNote(authorizedPath));
   }
 
-  async getGraphTopology(profileId?: string | null): Promise<GraphTopology> {
+  async getGraphTopology(): Promise<GraphTopology> {
     const scope = this.scope;
     const derivedIndex = this.derivedIndex;
     if (derivedIndex && scope.runtimeRoot) {
       return this.awaitCurrentScope(scope, derivedIndex.graphTopology(
         scope.model,
         scope.runtimeRoot,
-        profileId,
         scope.controller.signal,
       ));
     }
-    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphTopology(profileId));
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphTopology());
   }
 
   async previewOntology(): Promise<OntologyReviewState> {
@@ -425,7 +424,7 @@ export class WorkspaceNotesService {
     return this.awaitCurrentScope(scope, this.workspaceGraph(scope).rejectOntology(guard));
   }
 
-  async getGraphConceptSummaries(indexes: number[], sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptSummaryResult> {
+  async getGraphConceptSummaries(indexes: number[], sourceSnapshotId: string): Promise<GraphConceptSummaryResult> {
     const scope = this.scope;
     const derivedIndex = this.derivedIndex;
     if (derivedIndex && scope.runtimeRoot) {
@@ -434,17 +433,15 @@ export class WorkspaceNotesService {
         scope.runtimeRoot,
         indexes,
         sourceSnapshotId,
-        profileId,
         scope.controller.signal,
       ));
     }
-    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphConceptSummaries(indexes, sourceSnapshotId, profileId));
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphConceptSummaries(indexes, sourceSnapshotId));
   }
 
   async graphConceptLookup(
     reference: GraphConceptLookupReference,
     sourceSnapshotId: string,
-    profileId?: string | null,
   ): Promise<GraphConceptLookupResult> {
     const scope = this.scope;
     const normalizedReference = await this.authorizeGraphConceptLookupReference(reference, scope);
@@ -456,14 +453,13 @@ export class WorkspaceNotesService {
         scope.runtimeRoot,
         normalizedReference,
         sourceSnapshotId,
-        profileId,
         scope.controller.signal,
       ));
     }
-    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphConceptLookup(normalizedReference, sourceSnapshotId, profileId));
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphConceptLookup(normalizedReference, sourceSnapshotId));
   }
 
-  async getGraphConceptDetailByIndex(index: number, sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptDetailByIndexResult> {
+  async getGraphConceptDetailByIndex(index: number, sourceSnapshotId: string): Promise<GraphConceptDetailByIndexResult> {
     const scope = this.scope;
     const derivedIndex = this.derivedIndex;
     if (derivedIndex && scope.runtimeRoot) {
@@ -472,11 +468,10 @@ export class WorkspaceNotesService {
         scope.runtimeRoot,
         index,
         sourceSnapshotId,
-        profileId,
         scope.controller.signal,
       ));
     }
-    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphConceptDetailByIndex(index, sourceSnapshotId, profileId));
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphConceptDetailByIndex(index, sourceSnapshotId));
   }
 
   private async authorizeGraphConceptLookupReference(reference: GraphConceptLookupReference, scope: WorkspaceNotesScope): Promise<GraphConceptLookupReference> {

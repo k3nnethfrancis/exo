@@ -122,7 +122,7 @@ separate list of supposed product features.
 | Open properties and relations preserved by graph parsing | shipped | workspace graph and knowledge graph | graph/workspace graph tests | graph system report | Required foundation | Interpretation must not erase unknown user data. |
 | User-owned `ontology.yaml` and reviewed activation | shipped foundation | `WorkspaceOntologyStore`; pure ontology compiler; serialized review worker; compact Settings row | ontology/parser/store/graph/watcher tests; Electron stale→Keep→restart→Reject tracer | `workspace-ontology.md`; ADR 0006 | Launch Gate E complete | Candidate effects, stale-safe Keep/Reject, restart-stable Active identity, and graph-only Ontology Relations are shipped; broader conformance/discovery UX remains deferred. |
 | Ontology discovery/design and graph-maintenance Skills | planned | no user-reachable implementation; repo `skills/` are contributor workflows | none | roadmap/specs | Optional and eval-gated | Skills must remain inspectable instructions/data and route writes through normal review. |
-| Note Root Format compatibility rules | planned | legacy `KnowledgeProfile` code contains partial interpretation only | profile/graph tests | product cleanup specs | Needed for portable ontologies | Separate Format compatibility from Ontology meaning without destructive namespace churn. |
+| Built-in Note Root Format compatibility rules | internal foundation | closed `NoteRootFormat` boundary in `WorkspaceGraph` | Format/graph interoperability tests | `note-root-formats.md`; product cleanup specs | Generic Markdown is the production default; OKF remains fixture-only | Separate Format compatibility from Ontology meaning; no user-facing Format switching is shipped. |
 | Legacy plugin manifests | stale | no loader or product caller | no test evidence | superseded ADR 0001 | Removed before launch | The static manifests and packaging copy were deleted after CLI source detection stopped depending on them. |
 | Future Plugin distribution bundle | planned | no runtime implementation | none | ADR 0003; extension architecture | Post-launch | A Plugin may package proven components later; it is not a runtime seam or capability system. |
 
@@ -148,7 +148,7 @@ Any change to those surfaces requires the repository's public-contract review pr
 | `plugins/` manifests had no loader but were packaged and used as a source-root sentinel | Removed after CLI source detection was changed to require the real launcher and installer. |
 | The old public-surface ledger reads like a current contract despite describing Wave 1 | Marked prominently as historical and linked here. |
 | The full graph was reachable while 10K transport and interaction issues remained | Resolved by Launch Gate D: compact 10K/50K/100K transport, one scene, source/package WebGPU and Canvas recovery, concurrent latency, and guarded private-copy evidence passed. |
-| Internal built-in Format selection still uses legacy `KnowledgeProfile`, `profileHash`, and `profile-conformance` names | Intentional compatibility seam until the bounded Note Root Format migration; public Knowledge Graph 0.3 uses `origin`, and user configuration is `ontology.yaml`. |
+| Closed built-in Format selection uses `activeFormat`, `formatHash`, and `format-conformance` names | `WorkspaceGraph` owns the production Generic Markdown default; explicit OKF construction remains an interoperability-fixture seam. User configuration remains `ontology.yaml`. |
 
 ## Deletion candidates and call-site evidence
 

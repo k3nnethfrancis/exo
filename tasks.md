@@ -86,9 +86,8 @@ onboarding while these gates remain open.
   qualitative before/after graph comparison, and explicit Keep/Reject. Keep
   the base Markdown graph intact; note migration is a separate reviewed action.
 - [ ] Design a user-owned ontology library with one active interpretation at a
-  time plus Generic Markdown as no-ontology. Do not overload the internal
-  Note Root Format/`KnowledgeProfile` compatibility seam or claim profile
-  switching is already shipped.
+  time plus Generic Markdown as no-ontology. Do not overload the closed
+  Note Root Format seam or claim Format switching is already shipped.
 
 ## Loop 01 architectural ruling — 2026-07-12
 

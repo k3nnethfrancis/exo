@@ -14,8 +14,6 @@ import {
 
 const RUN_PRIVATE_GATE = process.env.EXO_PRIVATE_GRAPH_GATE === "copy-only"
   && Boolean(process.env.EXO_PRIVATE_GRAPH_VAULT_ROOT);
-const PROFILE_ID = "generic-markdown";
-
 interface GraphDebugSnapshot {
   pendingWork: number;
   pendingFrame: boolean;
@@ -218,8 +216,8 @@ async function connectedGraphSeed(page: Page): Promise<{
   edgeCount: number;
   filePath: string | null;
 }> {
-  return page.evaluate(async (profileId) => {
-    const topology = await window.exo.notes.getGraphTopology(profileId);
+  return page.evaluate(async () => {
+    const topology = await window.exo.notes.getGraphTopology();
     const ordered = Array.from({ length: topology.nodeCount }, (_, index) => index)
       .filter((index) => (topology.nodes.degrees[index] ?? 0) > 0)
       .sort((left, right) => (topology.nodes.degrees[right] ?? 0) - (topology.nodes.degrees[left] ?? 0));
@@ -227,7 +225,6 @@ async function connectedGraphSeed(page: Page): Promise<{
       const result = await window.exo.notes.getGraphConceptSummaries(
         ordered.slice(offset, offset + 64),
         topology.sourceSnapshotId,
-        profileId,
       );
       const resolved = result.summaries.find((summary) => Boolean(summary.filePath));
       if (resolved?.filePath) {
@@ -235,7 +232,7 @@ async function connectedGraphSeed(page: Page): Promise<{
       }
     }
     return { nodeCount: topology.nodeCount, edgeCount: topology.edgeCount, filePath: null };
-  }, PROFILE_ID);
+  });
 }
 
 async function openNote(electronApp: ElectronApplication, filePath: string): Promise<void> {
@@ -301,7 +298,7 @@ async function openConnectionsGraph(page: Page): Promise<void> {
 }
 
 async function interactionTarget(canvas: Locator): Promise<InteractionTarget> {
-  const target = await canvas.evaluate(async (element, profileId) => {
+  const target = await canvas.evaluate(async (element) => {
     const graphCanvasElement = element as HTMLCanvasElement & {
       __exoGraphPointForIndex?: (index: number) => { x: number; y: number; visible: boolean } | null;
       __exoGraphPickAt?: (x: number, y: number) => number;
@@ -312,7 +309,7 @@ async function interactionTarget(canvas: Locator): Promise<InteractionTarget> {
     const bounds = graphCanvasElement.getBoundingClientRect();
     const inViewport = (point: { x: number; y: number; visible: boolean }) => point.visible
       && point.x >= 2 && point.y >= 2 && point.x <= bounds.width - 2 && point.y <= bounds.height - 2;
-    const topology = await window.exo.notes.getGraphTopology(profileId);
+    const topology = await window.exo.notes.getGraphTopology();
     const maximum = Math.min(topology.edgeCount, 25_000);
     for (let edge = 0; edge < maximum; edge += 1) {
       const sourceIndex = topology.edges.endpoints[edge * 2] ?? -1;
@@ -323,7 +320,7 @@ async function interactionTarget(canvas: Locator): Promise<InteractionTarget> {
       if (!source || !targetPoint || !inViewport(source) || !inViewport(targetPoint)) continue;
       if (graphCanvasElement.__exoGraphPickAt?.(source.x, source.y) !== sourceIndex) continue;
       if (graphCanvasElement.__exoGraphPickAt?.(targetPoint.x, targetPoint.y) !== targetIndex) continue;
-      const summary = await window.exo.notes.getGraphConceptSummaries([targetIndex], sourceSnapshotId, profileId);
+      const summary = await window.exo.notes.getGraphConceptSummaries([targetIndex], sourceSnapshotId);
       const filePath = summary.summaries[0]?.filePath;
       if (!filePath) continue;
       return {
@@ -332,7 +329,7 @@ async function interactionTarget(canvas: Locator): Promise<InteractionTarget> {
       };
     }
     return null;
-  }, PROFILE_ID);
+  });
   ensure(Boolean(target), "NO_PICKABLE_CONNECTED_PAIR");
   return target!;
 }

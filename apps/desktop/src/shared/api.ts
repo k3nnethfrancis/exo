@@ -307,10 +307,10 @@ export interface DesktopApi {
     save: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<void>;
     stat: (filePath: string) => Promise<FileStatInfo | null>;
     getGraphContext: (filePath: string) => Promise<WorkspaceGraphContext | null>;
-    getGraphTopology: (profileId?: string | null) => Promise<GraphTopology>;
-    getGraphConceptSummaries: (indexes: number[], sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptSummaryResult>;
-    graphConceptLookup: (reference: GraphConceptLookupReference, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptLookupResult>;
-    getGraphConceptDetailByIndex: (index: number, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptDetailByIndexResult>;
+    getGraphTopology: () => Promise<GraphTopology>;
+    getGraphConceptSummaries: (indexes: number[], sourceSnapshotId: string) => Promise<GraphConceptSummaryResult>;
+    graphConceptLookup: (reference: GraphConceptLookupReference, sourceSnapshotId: string) => Promise<GraphConceptLookupResult>;
+    getGraphConceptDetailByIndex: (index: number, sourceSnapshotId: string) => Promise<GraphConceptDetailByIndexResult>;
     resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
     resolveMarkdownImage: (sourceFilePath: string, target: string, lookupByFilename?: boolean) => Promise<ResolvedMarkdownImage>;
     ensureTarget: (sourceFilePath: string, target: string) => Promise<string>;

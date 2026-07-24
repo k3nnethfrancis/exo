@@ -113,19 +113,20 @@ describe("UtilityDerivedIndexClient", () => {
     const worker = new FakeProcess();
     const client = new UtilityDerivedIndexClient({ spawn: () => worker, workerPath: "/app/derived-index-worker.js" });
     const firstResult = topology();
-    const first = client.graphTopology(model(), "/workspace/.exo", "okf");
-    expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-topology", profileId: "okf" });
+    const first = client.graphTopology(model(), "/workspace/.exo");
+    expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-topology" });
+    expect(worker.messages.at(-1)).not.toHaveProperty("profileId");
     worker.emit("message", { id: 1, ok: true, result: firstResult });
     const resolvedFirst = await first;
     expect(resolvedFirst.nodes.identityKeys.byteLength).toBe(16);
 
     const secondResult = topology();
-    const second = client.graphTopology(model(), "/workspace/.exo", "okf");
+    const second = client.graphTopology(model(), "/workspace/.exo");
     worker.emit("message", { id: 2, ok: true, result: secondResult });
     await expect(second).resolves.toMatchObject({ transportHash: firstResult.transportHash });
     expect(resolvedFirst.nodes.identityKeys.byteLength).toBe(16);
 
-    const summaries = client.graphConceptSummaries(model(), "/workspace/.exo", [0, 1], "snapshot:fixture", "okf");
+    const summaries = client.graphConceptSummaries(model(), "/workspace/.exo", [0, 1], "snapshot:fixture");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-concept-summaries", indexes: [0, 1], sourceSnapshotId: "snapshot:fixture" });
     worker.emit("message", { id: 3, ok: true, result: { status: "ok", sourceSnapshotId: "snapshot:fixture", summaries: [], payloadBytes: 100 } });
     await expect(summaries).resolves.toMatchObject({ status: "ok" });
@@ -135,7 +136,6 @@ describe("UtilityDerivedIndexClient", () => {
       "/workspace/.exo",
       { filePath: "/workspace/notes/focus.md" },
       "snapshot:fixture",
-      "okf",
     );
     expect(worker.messages.at(-1)).toMatchObject({
       operation: "graph-concept-lookup",
@@ -149,7 +149,7 @@ describe("UtilityDerivedIndexClient", () => {
     });
     await expect(lookup).resolves.toMatchObject({ status: "ok", summary: { index: 1 } });
 
-    const detail = client.graphConceptDetailByIndex(model(), "/workspace/.exo", 1, "snapshot:fixture", "okf");
+    const detail = client.graphConceptDetailByIndex(model(), "/workspace/.exo", 1, "snapshot:fixture");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-concept-detail-by-index", index: 1 });
     worker.emit("message", { id: 5, ok: true, result: { status: "missing", sourceSnapshotId: "snapshot:fixture", index: 1, payloadBytes: 100 } });
     await expect(detail).resolves.toMatchObject({ status: "missing" });
@@ -291,7 +291,7 @@ function workerAt(workers: FakeProcess[], index: number): FakeProcess {
 function topology() {
   return createGraphTopology({
     sourceSnapshotId: "snapshot:fixture",
-    activeProfile: { id: "okf", version: "0.1", label: "OKF", source: "built-in", state: "active" },
+    activeFormat: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
     activeOntology: { state: "generic" },
     seed: 9,
     nodes: {

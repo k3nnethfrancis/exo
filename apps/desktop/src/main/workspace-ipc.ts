@@ -212,15 +212,15 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const authorizedPath = await workspaceFiles().existing(filePath);
     return handlers.getGraphContext(authorizedPath);
   });
-  handleDesktopInvoke("notes:get-graph-topology", async (_event, profileId) => handlers.getGraphTopology(profileId));
-  handleDesktopInvoke("notes:get-graph-concept-summaries", async (_event, indexes, sourceSnapshotId, profileId) =>
-    handlers.getGraphConceptSummaries(indexes, sourceSnapshotId, profileId),
+  handleDesktopInvoke("notes:get-graph-topology", async () => handlers.getGraphTopology());
+  handleDesktopInvoke("notes:get-graph-concept-summaries", async (_event, indexes, sourceSnapshotId) =>
+    handlers.getGraphConceptSummaries(indexes, sourceSnapshotId),
   );
-  handleDesktopInvoke("notes:graph-concept-lookup", async (_event, reference, sourceSnapshotId, profileId) =>
-    handlers.graphConceptLookup(reference, sourceSnapshotId, profileId),
+  handleDesktopInvoke("notes:graph-concept-lookup", async (_event, reference, sourceSnapshotId) =>
+    handlers.graphConceptLookup(reference, sourceSnapshotId),
   );
-  handleDesktopInvoke("notes:get-graph-concept-detail-by-index", async (_event, index, sourceSnapshotId, profileId) =>
-    handlers.getGraphConceptDetailByIndex(index, sourceSnapshotId, profileId),
+  handleDesktopInvoke("notes:get-graph-concept-detail-by-index", async (_event, index, sourceSnapshotId) =>
+    handlers.getGraphConceptDetailByIndex(index, sourceSnapshotId),
   );
   handleDesktopInvoke("notes:resolve-target", async (_event, sourceFilePath, target) => handlers.resolveTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:resolve-markdown-image", async (_event, sourceFilePath, target, lookupByFilename) =>

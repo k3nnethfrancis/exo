@@ -138,7 +138,7 @@ function topology(nodeCount = 4, sourceSnapshotId = "snapshot-1"): GraphTopology
     version: "0.1",
     layoutVersion: "finite-force-0.1",
     sourceSnapshotId,
-    profileHash: "profile",
+    formatHash: "profile",
     topologyHash: `topology-${nodeCount}`,
     transportHash: `transport-${sourceSnapshotId}`,
     layoutEpochId: `layout-${nodeCount}`,
