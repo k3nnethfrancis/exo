@@ -6,6 +6,7 @@ import {
   closeFolderOverviewInTree,
   decodeCanvas,
   normalizeFocusedLeafId,
+  removeNode,
   resolveFolderOverviewEditorLeaf,
   type EditorPaneContent,
   type PaneNode,
@@ -18,7 +19,10 @@ describe("Pane focus normalization", () => {
       content({ openPaths: ["/notes/b.md"], activePath: "/notes/b.md" }),
     );
 
-    expect(normalizeFocusedLeafId(tree, "missing")).toBe("left");
+    const afterClose = removeNode(tree, "left");
+
+    expect(afterClose).not.toBeNull();
+    expect(normalizeFocusedLeafId(afterClose!, "left")).toBe("right");
     expect(normalizeFocusedLeafId(tree, "right")).toBe("right");
   });
 
