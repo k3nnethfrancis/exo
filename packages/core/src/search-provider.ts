@@ -20,6 +20,7 @@ export interface IndexSearchOptions {
   limit?: number;
   offset?: number;
   intent?: string;
+  /** Undefined selects every Indexed Root; any defined array selects only its known IDs, so [] selects none. */
   rootIds?: string[];
   includeContent?: boolean;
   maxLinesPerResult?: number;
@@ -32,6 +33,7 @@ export interface IndexReadOptions {
 }
 
 export interface IndexUpdateOptions {
+  /** Undefined selects every Indexed Root; any defined array selects only its known IDs, so [] selects none. */
   rootIds?: string[];
 }
 

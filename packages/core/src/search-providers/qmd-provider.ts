@@ -23,8 +23,39 @@ interface QmdEmbedOptions {
   maxDurationMs?: number;
 }
 
+type QmdStreamFetch = (limit: number) => Promise<unknown[]>;
+
+interface FilteredQmdResults {
+  results: IndexSearchResult[];
+  rejectedCount: number;
+}
+
+interface QmdStreamState {
+  fetch: QmdStreamFetch;
+  scanLimit: number;
+  rawResults: unknown[];
+  filtered: FilteredQmdResults;
+  exhausted: boolean;
+  complete: boolean;
+}
+
+class QmdStreamQueryError extends Error {
+  constructor(readonly reason: unknown) {
+    super(errorMessage(reason));
+    this.name = "QmdStreamQueryError";
+  }
+}
+
+class QmdSearchIncompleteError extends Error {
+  constructor() {
+    super(`QMD search reached the hard scan limit of ${MAX_QMD_SCAN_RESULTS_PER_STREAM} results in a provider stream before finding enough authorized results or proving exhaustion.`);
+    this.name = "QmdSearchIncompleteError";
+  }
+}
+
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_CONTENT_LINES = 80;
+const MAX_QMD_SCAN_RESULTS_PER_STREAM = 100;
 const QMD_DIRECTORY_NAME = "qmd";
 
 export const qmdSearchProviderMetadata: SearchProviderMetadata = {
@@ -168,11 +199,15 @@ async function pathExists(target: string): Promise<boolean> {
 
 async function updateIndex(model: WorkspaceModel, runtimeRoot: string, options: IndexUpdateOptions = {}): Promise<IndexStatus> {
   ensureIndexEnabled(model);
+  const selectedRoots = selectIndexedRoots(model.indexedRoots, options.rootIds);
+  if (selectedRoots.length === 0) {
+    return getIndexStatus(model, runtimeRoot);
+  }
+
   let store: QmdStore | null = null;
   try {
     store = await openQmdStore(model, runtimeRoot);
-    const collections = selectedCollectionNames(model.indexedRoots, options.rootIds);
-    await store.update(collections.length > 0 ? { collections } : undefined);
+    await store.update({ collections: selectedRoots.map(collectionName) });
   } finally {
     await store?.close();
   }
@@ -263,24 +298,24 @@ async function searchIndex(
 
   let store: QmdStore | null = null;
   try {
-    store = await openQmdStore(model, runtimeRoot);
-    const requestedRootIds = options.rootIds;
-    const selectedRoots = requestedRootIds === undefined
-      ? model.indexedRoots
-      : model.indexedRoots.filter((root) => requestedRootIds.includes(root.id));
+    const qmdStore = await openQmdStore(model, runtimeRoot);
+    store = qmdStore;
+    const selectedRoots = selectIndexedRoots(model.indexedRoots, options.rootIds);
     const collections = selectedRoots.map(collectionName);
     const indexedRootFiles = new WorkspaceFiles(selectedRoots.map((root) => root.path));
     const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
     const offset = Math.max(0, options.offset ?? 0);
-    const providerLimit = offset + limit + 1;
-    let rawResults: unknown[];
+    const targetResultCount = offset + limit + 1;
     const warnings: string[] = [];
+    const lexicalStreams = (): QmdStreamFetch[] => collections.map(
+      (collection) => (scanLimit) => qmdStore.searchLex(trimmedQuery, { limit: scanLimit, collection }),
+    );
 
     const effectiveMode = options.forceMode ?? model.indexing.mode;
     let actualMode = effectiveMode;
     if (effectiveMode !== "lexical") {
       try {
-        const qmdStatus = await store.getStatus();
+        const qmdStatus = await qmdStore.getStatus();
         const pendingEmbeddings = Number(qmdStatus.needsEmbedding ?? 0);
         if (!Boolean(qmdStatus.hasVectorIndex) || pendingEmbeddings > 0) {
           warnings.push("Embeddings are not ready; Exo will use lexical fallback if semantic/hybrid search is unavailable.");
@@ -290,79 +325,87 @@ async function searchIndex(
       }
     }
 
+    let filteredResults: FilteredQmdResults;
     if (effectiveMode === "lexical") {
-      const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit: providerLimit, collection })));
-      rawResults = lexical.flat();
+      filteredResults = await refillQmdStreams(
+        lexicalStreams(),
+        targetResultCount,
+        selectedRoots,
+        indexedRootFiles,
+        options,
+      );
     } else if (effectiveMode === "semantic") {
       try {
-        const [lexical, vector] = await Promise.all([
-          Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit: providerLimit, collection }))),
-          Promise.all(collections.map((collection) => store!.searchVector(trimmedQuery, { limit: providerLimit, collection }))),
-        ]);
-        rawResults = [...lexical.flat(), ...vector.flat()];
+        filteredResults = await refillQmdStreams(
+          [
+            ...lexicalStreams(),
+            ...collections.map(
+              (collection): QmdStreamFetch =>
+                (scanLimit) => qmdStore.searchVector(trimmedQuery, { limit: scanLimit, collection }),
+            ),
+          ],
+          targetResultCount,
+          selectedRoots,
+          indexedRootFiles,
+          options,
+        );
       } catch (error) {
+        if (!(error instanceof QmdStreamQueryError)) {
+          throw error;
+        }
         // Preserve search as an orientation surface even when embeddings are stale or unavailable.
         // The warning keeps the degraded provider visible instead of silently pretending this was semantic.
-        warnings.push(`Semantic search is not ready (${errorMessage(error)}); using lexical search.`);
-        const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit: providerLimit, collection })));
-        rawResults = lexical.flat();
+        warnings.push(`Semantic search is not ready (${errorMessage(error.reason)}); using lexical search.`);
+        filteredResults = await refillQmdStreams(
+          lexicalStreams(),
+          targetResultCount,
+          selectedRoots,
+          indexedRootFiles,
+          options,
+        );
         actualMode = "lexical";
       }
     } else {
       try {
-        const hybrid = await Promise.all(
-          collections.map((collection) =>
-            store!.search({
-              query: trimmedQuery,
-              collections: [collection],
-              limit: providerLimit,
-              intent: options.intent,
-              rerank: true,
-            }),
+        filteredResults = await refillQmdStreams(
+          collections.map(
+            (collection): QmdStreamFetch =>
+              (scanLimit) => qmdStore.search({
+                query: trimmedQuery,
+                collections: [collection],
+                limit: scanLimit,
+                intent: options.intent,
+                rerank: true,
+              }),
           ),
+          targetResultCount,
+          selectedRoots,
+          indexedRootFiles,
+          options,
         );
-        rawResults = hybrid.flat();
       } catch (error) {
+        if (!(error instanceof QmdStreamQueryError)) {
+          throw error;
+        }
         // Hybrid depends on the same vector path as semantic search. Fall back to lexical results,
         // but keep a provider warning so index repair remains discoverable.
-        warnings.push(`Hybrid search is not ready (${errorMessage(error)}); using lexical search.`);
-        const lexical = await Promise.all(collections.map((collection) => store!.searchLex(trimmedQuery, { limit: providerLimit, collection })));
-        rawResults = lexical.flat();
+        warnings.push(`Hybrid search is not ready (${errorMessage(error.reason)}); using lexical search.`);
+        filteredResults = await refillQmdStreams(
+          lexicalStreams(),
+          targetResultCount,
+          selectedRoots,
+          indexedRootFiles,
+          options,
+        );
         actualMode = "lexical";
       }
     }
 
-    const mappedResults = rawResults
-      .map((result) => mapQmdResult(result, selectedRoots))
-      .filter((result): result is IndexSearchResult => result !== null);
-    const authorizedResults = await Promise.all(
-      mappedResults.map(async (result) => (await isAuthorizedIndexedRootPath(indexedRootFiles, result.filePath)) ? result : null),
-    );
-    let rejectedResultCount = rawResults.length - mappedResults.length + authorizedResults.filter((result) => result === null).length;
-    const candidates = authorizedResults
-      .filter((result): result is IndexSearchResult => result !== null)
-      .sort((left, right) => right.score - left.score);
-    let pageableResults: IndexSearchResult[] = candidates;
-
-    if (options.includeContent) {
-      // QMD bounds this candidate set by providerLimit. Finish authorization and
-      // hydration filtering inside that bound before applying the page offset.
-      const hydratedResults = await Promise.all(
-        candidates.map(async (result) => ({
-          result,
-          content: await readAuthorizedBoundedContent(result.filePath, indexedRootFiles, options.maxLinesPerResult ?? DEFAULT_CONTENT_LINES),
-        })),
-      );
-      rejectedResultCount += hydratedResults.filter(({ content }) => content === null).length;
-      pageableResults = hydratedResults
-        .filter((entry): entry is { result: IndexSearchResult; content: string } => entry.content !== null)
-        .map(({ result, content }) => ({ ...result, content }));
-    }
-
+    const pageableResults = filteredResults.results.sort((left, right) => right.score - left.score);
     const results = pageableResults.slice(offset, offset + limit);
 
-    if (rejectedResultCount > 0) {
-      warnings.push(droppedQmdResultWarning(rejectedResultCount));
+    if (filteredResults.rejectedCount > 0) {
+      warnings.push(droppedQmdResultWarning(filteredResults.rejectedCount));
     }
 
     return {
@@ -374,12 +417,124 @@ async function searchIndex(
       hasMore: pageableResults.length > offset + results.length,
     };
   } catch (error) {
+    if (error instanceof QmdSearchIncompleteError) {
+      throw error;
+    }
     // If QMD cannot open at all, keep basic workspace search usable. This fallback is intentionally
     // degraded and warning-bearing; admin/status paths should still surface the underlying QMD issue.
     return searchFilesystem(model, trimmedQuery, options, qmdFallbackWarning(error));
   } finally {
     await store?.close();
   }
+}
+
+async function refillQmdStreams(
+  streams: readonly QmdStreamFetch[],
+  targetResultCount: number,
+  roots: IndexedRoot[],
+  indexedRootFiles: WorkspaceFiles,
+  options: IndexSearchOptions,
+): Promise<FilteredQmdResults> {
+  if (streams.length === 0) {
+    return { results: [], rejectedCount: 0 };
+  }
+
+  const requiredResultCount = Number.isFinite(targetResultCount)
+    ? Math.max(1, Math.ceil(targetResultCount))
+    : MAX_QMD_SCAN_RESULTS_PER_STREAM + 1;
+  const initialScanLimit = Math.min(requiredResultCount, MAX_QMD_SCAN_RESULTS_PER_STREAM);
+  const states: QmdStreamState[] = streams.map((fetch) => ({
+    fetch,
+    scanLimit: initialScanLimit,
+    rawResults: [],
+    filtered: { results: [], rejectedCount: 0 },
+    exhausted: false,
+    complete: false,
+  }));
+
+  while (states.some((state) => !state.complete)) {
+    const activeStates = states.filter((state) => !state.complete);
+    const queryResults = await Promise.allSettled(
+      activeStates.map((state) => state.fetch(state.scanLimit)),
+    );
+    const queryFailure = queryResults.find((result) => result.status === "rejected");
+    if (queryFailure?.status === "rejected") {
+      throw new QmdStreamQueryError(queryFailure.reason);
+    }
+
+    for (let index = 0; index < activeStates.length; index += 1) {
+      const queryResult = queryResults[index];
+      if (queryResult.status !== "fulfilled") {
+        continue;
+      }
+      const state = activeStates[index];
+      state.rawResults = queryResult.value.slice(0, state.scanLimit);
+      state.exhausted = queryResult.value.length < state.scanLimit;
+    }
+
+    const filteredResults = await Promise.all(
+      activeStates.map((state) =>
+        filterQmdStreamResults(state.rawResults, roots, indexedRootFiles, options)),
+    );
+    let reachedIncompleteCap = false;
+    for (let index = 0; index < activeStates.length; index += 1) {
+      const state = activeStates[index];
+      state.filtered = filteredResults[index];
+      if (state.filtered.results.length >= requiredResultCount || state.exhausted) {
+        state.complete = true;
+      } else if (state.scanLimit >= MAX_QMD_SCAN_RESULTS_PER_STREAM) {
+        reachedIncompleteCap = true;
+      } else {
+        state.scanLimit = Math.min(state.scanLimit * 2, MAX_QMD_SCAN_RESULTS_PER_STREAM);
+      }
+    }
+    if (reachedIncompleteCap) {
+      throw new QmdSearchIncompleteError();
+    }
+  }
+
+  return {
+    results: states.flatMap((state) => state.filtered.results),
+    rejectedCount: states.reduce((total, state) => total + state.filtered.rejectedCount, 0),
+  };
+}
+
+async function filterQmdStreamResults(
+  rawResults: unknown[],
+  roots: IndexedRoot[],
+  indexedRootFiles: WorkspaceFiles,
+  options: IndexSearchOptions,
+): Promise<FilteredQmdResults> {
+  const mappedResults = rawResults
+    .map((result) => mapQmdResult(result, roots))
+    .filter((result): result is IndexSearchResult => result !== null);
+  const authorizedResults = await Promise.all(
+    mappedResults.map(async (result) =>
+      (await isAuthorizedIndexedRootPath(indexedRootFiles, result.filePath)) ? result : null),
+  );
+  let rejectedCount = rawResults.length
+    - mappedResults.length
+    + authorizedResults.filter((result) => result === null).length;
+  let results = authorizedResults.filter((result): result is IndexSearchResult => result !== null);
+
+  if (options.includeContent) {
+    const hydratedResults = await Promise.all(
+      results.map(async (result) => ({
+        result,
+        content: await readAuthorizedBoundedContent(
+          result.filePath,
+          indexedRootFiles,
+          options.maxLinesPerResult ?? DEFAULT_CONTENT_LINES,
+        ),
+      })),
+    );
+    rejectedCount += hydratedResults.filter(({ content }) => content === null).length;
+    results = hydratedResults
+      .filter((entry): entry is { result: IndexSearchResult; content: string } => entry.content !== null)
+      .map(({ result, content }) => ({ ...result, content }));
+  }
+
+  return { results, rejectedCount };
 }
 
 async function readIndexDocument(
@@ -478,9 +633,12 @@ function shouldUseQmd(model: WorkspaceModel): boolean {
   return model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0;
 }
 
-function selectedCollectionNames(roots: IndexedRoot[], rootIds?: string[]): string[] {
-  const selected = rootIds && rootIds.length > 0 ? roots.filter((root) => rootIds.includes(root.id)) : roots;
-  return selected.map(collectionName);
+function selectIndexedRoots(roots: IndexedRoot[], rootIds: string[] | undefined): IndexedRoot[] {
+  if (rootIds === undefined) {
+    return roots;
+  }
+  const selectedIds = new Set(rootIds);
+  return roots.filter((root) => selectedIds.has(root.id));
 }
 
 function collectionName(root: IndexedRoot): string {
