@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchExoWorkspaceFixture } from "../helpers";
+import { launchExoWorkspaceFixture, relaunchExoWorkspaceFixture } from "../helpers";
 
 test("every non-structural Settings round trip preserves commands, layout, and opaque metadata", async () => {
   const fixture = await launchExoWorkspaceFixture({
@@ -148,8 +148,149 @@ test("structural Settings Apply preserves retained Indexed Root policy", async (
     await workspaceRoot.fill(`${fixture.workspaceRoot} `);
     await fixture.page.getByTestId("workspace-settings-apply").click();
     await expect(fixture.page.getByTestId("workspace-settings-apply-status")).toHaveText("Changes applied.");
+    await expect(fixture.page.getByTestId("workspace-settings-apply")).toHaveCount(0);
     await expect.poll(() => persistedSettings(fixture.settingsPath)).toMatchObject({ indexedRoots: [expectedRoot] });
+    await fixture.page.getByTestId("workspace-settings-close").click();
+    await fixture.page.getByTestId("workspace-menu-toggle").click();
+    await fixture.page.getByTestId("workspace-menu-settings").click();
+    await expect(fixture.page.getByTestId("workspace-settings-apply")).toHaveCount(0);
   } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("structural Apply reports an external revision conflict without overwriting it", async () => {
+  const fixture = await launchExoWorkspaceFixture({ mutable: true });
+
+  try {
+    await fixture.page.waitForTimeout(1_100);
+    await openSettingsSection(fixture.page, "workspace");
+    await fixture.page.getByTestId("workspace-settings-workspace-root").fill(`${fixture.workspaceRoot} `);
+
+    await fixture.page.evaluate(async () => {
+      const snapshot = await window.exo.workspace.getSettings();
+      await window.exo.workspace.saveSettings({
+        settings: { ...snapshot.settings, terminalFontSize: 17 },
+        expectedRevision: snapshot.revision,
+      });
+    });
+
+    await fixture.page.getByTestId("workspace-settings-apply").click();
+    await expect(fixture.page.locator(".dialog-card__status--error")).toContainText(
+      "Workspace settings changed since this edit began",
+    );
+    await expect(fixture.page.getByTestId("workspace-settings-apply")).toBeVisible();
+    await expect.poll(() => persistedSettings(fixture.settingsPath)).toMatchObject({
+      workspaceRoot: fixture.workspaceRoot,
+      terminalFontSize: 17,
+    });
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("re-enabling QMD preserves retained Indexed Roots through restart", async () => {
+  const fixture = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
+      const notesPath = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(settingsPath, JSON.stringify({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [notesPath],
+        indexedRoots: [
+          {
+            id: "research-docs",
+            label: "Research documents",
+            path: path.join(notesPath, "research"),
+            kind: "docs",
+            pattern: "**/*.mdx",
+            ignore: ["private/**"],
+            backend: "qmd",
+          },
+          {
+            id: "source-code",
+            label: "Source code",
+            path: path.join(notesPath, "code"),
+            kind: "code",
+            pattern: "**/*.{ts,tsx}",
+            ignore: ["generated/**"],
+            backend: "qmd",
+          },
+        ],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        searchEngine: "filesystem",
+      }, null, 2), "utf8");
+    },
+  });
+  let relaunched: Awaited<ReturnType<typeof relaunchExoWorkspaceFixture>> | null = null;
+
+  try {
+    const before = await persistedSettings(fixture.settingsPath);
+    await openSettingsSection(fixture.page, "index");
+    await fixture.page.getByTestId("workspace-settings-search-engine-qmd").click();
+    await fixture.page.getByTestId("workspace-settings-apply").click();
+    await expect(fixture.page.getByTestId("workspace-settings-apply")).toHaveCount(0);
+    await expect.poll(() => persistedSettings(fixture.settingsPath)).toMatchObject({
+      indexedRoots: before.indexedRoots,
+      indexing: { enabled: true, mode: "lexical", backend: "qmd" },
+      searchEngine: "qmd",
+    });
+
+    await fixture.electronApp.close();
+    relaunched = await relaunchExoWorkspaceFixture(fixture);
+    await openSettingsSection(relaunched.page, "index");
+    await expect(relaunched.page.getByTestId("workspace-settings-search-engine-qmd")).toBeChecked();
+    await expect(relaunched.page.getByTestId("workspace-settings-apply")).toHaveCount(0);
+    expect((await persistedSettings(fixture.settingsPath)).indexedRoots).toEqual(before.indexedRoots);
+  } finally {
+    await relaunched?.electronApp.close().catch(() => {});
+    await fixture.cleanup();
+  }
+});
+
+test("QMD setup defaults empty roots once and remains idempotent after restart", async () => {
+  const fixture = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
+      const notesPath = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(settingsPath, JSON.stringify({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [notesPath],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        searchEngine: "filesystem",
+      }, null, 2), "utf8");
+    },
+  });
+  let relaunched: Awaited<ReturnType<typeof relaunchExoWorkspaceFixture>> | null = null;
+
+  try {
+    const noteRoot = path.join(fixture.workspaceRoot, "notes/test-notes");
+    const expectedRoot = {
+      id: "index-root-1",
+      label: "test-notes",
+      path: noteRoot,
+      kind: "mixed",
+      pattern: "**/*.md",
+      ignore: [],
+      backend: "qmd",
+    };
+    await openSettingsSection(fixture.page, "index");
+    await fixture.page.getByTestId("workspace-settings-search-engine-qmd").click();
+    await fixture.page.getByTestId("workspace-settings-apply").click();
+    await expect(fixture.page.getByTestId("workspace-settings-apply")).toHaveCount(0);
+    await expect.poll(() => persistedSettings(fixture.settingsPath)).toMatchObject({ indexedRoots: [expectedRoot] });
+
+    await fixture.electronApp.close();
+    relaunched = await relaunchExoWorkspaceFixture(fixture);
+    await openSettingsSection(relaunched.page, "index");
+    await relaunched.page.getByTestId("workspace-settings-search-engine-qmd").click();
+    await expect(relaunched.page.getByTestId("workspace-settings-apply")).toHaveCount(0);
+    expect((await persistedSettings(fixture.settingsPath)).indexedRoots).toEqual([expectedRoot]);
+  } finally {
+    await relaunched?.electronApp.close().catch(() => {});
     await fixture.cleanup();
   }
 });
@@ -163,6 +304,13 @@ async function editSettingsAndClose(page: Page, section: "appearance" | "index" 
   await expect(page.getByTestId("workspace-settings-status")).toContainText("Settings saved.");
   await page.getByTestId("workspace-settings-close").click();
   await expect(page.getByTestId("workspace-settings-dialog")).not.toBeVisible();
+}
+
+async function openSettingsSection(page: Page, section: "workspace" | "index"): Promise<void> {
+  await page.getByTestId("workspace-menu-toggle").click();
+  await page.getByTestId("workspace-menu-settings").click();
+  await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
+  await page.getByTestId(`workspace-settings-tab-${section}`).click();
 }
 
 async function expectPreservedSettings(settingsPath: string, seeded: Record<string, unknown>, expectedOwnedValues: Record<string, unknown>): Promise<void> {

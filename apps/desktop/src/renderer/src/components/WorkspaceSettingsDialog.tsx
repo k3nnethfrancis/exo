@@ -5,7 +5,8 @@ import type { AgentCommand, IndexStatus, WorkspaceSettings } from "@exo/core";
 import type { AppearanceMode } from "../appearance";
 import { THEME_FAMILIES, normalizeColorThemeId } from "../theme/registry";
 import type { ColorThemeId } from "../theme/types";
-import { defaultIndexedRoot, type IndexBusyState, type WorkspaceSettingsDialogState, type WorkspaceSettingsSection } from "../workspaceSettingsDialogTypes";
+import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "../workspaceSettingsDialogTypes";
+import { selectWorkspaceSettingsSearchEngine } from "../workspaceSettingsModel";
 import { HelpTooltip } from "./HelpTooltip";
 import { PathList } from "./PathList";
 import { AgentInvocationPromptEditor } from "./AgentInvocationPromptEditor";
@@ -250,24 +251,8 @@ function IndexSection({
   const qmdSelected = settings.searchEngine === "qmd";
 
   function selectSearchEngine(searchEngine: "qmd" | "filesystem") {
-    setSettings((current) => {
-      if (!current) {
-        return current;
-      }
-      const qmdNeedsSetup = searchEngine === "qmd" && (current.indexMode === "off" || current.indexedRoots.length === 0);
-      return {
-        ...current,
-        searchEngine,
-        ...(qmdNeedsSetup
-          ? {
-              indexMode: "lexical",
-              indexedRoots: current.noteRoots.map(defaultIndexedRoot),
-            }
-          : {}),
-        applyStatus: "idle",
-        applyErrorMessage: null,
-      };
-    });
+    setSettings((current) =>
+      current ? selectWorkspaceSettingsSearchEngine(current, searchEngine) : current);
   }
 
   return (

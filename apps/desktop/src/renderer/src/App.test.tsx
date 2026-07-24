@@ -76,7 +76,9 @@ import { terminalRenderStabilityBody, terminalRenderStabilityIssues } from "../.
 import {
   clampNumber,
   resolveSettingsTerminalRuntime,
+  selectWorkspaceSettingsSearchEngine,
   workspaceSettingsImmediateDraftKey,
+  workspaceSettingsStructuralDraftFromSettings,
   workspaceSettingsStructuralDraftKey,
   workspaceSettingsStructuralKeyFromSettings,
 } from "./workspaceSettingsModel";
@@ -745,6 +747,111 @@ describe("workspace settings renderer model", () => {
       appliedWorkspaceKey: "",
       applyStatus: "idle",
       applyErrorMessage: null,
+    })).toBe(workspaceSettingsStructuralKeyFromSettings(settings!));
+  });
+
+  it("tracks every editable Indexed Root policy field in structural drafts", () => {
+    const root = {
+      id: "research",
+      label: "Research",
+      path: "/workspace/notes/research",
+      kind: "docs" as const,
+      pattern: "**/*.mdx",
+      ignore: ["private/**"],
+      backend: "qmd" as const,
+    };
+    const draft = workspaceSettingsDialogFixture({ indexedRoots: [root] });
+
+    expect(workspaceSettingsStructuralDraftKey({
+      ...draft,
+      indexedRoots: [{ ...root, pattern: "**/*.md" }],
+    })).not.toBe(workspaceSettingsStructuralDraftKey(draft));
+    expect(workspaceSettingsStructuralDraftKey({
+      ...draft,
+      indexedRoots: [{ ...root, ignore: ["private/**", "archive/**"] }],
+    })).not.toBe(workspaceSettingsStructuralDraftKey(draft));
+  });
+
+  it("preserves retained Indexed Roots when re-enabling QMD", () => {
+    const roots = [
+      {
+        id: "research",
+        label: "Research",
+        path: "/workspace/notes/research",
+        kind: "docs" as const,
+        pattern: "**/*.mdx",
+        ignore: ["private/**"],
+        backend: "qmd" as const,
+      },
+      {
+        id: "code",
+        label: "Code",
+        path: "/workspace/notes/code",
+        kind: "code" as const,
+        pattern: "**/*.ts",
+        ignore: ["generated/**"],
+        backend: "qmd" as const,
+      },
+    ];
+    const current = workspaceSettingsDialogFixture({
+      indexedRoots: roots,
+      indexMode: "off",
+      searchEngine: "filesystem",
+    });
+
+    const next = selectWorkspaceSettingsSearchEngine(current, "qmd");
+
+    expect(next.indexMode).toBe("lexical");
+    expect(next.indexedRoots).toEqual(roots);
+  });
+
+  it("defaults empty QMD roots once and keeps repeated selection idempotent", () => {
+    const current = workspaceSettingsDialogFixture({
+      noteRoots: ["/workspace/notes"],
+      indexedRoots: [],
+      indexMode: "off",
+      searchEngine: "filesystem",
+    });
+
+    const enabled = selectWorkspaceSettingsSearchEngine(current, "qmd");
+    const selectedAgain = selectWorkspaceSettingsSearchEngine(enabled, "qmd");
+
+    expect(enabled.indexedRoots).toEqual([{
+      id: "index-root-1",
+      label: "notes",
+      path: "/workspace/notes",
+      kind: "mixed",
+      pattern: "**/*.md",
+      ignore: [],
+      backend: "qmd",
+    }]);
+    expect(selectedAgain).toEqual(enabled);
+  });
+
+  it("rehydrates canonical structural fields from saved settings", () => {
+    const settings = normalizeWorkspaceSettings({
+      workspaceRoot: "/workspace",
+      defaultTerminalCwd: "/workspace",
+      noteRoots: ["/workspace/notes"],
+      indexedRoots: [{
+        id: "research",
+        label: "Research",
+        path: "/workspace/notes/research",
+        kind: "docs",
+        pattern: "**/*.mdx",
+        ignore: ["private/**"],
+        backend: "qmd",
+      }],
+      indexing: { enabled: true, mode: "lexical", backend: "qmd" },
+      searchEngine: "qmd",
+    });
+    expect(settings).not.toBeNull();
+
+    const canonical = workspaceSettingsStructuralDraftFromSettings(settings!);
+
+    expect(workspaceSettingsStructuralDraftKey({
+      ...workspaceSettingsDialogFixture(),
+      ...canonical,
     })).toBe(workspaceSettingsStructuralKeyFromSettings(settings!));
   });
 

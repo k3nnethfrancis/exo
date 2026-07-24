@@ -421,7 +421,7 @@ export function App() {
     onboardingActive: Boolean(onboardingState),
     workspaceModel,
     workspaceSettingsRef,
-    workspaceSettingsRevisionRef,
+    saveSettingsPatch,
   });
 
   useWorkspaceCommandHandlers({

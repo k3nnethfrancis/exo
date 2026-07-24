@@ -1,5 +1,5 @@
 import { useEffect, type MutableRefObject } from "react";
-import type { WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
+import type { WorkspaceModel, WorkspaceSettings } from "@exo/core";
 
 import { decodeWorkspaceCanvasLayout, type PaneNode, type WorkspaceCanvasLayout } from "./usePaneTree";
 
@@ -12,7 +12,7 @@ interface UseWorkspaceLayoutPersistenceOptions {
   onboardingActive: boolean;
   workspaceModel: WorkspaceModel | null;
   workspaceSettingsRef: MutableRefObject<WorkspaceSettings | null>;
-  workspaceSettingsRevisionRef: MutableRefObject<WorkspaceSettingsRevision>;
+  saveSettingsPatch: (patch: Partial<WorkspaceSettings>) => Promise<void>;
 }
 
 export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersistenceOptions) {
@@ -23,13 +23,8 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
       if (!currentSettings) return;
       const layout = createWorkspaceCanvasSnapshot(options);
       if (stableJson(currentSettings.layout ?? null) === stableJson(layout)) return;
-      void window.exo.workspace.saveSettings({
-        settings: { ...currentSettings, layout: layout as unknown as WorkspaceSettings["layout"] },
-        expectedRevision: options.workspaceSettingsRevisionRef.current,
-      }).then((saved) => {
-        options.workspaceSettingsRef.current = saved.settings;
-        options.workspaceSettingsRevisionRef.current = saved.revision;
-        if (saved.runtimeApply.status === "failed") throw new Error(saved.runtimeApply.errorMessage);
+      void options.saveSettingsPatch({
+        layout: layout as unknown as WorkspaceSettings["layout"],
       }).catch((error) => console.warn("[exo] failed to persist workspace canvas", error));
     }, 900);
     return () => window.clearTimeout(timeout);
@@ -41,7 +36,7 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
     options.onboardingActive,
     options.workspaceModel,
     options.workspaceSettingsRef,
-    options.workspaceSettingsRevisionRef,
+    options.saveSettingsPatch,
   ]);
 }
 

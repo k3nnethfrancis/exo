@@ -152,6 +152,90 @@ describe("workspace settings patch persistence", () => {
     expect(settingsRef.current.terminalFontSize).toBe(15);
     expect(revisionRef.current).toBe("revision-2");
   });
+
+  it("queues dialog autosave before structural Apply and advances the revision", async () => {
+    const firstSave = deferred<WorkspaceSettingsSaveOutcome>();
+    const saveSettings = vi.fn()
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockImplementationOnce(async (request: WorkspaceSettingsSaveRequest) =>
+        saveOutcome(request.settings, "revision-2"));
+    const settingsRef = { current: workspaceSettings() };
+    const revisionRef = { current: "revision-0" };
+    vi.stubGlobal("window", workspaceWindow(settingsRef.current, revisionRef.current, saveSettings));
+    const controller = renderController(settingsRef, revisionRef);
+    const autosaveDraft = workspaceSettingsDialog({
+      settingsRevision: "revision-0",
+      terminalFontSize: "14",
+    });
+    const structuralDraft = {
+      ...autosaveDraft,
+      workspaceRoot: "/workspace ",
+    };
+
+    const autosave = controller.saveDialog(autosaveDraft);
+    const apply = controller.saveDialog(structuralDraft, { includeStructural: true });
+    await flushMicrotasks();
+
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    const firstRequest = saveSettings.mock.calls[0]?.[0] as WorkspaceSettingsSaveRequest;
+    expect(firstRequest.expectedRevision).toBe("revision-0");
+    firstSave.resolve(saveOutcome(firstRequest.settings, "revision-1"));
+    await waitForSaveCount(saveSettings, 2);
+    await Promise.all([autosave, apply]);
+
+    expect(saveSettings.mock.calls.map(([request]) => request.expectedRevision)).toEqual([
+      "revision-0",
+      "revision-1",
+    ]);
+    expect(revisionRef.current).toBe("revision-2");
+  });
+
+  it("queues a settings patch after structural Apply and advances the revision", async () => {
+    const firstSave = deferred<WorkspaceSettingsSaveOutcome>();
+    const saveSettings = vi.fn()
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockImplementationOnce(async (request: WorkspaceSettingsSaveRequest) =>
+        saveOutcome(request.settings, "revision-2"));
+    const settingsRef = { current: workspaceSettings() };
+    const revisionRef = { current: "revision-0" };
+    vi.stubGlobal("window", workspaceWindow(settingsRef.current, revisionRef.current, saveSettings));
+    const controller = renderController(settingsRef, revisionRef);
+
+    const apply = controller.saveDialog(
+      workspaceSettingsDialog({ settingsRevision: "revision-0", workspaceRoot: "/workspace " }),
+      { includeStructural: true },
+    );
+    const patch = controller.saveSettingsPatch({ terminalFontSize: 16 });
+    await flushMicrotasks();
+
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    const firstRequest = saveSettings.mock.calls[0]?.[0] as WorkspaceSettingsSaveRequest;
+    firstSave.resolve(saveOutcome(firstRequest.settings, "revision-1"));
+    await waitForSaveCount(saveSettings, 2);
+    await Promise.all([apply, patch]);
+
+    expect(saveSettings.mock.calls.map(([request]) => request.expectedRevision)).toEqual([
+      "revision-0",
+      "revision-1",
+    ]);
+    expect(settingsRef.current.terminalFontSize).toBe(16);
+  });
+
+  it("surfaces a genuine external revision conflict without overwriting local settings", async () => {
+    const settingsRef = { current: workspaceSettings() };
+    const revisionRef = { current: "revision-0" };
+    const saveSettings = vi.fn(async () => {
+      throw new Error("workspace-settings-stale");
+    });
+    vi.stubGlobal("window", workspaceWindow(settingsRef.current, revisionRef.current, saveSettings));
+    const controller = renderController(settingsRef, revisionRef);
+
+    await expect(controller.saveSettingsPatch({ terminalFontSize: 18 })).rejects.toThrow("workspace-settings-stale");
+
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    expect(settingsRef.current.terminalFontSize).toBe(13);
+    expect(revisionRef.current).toBe("revision-0");
+  });
 });
 
 describe("index activity presentation", () => {
@@ -246,6 +330,52 @@ function WorkspaceSettingsControllerHarness(props: WorkspaceSettingsControllerHa
   return null;
 }
 
+function renderController(
+  settingsRef: { current: WorkspaceSettings },
+  revisionRef: { current: string },
+): ReturnType<typeof useWorkspaceSettingsController> {
+  const controllerRef: { current: ReturnType<typeof useWorkspaceSettingsController> | null } = { current: null };
+  renderToStaticMarkup(
+    <WorkspaceSettingsControllerHarness
+      controllerRef={controllerRef}
+      options={{
+        workspaceSettingsRef: settingsRef,
+        workspaceSettingsRevisionRef: revisionRef,
+        applyWorkspaceSettings: vi.fn(),
+        refreshWorkspaceModel: vi.fn(async () => undefined),
+        setIndexStatus: vi.fn(),
+      }}
+    />,
+  );
+  if (!controllerRef.current) {
+    throw new Error("Workspace Settings controller did not render.");
+  }
+  return controllerRef.current;
+}
+
+function workspaceWindow(
+  settings: WorkspaceSettings,
+  revision: string,
+  saveSettings: (request: WorkspaceSettingsSaveRequest) => Promise<WorkspaceSettingsSaveOutcome>,
+) {
+  return {
+    exo: {
+      workspace: {
+        getSettings: vi.fn(async () => ({ settings, revision })),
+        saveSettings,
+      },
+    },
+  };
+}
+
+function saveOutcome(settings: WorkspaceSettings, revision: string): WorkspaceSettingsSaveOutcome {
+  return {
+    settings,
+    revision,
+    runtimeApply: { status: "applied" },
+  };
+}
+
 function workspaceSettings(): WorkspaceSettings {
   return {
     workspaceRoot: "/workspace",
@@ -299,4 +429,20 @@ function deferred<Value>() {
     reject = rejectPromise;
   });
   return { promise, resolve, reject };
+}
+
+async function flushMicrotasks(): Promise<void> {
+  for (let index = 0; index < 5; index += 1) {
+    await Promise.resolve();
+  }
+}
+
+async function waitForSaveCount(saveSettings: ReturnType<typeof vi.fn>, count: number): Promise<void> {
+  for (let index = 0; index < 50; index += 1) {
+    if (saveSettings.mock.calls.length >= count) {
+      return;
+    }
+    await Promise.resolve();
+  }
+  throw new Error(`Expected ${count} Settings saves, received ${saveSettings.mock.calls.length}.`);
 }
