@@ -45,6 +45,122 @@ describe("workspace settings registry", () => {
     expect(pendingMainWikiMigration(acknowledgeMainWikiMigration(settings!))).toBeNull();
   });
 
+  it("retains the later full Indexed Root policy for an exact resolved-path duplicate", () => {
+    const settings = normalizeWorkspaceSettings({
+      workspaceRoot: "/tmp/exo-indexed-root-dedupe",
+      defaultTerminalCwd: "/tmp/exo-indexed-root-dedupe",
+      noteRoots: ["/tmp/exo-indexed-root-dedupe/notes"],
+      indexedRoots: [
+        { id: "first", label: "First", path: "/tmp/exo-indexed-root-dedupe/notes/shared", kind: "notes", pattern: "**/*.md", ignore: ["first/**"], backend: "qmd" },
+        { id: "second", label: "Second", path: "/tmp/exo-indexed-root-dedupe/notes/shared", kind: "code", pattern: "**/*.{ts,tsx}", ignore: ["second/**"], backend: "qmd" },
+      ],
+      indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
+    });
+
+    expect(settings?.indexedRoots).toEqual([{
+      id: "second",
+      label: "Second",
+      path: "/tmp/exo-indexed-root-dedupe/notes/shared",
+      kind: "code",
+      pattern: "**/*.{ts,tsx}",
+      ignore: ["second/**"],
+      backend: "qmd",
+    }]);
+  });
+
+  it("preserves survivor order when a later Indexed Root replaces an earlier path", () => {
+    const settings = normalizeWorkspaceSettings({
+      workspaceRoot: "/tmp/exo-indexed-root-order",
+      defaultTerminalCwd: "/tmp/exo-indexed-root-order",
+      noteRoots: ["/tmp/exo-indexed-root-order/notes"],
+      indexedRoots: [
+        { id: "a", label: "A", path: "/tmp/exo-indexed-root-order/notes/path-one", kind: "notes", pattern: "a/**/*.md", ignore: ["a/**"], backend: "qmd" },
+        { id: "b", label: "B", path: "/tmp/exo-indexed-root-order/notes/path-two", kind: "docs", pattern: "b/**/*.md", ignore: ["b/**"], backend: "qmd" },
+        { id: "c", label: "C", path: "/tmp/exo-indexed-root-order/notes/path-one", kind: "mixed", pattern: "c/**", ignore: ["c/**"], backend: "qmd" },
+      ],
+      indexing: { enabled: true, mode: "lexical", backend: "qmd" },
+    });
+
+    expect(settings?.indexedRoots).toEqual([
+      { id: "b", label: "B", path: "/tmp/exo-indexed-root-order/notes/path-two", kind: "docs", pattern: "b/**/*.md", ignore: ["b/**"], backend: "qmd" },
+      { id: "c", label: "C", path: "/tmp/exo-indexed-root-order/notes/path-one", kind: "mixed", pattern: "c/**", ignore: ["c/**"], backend: "qmd" },
+    ]);
+    expect(normalizeWorkspaceSettings(settings)).toEqual(settings);
+  });
+
+  it("migrates persisted duplicate Indexed Root paths once without rewriting stable settings", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-indexed-root-dedupe-migration-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const notesFolder = path.join(userDataPath, "notes");
+    const pathOne = path.join(notesFolder, "path-one");
+    const pathTwo = path.join(notesFolder, "path-two");
+    const duplicateSettings = {
+      ...workspaceSettingsFor(notesFolder),
+      indexedRoots: [
+        { id: "a", label: "A", path: pathOne, kind: "notes", pattern: "a/**/*.md", ignore: ["a/**"], backend: "qmd" },
+        { id: "b", label: "B", path: pathTwo, kind: "docs", pattern: "b/**/*.md", ignore: ["b/**"], backend: "qmd" },
+        { id: "c", label: "C", path: pathOne, kind: "code", pattern: "c/**/*.{ts,tsx}", ignore: ["c/**"], backend: "qmd" },
+      ],
+      indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
+    } satisfies Parameters<typeof saveWorkspaceSettings>[0];
+    const expectedIndexedRoots = [
+      { id: "b", label: "B", path: pathTwo, kind: "docs", pattern: "b/**/*.md", ignore: ["b/**"], backend: "qmd" },
+      { id: "c", label: "C", path: pathOne, kind: "code", pattern: "c/**/*.{ts,tsx}", ignore: ["c/**"], backend: "qmd" },
+    ];
+
+    try {
+      await saveWorkspaceSettings({ ...duplicateSettings, indexedRoots: [] }, env);
+      const seededRegistry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as {
+        activeWorkspaceId: string;
+        workspaces: Array<{ settings: unknown; [key: string]: unknown }>;
+      };
+      seededRegistry.workspaces[0]!.settings = duplicateSettings;
+      await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify(duplicateSettings), { mode: 0o600 });
+      await writeFile(resolveWorkspaceRegistryPath(env), JSON.stringify(seededRegistry), { mode: 0o600 });
+
+      await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({ indexedRoots: expectedIndexedRoots });
+      const settingsAfterMigration = await readFile(resolveWorkspaceSettingsPath(env), "utf8");
+      const registryAfterMigration = await readFile(resolveWorkspaceRegistryPath(env), "utf8");
+      expect(JSON.parse(settingsAfterMigration).indexedRoots).toEqual(expectedIndexedRoots);
+      expect(JSON.parse(registryAfterMigration).workspaces[0].settings.indexedRoots).toEqual(expectedIndexedRoots);
+      const settingsInode = (await stat(resolveWorkspaceSettingsPath(env))).ino;
+      const registryInode = (await stat(resolveWorkspaceRegistryPath(env))).ino;
+
+      await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({ indexedRoots: [{ id: "b" }, { id: "c" }] });
+      expect(await readFile(resolveWorkspaceSettingsPath(env), "utf8")).toBe(settingsAfterMigration);
+      expect(await readFile(resolveWorkspaceRegistryPath(env), "utf8")).toBe(registryAfterMigration);
+      expect((await stat(resolveWorkspaceSettingsPath(env))).ino).toBe(settingsInode);
+      expect((await stat(resolveWorkspaceRegistryPath(env))).ino).toBe(registryInode);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps distinct real-path and symlink spellings as separate Indexed Roots", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-indexed-root-lexical-alias-"));
+    const realPath = path.join(userDataPath, "real-notes");
+    const aliasPath = path.join(userDataPath, "alias-notes");
+
+    try {
+      await mkdir(realPath);
+      await symlink(realPath, aliasPath, "dir");
+      const settings = normalizeWorkspaceSettings({
+        workspaceRoot: userDataPath,
+        defaultTerminalCwd: userDataPath,
+        noteRoots: [userDataPath],
+        indexedRoots: [
+          { id: "real", label: "Real", path: realPath, kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" },
+          { id: "alias", label: "Alias", path: aliasPath, kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" },
+        ],
+        indexing: { enabled: true, mode: "lexical", backend: "qmd" },
+      });
+
+      expect(settings?.indexedRoots.map((root) => root.path)).toEqual([realPath, aliasPath]);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("persists the one-main-wiki migration even when no other legacy settings exist", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-main-wiki-migration-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };

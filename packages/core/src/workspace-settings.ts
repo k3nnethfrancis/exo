@@ -74,9 +74,10 @@ export async function loadWorkspaceSettings(env: NodeJS.ProcessEnv = process.env
   const retiredNoteRoots = await legacyAdditionalNoteRootsInPersistence(env);
   const droppedProjectRoots = await legacyProjectRootsInPersistence(env);
   const droppedTerminalSettings = await retiredTerminalSettingsInPersistence(env);
+  const requiresIndexedRootMigration = await duplicateIndexedRootPathsInPersistence(env);
   const requiresIdentityMigration = settings ? await workspaceRegistryRequiresIdentityMigration(env, settings) : false;
-  if (settings && requiresIdentityMigration) {
-    await migrateWorkspaceRegistryIdentity(settings, env);
+  if (settings && (requiresIdentityMigration || requiresIndexedRootMigration)) {
+    await migrateWorkspaceSettingsPersistence(settings, env);
   } else if (settings && (retiredNoteRoots.length > 0 || droppedProjectRoots.length > 0 || droppedTerminalSettings.length > 0)) {
     // Reuse the existing two-file transaction so primary settings and registry
     // snapshots lose the retired authorization atomically.
@@ -138,10 +139,13 @@ export async function loadWorkspaceRegistry(env: NodeJS.ProcessEnv = process.env
   await recoverWorkspaceSettingsTransaction(env);
   const settings = await loadWorkspaceSettingsFile(env);
   const registry = await loadWorkspaceRegistryFile(env, settings ?? undefined);
-  if (await workspaceRegistryRequiresIdentityMigration(env, settings ?? undefined)) {
+  if (
+    await workspaceRegistryRequiresIdentityMigration(env, settings ?? undefined)
+    || await duplicateIndexedRootPathsInPersistence(env)
+  ) {
     const activeSettings = settings ?? registry.workspaces.find((entry) => entry.id === registry.activeWorkspaceId)?.settings;
     if (activeSettings) {
-      await migrateWorkspaceRegistryIdentity(activeSettings, env);
+      await migrateWorkspaceSettingsPersistence(activeSettings, env);
       return loadWorkspaceRegistryFile(env, activeSettings);
     }
   }
@@ -306,11 +310,12 @@ async function workspaceRegistryRequiresIdentityMigration(env: NodeJS.ProcessEnv
   return persistedActiveId !== normalized.activeWorkspaceId;
 }
 
-async function migrateWorkspaceRegistryIdentity(settings: WorkspaceSettings, env: NodeJS.ProcessEnv): Promise<void> {
+async function migrateWorkspaceSettingsPersistence(settings: WorkspaceSettings, env: NodeJS.ProcessEnv): Promise<void> {
   let persistedRegistry: unknown;
   try {
     persistedRegistry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8"));
   } catch {
+    await writeJsonAtomically(resolveWorkspaceSettingsPath(env), settings);
     return;
   }
   let registry = normalizeWorkspaceRegistry(persistedRegistry, settings);
@@ -458,14 +463,16 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
         if (!entry || typeof entry !== "object" || typeof entry.path !== "string" || !entry.path.trim()) {
           return roots;
         }
-        roots.push(createIndexedRoot(entry.path, {
+        const root = createIndexedRoot(entry.path, {
           id: typeof entry.id === "string" ? entry.id : `index-root-${index + 1}`,
           label: typeof entry.label === "string" ? entry.label : undefined,
           kind: entry.kind === "notes" || entry.kind === "docs" || entry.kind === "code" || entry.kind === "mixed" ? entry.kind : "mixed",
           pattern: typeof entry.pattern === "string" ? entry.pattern : undefined,
           ignore: Array.isArray(entry.ignore) ? entry.ignore.filter((item): item is string => typeof item === "string") : [],
-        }));
-        return roots;
+        });
+        // Match IndexingService.addRoot: the later complete policy replaces an
+        // exact resolved-path owner and moves to the end of survivor order.
+        return [...roots.filter((candidate) => candidate.path !== root.path), root];
       }, [])
     : [];
   const indexedRoots = noteRoots.length === 1
@@ -663,6 +670,52 @@ export async function retiredTerminalSettingsInPersistence(env: NodeJS.ProcessEn
     // Missing/corrupt registry already follows the normal load path.
   }
   return [...keys];
+}
+
+function hasDuplicateIndexedRootPaths(value: unknown): boolean {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+  const indexedRoots = (value as { indexedRoots?: unknown }).indexedRoots;
+  if (!Array.isArray(indexedRoots)) {
+    return false;
+  }
+  const seenPaths = new Set<string>();
+  for (const entry of indexedRoots) {
+    if (!entry || typeof entry !== "object") {
+      continue;
+    }
+    const targetPath = (entry as { path?: unknown }).path;
+    if (typeof targetPath !== "string" || !targetPath.trim()) {
+      continue;
+    }
+    const resolvedPath = path.resolve(targetPath);
+    if (seenPaths.has(resolvedPath)) {
+      return true;
+    }
+    seenPaths.add(resolvedPath);
+  }
+  return false;
+}
+
+async function duplicateIndexedRootPathsInPersistence(env: NodeJS.ProcessEnv): Promise<boolean> {
+  try {
+    if (hasDuplicateIndexedRootPaths(JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8")))) {
+      return true;
+    }
+  } catch {
+    // Missing/corrupt settings already follow the normal load path.
+  }
+  try {
+    const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as { workspaces?: unknown };
+    if (Array.isArray(registry.workspaces)) {
+      return registry.workspaces.some((workspace) => workspace && typeof workspace === "object"
+        && hasDuplicateIndexedRootPaths((workspace as { settings?: unknown }).settings));
+    }
+  } catch {
+    // Missing/corrupt registry already follows the normal load path.
+  }
+  return false;
 }
 
 function normalizeColorThemeId(value: unknown): WorkspaceSettings["colorThemeId"] {
