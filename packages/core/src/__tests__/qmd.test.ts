@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -7,9 +7,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { qmdSearchProvider } from "../search-providers/qmd-provider";
 import { createIndexedRoot, resolveWorkspaceModel } from "../workspace";
 
+const { readFileMock } = vi.hoisted(() => ({ readFileMock: vi.fn() }));
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  readFileMock.mockImplementation(actual.readFile);
+  return { ...actual, readFile: readFileMock };
+});
+
 const stores: MockStore[] = [];
 const tempPaths: string[] = [];
 let createStoreError: Error | null = null;
+let searchLexResultsOverride: unknown[] | null = null;
+let hybridSearchError: Error | null = null;
+let documentPathOverride: string | null = null;
 interface MockQmdStatus {
   totalDocuments: number;
   needsEmbedding: number;
@@ -32,6 +43,10 @@ vi.mock("@tobilu/qmd", () => ({
 afterEach(async () => {
   stores.splice(0);
   createStoreError = null;
+  searchLexResultsOverride = null;
+  hybridSearchError = null;
+  documentPathOverride = null;
+  readFileMock.mockClear();
   storeStatusOverride = null;
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
 });
@@ -82,7 +97,7 @@ describe("QMD index adapter", () => {
     expect(result.results[0]).toMatchObject({ title: "Focus", source: "qmd" });
   });
 
-  it("falls back from semantic search to lexical when vectors are unavailable", async () => {
+  it.each(["semantic", "hybrid"] as const)("reports lexical as the actual mode when %s search falls back", async (mode) => {
     const root = await fixtureRoot();
     const indexedRoot = createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" });
     const model = {
@@ -92,13 +107,82 @@ describe("QMD index adapter", () => {
         EXO_PROJECT_ROOTS: "",
       }),
       indexedRoots: [indexedRoot],
-      indexing: { enabled: true, mode: "semantic" as const, backend: "qmd" as const },
+      indexing: { enabled: true, mode, backend: "qmd" as const },
     };
+    hybridSearchError = mode === "hybrid" ? new Error("no vectors") : null;
 
     const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
-    expect(result.warnings.some((warning) => warning.includes("Semantic search is not ready"))).toBe(true);
+    expect(result.mode).toBe("lexical");
+    expect(result.warnings.some((warning) => warning.includes(`${mode[0].toUpperCase()}${mode.slice(1)} search is not ready`))).toBe(true);
     expect(stores[0].searchLexCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("drops an absolute QMD path outside configured indexed roots", async () => {
+    const root = await fixtureRoot();
+    const outsidePath = path.join(root, "outside.md");
+    await writeFile(outsidePath, "# Outside\n", "utf8");
+    searchLexResultsOverride = [qmdResult(outsidePath)];
+
+    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "focus");
+
+    expect(result.results).toEqual([]);
+    expect(result.warnings).toContain("Dropped 1 invalid or stale QMD result.");
+  });
+
+  it("drops a QMD result whose path escapes through a symlink", async () => {
+    const root = await fixtureRoot();
+    const outsidePath = path.join(root, "outside.md");
+    await writeFile(outsidePath, "# Outside\n", "utf8");
+    await symlink(outsidePath, path.join(root, "notes", "escape.md"));
+    searchLexResultsOverride = [qmdResult("qmd://notes/escape.md")];
+
+    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "focus");
+
+    expect(result.results).toEqual([]);
+    expect(result.warnings).toContain("Dropped 1 invalid or stale QMD result.");
+  });
+
+  it("drops a QMD traversal result even when it lands in another indexed root", async () => {
+    const root = await fixtureRoot();
+    await mkdir(path.join(root, "docs"));
+    await writeFile(path.join(root, "docs", "outside.md"), "# Outside\n", "utf8");
+    const model = {
+      ...indexedModel(root, "lexical"),
+      indexedRoots: [
+        createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
+        createIndexedRoot(path.join(root, "docs"), { id: "index-docs", label: "docs", kind: "docs" }),
+      ],
+    };
+    searchLexResultsOverride = [qmdResult("qmd://notes/../docs/outside.md")];
+
+    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+
+    expect(result.results).toEqual([]);
+    expect(result.warnings).toContain("Dropped 2 invalid or stale QMD results.");
+  });
+
+  it("returns a contained QMD result and hydrates its content", async () => {
+    const root = await fixtureRoot();
+    searchLexResultsOverride = [qmdResult("qmd://notes/focus.md")];
+
+    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "focus", { includeContent: true });
+
+    expect(result.results).toEqual([expect.objectContaining({
+      filePath: path.join(root, "notes", "focus.md"),
+      content: "# Focus\nalpha\nbeta\n",
+    })]);
+  });
+
+  it("does not read rejected QMD targets when hydrating content", async () => {
+    const root = await fixtureRoot();
+    const outsidePath = path.join(root, "outside.md");
+    await writeFile(outsidePath, "secret\n", "utf8");
+    searchLexResultsOverride = [qmdResult(outsidePath)];
+    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "focus", { includeContent: true });
+
+    expect(result.results).toEqual([]);
+    expect(readFileMock).not.toHaveBeenCalled();
   });
 
   it("falls back to filesystem title and body search when QMD cannot open", async () => {
@@ -317,6 +401,19 @@ describe("QMD index adapter", () => {
       "outside configured indexed roots",
     );
   });
+
+  it("does not read a QMD docid body through a symlink escape", async () => {
+    const root = await fixtureRoot();
+    const outsidePath = path.join(root, "outside.md");
+    await writeFile(outsidePath, "# Outside\n", "utf8");
+    await symlink(outsidePath, path.join(root, "notes", "escape.md"));
+    documentPathOverride = "qmd://notes/escape.md";
+
+    await expect(qmdSearchProvider.read(indexedModel(root, "lexical"), path.join(root, ".exo"), "#abc123")).rejects.toThrow(
+      "outside configured indexed roots",
+    );
+    expect(stores[0].getDocumentBodyCalls).toBe(0);
+  });
 });
 
 async function fixtureRoot(): Promise<string> {
@@ -359,6 +456,9 @@ class MockStore {
 
   async searchLex(query: string, options: { collection?: string; limit?: number }) {
     this.searchLexCalls.push({ query, collection: options.collection, limit: options.limit });
+    if (searchLexResultsOverride) {
+      return searchLexResultsOverride;
+    }
     return [{
       file: `qmd://${options.collection}/focus.md`,
       title: "Focus",
@@ -374,12 +474,15 @@ class MockStore {
 
   async search(options: { query?: string; collections?: string[]; limit?: number }) {
     this.searchCalls.push(options);
+    if (hybridSearchError) {
+      throw hybridSearchError;
+    }
     return this.searchLex(options.query ?? "hybrid", { collection: options.collections?.[0] ?? "notes", limit: options.limit ?? 10 });
   }
 
   async get() {
     return {
-      filepath: "qmd://notes/focus.md",
+      filepath: documentPathOverride ?? "qmd://notes/focus.md",
       title: "Focus",
     };
   }
@@ -400,4 +503,14 @@ class MockStore {
   }
 
   async close() {}
+}
+
+function qmdResult(file: string) {
+  return {
+    file,
+    title: "Focus",
+    snippet: "alpha",
+    score: 0.8,
+    docid: "abc123",
+  };
 }
