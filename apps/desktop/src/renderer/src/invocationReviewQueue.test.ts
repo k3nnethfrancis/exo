@@ -116,6 +116,17 @@ describe("invocation review queue", () => {
     expect(state.entries[0]!.payloads.a?.canKeep).toBe(true);
   });
 
+  it("advances to the next pending item exactly once after a kept or rejected review record", () => {
+    let state = hydrateInvocationReviewQueue([listItem("one", ["a", "b"])]);
+    const resolved = record("one", [["a", "kept"], ["b", "pending"]]);
+
+    state = applyInvocationReviewRecord(state, resolved);
+    expect(activeInvocationReviewChangeId(state)).toBe("b");
+    state = applyInvocationReviewRecord(state, resolved);
+    expect(activeInvocationReviewChangeId(state)).toBe("b");
+    expect(state.entries[0]?.changeIds).toEqual(["b"]);
+  });
+
   it("projects deleted former content and exact rename paths", () => {
     let state = hydrateInvocationReviewQueue([listItem("one", ["deleted", "renamed"])]);
     const base = record("one", [["deleted", "pending"], ["renamed", "pending"]]);

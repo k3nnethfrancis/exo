@@ -11,7 +11,7 @@ import type {
 import { acknowledgeMainWikiMigration, pendingMainWikiMigration } from "@exo/core/workspace-migration";
 import type { InvocationActivityEvent } from "@exo/core/invocation-activity";
 
-import type { CliInstallationStatus, InvocationFileReviewPayload, InvocationHistoryItem, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
+import type { CliInstallationStatus, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
@@ -44,6 +44,7 @@ import { useWorkspaceSettingsController } from "./hooks/useWorkspaceSettingsCont
 import { useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { useCanvasDocumentNavigation } from "./hooks/useCanvasDocumentNavigation";
+import { useInvocationReviewController } from "./hooks/useInvocationReviewController";
 import { applyTheme } from "./theme/applyTheme";
 import { DEFAULT_COLOR_THEME_ID, resolveTheme } from "./theme/registry";
 import type { ColorThemeId } from "./theme/types";
@@ -78,25 +79,11 @@ import {
   type InvocationActivityState,
 } from "./invocationActivityState";
 import {
-  activeInvocationReviewChangeId,
-  activeInvocationReviewEntry,
-  applyInvocationReviewRecord,
-  beginInvocationReviewHydration,
-  cacheInvocationFileReview,
-  closeInvocationHistoryReview,
-  EMPTY_INVOCATION_REVIEW_QUEUE,
   invocationReviewProjection,
-  invocationReviewAffectedOpenPaths,
   invocationReviewMatchesPath,
   invocationReviewNavigablePath,
-  invocationHistoryLoadDecision,
   invocationReviewSourcePath,
   invocationReviewVirtualPath,
-  mergeInvocationReviewHydration,
-  navigateInvocationReview,
-  openInvocationHistoryReview,
-  type InvocationReviewQueueEntry,
-  type InvocationReviewQueueState,
 } from "./invocationReviewQueue";
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
@@ -127,11 +114,6 @@ export function App() {
   const [cliInstallation, setCliInstallation] = useState<CliInstallationStatus | null>(null);
   const [mainWikiMigrationNotice, setMainWikiMigrationNotice] = useState<{ retiredNoteRoots: string[] } | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
-  const [invocationReviewQueue, setInvocationReviewQueue] = useState<InvocationReviewQueueState>(EMPTY_INVOCATION_REVIEW_QUEUE);
-  const [invocationReviewDecisionPending, setInvocationReviewDecisionPending] = useState(false);
-  const [invocationReviewFrozenPaths, setInvocationReviewFrozenPaths] = useState<string[]>([]);
-  const invocationReviewDecisionPendingRef = useRef(false);
-  const [invocationHistory, setInvocationHistory] = useState<InvocationHistoryItem[]>([]);
   const [inspectorTabRequest, setInspectorTabRequest] = useState<{ tab: "history"; nonce: number } | null>(null);
   const [pendingInvocationAuthorization, setPendingInvocationAuthorization] = useState<PendingInvocationAuthorization | null>(null);
   const [invocationActivity, setInvocationActivity] = useState<InvocationActivityState | null>(null);
@@ -149,7 +131,6 @@ export function App() {
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
   const terminalRuntimeScrollbackLinesRef = useRef(DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES);
-  const invocationHistoryRequestRef = useRef(0);
   const invocationActivityEarlyEventsRef = useRef(new Map<string, InvocationActivityEvent[]>());
   const shellLayout = useShellLayout();
   const { tree: canvasTree, focusedLeafId: focusedPaneId, actions: canvasActions } = shellLayout.canvasPaneTree;
@@ -278,11 +259,23 @@ export function App() {
   const compactEditorChrome = collectLeaves(canvasTree).length > 1;
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
   const resolvedTheme = useMemo(() => resolveTheme(colorThemeId, resolvedAppearance), [colorThemeId, resolvedAppearance]);
-  const activeReviewEntry = activeInvocationReviewEntry(invocationReviewQueue);
-  const activeReviewChangeId = activeInvocationReviewChangeId(invocationReviewQueue);
-  const activeReviewPayload = activeReviewEntry && activeReviewChangeId
-    ? activeReviewEntry.payloads[activeReviewChangeId] ?? null
-    : null;
+  const invocationReviewController = useInvocationReviewController({
+    workspaceKey: workspaceModel?.workspaceRoot ?? null,
+    historyDocument: inspectedDocument,
+    openDocumentPaths: Object.keys(openDocuments),
+    prepareDocumentsForReview,
+    reloadTrees,
+    onOpenReviewDocument: openInvocationReviewDocument,
+    onReviewError: (command, error) => setInvocationActivity(failInvocationActivity(command, error)),
+    onReviewResolved: refreshReviewAfterResolution,
+  });
+  const {
+    activeEntry: activeReviewEntry,
+    activePayload: activeReviewPayload,
+    decisionPending: invocationReviewDecisionPending,
+    frozenPaths: invocationReviewFrozenPaths,
+    history: invocationHistory,
+  } = invocationReviewController;
 
   useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
@@ -303,39 +296,10 @@ export function App() {
   useEffect(() => {
     if (!workspaceModel) {
       setFolderIndexStatus(null);
-      setInvocationReviewQueue(EMPTY_INVOCATION_REVIEW_QUEUE);
       return;
     }
-    // The queue is workspace-scoped. Clear the prior workspace synchronously,
-    // then merge hydration so live settlements from this workspace still win.
-    setInvocationReviewQueue(beginInvocationReviewHydration());
     void refreshFolderIndexStatus();
-    let cancelled = false;
-    void window.exo.workspace.listPendingInvocationReviews()
-      .then((items) => {
-        if (!cancelled) setInvocationReviewQueue((current) => mergeInvocationReviewHydration(current, items));
-      })
-      .catch((error) => {
-        console.warn("[exo] failed to load pending invocation reviews", error);
-        if (!cancelled) setInvocationReviewQueue((current) => mergeInvocationReviewHydration(current, []));
-      });
-    return () => { cancelled = true; };
   }, [workspaceModel]);
-
-  useEffect(() => {
-    const decision = invocationHistoryLoadDecision(inspectedDocument);
-    const request = ++invocationHistoryRequestRef.current;
-    if (decision.kind === "clear") {
-      setInvocationHistory([]);
-      return;
-    }
-    if (decision.kind === "preserve") return;
-    let cancelled = false;
-    void window.exo.workspace.listInvocationHistory(decision.filePath)
-      .then((items) => { if (!cancelled && request === invocationHistoryRequestRef.current) setInvocationHistory(items); })
-      .catch(() => { if (!cancelled && request === invocationHistoryRequestRef.current) setInvocationHistory([]); });
-    return () => { cancelled = true; };
-  }, [inspectedDocument?.filePath, inspectedDocument?.readOnly]);
 
   useEffect(() => {
     return window.exo.workspace.onInvocationUpdated((record) => {
@@ -345,20 +309,12 @@ export function App() {
       if (record.taggedDocumentPath) {
         scheduleOpenDocumentRefresh(record.taggedDocumentPath);
       }
-      setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, record));
+      invocationReviewController.applyRecord(record);
       if (record.context === "note") {
         setInvocationActivity((current) => applyInvocationRecord(current, record));
       }
-      if (record.taggedDocumentPath === inspectedPath) {
-        const request = ++invocationHistoryRequestRef.current;
-        void window.exo.workspace.listInvocationHistory(record.taggedDocumentPath)
-          .then((items) => {
-            if (request === invocationHistoryRequestRef.current) setInvocationHistory(items);
-          })
-          .catch(() => undefined);
-      }
     });
-  }, [inspectedPath, scheduleOpenDocumentRefresh, workspaceModel?.workspaceRoot]);
+  }, [invocationReviewController.applyRecord, scheduleOpenDocumentRefresh, workspaceModel?.workspaceRoot]);
 
   useEffect(() => {
     return window.exo.workspace.onInvocationActivity((event) => {
@@ -371,27 +327,6 @@ export function App() {
       });
     });
   }, []);
-
-  useEffect(() => {
-    if (!activeReviewEntry || !activeReviewChangeId || activeReviewPayload) return;
-    let cancelled = false;
-    void window.exo.workspace.getInvocationFileReview({
-      invocationId: activeReviewEntry.invocationId,
-      changeId: activeReviewChangeId,
-    }).then((payload) => {
-      if (cancelled) return;
-      setInvocationReviewQueue((current) => cacheInvocationFileReview(current, payload));
-    }).catch((error) => {
-      if (cancelled) return;
-      console.warn("[exo] failed to load invocation file review", error);
-      setInvocationActivity(failInvocationActivity(activeReviewEntry.command, error));
-    });
-    return () => { cancelled = true; };
-  }, [activeReviewChangeId, activeReviewEntry?.invocationId, activeReviewPayload]);
-
-  useEffect(() => {
-    if (activeReviewPayload) openInvocationReviewDocument(activeReviewPayload, activeReviewEntry?.source ?? "pending");
-  }, [activeReviewEntry?.source, activeReviewPayload?.change.id, activeReviewPayload?.invocation.id]);
 
   useEffect(() => {
     terminalState.pruneHydration(activeTerminalId ? new Set([activeTerminalId]) : new Set());
@@ -693,7 +628,7 @@ export function App() {
       if (finalized.taggedDocumentPath) {
         scheduleOpenDocumentRefresh(finalized.taggedDocumentPath);
       }
-      setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, finalized));
+      invocationReviewController.applyRecord(finalized);
       setInvocationActivity((current) => applyInvocationRecord(current, finalized));
     } catch (error) {
       setInvocationActivity((current) => current?.invocationId === invocationId
@@ -733,94 +668,6 @@ export function App() {
       body,
     });
     canvasNavigation.activateEditorDocument(virtualPath);
-  }
-
-  async function resolveInvocationReview(action: "keep" | "reject") {
-    if (!activeReviewEntry || !activeReviewChangeId || !activeReviewPayload || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
-    const entry = activeReviewEntry;
-    const changeId = activeReviewChangeId;
-    const payload = activeReviewPayload;
-    const frozenPaths = beginInvocationReviewDecision([payload]);
-    try {
-      await prepareDocumentsForReview(frozenPaths);
-      const record = await window.exo.workspace.reviewInvocationFile({
-        invocationId: entry.invocationId,
-        changeId,
-        action,
-      });
-      setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, record));
-      await reloadTrees();
-      const decision = record.changeset?.files.find((change) => change.id === changeId)?.decision.status;
-      if (decision === "kept" || decision === "rejected") {
-        await refreshReviewAfterResolution(payload, action);
-      }
-    } catch (error) {
-      setInvocationActivity(failInvocationActivity(entry.command, error));
-      const refreshed = await window.exo.workspace.getInvocationFileReview({
-        invocationId: entry.invocationId,
-        changeId,
-      }).catch(() => null);
-      if (refreshed) setInvocationReviewQueue((current) => cacheInvocationFileReview(current, refreshed));
-    } finally {
-      finishInvocationReviewDecision();
-    }
-  }
-
-  async function resolveAllInvocationReviews(action: "keep" | "reject") {
-    if (!activeReviewEntry || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
-    const entry = activeReviewEntry;
-    beginInvocationReviewDecision([]);
-    try {
-      // Loading every diff is deliberate only for an explicit all-files
-      // action. Opening an invocation otherwise hydrates exactly one file.
-      const payloads = await loadAllInvocationReviewPayloads(entry);
-      const frozenPaths = invocationReviewAffectedOpenPaths(payloads, Object.keys(openDocuments));
-      flushSync(() => setInvocationReviewFrozenPaths(frozenPaths));
-      await prepareDocumentsForReview(frozenPaths);
-      const record = await window.exo.workspace.reviewInvocationAll({ invocationId: entry.invocationId, action });
-      setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, record));
-      await reloadTrees();
-      for (const payload of payloads) {
-        const decision = record.changeset?.files.find((change) => change.id === payload.change.id)?.decision.status;
-        if (decision === "kept" || decision === "rejected") await refreshReviewAfterResolution(payload, action);
-      }
-    } catch (error) {
-      setInvocationActivity(failInvocationActivity(entry.command, error));
-    } finally {
-      finishInvocationReviewDecision();
-    }
-  }
-
-  async function loadAllInvocationReviewPayloads(entry: InvocationReviewQueueEntry): Promise<InvocationFileReviewPayload[]> {
-    const payloads: InvocationFileReviewPayload[] = [];
-    for (const changeId of entry.changeIds) {
-      const cached = entry.payloads[changeId];
-      const payload = cached ?? await window.exo.workspace.getInvocationFileReview({
-        invocationId: entry.invocationId,
-        changeId,
-      });
-      if (!cached) setInvocationReviewQueue((current) => cacheInvocationFileReview(current, payload));
-      payloads.push(payload);
-    }
-    return payloads;
-  }
-
-  function beginInvocationReviewDecision(payloads: readonly InvocationFileReviewPayload[]): string[] {
-    const frozenPaths = invocationReviewAffectedOpenPaths(payloads, Object.keys(openDocuments));
-    invocationReviewDecisionPendingRef.current = true;
-    flushSync(() => {
-      setInvocationReviewDecisionPending(true);
-      setInvocationReviewFrozenPaths(frozenPaths);
-    });
-    return frozenPaths;
-  }
-
-  function finishInvocationReviewDecision() {
-    invocationReviewDecisionPendingRef.current = false;
-    flushSync(() => {
-      setInvocationReviewDecisionPending(false);
-      setInvocationReviewFrozenPaths([]);
-    });
   }
 
   async function refreshReviewAfterResolution(
@@ -1629,22 +1476,15 @@ export function App() {
                       },
                       readOnly: activeReviewEntry.source === "history",
                       decisionPending: invocationReviewDecisionPending,
-                      onNavigate: (index) => setInvocationReviewQueue((current) => navigateInvocationReview(current, index)),
-                      onKeepCurrent: () => void resolveInvocationReview("keep"),
-                      onRejectCurrent: () => void resolveInvocationReview("reject"),
-                      onKeepAll: () => void resolveAllInvocationReviews("keep"),
-                      onRejectAll: () => void resolveAllInvocationReviews("reject"),
-                      onRefreshConflict: () => {
-                        setInvocationReviewQueue((current) => ({
-                          ...current,
-                          entries: current.entries.map((entry) => entry.invocationId === activeReviewEntry.invocationId
-                            ? { ...entry, payloads: Object.fromEntries(Object.entries(entry.payloads).filter(([id]) => id !== activeReviewChangeId)) }
-                            : entry),
-                        }));
-                      },
+                      onNavigate: invocationReviewController.navigate,
+                      onKeepCurrent: () => void invocationReviewController.resolveCurrent("keep"),
+                      onRejectCurrent: () => void invocationReviewController.resolveCurrent("reject"),
+                      onKeepAll: () => void invocationReviewController.resolveAll("keep"),
+                      onRejectAll: () => void invocationReviewController.resolveAll("reject"),
+                      onRefreshConflict: invocationReviewController.refreshActiveConflict,
                       onOpenConflict: () => openInvocationReviewDocument(activeReviewPayload, activeReviewEntry.source),
                       onDismiss: activeReviewEntry.source === "history"
-                        ? () => setInvocationReviewQueue(closeInvocationHistoryReview)
+                        ? invocationReviewController.dismissHistory
                         : undefined,
                     }
                   : null
@@ -1667,7 +1507,7 @@ export function App() {
         );
       }}
       connections={<InspectorDock document={inspectedDocument} graphContext={inspectedGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={null} tagResults={[]} invocationHistory={invocationHistory} requestedTab={inspectorTabRequest} onOpenInvocationHistory={(item) => {
-        setInvocationReviewQueue((current) => openInvocationHistoryReview(current, item));
+        invocationReviewController.openHistory(item);
       }} onResumeInvocation={(id) => {
         const item = invocationHistory.find((candidate) => candidate.invocationId === id);
         void resumeInvocationInTerminal(id, item?.command);

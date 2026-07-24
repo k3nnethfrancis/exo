@@ -35,7 +35,9 @@ test("reviews and keeps one deterministic invocation changeset end to end", asyn
 
     const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
     await expect(review).toBeVisible();
-    await review.getByRole("button", { name: "Keep", exact: true }).click();
+    const keep = review.getByRole("button", { name: "Keep", exact: true });
+    await keep.click();
+    await expect(keep).toBeDisabled();
     const kept = await waitForInvocation(
       fixture.workspaceRoot,
       (candidate) => candidate.id === record.id && candidate.changeset?.status === "kept",
@@ -51,6 +53,26 @@ test("reviews and keeps one deterministic invocation changeset end to end", asyn
     await expect(review).toContainText("Kept");
     await review.getByRole("button", { name: "Close review" }).click();
     await expect(review).toHaveCount(0);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("clears a pending review while switching Workspaces without settling its durable source record", async () => {
+  const fixture = await launchInvocationFixture("modify");
+  const destination = path.dirname(fixture.workspaceRoot);
+  try {
+    const record = await invokeAndWaitForSettlement(fixture);
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+    await applyWorkspaceRoot(fixture.page, destination);
+    await expect(review).toHaveCount(0);
+    expect((await invocationRecords(fixture.workspaceRoot)).find((candidate) => candidate.id === record.id))
+      .toMatchObject({ changeset: { status: "pending-review" } });
+
+    await applyWorkspaceRoot(fixture.page, fixture.workspaceRoot);
+    await expect(review).toBeVisible();
+    await expect(review).toContainText("invocation-fixture.md");
   } finally {
     await fixture.cleanup();
   }
@@ -671,6 +693,15 @@ async function readCleanBase(fixture: InvocationFixture, invocationId: string): 
   const invocationDir = path.join(fixture.workspaceRoot, ".exo/invocations", invocationId);
   const cleanBase = JSON.parse(await readFile(path.join(invocationDir, "clean-base.json"), "utf8"));
   return readFile(path.join(invocationDir, cleanBase.file.snapshotRef), "utf8");
+}
+
+async function applyWorkspaceRoot(page: Page, workspaceRoot: string): Promise<void> {
+  await page.getByTestId("workspace-menu-toggle").click();
+  await page.getByTestId("workspace-menu-settings").click();
+  const root = page.getByTestId("workspace-settings-workspace-root");
+  await root.fill(workspaceRoot);
+  await page.getByTestId("workspace-settings-apply").click();
+  await expect(page.getByTestId("workspace-settings-apply-status")).toHaveText("Changes applied.");
 }
 
 async function waitForPid(pidPath: string): Promise<number> {
