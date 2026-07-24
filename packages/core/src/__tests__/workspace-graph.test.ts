@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { GRAPH_CONCEPT_SUMMARY_MAX_BYTES } from "../graph-projection";
-import { okf01Format } from "../note-root-format";
+import { NOTE_ROOT_FORMAT_ID } from "../note-root-format";
 import { WorkspaceGraph, workspaceNoteId } from "../workspace-graph";
 import { WorkspaceOntologyStore } from "../workspace-ontology";
 import type { WorkspaceModel } from "../types";
@@ -13,6 +13,22 @@ const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
 
 describe("WorkspaceGraph", () => {
+  it("rejects structural Format injection at construction", () => {
+    expect(() => new WorkspaceGraph(model("/workspace", "/workspace/notes"), {
+      noteRootFormat: {
+        status: { id: "injected", version: "1", label: "Injected", source: "built-in", state: "active" },
+        absoluteMarkdownLinkBase: "source-document",
+        includesConcept: () => true,
+        conceptTypes: () => [],
+        validate: () => [],
+      },
+    } as never)).toThrow("Unknown WorkspaceGraph option: noteRootFormat");
+    expect(() => WorkspaceGraph.forInteroperabilityFormat(
+      model("/workspace", "/workspace/notes"),
+      { id: "okf" } as never,
+    )).toThrow("Unknown Note Root Format: [object Object]");
+  });
+
   it("resolves root-relative links and refuses duplicate basename guessing", async () => {
     const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
     roots.push(workspace);
@@ -180,7 +196,10 @@ describe("WorkspaceGraph", () => {
     await writeFile(path.join(notes, "typed.md"), "---\ntype: CustomThing\nproducer_field: keep\n---\n# Typed\n");
     await writeFile(path.join(notes, "untyped.md"), "---\nunknown: survives\n---\n# Untyped\n");
 
-    const snapshot = await new WorkspaceGraph(model(workspace, notes), { noteRootFormat: okf01Format }).knowledgeSnapshot();
+    const snapshot = await WorkspaceGraph.forInteroperabilityFormat(
+      model(workspace, notes),
+      NOTE_ROOT_FORMAT_ID.okf,
+    ).knowledgeSnapshot();
 
     expect(snapshot.activeFormat).toMatchObject({ id: "okf", version: "0.1" });
     expect(snapshot.concepts.find((concept) => concept.label === "Typed")?.properties).toMatchObject({ producer_field: "keep" });
@@ -232,6 +251,73 @@ describe("WorkspaceGraph", () => {
     expect(candidateTopology.topologyHash).toBe(activeTopology.topologyHash);
     expect(candidateTopology.layoutEpochId).toBe(activeTopology.layoutEpochId);
     expect(await readFile(sourcePath, "utf8")).toBe(sourceBytes);
+  });
+
+  it.each([
+    ["Generic Markdown", NOTE_ROOT_FORMAT_ID.genericMarkdown],
+    ["OKF 0.1", NOTE_ROOT_FORMAT_ID.okf],
+  ] as const)("preserves active Ontology, cache, and stale cold-read behavior for %s", async (_label, formatId) => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-format-parity-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    const runtimeRoot = path.join(workspace, ".exo-test");
+    await mkdir(notes);
+    const sourcePath = path.join(notes, "source.md");
+    await writeFile(sourcePath, "---\ntype: Claim\nsupports: target.md\n---\n# Source\n");
+    await writeFile(path.join(notes, "target.md"), "---\ntype: Evidence\n---\n# Target\n");
+    await writeFile(path.join(workspace, "ontology.yaml"), [
+      "ontology_schema: 1",
+      "id: parity",
+      "version: 1",
+      "properties:",
+      "  supports: { value: reference, predicate: supports }",
+    ].join("\n"));
+    const store = new WorkspaceOntologyStore({ workspaceRoot: workspace, runtimeRoot });
+    const candidate = await store.inspectCandidate();
+    await store.keepCandidate(candidate.sourceRevision ?? "");
+    const workspaceModel = model(workspace, notes);
+    const graph = formatId === NOTE_ROOT_FORMAT_ID.genericMarkdown
+      ? new WorkspaceGraph(workspaceModel, { runtimeRoot })
+      : WorkspaceGraph.forInteroperabilityFormat(workspaceModel, formatId, { runtimeRoot });
+
+    const firstSnapshot = await graph.knowledgeSnapshot();
+    const secondSnapshot = await graph.knowledgeSnapshot();
+    const firstTopology = await graph.graphTopology();
+    const secondTopology = await graph.graphTopology();
+    expect(secondSnapshot).toBe(firstSnapshot);
+    expect(secondTopology.nodes.identityKeys).toBe(firstTopology.nodes.identityKeys);
+    expect(firstSnapshot.activeFormat.id).toBe(formatId);
+    expect(firstSnapshot.activeOntology).toMatchObject({ state: "active", id: "parity" });
+    expect(firstSnapshot.relations).toContainEqual(expect.objectContaining({
+      source: "note:notes:source.md",
+      target: "note:notes:target.md",
+      predicate: "supports",
+      origin: "ontology",
+      resolution: "resolved",
+    }));
+
+    const lookup = await graph.graphConceptLookup({ filePath: sourcePath }, firstTopology.sourceSnapshotId);
+    expect(lookup).toMatchObject({ status: "ok", summary: { label: "Source" } });
+    const index = lookup.summary?.index ?? -1;
+    await expect(graph.graphConceptSummaries([index], firstTopology.sourceSnapshotId))
+      .resolves.toMatchObject({ status: "ok", summaries: [expect.objectContaining({ label: "Source" })] });
+    await expect(graph.graphConceptDetailByIndex(index, firstTopology.sourceSnapshotId))
+      .resolves.toMatchObject({
+        status: "ok",
+        detail: {
+          format: { id: formatId },
+          ontology: { state: "active", id: "parity" },
+          relations: expect.arrayContaining([expect.objectContaining({
+            relation: expect.objectContaining({ origin: "ontology", predicate: "supports" }),
+          })]),
+        },
+      });
+
+    await writeFile(sourcePath, "---\ntype: Claim\n---\n# Changed\n");
+    await graph.refreshFile(sourcePath);
+    await expect(graph.graphConceptSummaries([index], firstTopology.sourceSnapshotId)).resolves.toMatchObject({ status: "stale" });
+    await expect(graph.graphConceptLookup({ filePath: sourcePath }, firstTopology.sourceSnapshotId)).resolves.toMatchObject({ status: "stale" });
+    await expect(graph.graphConceptDetailByIndex(index, firstTopology.sourceSnapshotId)).resolves.toMatchObject({ status: "stale" });
   });
 
   it("preserves stable relation identity when a different link is inserted earlier", async () => {
@@ -290,7 +376,7 @@ describe("WorkspaceGraph", () => {
     const focusPath = path.join(notes, "focus.md");
     await writeFile(focusPath, ["---", "title: Focus", "type: Document", ...properties, "---", links].join("\n"));
     await writeFile(path.join(notes, "target.md"), "# Target\n");
-    const graph = new WorkspaceGraph(model(workspace, notes), { noteRootFormat: okf01Format });
+    const graph = WorkspaceGraph.forInteroperabilityFormat(model(workspace, notes), NOTE_ROOT_FORMAT_ID.okf);
 
     const firstTopology = await graph.graphTopology();
     const secondTopology = await graph.graphTopology();

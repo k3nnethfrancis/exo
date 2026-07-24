@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { readWorkspaceDocument } from "../notes";
-import { okf01Format } from "../note-root-format";
+import { NOTE_ROOT_FORMAT_ID } from "../note-root-format";
 import type { RelationEdge } from "../knowledge-graph";
 import type { WorkspaceModel } from "../types";
 import { WorkspaceGraph } from "../workspace-graph";
@@ -351,7 +351,7 @@ function workspaceModel(
 }
 
 function okfGraph(model: WorkspaceModel, options: { runtimeRoot?: string } = {}): WorkspaceGraph {
-  return new WorkspaceGraph(model, { ...options, noteRootFormat: okf01Format });
+  return WorkspaceGraph.forInteroperabilityFormat(model, NOTE_ROOT_FORMAT_ID.okf, options);
 }
 
 function countByResolution(relations: readonly RelationEdge[]): Record<string, number> {

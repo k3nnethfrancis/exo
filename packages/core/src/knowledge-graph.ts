@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import type { NoteRootFormatStatus } from "./note-root-format";
+
 export const KNOWLEDGE_GRAPH_VERSION = "0.3" as const;
 
 export type KnowledgeGraphVersion = typeof KNOWLEDGE_GRAPH_VERSION;
@@ -92,14 +94,6 @@ export interface GraphFinding {
   conceptIds: readonly string[];
   relationIds: readonly string[];
   evidence: readonly RelationEvidence[];
-}
-
-export interface NoteRootFormatStatus {
-  id: string;
-  version: string;
-  label: string;
-  source: "built-in" | "workspace";
-  state: "active";
 }
 
 export function graphPropertyRecord(value: Record<string, unknown>): Record<string, GraphPropertyValue> {

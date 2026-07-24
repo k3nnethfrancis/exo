@@ -40,10 +40,10 @@ presentation/execution/inference policy.
 - Active-only graph tests prove Candidate edits preserve snapshot, topology, and
   layout identity; unresolved references have explicit Concept endpoints; Note
   bytes remain unchanged.
-- Canonical Exo context/docs and the graph stability skill now use Format,
-  Ontology, Origin, and Ontology-rule terminology. Internal
-  `KnowledgeProfile` and topology `profileHash` remain named compatibility seams
-  for the later bounded Note Root Format migration.
+- Canonical Exo context/docs and the graph stability skill use Format,
+  Ontology, Origin, and Ontology-rule terminology. The bounded Note Root Format
+  migration now uses closed canonical IDs, `activeFormat`, and `formatHash`;
+  production renderer/IPC graph calls carry no Format selector.
 
 Candidate graph-effect preview, graph-generation CAS publication, and product
 Keep/Reject/status UI are intentionally the next vertical slice. This commit

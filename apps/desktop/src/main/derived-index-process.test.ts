@@ -116,6 +116,7 @@ describe("UtilityDerivedIndexClient", () => {
     const first = client.graphTopology(model(), "/workspace/.exo");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-topology" });
     expect(worker.messages.at(-1)).not.toHaveProperty("profileId");
+    expect(worker.messages.at(-1)).not.toHaveProperty("formatId");
     worker.emit("message", { id: 1, ok: true, result: firstResult });
     const resolvedFirst = await first;
     expect(resolvedFirst.nodes.identityKeys.byteLength).toBe(16);

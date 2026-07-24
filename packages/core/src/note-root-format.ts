@@ -1,6 +1,21 @@
-import type { ConceptNode, GraphFinding, NoteRootFormatStatus } from "./knowledge-graph";
+import type { ConceptNode, GraphFinding } from "./knowledge-graph";
 
-export interface NoteRootFormat {
+export const NOTE_ROOT_FORMAT_ID = Object.freeze({
+  genericMarkdown: "generic-markdown",
+  okf: "okf",
+} as const);
+
+export type NoteRootFormatId = typeof NOTE_ROOT_FORMAT_ID[keyof typeof NOTE_ROOT_FORMAT_ID];
+
+export interface NoteRootFormatStatus {
+  readonly id: NoteRootFormatId;
+  readonly version: string;
+  readonly label: string;
+  readonly source: "built-in";
+  readonly state: "active";
+}
+
+interface NoteRootFormat {
   readonly status: NoteRootFormatStatus;
   readonly absoluteMarkdownLinkBase: "source-document" | "note-root";
   includesConcept(pathOrTarget: string): boolean;
@@ -8,14 +23,14 @@ export interface NoteRootFormat {
   validate(concepts: readonly ConceptNode[]): readonly GraphFinding[];
 }
 
-export const genericMarkdownFormat: NoteRootFormat = {
-  status: {
+const genericMarkdownFormat = Object.freeze<NoteRootFormat>({
+  status: Object.freeze({
     id: "generic-markdown",
     version: "1",
     label: "Generic Markdown",
     source: "built-in",
     state: "active",
-  },
+  }),
   absoluteMarkdownLinkBase: "source-document",
   includesConcept() {
     return true;
@@ -26,16 +41,16 @@ export const genericMarkdownFormat: NoteRootFormat = {
   validate() {
     return [];
   },
-};
+});
 
-export const okf01Format: NoteRootFormat = {
-  status: {
+const okf01Format = Object.freeze<NoteRootFormat>({
+  status: Object.freeze({
     id: "okf",
     version: "0.1",
     label: "Open Knowledge Format 0.1",
     source: "built-in",
     state: "active",
-  },
+  }),
   absoluteMarkdownLinkBase: "note-root",
   includesConcept(pathOrTarget) {
     const basename = pathOrTarget
@@ -63,12 +78,12 @@ export const okf01Format: NoteRootFormat = {
         evidence: concept.noteId ? [{ kind: "property" as const, noteId: concept.noteId, property: "type" }] : [],
       }));
   },
-};
+});
 
-export function noteRootFormat(id: string): NoteRootFormat {
-  if (id === "generic-markdown") return genericMarkdownFormat;
-  if (id === "okf" || id === "okf-0.1") return okf01Format;
-  throw new Error(`Unknown Note Root Format: ${id}`);
+export function noteRootFormat(id: unknown): NoteRootFormat {
+  if (id === NOTE_ROOT_FORMAT_ID.genericMarkdown) return genericMarkdownFormat;
+  if (id === NOTE_ROOT_FORMAT_ID.okf) return okf01Format;
+  throw new Error(`Unknown Note Root Format: ${String(id)}`);
 }
 
 function openTypes(value: unknown): string[] {

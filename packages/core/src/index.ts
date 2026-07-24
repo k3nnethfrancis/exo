@@ -6,7 +6,7 @@ export * from "./terminal-settings";
 export * from "./notes";
 export * from "./onboarding-state";
 export * from "./knowledge-graph";
-export * from "./note-root-format";
+export { NOTE_ROOT_FORMAT_ID, type NoteRootFormatId, type NoteRootFormatStatus } from "./note-root-format";
 export * from "./workspace-ontology";
 export * from "./ontology-review";
 export * from "./graph-projection";

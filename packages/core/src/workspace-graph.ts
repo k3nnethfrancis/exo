@@ -13,7 +13,7 @@ import {
   type RelationEvidence,
   type RelationEdge,
 } from "./knowledge-graph";
-import { genericMarkdownFormat, type NoteRootFormat } from "./note-root-format";
+import { NOTE_ROOT_FORMAT_ID, noteRootFormat, type NoteRootFormatId } from "./note-root-format";
 import {
   WorkspaceOntologyStore,
   absentWorkspaceOntologyCandidateRevision,
@@ -57,12 +57,11 @@ import { listMarkdownFiles, WorkspaceFiles } from "./workspace";
 
 export type NoteId = `note:${string}`;
 export type GraphResolution = "resolved" | "unresolved" | "ambiguous" | "external";
-type AbsoluteMarkdownLinkBase = NoteRootFormat["absoluteMarkdownLinkBase"];
+type ActiveNoteRootFormat = ReturnType<typeof noteRootFormat>;
+type AbsoluteMarkdownLinkBase = ActiveNoteRootFormat["absoluteMarkdownLinkBase"];
 
 export interface WorkspaceGraphOptions {
   runtimeRoot?: string;
-  /** Explicit construction seam for interoperability fixtures. Production uses Generic Markdown. */
-  noteRootFormat?: NoteRootFormat;
 }
 
 export interface WorkspaceGraphNote {
@@ -154,13 +153,25 @@ export class WorkspaceGraph {
   private activeOntology: WorkspaceOntologyActive | null = null;
   private activeOntologyInFlight: Promise<WorkspaceOntologyActive> | null = null;
   private stagedOntologyReview: StagedOntologyReview | null = null;
-  private readonly format: NoteRootFormat;
+  #format: ActiveNoteRootFormat;
 
   constructor(private readonly model: WorkspaceModel, options: WorkspaceGraphOptions = {}) {
-    this.format = options.noteRootFormat ?? genericMarkdownFormat;
+    assertWorkspaceGraphOptions(options);
+    this.#format = noteRootFormat(NOTE_ROOT_FORMAT_ID.genericMarkdown);
     this.ontologyStore = options.runtimeRoot
       ? new WorkspaceOntologyStore({ workspaceRoot: model.workspaceRoot, runtimeRoot: options.runtimeRoot })
       : null;
+  }
+
+  /** Explicit construction seam for pinned interoperability fixtures. */
+  static forInteroperabilityFormat(
+    model: WorkspaceModel,
+    formatId: NoteRootFormatId,
+    options: WorkspaceGraphOptions = {},
+  ): WorkspaceGraph {
+    const graph = new WorkspaceGraph(model, options);
+    graph.#format = noteRootFormat(formatId);
+    return graph;
   }
 
   async resolveLink(sourceFilePath: string, target: string): Promise<WorkspaceGraphLink> {
@@ -245,11 +256,11 @@ export class WorkspaceGraph {
         revision: ontologyActive.ontology.revision,
       } : {}),
     };
-    const cacheKey = ontologySnapshotCacheKey(this.format, activeOntology);
+    const cacheKey = ontologySnapshotCacheKey(this.#format, activeOntology);
     const cached = cache ? this.knowledgeSnapshotCache.get(cacheKey) : undefined;
     if (cached) return cached;
     const graph = await this.build();
-    const format = this.format;
+    const format = this.#format;
     const noteRootAbsoluteLinks = format.absoluteMarkdownLinkBase === "note-root";
     const epoch = noteRootAbsoluteLinks ? null : this.resolveEpoch(graph);
     const formatResolutionIndex = noteRootAbsoluteLinks ? resolutionIndex(graph) : null;
@@ -528,7 +539,7 @@ export class WorkspaceGraph {
     this.knowledgeSnapshotCache.clear();
     this.topologyCache.clear();
     this.knowledgeDetailIndexes.clear();
-    const cacheKey = ontologySnapshotCacheKey(this.format, staged.snapshot.activeOntology);
+    const cacheKey = ontologySnapshotCacheKey(this.#format, staged.snapshot.activeOntology);
     this.knowledgeSnapshotCache.set(cacheKey, staged.snapshot);
     this.stagedOntologyReview = null;
     return { status: "applied", review: await this.previewOntology() };
@@ -1019,8 +1030,21 @@ function genericOntologyActive(): WorkspaceOntologyActive {
   return { state: "generic", ontology: null, activationRevision: null, diagnostics: [] };
 }
 
+function assertWorkspaceGraphOptions(options: unknown): asserts options is WorkspaceGraphOptions {
+  if (!options || typeof options !== "object" || Array.isArray(options)) {
+    throw new Error("WorkspaceGraph options must be an object.");
+  }
+  for (const key of Reflect.ownKeys(options)) {
+    if (key !== "runtimeRoot") throw new Error(`Unknown WorkspaceGraph option: ${String(key)}`);
+  }
+  const runtimeRoot = (options as { runtimeRoot?: unknown }).runtimeRoot;
+  if (runtimeRoot !== undefined && typeof runtimeRoot !== "string") {
+    throw new Error("WorkspaceGraph runtimeRoot must be a string.");
+  }
+}
+
 function ontologySnapshotCacheKey(
-  format: NoteRootFormat,
+  format: ActiveNoteRootFormat,
   active: KnowledgeGraphSnapshot["activeOntology"],
 ): string {
   return `${format.status.id}:${active.state}:${active.revision ?? "none"}`;
