@@ -2,6 +2,7 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { createDefaultClaudeAgentCommand } from "@exo/core";
 import type { TerminalProcess, TerminalProcessFactory, TerminalProcessOptions } from "./terminal-runtime";
 import { TerminalManager } from "./terminal-manager";
 
@@ -19,11 +20,34 @@ describe("TerminalManager direct PTY", () => {
     expect(manager.readTail(terminal.id)).toBe("b".repeat(1_024));
     expect(terminal).toMatchObject({ kind: "shell", cwd: root, status: "running" });
   });
+
+  it("uses the immutable invocation Workspace for agent terminal environment", async () => {
+    const factory = new FakeTerminalProcessFactory();
+    const manager = new TerminalManager("/workspace-b", 1_024, {}, factory);
+    await manager.createAgentCommand(
+      createDefaultClaudeAgentCommand(),
+      "/workspace-a/notes",
+      {
+        workspaceRoot: "/workspace-a",
+        noteRoots: ["/workspace-a/notes"],
+        defaultTerminalCwd: "/workspace-a",
+        runtimeRoot: "/workspace-a/.exo",
+      },
+    );
+
+    expect(factory.options?.env).toMatchObject({
+      EXO_WORKSPACE_ROOT: "/workspace-a",
+      EXO_NOTE_ROOTS: "/workspace-a/notes",
+      EXO_DEFAULT_TERMINAL_CWD: "/workspace-a",
+      EXO_RUNTIME_ROOT: "/workspace-a/.exo",
+    });
+  });
 });
 
 class FakeTerminalProcessFactory implements TerminalProcessFactory {
   readonly process = new FakeTerminalProcess();
-  create(_options: TerminalProcessOptions): TerminalProcess { return this.process; }
+  options: TerminalProcessOptions | null = null;
+  create(options: TerminalProcessOptions): TerminalProcess { this.options = options; return this.process; }
 }
 
 class FakeTerminalProcess implements TerminalProcess {

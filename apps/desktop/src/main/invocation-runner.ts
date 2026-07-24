@@ -48,7 +48,7 @@ import {
   inspectInvocationAdapterResult,
   supportsAutomaticContinuity,
 } from "./invocation-adapter";
-import type { TerminalManager } from "./terminal-manager";
+import type { AgentTerminalWorkspaceContext, TerminalManager } from "./terminal-manager";
 import type { WorkspaceChangeEvent, WorkspaceWatcherService } from "./workspace-watchers";
 import { InvocationActivityAdapter, type ParsedInvocationActivity } from "./invocation-activity-adapter";
 import {
@@ -82,6 +82,7 @@ export interface PreparedInvocation {
   cwd: string;
   workspaceRoot: string;
   noteRoots: string[];
+  terminalWorkspace: AgentTerminalWorkspaceContext;
   promptTemplate?: string;
   continuityLane?: InvocationContinuityLane;
   before?: FileSnapshot;
@@ -260,6 +261,12 @@ export class InvocationRunner extends EventEmitter {
         }
       : undefined;
     this.invocationScopes.set(id, { workspaceRoot: settings.workspaceRoot, noteRoots: [...settings.noteRoots] });
+    const terminalWorkspace: AgentTerminalWorkspaceContext = {
+      workspaceRoot: settings.workspaceRoot,
+      noteRoots: [...settings.noteRoots],
+      defaultTerminalCwd: settings.defaultTerminalCwd,
+      runtimeRoot: runtimeRootForWorkspace(settings.workspaceRoot),
+    };
     return {
       id,
       request,
@@ -268,6 +275,7 @@ export class InvocationRunner extends EventEmitter {
       cwd,
       workspaceRoot: settings.workspaceRoot,
       noteRoots: [...settings.noteRoots],
+      terminalWorkspace,
       ...(settings.agentInvocationPrompt ? { promptTemplate: settings.agentInvocationPrompt } : {}),
       ...(continuityLane ? { continuityLane } : {}),
       before,
@@ -471,7 +479,7 @@ export class InvocationRunner extends EventEmitter {
         terminal = await this.options.terminalManager.createAgentCommand({
           ...prepared.command,
           command: bindResolvedExecutable(prepared.command.command, launchFacts.executablePath!),
-        }, prepared.cwd);
+        }, prepared.cwd, prepared.terminalWorkspace);
         const delivered = await this.options.terminalManager.sendMessage(terminal.id, prompt, true);
         if (!delivered.ok) throw new InvocationRunnerError("prompt-delivery-failed", "Agent prompt could not be delivered.");
       }
@@ -716,9 +724,18 @@ export class InvocationRunner extends EventEmitter {
     if (!record?.providerSessionId || record.command.adapter !== "claude-code") {
       throw new InvocationRunnerError("resume-unavailable", "This invocation does not have resumable Claude session provenance.");
     }
+    const fallbackSettings = this.options.getWorkspaceSettings();
+    const workspaceRoot = record.workspaceRoot ?? fallbackSettings.workspaceRoot;
+    const noteRoots = record.noteRoots ?? fallbackSettings.noteRoots;
     return this.options.terminalManager.createAgentCommand(
       { ...record.command, command: commandForClaudeResume(record.command, record.providerSessionId) },
       record.cwd,
+      {
+        workspaceRoot,
+        noteRoots: [...noteRoots],
+        defaultTerminalCwd: record.cwd,
+        runtimeRoot: runtimeRootForWorkspace(workspaceRoot),
+      },
     );
   }
 
@@ -1338,6 +1355,10 @@ function isWithinPath(root: string, candidate: string): boolean {
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function runtimeRootForWorkspace(workspaceRoot: string): string {
+  return process.env.EXO_RUNTIME_ROOT ?? path.join(workspaceRoot, ".exo");
 }
 
 async function canonicalPathOrResolved(filePath: string): Promise<string> {

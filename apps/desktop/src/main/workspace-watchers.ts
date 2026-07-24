@@ -11,6 +11,11 @@ export interface WorkspaceChangeEvent {
 
 export type WorkspaceChangeListener = (event: WorkspaceChangeEvent) => void;
 
+export interface StagedWorkspaceWatchers {
+  commit(): void;
+  abort(): void;
+}
+
 const IGNORED_WORKSPACE_PATH_SEGMENTS = new Set([
   ".DS_Store",
   ".cache",
@@ -38,6 +43,8 @@ export class WorkspaceWatcherService {
   private pendingEvents = new Map<string, WorkspaceChangeEvent>();
   private broadcastTimer: NodeJS.Timeout | null = null;
   private listeners = new Set<WorkspaceChangeListener>();
+  private activeGeneration = 0;
+  private nextGeneration = 0;
 
   constructor(onChange?: WorkspaceChangeListener) {
     if (onChange) {
@@ -53,7 +60,37 @@ export class WorkspaceWatcherService {
   }
 
   start(model: WorkspaceModel): void {
-    this.stop();
+    this.stage(model).commit();
+  }
+
+  /**
+   * Opens destination watchers without replacing the current Workspace. The
+   * coordinator commits this only after every other critical resource staged.
+   */
+  stage(model: WorkspaceModel, workspaceGeneration = ++this.nextGeneration): StagedWorkspaceWatchers {
+    const generation = workspaceGeneration;
+    this.nextGeneration = Math.max(this.nextGeneration, generation);
+    const watchers = this.createWatchers(model, generation);
+    let settled = false;
+
+    return {
+      commit: () => {
+        if (settled) return;
+        settled = true;
+        this.stopActiveWatchers();
+        this.activeGeneration = generation;
+        this.watchers = watchers;
+      },
+      abort: () => {
+        if (settled) return;
+        settled = true;
+        closeWatchers(watchers);
+      },
+    };
+  }
+
+  private createWatchers(model: WorkspaceModel, generation: number): FSWatcher[] {
+    const watchers: FSWatcher[] = [];
 
     const rootPaths = model.noteRoots.map((root) => root.path);
     const uniqueRootPaths = [...new Set(rootPaths)];
@@ -74,7 +111,7 @@ export class WorkspaceWatcherService {
             rootPath,
             eventType,
             filePath,
-          });
+          }, generation);
         });
 
         watcher.on("error", (error) => {
@@ -84,7 +121,7 @@ export class WorkspaceWatcherService {
           });
         });
 
-        this.watchers.push(watcher);
+        watchers.push(watcher);
       } catch (error) {
         console.warn("[exo] workspace watcher setup failed", {
           rootPath,
@@ -99,7 +136,7 @@ export class WorkspaceWatcherService {
         const watcher = watch(workspaceRoot, (eventType, filename) => {
           const filePath = typeof filename === "string" && filename.length > 0 ? path.join(workspaceRoot, filename) : null;
           if (!filePath || !isWorkspaceOntologyPath(workspaceRoot, filePath)) return;
-          this.queue({ rootPath: workspaceRoot, eventType, filePath });
+          this.queue({ rootPath: workspaceRoot, eventType, filePath }, generation);
         });
         watcher.on("error", (error) => {
           console.warn("[exo] ontology watcher error", {
@@ -107,7 +144,7 @@ export class WorkspaceWatcherService {
             error: error instanceof Error ? error.message : String(error),
           });
         });
-        this.watchers.push(watcher);
+        watchers.push(watcher);
       } catch (error) {
         console.warn("[exo] ontology watcher setup failed", {
           rootPath: workspaceRoot,
@@ -115,13 +152,12 @@ export class WorkspaceWatcherService {
         });
       }
     }
+    return watchers;
   }
 
   stop(): void {
-    for (const watcher of this.watchers) {
-      watcher.close();
-    }
-    this.watchers = [];
+    this.activeGeneration = ++this.nextGeneration;
+    this.stopActiveWatchers();
 
     if (this.broadcastTimer) {
       clearTimeout(this.broadcastTimer);
@@ -130,7 +166,20 @@ export class WorkspaceWatcherService {
     this.pendingEvents.clear();
   }
 
-  private queue(event: WorkspaceChangeEvent): void {
+  private stopActiveWatchers(): void {
+    closeWatchers(this.watchers);
+    this.watchers = [];
+    if (this.broadcastTimer) {
+      clearTimeout(this.broadcastTimer);
+      this.broadcastTimer = null;
+    }
+    this.pendingEvents.clear();
+  }
+
+  private queue(event: WorkspaceChangeEvent, generation = this.activeGeneration): void {
+    if (generation !== this.activeGeneration) {
+      return;
+    }
     const key = `${event.rootPath}:${event.filePath ?? ""}:${event.eventType}`;
     this.pendingEvents.set(key, event);
 
@@ -140,6 +189,10 @@ export class WorkspaceWatcherService {
 
     this.broadcastTimer = setTimeout(() => {
       this.broadcastTimer = null;
+      if (generation !== this.activeGeneration) {
+        this.pendingEvents.clear();
+        return;
+      }
       const events = [...this.pendingEvents.values()];
       this.pendingEvents.clear();
 
@@ -149,6 +202,12 @@ export class WorkspaceWatcherService {
         }
       }
     }, 120);
+  }
+}
+
+function closeWatchers(watchers: FSWatcher[]): void {
+  for (const watcher of watchers) {
+    watcher.close();
   }
 }
 

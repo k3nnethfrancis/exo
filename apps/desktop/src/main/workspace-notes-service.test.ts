@@ -2,9 +2,10 @@ import { access, mkdtemp, mkdir, readFile, realpath, rename, rm, symlink, writeF
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { WorkspaceModel } from "@exo/core";
+import type { DerivedIndexClient } from "./derived-index-process";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 
 describe("WorkspaceNotesService", () => {
@@ -273,6 +274,41 @@ describe("WorkspaceNotesService", () => {
     expect(refreshedGraph?.backlinks.map((link) => link.target)).toEqual([backlinkPath]);
   });
 
+  it("does not let a held graph refresh from A mutate the replacement Workspace", async () => {
+    const workspaceA = await mkdtemp(path.join(os.tmpdir(), "exo-notes-a-"));
+    const workspaceB = await mkdtemp(path.join(os.tmpdir(), "exo-notes-b-"));
+    const noteA = path.join(workspaceA, "notes");
+    const noteB = path.join(workspaceB, "notes");
+    await Promise.all([mkdir(noteA), mkdir(noteB)]);
+    const sourceA = path.join(noteA, "source.md");
+    await writeFile(sourceA, "# A\n");
+    const held = deferred<void>();
+    let observedSignal: AbortSignal | undefined;
+    const graphRefresh = vi.fn((_model: WorkspaceModel, _runtimeRoot: string, _filePath: string, signal?: AbortSignal) => {
+      observedSignal = signal;
+      return held.promise;
+    });
+    const derivedIndex = { graphRefresh, graphInvalidate: vi.fn().mockResolvedValue(undefined) } as unknown as DerivedIndexClient;
+    const modelA = workspaceModel(workspaceA, noteA);
+    const modelB = workspaceModel(workspaceB, noteB);
+    const service = new WorkspaceNotesService({
+      getWorkspaceModel: () => modelA,
+      getRuntimeRoot: () => path.join(workspaceA, ".exo"),
+      derivedIndex,
+    });
+
+    const staleRefresh = service.handleWorkspaceChange({ rootPath: noteA, eventType: "change", filePath: sourceA });
+    await Promise.resolve();
+    service.activateWorkspace({ model: modelB, runtimeRoot: path.join(workspaceB, ".exo"), generation: 1 });
+    expect(observedSignal?.aborted).toBe(true);
+    held.resolve();
+    await staleRefresh;
+
+    expect(graphRefresh).toHaveBeenCalledTimes(1);
+    expect(graphRefresh).toHaveBeenLastCalledWith(modelA, path.join(workspaceA, ".exo"), sourceA, expect.anything());
+    await Promise.all([rm(workspaceA, { recursive: true, force: true }), rm(workspaceB, { recursive: true, force: true })]);
+  });
+
   it("authorizes and case-preserves graph concept file lookup within note roots", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const folder = path.join(noteRoot, "CasePreserved");
@@ -378,4 +414,20 @@ async function workspaceNotesService() {
     noteRoot,
     service: new WorkspaceNotesService({ getWorkspaceModel: () => model }),
   };
+}
+
+function workspaceModel(workspaceRoot: string, noteRoot: string): WorkspaceModel {
+  return {
+    workspaceRoot,
+    defaultTerminalCwd: workspaceRoot,
+    noteRoots: [{ id: "notes", label: "notes", path: noteRoot }],
+    indexedRoots: [],
+    indexing: { enabled: false, mode: "off", backend: "qmd" },
+  };
+}
+
+function deferred<Value>() {
+  let resolve!: (value: Value) => void;
+  const promise = new Promise<Value>((nextResolve) => { resolve = nextResolve; });
+  return { promise, resolve };
 }

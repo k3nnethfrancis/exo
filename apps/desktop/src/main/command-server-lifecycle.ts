@@ -1,3 +1,4 @@
+import { closeSync, fsyncSync, openSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -16,6 +17,12 @@ export interface CommandServerLifecycleOptions {
   log?: (message: string, details?: unknown) => void;
 }
 
+export interface StagedCommandServerDiscovery {
+  /** Atomically exposes an already-started server without yielding the event loop. */
+  commit(): void;
+  abort(): void;
+}
+
 /** Owns the one command server instance and its discovery record. */
 export class CommandServerLifecycle {
   private readonly discoveryPath: string;
@@ -27,8 +34,8 @@ export class CommandServerLifecycle {
     this.discoveryPath = path.join(options.runtimeRoot, "server.json");
   }
 
-  start(): Promise<CommandServerLifecycleStatus> {
-    return this.enqueue(() => this.startLocked());
+  start(options: { publishDiscovery?: boolean } = {}): Promise<CommandServerLifecycleStatus> {
+    return this.enqueue(() => this.startLocked(options.publishDiscovery ?? true));
   }
 
   stop(): Promise<void> {
@@ -62,7 +69,41 @@ export class CommandServerLifecycle {
     });
   }
 
-  private async startLocked(): Promise<CommandServerLifecycleStatus> {
+  /**
+   * Prepares a durable discovery record while the server is already listening.
+   * Committing the prepared rename is synchronous so a coordinator can publish
+   * the active Workspace in the same event-loop turn.
+   */
+  prepareDiscovery(): StagedCommandServerDiscovery {
+    const server = this.server;
+    const generation = this.generation;
+    if (!server || !server.isListening()) {
+      throw new Error("Command server is not listening.");
+    }
+    const info = server.getServerInfo();
+    const temporaryPath = `${this.discoveryPath}.${process.pid}.${Date.now()}.staged`;
+    writeDiscoveryFileSync(temporaryPath, info);
+    let settled = false;
+    return {
+      commit: () => {
+        if (settled) return;
+        if (generation !== this.generation || this.server?.getServerInfo().token !== info.token) {
+          rmSync(temporaryPath, { force: true });
+          settled = true;
+          throw new Error("Command server generation is no longer current.");
+        }
+        renameSync(temporaryPath, this.discoveryPath);
+        settled = true;
+      },
+      abort: () => {
+        if (settled) return;
+        settled = true;
+        rmSync(temporaryPath, { force: true });
+      },
+    };
+  }
+
+  private async startLocked(publishDiscovery = true): Promise<CommandServerLifecycleStatus> {
     if (this.server?.isListening()) {
       return this.status();
     }
@@ -76,7 +117,9 @@ export class CommandServerLifecycle {
         await server.stop();
         return this.status();
       }
-      await this.publishDiscovery(server.getServerInfo(), generation);
+      if (publishDiscovery) {
+        await this.publishDiscovery(server.getServerInfo(), generation);
+      }
       this.options.log?.("command server started", { port: server.getPort() });
       return this.status();
     } catch (error) {
@@ -162,5 +205,16 @@ async function writeDiscoveryFile(discoveryPath: string, info: ExoCommandServerI
     }
   } finally {
     await rm(temporaryPath, { force: true });
+  }
+}
+
+function writeDiscoveryFileSync(discoveryPath: string, info: ExoCommandServerInfo): void {
+  const body = `${JSON.stringify(info, null, 2)}\n`;
+  const descriptor = openSync(discoveryPath, "w", 0o600);
+  try {
+    writeFileSync(descriptor, body, "utf8");
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
   }
 }

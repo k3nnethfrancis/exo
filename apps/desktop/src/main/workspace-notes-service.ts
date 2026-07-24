@@ -36,21 +36,52 @@ export interface WorkspaceNotesServiceOptions {
   onGraphChanged?: () => void;
 }
 
+export interface WorkspaceNotesActivation {
+  model: WorkspaceModel;
+  runtimeRoot: string;
+  generation: number;
+}
+
+interface WorkspaceNotesScope extends WorkspaceNotesActivation {
+  controller: AbortController;
+}
+
 export class WorkspaceNotesService {
   private graph: WorkspaceGraph | null = null;
   private graphModelKey: string | null = null;
   private readonly folderOverviewCache = new Map<string, FolderOverview>();
   private noteFileCache: string[] | null = null;
   private readonly imageFileCache = new Map<string, Promise<string[]>>();
+  private scope: WorkspaceNotesScope;
 
-  constructor(private readonly options: WorkspaceNotesServiceOptions) {}
+  constructor(private readonly options: WorkspaceNotesServiceOptions) {
+    this.scope = this.createScope({
+      model: options.getWorkspaceModel(),
+      runtimeRoot: options.getRuntimeRoot?.() ?? "",
+      generation: 0,
+    });
+  }
+
+  activateWorkspace(activation: WorkspaceNotesActivation): void {
+    this.scope.controller.abort();
+    this.scope = this.createScope(activation);
+    this.graph?.invalidate();
+    this.graph = null;
+    this.graphModelKey = null;
+    this.folderOverviewCache.clear();
+    this.noteFileCache = null;
+    this.imageFileCache.clear();
+  }
 
   invalidateDerivedState(): void {
     this.graph?.invalidate();
-    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+    const scope = this.scope;
+    if (this.options.derivedIndex && scope.runtimeRoot) {
       void this.options.derivedIndex
-        .graphInvalidate(this.options.getWorkspaceModel(), this.options.getRuntimeRoot())
-        .catch((error) => console.warn("[exo] derived graph invalidation failed", error));
+        .graphInvalidate(scope.model, scope.runtimeRoot, scope.controller.signal)
+        .catch((error) => {
+          if (!isAbortError(error)) console.warn("[exo] derived graph invalidation failed", error);
+        });
     }
     this.folderOverviewCache.clear();
     this.noteFileCache = null;
@@ -58,12 +89,14 @@ export class WorkspaceNotesService {
   }
 
   async handleWorkspaceChange(event: WorkspaceChangeEvent): Promise<void> {
+    const scope = this.scope;
     if (!event.filePath) {
       this.folderOverviewCache.clear();
       this.noteFileCache = null;
       this.imageFileCache.clear();
-      if (this.options.derivedIndex && this.options.getRuntimeRoot) {
-        await this.options.derivedIndex.graphInvalidate(this.options.getWorkspaceModel(), this.options.getRuntimeRoot());
+      if (this.options.derivedIndex && scope.runtimeRoot) {
+        await this.options.derivedIndex.graphInvalidate(scope.model, scope.runtimeRoot, scope.controller.signal);
+        if (!this.isCurrentScope(scope)) return;
       } else {
         this.graph?.invalidate();
       }
@@ -75,12 +108,21 @@ export class WorkspaceNotesService {
     this.noteFileCache = null;
     this.imageFileCache.clear();
     if (/\.md$/i.test(changedPath)) {
-      if (this.options.derivedIndex && this.options.getRuntimeRoot) {
-        await this.options.derivedIndex.graphRefresh(this.options.getWorkspaceModel(), this.options.getRuntimeRoot(), changedPath);
+      if (this.options.derivedIndex && scope.runtimeRoot) {
+        await this.options.derivedIndex.graphRefresh(scope.model, scope.runtimeRoot, changedPath, scope.controller.signal);
+        if (!this.isCurrentScope(scope)) return;
       } else {
         await this.graph?.refreshFile(changedPath);
       }
     }
+  }
+
+  private createScope(activation: WorkspaceNotesActivation): WorkspaceNotesScope {
+    return { ...activation, controller: new AbortController() };
+  }
+
+  private isCurrentScope(scope: WorkspaceNotesScope): boolean {
+    return scope.generation === this.scope.generation;
   }
 
   /** Validates an operator-requested file before a command-server response can
@@ -569,6 +611,10 @@ function normalizeMarkdownImageTarget(target: string): string {
 
 function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR");
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 async function fileExists(targetPath: string): Promise<boolean> {

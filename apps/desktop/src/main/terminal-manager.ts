@@ -3,7 +3,6 @@ import path from "node:path";
 
 import {
   agentCommandExecutableFingerprint,
-  resolveWorkspaceModel,
   type AgentCommand,
 } from "@exo/core";
 import {
@@ -44,6 +43,14 @@ export interface TerminalManagerOptions {
   initialColumns?: number;
   initialRows?: number;
   idleThresholdMs?: number;
+}
+
+/** Immutable invocation scope; terminal launches never consult ambient Workspace state. */
+export interface AgentTerminalWorkspaceContext {
+  workspaceRoot: string;
+  noteRoots: string[];
+  defaultTerminalCwd: string;
+  runtimeRoot: string;
 }
 
 const DEFAULT_TERMINAL_MANAGER_OPTIONS: Required<TerminalManagerOptions> = {
@@ -125,10 +132,12 @@ export class TerminalManager extends EventEmitter {
     });
   }
 
-  async createAgentCommand(command: AgentCommand, cwd: string): Promise<TerminalSessionInfo> {
+  async createAgentCommand(
+    command: AgentCommand,
+    cwd: string,
+    workspace: AgentTerminalWorkspaceContext,
+  ): Promise<TerminalSessionInfo> {
     const shell = process.env.SHELL || "/bin/zsh";
-    const workspace = resolveWorkspaceModel();
-    const runtimeRoot = process.env.EXO_RUNTIME_ROOT ?? path.join(workspace.workspaceRoot, ".exo");
     return this.createProcessTerminal({
       title: command.label,
       cwd,
@@ -139,9 +148,9 @@ export class TerminalManager extends EventEmitter {
       env: {
         ...commandEnvironment(),
         EXO_WORKSPACE_ROOT: workspace.workspaceRoot,
-        EXO_NOTE_ROOTS: workspace.noteRoots.map((root) => root.path).join(path.delimiter),
+        EXO_NOTE_ROOTS: workspace.noteRoots.join(path.delimiter),
         EXO_DEFAULT_TERMINAL_CWD: workspace.defaultTerminalCwd,
-        EXO_RUNTIME_ROOT: runtimeRoot,
+        EXO_RUNTIME_ROOT: workspace.runtimeRoot,
         EXO_AGENT_COMMAND_ID: command.id,
         EXO_AGENT_COMMAND_HANDLE: command.handle,
         EXO_AGENT_COMMAND_FINGERPRINT: agentCommandExecutableFingerprint(command),

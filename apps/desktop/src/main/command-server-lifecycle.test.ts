@@ -53,6 +53,23 @@ describe("CommandServerLifecycle", () => {
     await lifecycle.stop();
     await expect(readFile(path.join(runtimeRoot, "server.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
+
+  it("stages discovery until one synchronous commit", async () => {
+    const runtimeRoot = await tempRoot();
+    const lifecycle = new CommandServerLifecycle({
+      runtimeRoot,
+      createServer: () => fakeServer("token-staged", 41005),
+    });
+
+    await lifecycle.start({ publishDiscovery: false });
+    await expect(readFile(path.join(runtimeRoot, "server.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+
+    const staged = lifecycle.prepareDiscovery();
+    staged.commit();
+
+    await expect(readFile(path.join(runtimeRoot, "server.json"), "utf8")).resolves.toContain("token-staged");
+    await lifecycle.stop();
+  });
 });
 
 async function tempRoot(): Promise<string> {

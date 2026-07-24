@@ -79,6 +79,7 @@ describe("IndexingService", () => {
       expect.objectContaining({ indexing: expect.objectContaining({ mode: "hybrid" }) }),
       "/workspace/.exo",
       ["index-notes"],
+      expect.anything(),
     );
     expect(maintenance.sync).not.toHaveBeenCalled();
     service.dispose();
@@ -114,6 +115,7 @@ describe("IndexingService", () => {
       expect.objectContaining({ indexing: expect.objectContaining({ mode: "hybrid" }) }),
       "/workspace/.exo",
       { maxDocuments: 4, maxDocsPerBatch: 1, maxDurationMs: 15_000 },
+      expect.anything(),
     );
     service.dispose();
   });
@@ -165,7 +167,72 @@ describe("IndexingService", () => {
       expect.anything(),
       "/workspace/.exo",
       ["index-notes"],
+      expect.anything(),
     );
+    service.dispose();
+  });
+
+  it("does not publish an old maintenance completion after A → B → A activation", async () => {
+    vi.useFakeTimers();
+    const firstA = deferred<IndexStatus>();
+    const settingsA = workspaceSettings();
+    const settingsB = { ...workspaceSettings(), workspaceRoot: "/workspace-b", defaultTerminalCwd: "/workspace-b", noteRoots: ["/workspace-b/notes"] };
+    const maintenance = derivedIndexClient();
+    const events: Parameters<IndexingServiceOptions["sendState"]>[0][] = [];
+    let firstSignal: AbortSignal | undefined;
+    vi.mocked(maintenance.update).mockImplementationOnce((_model, _runtimeRoot, _rootIds, signal) => {
+      firstSignal = signal;
+      return firstA.promise;
+    });
+    const service = indexingService(settingsA, undefined, maintenance, derivedIndexClient(), { sendState: (event) => events.push(event) });
+
+    service.scheduleReconciliation("a-first", 0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(maintenance.update).toHaveBeenCalledTimes(1);
+
+    service.activateWorkspace({
+      model: workspaceModel(settingsB),
+      settings: settingsB,
+      runtimeRoot: "/workspace-b/.exo",
+    });
+    service.activateWorkspace({
+      model: workspaceModel(settingsA),
+      settings: settingsA,
+      runtimeRoot: "/workspace/.exo",
+    });
+    expect(firstSignal?.aborted).toBe(true);
+
+    firstA.resolve(indexStatus(0, "lexical"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(events.filter((event) => (event.state === "idle" || event.state === "error") && event.reason !== "workspace-activated")).toEqual([]);
+    service.dispose();
+  });
+
+  it("does not let a held foreground read from A block B maintenance or return A data", async () => {
+    vi.useFakeTimers();
+    const settingsA = workspaceSettings();
+    const settingsB = { ...workspaceSettings(), workspaceRoot: "/workspace-b", defaultTerminalCwd: "/workspace-b", noteRoots: ["/workspace-b/notes"] };
+    const foreground = derivedIndexClient();
+    const heldSearch = deferred<Awaited<ReturnType<DerivedIndexClient["search"]>>>();
+    let searchSignal: AbortSignal | undefined;
+    vi.mocked(foreground.search).mockImplementationOnce((_model, _root, _query, _options, signal) => {
+      searchSignal = signal;
+      return heldSearch.promise;
+    });
+    const maintenance = derivedIndexClient();
+    const service = indexingService(settingsA, undefined, maintenance, foreground);
+
+    const oldSearch = service.search("old");
+    await Promise.resolve();
+    service.activateWorkspace({ model: workspaceModel(settingsB), settings: settingsB, runtimeRoot: "/workspace-b/.exo" });
+    expect(searchSignal?.aborted).toBe(true);
+    service.scheduleReconciliation("b", 0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(maintenance.update).toHaveBeenCalledWith(expect.objectContaining({ workspaceRoot: "/workspace-b" }), "/workspace-b/.exo", ["index-notes"], expect.anything());
+
+    heldSearch.resolve({ results: [], query: "old", mode: "hybrid", source: "qmd", provider: "qmd", warnings: [] });
+    await expect(oldSearch).rejects.toMatchObject({ name: "AbortError" });
     service.dispose();
   });
 
@@ -205,8 +272,8 @@ describe("IndexingService", () => {
     await service.embed("settings");
     await service.runSync("settings");
 
-    expect(maintenance.embed).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo");
-    expect(maintenance.sync).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo");
+    expect(maintenance.embed).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo", undefined, expect.anything());
+    expect(maintenance.sync).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo", expect.anything());
     service.dispose();
   });
 
@@ -230,6 +297,7 @@ describe("IndexingService", () => {
       "/workspace/.exo",
       "needle",
       {},
+      expect.anything(),
     );
     expect(result.warnings).toContain("Index maintenance is running; showing Simple search results until it completes.");
     expect(foreground.status).not.toHaveBeenCalled();
@@ -463,7 +531,7 @@ describe("IndexingService", () => {
 
     service.scheduleReconciliation("startup", 0);
     await vi.advanceTimersByTimeAsync(0);
-    expect(maintenance.update).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo", ["index-notes"]);
+    expect(maintenance.update).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo", ["index-notes"], expect.anything());
     expect(maintenance.sync).not.toHaveBeenCalled();
 
     service.scheduleForFile("/workspace/notes/later.md", "note-save");

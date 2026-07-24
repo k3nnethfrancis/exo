@@ -81,6 +81,33 @@ describe("InvocationRunner readiness parity", () => {
     });
   });
 
+  it("captures immutable A terminal context before a later active settings change", async () => {
+    const rootA = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-a-"));
+    const rootB = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-b-"));
+    temporaryRoots.push(rootA, rootB);
+    const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
+    let activeSettings = settings(rootA, command);
+    const watcher = { subscribe: () => () => undefined };
+    const runner = new InvocationRunner({
+      getWorkspaceSettings: () => activeSettings,
+      trustStateRoot: rootA,
+      terminalManager: new FakeTerminalManager() as unknown as TerminalManager,
+      workspaceWatcherService: watcher as unknown as WorkspaceWatcherService,
+      settlementQuietMs: 0,
+      settlementMaxWaitMs: 0,
+    });
+    const prepared = await runner.prepare({ context: "cli", handle: command.handle, message: "test" });
+    activeSettings = settings(rootB, command);
+    expect(prepared.terminalWorkspace).toMatchObject({
+      workspaceRoot: rootA,
+      runtimeRoot: path.join(rootA, ".exo"),
+    });
+    await expect(runner.authorizeAndStart(prepared, {
+      decision: { kind: "trusted" },
+      expectedFingerprint: prepared.pending.command.executableFingerprint,
+    })).rejects.toMatchObject({ code: "fingerprint-drift" });
+  });
+
   it("derives note authorization facts and trust from the exact main-process context", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-authorization-"));
     temporaryRoots.push(root);
@@ -1406,10 +1433,12 @@ class FakeTerminalManager extends EventEmitter {
   created = 0;
   messages: string[] = [];
   commands: unknown[] = [];
+  workspaceContexts: unknown[] = [];
 
-  async createAgentCommand(command: unknown, cwd: string) {
+  async createAgentCommand(command: unknown, cwd: string, workspaceContext?: unknown) {
     this.created += 1;
     this.commands.push(command);
+    this.workspaceContexts.push(workspaceContext);
     return {
       id: `terminal-${this.created}`,
       title: "Echo",
