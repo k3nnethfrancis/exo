@@ -76,6 +76,46 @@ test("continues and exits markdown bullets in live preview", async () => {
   await cleanup();
 });
 
+test("renders ordered-list markers at the text size and vertical center", async ({}, testInfo) => {
+  const { page, cleanup } = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const target = path.join(workspaceRoot, "notes/test-notes/ordered-list-rendering.md");
+      await writeFile(target, "# Ordered list\n\n1. First item\n2. Second item\n", "utf8");
+    },
+  });
+
+  try {
+    await page.getByRole("button", { name: /ordered-list-rendering/i }).first().click();
+    const firstItem = page.locator(".exo-md-line--list-ordered").first();
+
+    await expect.poll(() => firstItem.evaluate((line) => {
+      const lineStyle = window.getComputedStyle(line);
+      const markerStyle = window.getComputedStyle(line, "::before");
+      return {
+        content: markerStyle.content,
+        fontSize: markerStyle.fontSize,
+        lineFontSize: lineStyle.fontSize,
+        top: markerStyle.top,
+        paddingRight: markerStyle.paddingRight,
+        boxSizing: markerStyle.boxSizing,
+        fontWeight: markerStyle.fontWeight,
+      };
+    })).toEqual({
+      content: '"1."',
+      fontSize: "16px",
+      lineFontSize: "16px",
+      top: "0px",
+      paddingRight: "5px",
+      boxSizing: "border-box",
+      fontWeight: "500",
+    });
+    await page.screenshot({ path: testInfo.outputPath("ordered-list-markers.png") });
+  } finally {
+    await cleanup();
+  }
+});
+
 test("continues and exits markdown task list items in live preview", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture({
     mutable: true,

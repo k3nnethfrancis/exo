@@ -243,7 +243,7 @@ export interface DesktopApi {
     getGraphView: (profileId?: string | null) => Promise<GraphViewBundle>;
     getGraphConceptDetail: (conceptId: string, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptDetail | null>;
     resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
-    resolveMarkdownImage: (sourceFilePath: string, target: string) => Promise<ResolvedMarkdownImage>;
+    resolveMarkdownImage: (sourceFilePath: string, target: string, lookupByFilename?: boolean) => Promise<ResolvedMarkdownImage>;
     ensureTarget: (sourceFilePath: string, target: string) => Promise<string>;
     suggestTargets: (
       sourceFilePath: string,

@@ -115,7 +115,7 @@ const api: DesktopApi = {
     getGraphView: (profileId) => invokeDesktop("notes:get-graph-view", profileId),
     getGraphConceptDetail: (conceptId, sourceSnapshotId, profileId) => invokeDesktop("notes:get-graph-concept-detail", conceptId, sourceSnapshotId, profileId),
     resolveTarget: (sourceFilePath, target) => invokeDesktop("notes:resolve-target", sourceFilePath, target),
-    resolveMarkdownImage: (sourceFilePath, target) => invokeDesktop("notes:resolve-markdown-image", sourceFilePath, target),
+    resolveMarkdownImage: (sourceFilePath, target, lookupByFilename) => invokeDesktop("notes:resolve-markdown-image", sourceFilePath, target, lookupByFilename),
     ensureTarget: (sourceFilePath, target) => invokeDesktop("notes:ensure-target", sourceFilePath, target),
     suggestTargets: (sourceFilePath, query) => invokeDesktop("notes:suggest-targets", sourceFilePath, query),
   },

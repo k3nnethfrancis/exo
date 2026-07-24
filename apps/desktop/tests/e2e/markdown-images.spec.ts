@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from "@playwright/test";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { launchExoWorkspaceFixture } from "../helpers";
@@ -8,6 +8,14 @@ const onePixelPng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z7KkAAAAASUVORK5CYII=",
   "base64",
 );
+
+const sibsSvgFiles = [
+  "organizational-ecology-v4.svg",
+  "levels-of-agentic-work-v1.svg",
+  "agent-human-loops-v4.svg",
+  "future-of-work-v2.svg",
+];
+const viewBoxOnlySvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 520"><rect width="1200" height="520" fill="#7b8f84"/></svg>';
 
 test("loads a root-relative site image through the Electron notes resolver", async ({}, testInfo) => {
   let notePath = "";
@@ -19,26 +27,30 @@ test("loads a root-relative site image through the Electron notes resolver", asy
       notePath = path.join(siteRoot, "blog/self-improving-business-systems.md");
       const imagePath = path.join(siteRoot, "images/posts/self-improving-business-systems/loop-stack.png");
       const relativeImagePath = path.join(siteRoot, "blog/attachments/relative.png");
+      const embeddedImagePath = path.join(siteRoot, "blog/images/embedded.png");
       const noteRootImagePath = path.join(workspaceRoot, "notes/test-notes/images/root-control.png");
       await mkdir(path.dirname(notePath), { recursive: true });
       await mkdir(path.dirname(imagePath), { recursive: true });
       await mkdir(path.dirname(relativeImagePath), { recursive: true });
+      await mkdir(path.dirname(embeddedImagePath), { recursive: true });
       await mkdir(path.dirname(noteRootImagePath), { recursive: true });
       await writeFile(
         notePath,
-        "# Self-Improving Business Systems\n\n![Relative control](attachments/relative.png)\n\n![Note root control](/images/root-control.png)\n\n![The nested agentic work loop and human governance loop](/images/posts/self-improving-business-systems/loop-stack.png)\n",
+        "# Self-Improving Business Systems\n\n![Relative control](attachments/relative.png)\n\n![Note root control](/images/root-control.png)\n\n![The nested agentic work loop and human governance loop](/images/posts/self-improving-business-systems/loop-stack.png)\n\n![[embedded.png|640]]\n\n![Remote control](https://assets.example.test/exo.png)\n",
         "utf8",
       );
-      const visibleFixturePng = await readFile(
-        path.resolve("apps/desktop/tests/visual/shell.visual.spec.ts-snapshots/workspace-default-darwin.png"),
-      );
-      await writeFile(imagePath, visibleFixturePng);
+      await writeFile(imagePath, onePixelPng);
       await writeFile(relativeImagePath, onePixelPng);
+      await writeFile(embeddedImagePath, onePixelPng);
       await writeFile(noteRootImagePath, onePixelPng);
     },
   });
 
   try {
+    await page.route("https://assets.example.test/exo.png", (route) => route.fulfill({
+      body: onePixelPng,
+      contentType: "image/png",
+    }));
     await electronApp.evaluate(({ BrowserWindow }, targetPath) => {
       BrowserWindow.getAllWindows()[0]?.webContents.send("command:open-file", targetPath);
     }, notePath);
@@ -46,17 +58,71 @@ test("loads a root-relative site image through the Electron notes resolver", asy
     const relativeControl = page.getByLabel("Relative control");
     const noteRootControl = page.getByLabel("Note root control");
     const imageWidget = page.getByLabel("The nested agentic work loop and human governance loop");
+    const embeddedImage = page.getByLabel("embedded.png");
+    const remoteControl = page.getByLabel("Remote control");
     await expect(relativeControl).toBeVisible();
     await expect(noteRootControl).toBeVisible();
     await expect(imageWidget).toBeVisible();
+    await expect(embeddedImage).toBeVisible();
+    await expect(remoteControl).toBeVisible();
     await expect.poll(() => loadedWidth(relativeControl)).toBeGreaterThan(0);
     await expect.poll(() => loadedWidth(noteRootControl)).toBeGreaterThan(0);
     await expect
       .poll(() => loadedWidth(imageWidget))
       .toBeGreaterThan(0);
+    await expect.poll(() => loadedWidth(embeddedImage)).toBeGreaterThan(0);
+    await expect.poll(() => loadedWidth(remoteControl)).toBeGreaterThan(0);
     await expect(imageWidget.locator("img")).toHaveCSS("border-radius", "8px");
     await expect(imageWidget).not.toHaveClass(/exo-md-image--missing/);
+    await expect(remoteControl).not.toHaveClass(/exo-md-image--missing/);
     await page.screenshot({ path: testInfo.outputPath("markdown-images-loaded.png"), fullPage: true });
+  } finally {
+    await cleanup();
+  }
+});
+
+test("renders every root-relative SVG used by Self-Improving Business Systems", async ({}, testInfo) => {
+  let notePath = "";
+  const { electronApp, page, cleanup } = await launchExoWorkspaceFixture({
+    mutable: true,
+    initialNoteLabel: null,
+    prepareWorkspace: async (workspaceRoot) => {
+      const siteRoot = path.join(workspaceRoot, "notes/test-notes/kenneth-dot-computer/garden");
+      notePath = path.join(siteRoot, "blog/self-improving-business-systems.md");
+      await mkdir(path.dirname(notePath), { recursive: true });
+      await writeFile(notePath, [
+        "# Self-Improving Business Systems",
+        "",
+        "![Organization ecology](/images/posts/self-improving-business-systems/organizational-ecology-v4.svg)",
+        "",
+        "![Levels of agentic work](/images/posts/self-improving-business-systems/levels-of-agentic-work-v1.svg)",
+        "",
+        "![Agent and human loops](/images/posts/self-improving-business-systems/agent-human-loops-v4.svg)",
+        "",
+        "![Future of work](/images/posts/self-improving-business-systems/future-of-work-v2.svg)",
+        "",
+      ].join("\n"), "utf8");
+      await Promise.all(sibsSvgFiles.map(async (filename) => {
+        const imagePath = path.join(siteRoot, "images/posts/self-improving-business-systems", filename);
+        await mkdir(path.dirname(imagePath), { recursive: true });
+        await writeFile(imagePath, viewBoxOnlySvg);
+      }));
+    },
+  });
+
+  try {
+    await electronApp.evaluate(({ BrowserWindow }, targetPath) => {
+      BrowserWindow.getAllWindows()[0]?.webContents.send("command:open-file", targetPath);
+    }, notePath);
+    await expect(page.getByTestId("editor-title")).toHaveText("self-improving-business-systems");
+    for (const label of ["Organization ecology", "Levels of agentic work", "Agent and human loops", "Future of work"]) {
+      const image = page.getByLabel(label);
+      await image.scrollIntoViewIfNeeded();
+      await expect(image).toBeVisible();
+      await expect.poll(() => loadedWidth(image)).toBeGreaterThan(0);
+      await expect(image).not.toHaveClass(/exo-md-image--missing/);
+    }
+    await page.screenshot({ path: testInfo.outputPath("self-improving-business-systems-images.png"), fullPage: true });
   } finally {
     await cleanup();
   }

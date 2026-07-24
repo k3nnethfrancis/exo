@@ -75,6 +75,19 @@ describe("WorkspaceNotesService", () => {
     });
   });
 
+  it("resolves an Obsidian image embed by filename inside the source note root", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const sourcePath = path.join(noteRoot, "docs", "configuration.md");
+    const imagePath = path.join(noteRoot, "docs", "images", "quartz transform pipeline.png");
+    await mkdir(path.dirname(imagePath), { recursive: true });
+    await writeFile(sourcePath, "# Configuration\n", "utf8");
+    await writeFile(imagePath, "not a real png", "utf8");
+
+    await expect(service.resolveMarkdownImage(sourcePath, "quartz transform pipeline.png", true)).resolves.toEqual({
+      url: pathToFileURL(await realpath(imagePath)).toString(),
+    });
+  });
+
   it("resolves a site-root image from the nearest matching content ancestor", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const siteRoot = path.join(noteRoot, "kenneth-dot-computer", "garden");

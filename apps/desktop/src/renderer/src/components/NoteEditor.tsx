@@ -6,7 +6,7 @@ import { indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { bracketMatching, foldGutter } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
-import { EditorSelection } from "@codemirror/state";
+import { EditorSelection, Prec } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
 import { ArrowUpRight, Check, CircleAlert, Code2, LoaderCircle, Network, Plus, Save, SlidersHorizontal, X } from "lucide-react";
 import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
@@ -17,6 +17,7 @@ import type { ExoThemeVariant } from "../theme/types";
 import { codeLanguageForPath } from "./codeLanguages";
 import { AgentIcon } from "./AgentIcon";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
+import { markdownInlineFormattingEdit } from "./markdownInlineFormatting";
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
 import { inlineAgentComposerExtension, isPersistedInvocationPosition, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
 import { presentInvocation } from "../invocationPresentation";
@@ -513,11 +514,34 @@ export function NoteEditor(props: NoteEditorProps) {
     () => markdownLivePreview({
       onOpenTarget: (target) => openTargetRef.current(target),
       onOpenTag: (tag) => openTagRef.current(tag),
-      onResolveImage: (target) => resolveMarkdownImageRef.current(documentPath, target),
+      onResolveImage: (target, options) => resolveMarkdownImageRef.current(documentPath, target, options?.lookupByFilename),
       suppressedGeneratedTitle,
       graphReferences,
     }),
     [documentPath, graphReferences, suppressedGeneratedTitle],
+  );
+  const markdownSpellcheck = useMemo(
+    () => EditorView.contentAttributes.of({ spellcheck: "true" }),
+    [],
+  );
+  const markdownFormattingKeymap = useMemo(
+    () => Prec.high(keymap.of([
+      {
+        key: "Mod-b",
+        run: (view) => {
+          view.dispatch({ ...markdownInlineFormattingEdit(view.state, "bold"), userEvent: "input" });
+          return true;
+        },
+      },
+      {
+        key: "Mod-i",
+        run: (view) => {
+          view.dispatch({ ...markdownInlineFormattingEdit(view.state, "italic"), userEvent: "input" });
+          return true;
+        },
+      },
+    ])),
+    [],
   );
   const invocationReviewExtensions = useMemo(
     () => invocationInlineReviewExtension({
@@ -532,6 +556,8 @@ export function NoteEditor(props: NoteEditorProps) {
       ? [
           markdown(),
           EditorView.lineWrapping,
+          markdownSpellcheck,
+          markdownFormattingKeymap,
           saveKeymap,
           selectionTracker,
           agentComposer,
@@ -553,7 +579,7 @@ export function NoteEditor(props: NoteEditorProps) {
           cmTheme,
           syntaxTheme,
         ],
-    [agentComposer, cmTheme, codeLanguage?.extensions, invocationReviewExtensions, markdownPreviewExtensions, rawMarkdownMode, saveKeymap, selectionTracker, syntaxTheme, useMarkdownEditing],
+    [agentComposer, cmTheme, codeLanguage?.extensions, invocationReviewExtensions, markdownFormattingKeymap, markdownPreviewExtensions, markdownSpellcheck, rawMarkdownMode, saveKeymap, selectionTracker, syntaxTheme, useMarkdownEditing],
   );
 
   useEffect(() => {

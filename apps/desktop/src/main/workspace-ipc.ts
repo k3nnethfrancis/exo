@@ -182,8 +182,8 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     handlers.getGraphConceptDetail(conceptId, sourceSnapshotId, profileId),
   );
   handleDesktopInvoke("notes:resolve-target", async (_event, sourceFilePath, target) => handlers.resolveTarget(sourceFilePath, target));
-  handleDesktopInvoke("notes:resolve-markdown-image", async (_event, sourceFilePath, target) =>
-    handlers.resolveMarkdownImage(sourceFilePath, target),
+  handleDesktopInvoke("notes:resolve-markdown-image", async (_event, sourceFilePath, target, lookupByFilename) =>
+    handlers.resolveMarkdownImage(sourceFilePath, target, lookupByFilename),
   );
   handleDesktopInvoke("notes:ensure-target", async (_event, sourceFilePath, target) => handlers.ensureTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:suggest-targets", async (_event, sourceFilePath, query) => handlers.suggestTargets(sourceFilePath, query));

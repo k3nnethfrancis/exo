@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import {
   createWorkspaceFile,
+  listFiles,
   listMarkdownFiles,
   readWorkspaceDocument,
   type SearchResult,
@@ -31,6 +32,7 @@ export class WorkspaceNotesService {
   private graphModelKey: string | null = null;
   private readonly folderOverviewCache = new Map<string, FolderOverview>();
   private noteFileCache: string[] | null = null;
+  private readonly imageFileCache = new Map<string, Promise<string[]>>();
 
   constructor(private readonly options: WorkspaceNotesServiceOptions) {}
 
@@ -43,12 +45,14 @@ export class WorkspaceNotesService {
     }
     this.folderOverviewCache.clear();
     this.noteFileCache = null;
+    this.imageFileCache.clear();
   }
 
   async handleWorkspaceChange(event: WorkspaceChangeEvent): Promise<void> {
     if (!event.filePath) {
       this.folderOverviewCache.clear();
       this.noteFileCache = null;
+      this.imageFileCache.clear();
       if (this.options.derivedIndex && this.options.getRuntimeRoot) {
         await this.options.derivedIndex.graphInvalidate(this.options.getWorkspaceModel(), this.options.getRuntimeRoot());
       } else {
@@ -60,6 +64,7 @@ export class WorkspaceNotesService {
     const changedPath = path.resolve(event.filePath);
     this.invalidateFolderOverviewsForPath(changedPath);
     this.noteFileCache = null;
+    this.imageFileCache.clear();
     if (/\.md$/i.test(changedPath)) {
       if (this.options.derivedIndex && this.options.getRuntimeRoot) {
         await this.options.derivedIndex.graphRefresh(this.options.getWorkspaceModel(), this.options.getRuntimeRoot(), changedPath);
@@ -159,11 +164,11 @@ export class WorkspaceNotesService {
    * note. The renderer never turns a Markdown target into a file URL itself:
    * this method verifies both source and target through WorkspaceFiles first.
    */
-  async resolveMarkdownImage(sourceFilePath: string, target: string): Promise<{ url: string }> {
+  async resolveMarkdownImage(sourceFilePath: string, target: string, lookupByFilename = false): Promise<{ url: string }> {
     const files = this.workspaceFiles();
     const sourcePath = await files.existing(sourceFilePath);
     const normalizedTarget = normalizeMarkdownImageTarget(target);
-    const imagePath = await this.resolveMarkdownImagePath(files, sourcePath, normalizedTarget);
+    const imagePath = await this.resolveMarkdownImagePath(files, sourcePath, normalizedTarget, lookupByFilename);
     // Point the renderer at the canonical path that WorkspaceFiles authorized,
     // rather than leaving a later file: load to follow a mutable symlink.
     const canonicalImagePath = await realpath(imagePath);
@@ -341,18 +346,19 @@ export class WorkspaceNotesService {
     return new WorkspaceFiles(this.noteRootPaths());
   }
 
-  private async resolveMarkdownImagePath(files: WorkspaceFiles, sourcePath: string, target: string): Promise<string> {
+  private async resolveMarkdownImagePath(files: WorkspaceFiles, sourcePath: string, target: string, lookupByFilename: boolean): Promise<string> {
     if (!target.startsWith("/")) {
-      return files.existing(path.resolve(path.dirname(sourcePath), target));
+      try {
+        return await files.existing(path.resolve(path.dirname(sourcePath), target));
+      } catch (error) {
+        if (!lookupByFilename || target !== path.basename(target) || !isMissingPathError(error)) {
+          throw error;
+        }
+        return this.resolveMarkdownImageByFilename(files, sourcePath, target);
+      }
     }
 
-    const sourceRoot = this.options.getWorkspaceModel().noteRoots
-      .map((root) => path.resolve(root.path))
-      .filter((rootPath) => isPathWithin(rootPath, sourcePath))
-      .sort((left, right) => right.length - left.length)[0];
-    if (!sourceRoot) {
-      throw new Error("Source note is outside configured note roots.");
-    }
+    const sourceRoot = this.sourceNoteRoot(sourcePath);
 
     const relativeTarget = target.replace(/^\/+/, "");
     const noteRootCandidate = path.resolve(sourceRoot, relativeTarget);
@@ -383,6 +389,47 @@ export class WorkspaceNotesService {
       ancestorPath = path.dirname(ancestorPath);
     }
     throw missingError ?? new Error("Markdown image target does not exist.");
+  }
+
+  private sourceNoteRoot(sourcePath: string): string {
+    const sourceRoot = this.options.getWorkspaceModel().noteRoots
+      .map((root) => path.resolve(root.path))
+      .filter((rootPath) => isPathWithin(rootPath, sourcePath))
+      .sort((left, right) => right.length - left.length)[0];
+    if (!sourceRoot) {
+      throw new Error("Source note is outside configured note roots.");
+    }
+    return sourceRoot;
+  }
+
+  private async resolveMarkdownImageByFilename(files: WorkspaceFiles, sourcePath: string, target: string): Promise<string> {
+    const sourceDirectory = path.dirname(sourcePath);
+    const candidates = (await this.imageFilesInRoot(this.sourceNoteRoot(sourcePath)))
+      .filter((candidatePath) => path.basename(candidatePath) === target)
+      .sort((left, right) => imageSearchDistance(sourceDirectory, left) - imageSearchDistance(sourceDirectory, right));
+
+    for (const candidate of candidates) {
+      try {
+        const authorizedPath = await files.existing(candidate);
+        if ((await stat(await realpath(authorizedPath))).isFile()) {
+          return authorizedPath;
+        }
+      } catch {
+        // Ignore stale or symlinked-outside candidates and continue looking
+        // within the configured Note Root.
+      }
+    }
+    throw new Error(`Markdown image target does not exist: ${target}`);
+  }
+
+  private imageFilesInRoot(rootPath: string): Promise<string[]> {
+    const cached = this.imageFileCache.get(rootPath);
+    if (cached) {
+      return cached;
+    }
+    const files = listFiles([rootPath]);
+    this.imageFileCache.set(rootPath, files);
+    return files;
   }
 }
 
@@ -415,4 +462,9 @@ async function fileExists(targetPath: string): Promise<boolean> {
 function isPathWithin(parentPath: string, candidatePath: string): boolean {
   const relativePath = path.relative(parentPath, candidatePath);
   return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
+}
+
+function imageSearchDistance(sourceDirectory: string, candidatePath: string): number {
+  const segments = path.relative(sourceDirectory, candidatePath).split(path.sep);
+  return segments.filter((segment) => segment === "..").length * 1_000 + segments.length;
 }

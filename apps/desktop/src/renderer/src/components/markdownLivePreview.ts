@@ -45,7 +45,7 @@ const codeDecoration = Decoration.mark({ class: "exo-md-inline-code" });
 interface MarkdownLivePreviewOptions {
   onOpenTarget: (target: string) => void;
   onOpenTag: (tag: string) => void;
-  onResolveImage: (target: string) => Promise<{ url: string }>;
+  onResolveImage: (target: string, options?: { lookupByFilename?: boolean }) => Promise<{ url: string }>;
   suppressedGeneratedTitle?: string | null;
   graphReferences?: MarkdownGraphReferences | null;
 }
@@ -1059,6 +1059,7 @@ function decorateInline(
   applyDelimited(text, lineFrom, /\*\*(.+?)\*\*/g, 2, boldDecoration, out, cursorPos);
   applyDelimited(text, lineFrom, /(?<!\*)\*([^*]+)\*(?!\*)/g, 1, italicDecoration, out, cursorPos);
   applyDelimited(text, lineFrom, /~~(.+?)~~/g, 2, strikeDecoration, out, cursorPos);
+  applyObsidianImageEmbeds(text, lineFrom, out, cursorPos, options);
   applyWikilinks(text, lineFrom, out, cursorPos);
   applyMarkdownImages(text, lineFrom, out, cursorPos, options);
   applyMarkdownLinks(text, lineFrom, out, cursorPos);
@@ -1100,6 +1101,31 @@ function applyMarkdownImages(
   }
 }
 
+function applyObsidianImageEmbeds(
+  text: string,
+  lineFrom: number,
+  out: DecorationEntry[],
+  cursorPos: number,
+  options: MarkdownLivePreviewOptions,
+) {
+  for (const match of text.matchAll(/!\[\[([^\]|]+)(?:\|[^\]]+)?\]\]/g)) {
+    const start = lineFrom + (match.index ?? 0);
+    const end = start + match[0].length;
+    if (cursorWithin(cursorPos, start, end)) {
+      continue;
+    }
+    const target = match[1].trim();
+    if (!target) {
+      continue;
+    }
+    out.push({
+      from: start,
+      to: end,
+      decoration: Decoration.replace({ widget: new MarkdownImageWidget(target, target, options.onResolveImage, true) }),
+    });
+  }
+}
+
 export function markdownImageTarget(rawTarget: string): string {
   // Optional Markdown titles follow a target in quotes or parentheses. Keep
   // ordinary spaces in local filenames intact.
@@ -1111,6 +1137,7 @@ class MarkdownImageWidget extends WidgetType {
     private readonly alt: string,
     private readonly target: string,
     private readonly resolveImage: MarkdownLivePreviewOptions["onResolveImage"],
+    private readonly lookupByFilename = false,
   ) {
     super();
   }
@@ -1127,7 +1154,7 @@ class MarkdownImageWidget extends WidgetType {
     fallback.textContent = this.alt || "Image";
     wrap.appendChild(fallback);
 
-    void this.resolveImage(this.target).then(({ url }) => {
+    const appendImage = (url: string) => {
       const image = document.createElement("img");
       image.className = "exo-md-image__asset";
       image.src = url;
@@ -1144,6 +1171,16 @@ class MarkdownImageWidget extends WidgetType {
         image.remove();
       }, { once: true });
       wrap.appendChild(image);
+    };
+
+    const remoteUrl = remoteMarkdownImageUrl(this.target);
+    if (remoteUrl) {
+      appendImage(remoteUrl);
+      return wrap;
+    }
+
+    void this.resolveImage(this.target, { lookupByFilename: this.lookupByFilename }).then(({ url }) => {
+      appendImage(url);
     }).catch(() => {
       wrap.classList.remove("exo-md-image--loading");
       wrap.classList.add("exo-md-image--missing");
@@ -1157,6 +1194,20 @@ class MarkdownImageWidget extends WidgetType {
 
   ignoreEvent() {
     return false;
+  }
+}
+
+/**
+ * HTTP(S) images are public references in the Markdown document, so the
+ * renderer loads them directly. Local paths still use the main-process
+ * resolver, which enforces Note Root containment before returning a file URL.
+ */
+export function remoteMarkdownImageUrl(target: string): string | null {
+  try {
+    const url = new URL(target);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+  } catch {
+    return null;
   }
 }
 
@@ -1199,7 +1250,7 @@ function applyInteractiveMarks(
 }
 
 function applyWikilinks(text: string, lineFrom: number, out: DecorationEntry[], cursorPos: number) {
-  for (const match of text.matchAll(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g)) {
+  for (const match of text.matchAll(/(?<!!)\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g)) {
     const start = lineFrom + (match.index ?? 0);
     const fullText = match[0];
     const end = start + fullText.length;
