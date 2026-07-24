@@ -17,6 +17,12 @@ import {
 } from "./usePaneTree";
 
 interface CanvasActions {
+  splitLeaf: (
+    leafId: PaneNodeId,
+    direction: "horizontal" | "vertical",
+    newContent: PaneContent,
+    position: "before" | "after",
+  ) => PaneLeaf;
   updateLeafContent: (leafId: PaneNodeId, updater: (content: PaneContent) => PaneContent) => void;
   focusLeaf: (leafId: PaneNodeId) => void;
   setTree: (tree: PaneNode) => void;
@@ -31,7 +37,7 @@ interface UseCanvasDocumentNavigationOptions {
   ensureDocumentLoaded: (filePath: string) => Promise<void>;
   remapDocumentPaths: (sourcePath: string, nextPath: string) => void;
   deleteDocumentPaths: (targetPath: string) => void;
-  onLastEditorClosed: () => void;
+  onLastEditorClosed: (openRecoveredFile: (filePath: string) => Promise<void>) => void;
 }
 
 export interface EditorRevealLineRequest {
@@ -49,6 +55,10 @@ export function useCanvasDocumentNavigation(options: UseCanvasDocumentNavigation
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<EditorRevealLineRequest | null>(null);
   const [graphReturnPath, setGraphReturnPath] = useState<string | null>(null);
   const workspaceKeyRef = useRef(options.workspaceKey);
+  const optionsRef = useRef(options);
+  const canvasTreeRef = useRef(options.canvasTree);
+  optionsRef.current = options;
+  canvasTreeRef.current = options.canvasTree;
 
   useEffect(() => {
     if (workspaceKeyRef.current === options.workspaceKey) return;
@@ -65,13 +75,16 @@ export function useCanvasDocumentNavigation(options: UseCanvasDocumentNavigation
   }, [options.canvasTree]);
 
   function activateEditorDocument(filePath: string, requestedLeafId?: PaneNodeId) {
-    const targetLeafId = requestedLeafId ?? options.focusedPaneId;
-    const targetLeaf = findNode(options.canvasTree, (node) => node.id === targetLeafId && node.kind === "leaf") as PaneLeaf | undefined;
+    const currentOptions = optionsRef.current;
+    const currentTree = canvasTreeRef.current;
+    const targetLeafId = requestedLeafId ?? currentOptions.focusedPaneId;
+    const targetLeaf = findNode(currentTree, (node) => node.id === targetLeafId && node.kind === "leaf") as PaneLeaf | undefined;
     const targetEditorLeaf = targetLeaf?.content.kind === "editor" ? targetLeaf : undefined;
-    const fallbackLeaf = targetLeaf ?? collectLeaves(options.canvasTree)[0];
-    const editorLeafId = targetEditorLeaf?.id ?? findEditorLeaf(options.canvasTree)?.id ?? fallbackLeaf?.id;
+    const fallbackLeaf = targetLeaf ?? collectLeaves(currentTree)[0];
+    const editorLeafId = targetEditorLeaf?.id ?? findEditorLeaf(currentTree)?.id ?? fallbackLeaf?.id;
     if (!editorLeafId) return;
-    options.canvasActions.updateLeafContent(editorLeafId, (content) => content.kind === "editor"
+    latestNavigationRef.current.invalidatePane(editorLeafId);
+    currentOptions.canvasActions.updateLeafContent(editorLeafId, (content) => content.kind === "editor"
       ? {
           ...content,
           activePath: filePath,
@@ -87,7 +100,7 @@ export function useCanvasDocumentNavigation(options: UseCanvasDocumentNavigation
           activeFolderPath: null,
           activeFolderReturnPath: null,
         });
-    options.canvasActions.focusLeaf(editorLeafId);
+    currentOptions.canvasActions.focusLeaf(editorLeafId);
     setGraphReturnPath(filePath);
   }
 
@@ -116,6 +129,7 @@ export function useCanvasDocumentNavigation(options: UseCanvasDocumentNavigation
   }
 
   function setPaneActivePath(leafId: PaneNodeId, filePath: string) {
+    latestNavigationRef.current.invalidatePane(leafId);
     options.canvasActions.updateLeafContent(leafId, (content) => {
       if (content.kind !== "editor") return content;
       return {
@@ -133,18 +147,22 @@ export function useCanvasDocumentNavigation(options: UseCanvasDocumentNavigation
   function openFolderOverview(directoryPath: string, leafId = options.focusedPaneId) {
     const editorLeaf = resolveFolderOverviewEditorLeaf(options.canvasTree, options.focusedPaneId, leafId);
     if (!editorLeaf) return;
+    latestNavigationRef.current.invalidatePane(editorLeaf.id);
     options.canvasActions.updateLeafContent(editorLeaf.id, (content) =>
       content.kind !== "editor" ? content : activateFolderOverviewContent(content, directoryPath));
     options.canvasActions.focusLeaf(editorLeaf.id);
   }
 
   function closeFolderOverview(leafId: PaneNodeId, directoryPath: string) {
+    latestNavigationRef.current.invalidatePane(leafId);
     const transition = closeFolderOverviewInTree(options.canvasTree, leafId, directoryPath, options.focusedPaneId);
+    canvasTreeRef.current = transition.tree;
     options.canvasActions.setTree(transition.tree);
     if (transition.activeDocumentPath) setGraphReturnPath(transition.activeDocumentPath);
   }
 
   function closeDocumentInPane(leafId: PaneNodeId, filePath: string) {
+    latestNavigationRef.current.invalidatePane(leafId);
     const nextTree = pruneEmptyLeaves(
       mapLeaves(options.canvasTree, (leaf) => {
         if (leaf.id !== leafId || leaf.content.kind !== "editor") return leaf;
@@ -166,24 +184,66 @@ export function useCanvasDocumentNavigation(options: UseCanvasDocumentNavigation
       }),
       (leaf) => leaf.content.kind === "editor" && leaf.content.openPaths.length === 0,
     );
+    canvasTreeRef.current = nextTree;
     options.canvasActions.setTree(nextTree);
-    notifyWhenLastEditorClosed(nextTree, options.onLastEditorClosed);
+    notifyWhenLastEditorClosed(
+      nextTree,
+      () => options.onLastEditorClosed(recoverLastEditor),
+    );
   }
 
   function remapOpenPaths(sourcePath: string, nextPath: string) {
+    invalidateEditorPaneNavigation(options.canvasTree);
     options.remapDocumentPaths(sourcePath, nextPath);
-    options.canvasActions.setTree(reconcileRenamedPaths(options.canvasTree, sourcePath, nextPath));
+    const nextTree = reconcileRenamedPaths(options.canvasTree, sourcePath, nextPath);
+    canvasTreeRef.current = nextTree;
+    options.canvasActions.setTree(nextTree);
     setGraphReturnPath((current) => reconcileGraphReturnPathAfterRename(current, sourcePath, nextPath));
   }
 
   function removeDeletedPaths(targetPath: string) {
+    invalidateEditorPaneNavigation(options.canvasTree);
     options.deleteDocumentPaths(targetPath);
-    options.canvasActions.setTree(reconcileDeletedPaths(options.canvasTree, targetPath));
+    const nextTree = reconcileDeletedPaths(options.canvasTree, targetPath);
+    canvasTreeRef.current = nextTree;
+    options.canvasActions.setTree(nextTree);
     setGraphReturnPath((current) => reconcileGraphReturnPathAfterDelete(current, targetPath));
   }
 
   function rememberGraphReturnPath(filePath: string | null) {
     if (filePath) setGraphReturnPath(filePath);
+  }
+
+  function invalidateEditorPaneNavigation(tree: PaneNode) {
+    for (const leaf of collectLeaves(tree)) {
+      if (leaf.content.kind === "editor") latestNavigationRef.current.invalidatePane(leaf.id);
+    }
+  }
+
+  async function recoverLastEditor(filePath: string) {
+    await optionsRef.current.ensureDocumentLoaded(filePath);
+    const destination = resolveRecoveredEditorDestination(canvasTreeRef.current);
+    if (destination.kind === "preserve-explicit-editor" || destination.kind === "none") return;
+    if (destination.kind === "activate-editor") {
+      activateEditorDocument(filePath, destination.leafId);
+      return;
+    }
+    const currentOptions = optionsRef.current;
+    const recoveredLeaf = currentOptions.canvasActions.splitLeaf(
+      destination.anchorLeafId,
+      "horizontal",
+      {
+        kind: "editor",
+        activePath: filePath,
+        openPaths: [filePath],
+        openFolderPaths: [],
+        activeFolderPath: null,
+        activeFolderReturnPath: null,
+      },
+      "before",
+    );
+    currentOptions.canvasActions.focusLeaf(recoveredLeaf.id);
+    setGraphReturnPath(filePath);
   }
 
   return {
@@ -251,6 +311,23 @@ export function notifyWhenLastEditorClosed(tree: PaneNode, onLastEditorClosed: (
   if (!hasNoOpenEditorPaths(tree)) return false;
   onLastEditorClosed();
   return true;
+}
+
+export type RecoveredEditorDestination =
+  | { kind: "activate-editor"; leafId: PaneNodeId }
+  | { kind: "split-beside"; anchorLeafId: PaneNodeId }
+  | { kind: "preserve-explicit-editor" }
+  | { kind: "none" };
+
+export function resolveRecoveredEditorDestination(tree: PaneNode): RecoveredEditorDestination {
+  const editor = findEditorLeaf(tree);
+  if (editor?.content.kind === "editor") {
+    return editor.content.openPaths.length === 0
+      ? { kind: "activate-editor", leafId: editor.id }
+      : { kind: "preserve-explicit-editor" };
+  }
+  const anchor = collectLeaves(tree)[0];
+  return anchor ? { kind: "split-beside", anchorLeafId: anchor.id } : { kind: "none" };
 }
 
 export function reconcileGraphReturnPathAfterRename(

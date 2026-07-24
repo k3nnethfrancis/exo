@@ -34,4 +34,9 @@ export class LatestPaneNavigation {
       if (!availablePaneIds.has(paneId)) this.latestRequestByPane.delete(paneId);
     }
   }
+
+  /** A synchronous choice in this pane supersedes any outstanding load. */
+  invalidatePane(paneId: string): void {
+    this.latestRequestByPane.delete(paneId);
+  }
 }

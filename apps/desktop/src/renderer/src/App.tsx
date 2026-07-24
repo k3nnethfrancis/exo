@@ -245,7 +245,7 @@ export function App() {
     ensureDocumentLoaded,
     remapDocumentPaths: openDocumentsState.remapOpenPaths,
     deleteDocumentPaths: openDocumentsState.deletePathsWithin,
-    onLastEditorClosed: () => void openOrCreateDailyNote(),
+    onLastEditorClosed: (openRecoveredFile) => void openOrCreateDailyNote(openRecoveredFile),
   });
   const openEditorPaths = useMemo(() => collectOpenEditorPaths(canvasTree), [canvasTree]);
   const inspectedPath = graphInspection.state.concept
@@ -1031,7 +1031,9 @@ export function App() {
     }
   }
 
-  async function openOrCreateDailyNote() {
+  async function openOrCreateDailyNote(
+    openDailyFile: (filePath: string) => Promise<void> = canvasNavigation.openFile,
+  ) {
     if (!workspaceModel || workspaceModel.noteRoots.length === 0) {
       return;
     }
@@ -1049,7 +1051,7 @@ export function App() {
       await reloadTrees();
     }
 
-    await canvasNavigation.openFile(dailyPath, focusedPaneId);
+    await openDailyFile(dailyPath);
   }
 
   if (!workspaceModel) {

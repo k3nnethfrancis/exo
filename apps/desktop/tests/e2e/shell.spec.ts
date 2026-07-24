@@ -684,6 +684,48 @@ test("handles global save and daily-note keybindings", async () => {
   await cleanup();
 });
 
+test("reopens today's Note beside a terminal after closing the sole editor", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoTerminalFixture({ mutable: true });
+  const now = new Date();
+  const dailyName = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const dailyPath = path.join(workspaceRoot, "notes/test-notes", `${dailyName}.md`);
+
+  try {
+    const terminalTab = await page.getByTestId("terminal-tab-shell").boundingBox();
+    const editor = await page.locator(".workspace-shell__canvas .pane-leaf--editor").boundingBox();
+    expect(terminalTab).not.toBeNull();
+    expect(editor).not.toBeNull();
+
+    await page.mouse.move(terminalTab!.x + terminalTab!.width / 2, terminalTab!.y + terminalTab!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(editor!.x + editor!.width / 2, editor!.y + editor!.height * 0.12, { steps: 8 });
+    await page.mouse.up();
+
+    await expect(page.locator(".workspace-shell__canvas .pane-leaf--terminal")).toHaveCount(1);
+    await expect(page.locator(".workspace-shell__canvas .pane-leaf--editor")).toHaveCount(1);
+    const editorLeaf = page.locator(".workspace-shell__canvas .pane-leaf--editor");
+    await expect(editorLeaf).toBeVisible();
+    await editorLeaf.dispatchEvent("mousedown");
+    await expect(editorLeaf).toHaveClass(/pane-leaf--focused/);
+    const closeFocusNote = editorLeaf.locator('.chrome-tab__close[aria-label="Close focus-note"]');
+    await closeFocusNote.evaluate((element) => {
+      const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps"));
+      const props = propsKey ? (element as unknown as Record<string, unknown>)[propsKey] as Record<string, unknown> : null;
+      const onClick = props?.onClick;
+      if (typeof onClick !== "function") throw new Error("Unable to resolve close-tab handler");
+      onClick({ stopPropagation() {} });
+    });
+
+    await expect(closeFocusNote).toHaveCount(0);
+    await expect(page.locator(".workspace-shell__canvas .pane-leaf--terminal")).toHaveCount(1);
+    await expect(page.locator(".workspace-shell__canvas .pane-leaf--editor")).toHaveCount(1);
+    await expect(page.getByTestId("editor-title")).toHaveText(dailyName);
+    await expect.poll(() => access(dailyPath).then(() => true, () => false)).toBe(true);
+  } finally {
+    await cleanup();
+  }
+});
+
 test("suppresses generated daily-note titles but preserves explicit H1s", async () => {
   const generatedDailyName = "2026-06-14";
   const explicitDailyName = "2026-06-15";

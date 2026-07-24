@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   hasNoOpenEditorPaths,
@@ -7,10 +9,50 @@ import {
   reconcileGraphReturnPathAfterRename,
   reconcileDeletedPaths,
   reconcileRenamedPaths,
+  resolveRecoveredEditorDestination,
+  useCanvasDocumentNavigation,
 } from "./useCanvasDocumentNavigation";
-import { pruneEmptyLeaves, type PaneNode } from "./usePaneTree";
+import { pruneEmptyLeaves, type PaneContent, type PaneNode } from "./usePaneTree";
 
 describe("canvas document navigation reconciliation", () => {
+  it("keeps a delayed same-pane open from overriding a direct tab selection", async () => {
+    const load = deferred<void>();
+    const updateLeafContent = vi.fn();
+    let controller: ReturnType<typeof useCanvasDocumentNavigation> | null = null;
+    const tree = editorTree("/notes", "/notes/current.md");
+
+    function Harness() {
+      controller = useCanvasDocumentNavigation({
+        canvasTree: tree,
+        focusedPaneId: "editor",
+        canvasActions: {
+          splitLeaf: vi.fn(),
+          updateLeafContent,
+          focusLeaf: vi.fn(),
+          setTree: vi.fn(),
+        },
+        workspaceKey: "/workspace",
+        ensureDocumentLoaded: () => load.promise,
+        remapDocumentPaths: vi.fn(),
+        deleteDocumentPaths: vi.fn(),
+        onLastEditorClosed: vi.fn(),
+      });
+      return null;
+    }
+    renderToStaticMarkup(createElement(Harness));
+
+    const pendingOpen = controller!.openFile("/notes/delayed.md", "editor");
+    controller!.setPaneActivePath("editor", "/notes/chosen.md");
+    load.resolve();
+
+    await expect(pendingOpen).resolves.toBeUndefined();
+    expect(updateLeafContent).toHaveBeenCalledOnce();
+    const directUpdater = updateLeafContent.mock.calls[0]![1] as (content: PaneContent) => PaneContent;
+    expect(directUpdater((tree as Extract<PaneNode, { kind: "leaf" }>).content)).toMatchObject({
+      activePath: "/notes/chosen.md",
+    });
+  });
+
   it("keeps the last-editor recovery condition true after the last editor leaf is pruned", () => {
     const tree: PaneNode = {
       kind: "split",
@@ -62,6 +104,25 @@ describe("canvas document navigation reconciliation", () => {
       .toBe("/notes/renamed/a.md");
     expect(reconcileGraphReturnPathAfterDelete("/notes/renamed/a.md", "/notes/renamed")).toBeNull();
   });
+
+  it("recovers the daily Note beside a surviving terminal instead of targeting the pruned editor", () => {
+    const terminalOnly: PaneNode = {
+      kind: "leaf",
+      id: "terminal",
+      content: { kind: "terminal", terminalId: "shell" },
+    };
+
+    expect(resolveRecoveredEditorDestination(terminalOnly)).toEqual({
+      kind: "split-beside",
+      anchorLeafId: "terminal",
+    });
+  });
+
+  it("does not let automatic daily recovery override an editor the user already reopened", () => {
+    const reopened = editorTree("/notes", "/notes/chosen.md");
+
+    expect(resolveRecoveredEditorDestination(reopened)).toEqual({ kind: "preserve-explicit-editor" });
+  });
 });
 
 function editorTree(folderPath: string, notePath: string): PaneNode {
@@ -77,4 +138,12 @@ function editorTree(folderPath: string, notePath: string): PaneNode {
       activeFolderReturnPath: notePath,
     },
   };
+}
+
+function deferred<Value>() {
+  let resolve!: (value: Value | PromiseLike<Value>) => void;
+  const promise = new Promise<Value>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
