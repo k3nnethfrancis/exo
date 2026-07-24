@@ -652,7 +652,7 @@ async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise
   await mkdir(getQmdRuntimePath(runtimeRoot), { recursive: true });
   const qmd = await import("@tobilu/qmd");
   const collections = qmdCollectionIdentity(model.indexedRoots);
-  const requiresLegacyCollisionReindex = await hasLegacyQmdCollections(qmd, runtimeRoot, collections);
+  const rootsNeedingReindex = await rootsNeedingQmdCollectionReindex(qmd, runtimeRoot, model.indexedRoots, collections);
   const store = await qmd.createStore({
     dbPath: getQmdDbPath(runtimeRoot),
     config: {
@@ -672,11 +672,11 @@ async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise
       ),
     },
   });
-  if (requiresLegacyCollisionReindex) {
+  if (rootsNeedingReindex.length > 0) {
     // QMD 2.5.3 syncs inline collection configuration but does not transfer
-    // document collection names. Reindex every newly distinct root after the
-    // configuration change so no selected root depends on a legacy collision.
-    await store.update({ collections: collections.changedRoots.map((root) => collections.nameFor(root)) });
+    // document collection names. Reindex only roots whose existing configured
+    // collection name changed for that same path.
+    await store.update({ collections: rootsNeedingReindex.map((root) => collections.nameFor(root)) });
   }
   return store;
 }
@@ -736,92 +736,44 @@ function scopedFilesystemFallbackModel(
 }
 
 interface QmdCollectionIdentity {
-  changedRoots: IndexedRoot[];
   nameFor(root: IndexedRoot): string;
   rootFor(name: string): IndexedRoot | null;
 }
 
-const SAFE_QMD_COLLECTION_NAME = /^[A-Za-z0-9_-]+$/;
-
 /**
- * Owns every conversion between an Indexed Root ID and QMD's collection
- * namespace. Legacy names remain for ordinary roots when they are already a
- * QMD name and unique in this Workspace. Every ambiguous or unsafe identity
- * uses a bounded SHA-256 name derived from the exact ID plus resolved path,
- * so distinct roots with the same ID cannot overwrite one another.
+ * QMD collections are owned by their resolved filesystem root, not the
+ * mutable sibling set or a user-facing label/ID. QMD 2.5.3 accepts the
+ * resulting bounded alphanumeric/hyphen name.
  */
 function qmdCollectionIdentity(roots: IndexedRoot[]): QmdCollectionIdentity {
-  const names = new Map<IndexedRoot, string>();
-  for (const root of roots) {
-    names.set(root, legacyQmdCollectionName(root));
-  }
-
-  while (true) {
-    const groupedRoots = new Map<string, IndexedRoot[]>();
-    for (const root of roots) {
-      const name = names.get(root)!;
-      const group = groupedRoots.get(name) ?? [];
-      group.push(root);
-      groupedRoots.set(name, group);
-    }
-    const rootsToEncode = new Set<IndexedRoot>();
-    for (const [name, group] of groupedRoots) {
-      if (!SAFE_QMD_COLLECTION_NAME.test(name) || group.length > 1) {
-        group.forEach((root) => rootsToEncode.add(root));
-      }
-    }
-    if (rootsToEncode.size === 0) {
-      break;
-    }
-    let changed = false;
-    for (const root of rootsToEncode) {
-      const encoded = encodeQmdCollectionIdentity(root);
-      if (names.get(root) !== encoded) {
-        names.set(root, encoded);
-        changed = true;
-      }
-    }
-    if (!changed) {
-      break;
-    }
-  }
-
   return {
-    changedRoots: roots.filter((root) => names.get(root) !== legacyQmdCollectionName(root)),
-    nameFor: (root) => names.get(root) ?? encodeQmdCollectionIdentity(root),
-    rootFor: (name) => roots.find((root) => names.get(root) === name) ?? null,
+    nameFor: qmdCollectionName,
+    rootFor: (name) => roots.find((root) => qmdCollectionName(root) === name) ?? null,
   };
 }
 
-function legacyQmdCollectionName(root: IndexedRoot): string {
-  return root.id.replace(/^index-/, "");
-}
-
-function encodeQmdCollectionIdentity(root: IndexedRoot): string {
+function qmdCollectionName(root: IndexedRoot): string {
   return `exo-root-${createHash("sha256")
-    .update(root.id)
-    .update("\0")
     .update(path.resolve(root.path))
     .digest("hex")}`;
 }
 
-async function hasLegacyQmdCollections(
+async function rootsNeedingQmdCollectionReindex(
   qmd: QmdModule,
   runtimeRoot: string,
+  roots: IndexedRoot[],
   collections: QmdCollectionIdentity,
-): Promise<boolean> {
-  if (collections.changedRoots.length === 0) {
-    return false;
+): Promise<IndexedRoot[]> {
+  if (!(await pathExists(getQmdDbPath(runtimeRoot)))) {
+    return [];
   }
   let store: QmdStore | null = null;
   try {
     store = await qmd.createStore({ dbPath: getQmdDbPath(runtimeRoot) });
     const existing = await store.listCollections();
-    const legacyNames = new Set(collections.changedRoots.map(legacyQmdCollectionName));
-    if (!existing.some((collection) => legacyNames.has(collection.name))) {
-      return false;
-    }
-    return true;
+    return roots.filter((root) => existing.some((collection) =>
+      path.resolve(collection.pwd) === path.resolve(root.path)
+      && collection.name !== collections.nameFor(root)));
   } finally {
     await store?.close();
   }

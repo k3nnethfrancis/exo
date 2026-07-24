@@ -183,8 +183,21 @@ describe("QMD index adapter", () => {
     const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
     expect(result.source).toBe("qmd");
-    expect(stores[0].searchLexCalls).toEqual([{ query: "focus", collection: "notes", limit: 12 }]);
+    expect(stores[0].searchLexCalls).toEqual([{ query: "focus", collection: configuredCollectionForPath(stores[0], path.join(root, "notes")), limit: 12 }]);
+    expect(stores[0].updateOptions).toEqual([]);
     expect(result.results[0]).toMatchObject({ title: "Focus", source: "qmd" });
+  });
+
+  it("does not reindex an existing empty QMD database", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "lexical");
+    await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
+    await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
+
+    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+
+    expect(stores).toHaveLength(2);
+    expect(stores[1].updateOptions).toEqual([]);
   });
 
   it("keeps colliding root IDs independently configured, searchable, updatable, and resolvable", async () => {
@@ -265,7 +278,7 @@ describe("QMD index adapter", () => {
 
     const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", { rootIds: [first.id] });
 
-    const configuredStore = stores[1];
+    const configuredStore = stores[0];
     const collectionEntries = Object.entries(configuredStore.config.collections);
     const firstCollection = collectionEntries.find(([, config]) => config.path === firstPath)?.[0];
     const secondCollection = collectionEntries.find(([, config]) => config.path === secondPath)?.[0];
@@ -281,8 +294,37 @@ describe("QMD index adapter", () => {
 
     await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds: [first.id] });
 
-    const updatingStore = stores[3];
+    const updatingStore = stores[1];
     expect(updatingStore.updateOptions).toEqual([{ collections: [firstCollection, secondCollection] }]);
+  });
+
+  it("keeps a surviving root collection stable when a colliding sibling is added and removed", async () => {
+    const root = await fixtureRoot();
+    const firstPath = path.join(root, "first");
+    const secondPath = path.join(root, "second");
+    await Promise.all([mkdir(firstPath), mkdir(secondPath)]);
+    const first = createIndexedRoot(firstPath, { id: "x", label: "first", kind: "notes" });
+    const second = createIndexedRoot(secondPath, { id: "index-x", label: "second", kind: "docs" });
+    const initialModel = { ...indexedModel(root, "lexical"), indexedRoots: [first] };
+
+    await qmdSearchProvider.search(initialModel, path.join(root, ".exo"), "focus");
+
+    const initialStore = stores[0];
+    const firstCollection = configuredCollectionForPath(initialStore, firstPath);
+    await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
+    await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
+
+    await qmdSearchProvider.search({ ...initialModel, indexedRoots: [first, second] }, path.join(root, ".exo"), "focus");
+
+    const addedSiblingStore = stores[2];
+    expect(configuredCollectionForPath(addedSiblingStore, firstPath)).toBe(firstCollection);
+    expect(addedSiblingStore.updateOptions).toEqual([]);
+
+    await qmdSearchProvider.search(initialModel, path.join(root, ".exo"), "focus");
+
+    const removedSiblingStore = stores[4];
+    expect(configuredCollectionForPath(removedSiblingStore, firstPath)).toBe(firstCollection);
+    expect(removedSiblingStore.updateOptions).toEqual([]);
   });
 
   it("reconfigures a legacy collision once before serving newly distinct roots", async () => {
@@ -294,6 +336,8 @@ describe("QMD index adapter", () => {
     const second = createIndexedRoot(secondPath, { id: "index-duplicate", label: "second", kind: "docs" });
     existingQmdCollections = [{ name: "duplicate", pwd: secondPath }];
     existingQmdDocumentCollections = ["duplicate"];
+    await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
+    await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
     const model = {
       ...indexedModel(root, "lexical"),
       indexedRoots: [first, second],
@@ -302,7 +346,8 @@ describe("QMD index adapter", () => {
     await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
     const configuredStore = stores[1];
-    expect(configuredStore.updateOptions).toEqual([{ collections: Object.keys(configuredStore.config.collections) }]);
+    expect(configuredStore.updateOptions).toEqual([{ collections: [configuredCollectionForPath(configuredStore, secondPath)] }]);
+    expect(configuredCollectionForPath(configuredStore, secondPath)).not.toBe("duplicate");
     expect(configuredStore.visibleDocumentCollectionsBeforeUpdates).toEqual([[]]);
     expect(existingQmdCollections.map((collection) => collection.name)).toEqual(Object.keys(configuredStore.config.collections));
 
@@ -490,9 +535,9 @@ describe("QMD index adapter", () => {
 
     expect(result.results.map((entry) => entry.filePath)).toEqual([path.join(root, "notes", "focus.md")]);
     expect(result.warnings).toContain("Dropped 2 invalid or stale QMD results.");
-    expect(stores[0].searchLexCalls.every((call) => call.collection === "notes")).toBe(true);
+    expect(stores[0].searchLexCalls.every((call) => call.collection === configuredCollectionForPath(stores[0], path.join(root, "notes")))).toBe(true);
     if (mode === "hybrid") {
-      expect(stores[0].searchCalls).toEqual([expect.objectContaining({ collections: ["notes"] })]);
+      expect(stores[0].searchCalls).toEqual([expect.objectContaining({ collections: [configuredCollectionForPath(stores[0], path.join(root, "notes"))] })]);
     }
     expect(readFileMock).toHaveBeenCalledTimes(1);
     expect(readFileMock).not.toHaveBeenCalledWith(secretPath, "utf8");
@@ -670,17 +715,17 @@ describe("QMD index adapter", () => {
     expect(secondPage.warnings).toEqual(["Dropped 2 invalid or stale QMD results."]);
     expect(thirdPage.warnings).toEqual(["Dropped 2 invalid or stale QMD results."]);
     expect(stores[0].searchLexCalls).toEqual([
-      { query: "result", collection: "notes", limit: 4 },
-      { query: "result", collection: "docs", limit: 4 },
-      { query: "result", collection: "notes", limit: 8 },
+      { query: "result", collection: configuredCollectionForPath(stores[0], path.join(root, "notes")), limit: 4 },
+      { query: "result", collection: configuredCollectionForPath(stores[0], docsPath), limit: 4 },
+      { query: "result", collection: configuredCollectionForPath(stores[0], path.join(root, "notes")), limit: 8 },
     ]);
     expect(stores[1].searchLexCalls).toEqual([
-      { query: "result", collection: "notes", limit: 6 },
-      { query: "result", collection: "docs", limit: 6 },
+      { query: "result", collection: configuredCollectionForPath(stores[1], path.join(root, "notes")), limit: 6 },
+      { query: "result", collection: configuredCollectionForPath(stores[1], docsPath), limit: 6 },
     ]);
     expect(stores[2].searchLexCalls).toEqual([
-      { query: "result", collection: "notes", limit: 8 },
-      { query: "result", collection: "docs", limit: 8 },
+      { query: "result", collection: configuredCollectionForPath(stores[2], path.join(root, "notes")), limit: 8 },
+      { query: "result", collection: configuredCollectionForPath(stores[2], docsPath), limit: 8 },
     ]);
   });
 
@@ -708,7 +753,8 @@ describe("QMD index adapter", () => {
     const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", { rootIds, includeContent: true });
 
     expect(result.results.map((entry) => path.basename(entry.filePath))).toEqual(expectedPaths);
-    expect(stores[0].searchLexCalls.map((call) => call.collection)).toEqual(collections);
+    expect(stores[0].searchLexCalls.map((call) => call.collection)).toEqual(collections.map((collection) =>
+      configuredCollectionForPath(stores[0], collection === "notes" ? path.join(root, "notes") : docsPath)));
     expect(readFileMock).toHaveBeenCalledTimes(expectedPaths.length);
   });
 
@@ -836,7 +882,10 @@ describe("QMD index adapter", () => {
 
     await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
-    expect(stores[0].searchCalls.map((call) => call.collections)).toEqual([["notes"], ["docs"]]);
+    expect(stores[0].searchCalls.map((call) => call.collections)).toEqual([
+      [configuredCollectionForPath(stores[0], path.join(root, "notes"))],
+      [configuredCollectionForPath(stores[0], path.join(root, "docs"))],
+    ]);
   });
 
   it("reports status and delegates update/embed", async () => {
@@ -914,15 +963,15 @@ describe("QMD index adapter", () => {
 
     await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds: ["index-notes"] });
 
-    expect(stores.some((store) => JSON.stringify(store.updateOptions[0]) === JSON.stringify({ collections: ["notes"] }))).toBe(true);
+    expect(stores.some((store) => JSON.stringify(store.updateOptions[0]) === JSON.stringify({ collections: [configuredCollectionForPath(store, path.join(root, "notes"))] }))).toBe(true);
   });
 
   it.each([
-    { label: "undefined", rootIds: undefined, expectedCollections: ["notes", "docs"] },
-    { label: "empty", rootIds: [] as string[], expectedCollections: null },
-    { label: "unknown-only", rootIds: ["missing"], expectedCollections: null },
-    { label: "mixed known and unknown", rootIds: ["missing", "index-notes"], expectedCollections: ["notes"] },
-  ])("treats $label update root IDs as an exact known-ID intersection", async ({ rootIds, expectedCollections }) => {
+    { label: "undefined", rootIds: undefined, expectedRootLabels: ["notes", "docs"] },
+    { label: "empty", rootIds: [] as string[], expectedRootLabels: null },
+    { label: "unknown-only", rootIds: ["missing"], expectedRootLabels: null },
+    { label: "mixed known and unknown", rootIds: ["missing", "index-notes"], expectedRootLabels: ["notes"] },
+  ])("treats $label update root IDs as an exact known-ID intersection", async ({ rootIds, expectedRootLabels }) => {
     const root = await fixtureRoot();
     const docsPath = path.join(root, "docs");
     await mkdir(docsPath);
@@ -937,9 +986,14 @@ describe("QMD index adapter", () => {
     await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds });
 
     const updatingStores = stores.filter((store) => store.updateCalls > 0);
-    if (expectedCollections) {
+    if (expectedRootLabels) {
       expect(updatingStores).toHaveLength(1);
-      expect(updatingStores[0].updateOptions).toEqual([{ collections: expectedCollections }]);
+      expect(updatingStores[0].updateOptions).toEqual([{
+        collections: expectedRootLabels.map((label) => configuredCollectionForPath(
+          updatingStores[0],
+          label === "notes" ? path.join(root, "notes") : docsPath,
+        )),
+      }]);
     } else {
       expect(updatingStores).toEqual([]);
     }
@@ -1092,7 +1146,9 @@ class MockStore {
 
   async searchLex(query: string, options: { collection?: string; limit?: number }) {
     this.searchLexCalls.push({ query, collection: options.collection, limit: options.limit });
+    const collectionAlias = options.collection ? path.basename(this.config.collections[options.collection]?.path ?? "") : "";
     const results = searchLexResultsByCollection.get(options.collection ?? "")
+      ?? searchLexResultsByCollection.get(collectionAlias)
       ?? searchLexResultsOverride
       ?? [{
       file: `qmd://${options.collection}/focus.md`,
@@ -1101,7 +1157,7 @@ class MockStore {
       score: 0.8,
       docid: "abc123",
       }];
-    return results.slice(0, options.limit ?? results.length);
+    return results.map((result) => this.normalizeQmdResult(result)).slice(0, options.limit ?? results.length);
   }
 
   async searchVector(query: string, options: { collection?: string; limit?: number }) {
@@ -1109,7 +1165,9 @@ class MockStore {
     if (!searchVectorResultsOverride) {
       throw new Error("no vectors");
     }
-    return searchVectorResultsOverride.slice(0, options.limit ?? searchVectorResultsOverride.length);
+    return searchVectorResultsOverride
+      .map((result) => this.normalizeQmdResult(result))
+      .slice(0, options.limit ?? searchVectorResultsOverride.length);
   }
 
   async search(options: { query?: string; collections?: string[]; limit?: number }) {
@@ -1121,10 +1179,10 @@ class MockStore {
   }
 
   async get() {
-    return {
-      filepath: documentPathOverride ?? "qmd://notes/focus.md",
+    return this.normalizeQmdResult({
+      filepath: documentPathOverride ?? `qmd://${Object.keys(this.config.collections)[0] ?? "notes"}/focus.md`,
       title: "Focus",
-    };
+    });
   }
 
   async getDocumentBody() {
@@ -1147,6 +1205,25 @@ class MockStore {
   }
 
   async close() {}
+
+  private normalizeQmdResult(result: unknown): unknown {
+    if (!result || typeof result !== "object") {
+      return result;
+    }
+    const normalized = { ...(result as Record<string, unknown>) };
+    for (const key of ["file", "filepath", "displayPath"]) {
+      const value = normalized[key];
+      if (typeof value !== "string") {
+        continue;
+      }
+      normalized[key] = value.replace(/^qmd:\/\/([^/]+)/, (_, alias: string) => {
+        const collection = Object.entries(this.config.collections)
+          .find(([, config]) => path.basename(config.path) === alias)?.[0];
+        return collection ? `qmd://${collection}` : `qmd://${alias}`;
+      });
+    }
+    return normalized;
+  }
 }
 
 function qmdResult(file: string, score = 0.8) {
@@ -1157,4 +1234,11 @@ function qmdResult(file: string, score = 0.8) {
     score,
     docid: "abc123",
   };
+}
+
+function configuredCollectionForPath(store: MockStore, rootPath: string): string {
+  const collection = Object.entries(store.config.collections)
+    .find(([, config]) => path.resolve(config.path) === path.resolve(rootPath))?.[0];
+  expect(collection).toMatch(/^[A-Za-z0-9_-]+$/);
+  return collection!;
 }
