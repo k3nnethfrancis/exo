@@ -11,6 +11,18 @@ export interface WorkspaceChangeEvent {
 
 export type WorkspaceChangeListener = (event: WorkspaceChangeEvent) => void;
 
+export interface WorkspaceWatcherRuntimeError {
+  generation: number;
+  rootPath: string;
+  errorMessage: string;
+}
+
+export interface WorkspaceWatcherServiceOptions {
+  /** Internal main-process seam; not a renderer, CLI, or command-server API. */
+  onRuntimeError?: (error: WorkspaceWatcherRuntimeError) => void;
+  createWatcher?: typeof watch;
+}
+
 export interface StagedWorkspaceWatchers {
   commit(): void;
   abort(): void;
@@ -46,7 +58,10 @@ export class WorkspaceWatcherService {
   private activeGeneration = 0;
   private nextGeneration = 0;
 
-  constructor(onChange?: WorkspaceChangeListener) {
+  constructor(
+    onChange?: WorkspaceChangeListener,
+    private readonly options: WorkspaceWatcherServiceOptions = {},
+  ) {
     if (onChange) {
       this.listeners.add(onChange);
     }
@@ -91,17 +106,19 @@ export class WorkspaceWatcherService {
 
   private createWatchers(model: WorkspaceModel, generation: number): FSWatcher[] {
     const watchers: FSWatcher[] = [];
+    const createWatcher = this.options.createWatcher ?? watch;
 
     const rootPaths = model.noteRoots.map((root) => root.path);
     const uniqueRootPaths = [...new Set(rootPaths)];
 
     for (const rootPath of uniqueRootPaths) {
       if (!existsSync(rootPath)) {
-        continue;
+        closeWatchers(watchers);
+        throw new Error(`Required workspace note root does not exist: ${rootPath}`);
       }
 
       try {
-        const watcher = watch(rootPath, { recursive: true }, (eventType, filename) => {
+        const watcher = createWatcher(rootPath, { recursive: true }, (eventType, filename) => {
           const filePath = typeof filename === "string" && filename.length > 0 ? path.join(rootPath, filename) : null;
           if (shouldIgnoreWorkspaceChange(rootPath, filePath)) {
             return;
@@ -114,36 +131,24 @@ export class WorkspaceWatcherService {
           }, generation);
         });
 
-        watcher.on("error", (error) => {
-          console.warn("[exo] workspace watcher error", {
-            rootPath,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        });
+        watcher.on("error", (error) => this.reportLateWatcherError(generation, rootPath, error));
 
         watchers.push(watcher);
       } catch (error) {
-        console.warn("[exo] workspace watcher setup failed", {
-          rootPath,
-          error: error instanceof Error ? error.message : String(error),
-        });
+        closeWatchers(watchers);
+        throw new Error(`Required workspace watcher setup failed for ${rootPath}: ${errorMessageFor(error)}`);
       }
     }
 
     const workspaceRoot = path.resolve(model.workspaceRoot);
     if (!uniqueRootPaths.some((rootPath) => path.resolve(rootPath) === workspaceRoot) && existsSync(workspaceRoot)) {
       try {
-        const watcher = watch(workspaceRoot, (eventType, filename) => {
+        const watcher = createWatcher(workspaceRoot, (eventType, filename) => {
           const filePath = typeof filename === "string" && filename.length > 0 ? path.join(workspaceRoot, filename) : null;
           if (!filePath || !isWorkspaceOntologyPath(workspaceRoot, filePath)) return;
           this.queue({ rootPath: workspaceRoot, eventType, filePath }, generation);
         });
-        watcher.on("error", (error) => {
-          console.warn("[exo] ontology watcher error", {
-            rootPath: workspaceRoot,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        });
+        watcher.on("error", (error) => this.reportLateWatcherError(generation, workspaceRoot, error));
         watchers.push(watcher);
       } catch (error) {
         console.warn("[exo] ontology watcher setup failed", {
@@ -153,6 +158,13 @@ export class WorkspaceWatcherService {
       }
     }
     return watchers;
+  }
+
+  private reportLateWatcherError(generation: number, rootPath: string, error: unknown): void {
+    if (generation !== this.activeGeneration) return;
+    const errorMessage = errorMessageFor(error);
+    console.warn("[exo] workspace watcher error", { rootPath, error: errorMessage });
+    this.options.onRuntimeError?.({ generation, rootPath, errorMessage });
   }
 
   stop(): void {
@@ -203,6 +215,10 @@ export class WorkspaceWatcherService {
       }
     }, 120);
   }
+}
+
+function errorMessageFor(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function closeWatchers(watchers: FSWatcher[]): void {

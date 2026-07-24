@@ -3,7 +3,12 @@ import type { AgentCommand, IndexStatus, TreeNode, WorkspaceModel, WorkspaceSett
 import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "@exo/core/default-agent-command";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
 
-import type { TerminalSessionInfo, WorkspaceRegistryEntry, WorkspaceSetupState } from "../../../shared/api";
+import type {
+  TerminalSessionInfo,
+  WorkspaceRegistryEntry,
+  WorkspaceSettingsRuntimeApplyOutcome,
+  WorkspaceSetupState,
+} from "../../../shared/api";
 import { loadInitialTrees, type UseWorkspaceTreesOptions } from "./useWorkspaceTrees";
 import { pathLabel } from "../workspaceTree";
 
@@ -258,6 +263,15 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       if (saved.runtimeApply.status === "failed") {
         throw new Error(saved.runtimeApply.errorMessage);
       }
+      const runtimeDecision = onboardingRuntimeApplyDecision(saved.runtimeApply);
+      if (runtimeDecision.action === "retry") {
+        setOnboardingState({
+          ...current,
+          status: "error",
+          errorMessage: runtimeDecision.errorMessage,
+        });
+        return;
+      }
       await window.exo.workspace.markOnboardingComplete();
       window.location.reload();
     } catch (error) {
@@ -318,6 +332,15 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       if (saved.runtimeApply.status === "failed") {
         throw new Error(saved.runtimeApply.errorMessage);
       }
+      const runtimeDecision = onboardingRuntimeApplyDecision(saved.runtimeApply);
+      if (runtimeDecision.action === "retry") {
+        setOnboardingState({
+          ...current,
+          status: "error",
+          errorMessage: runtimeDecision.errorMessage,
+        });
+        return;
+      }
       await window.exo.workspace.markOnboardingComplete();
       window.location.reload();
     } catch (error) {
@@ -356,6 +379,22 @@ export function defaultTerminalCwdForNotesFolder(notesFolder: string): string {
   }
   const slashIndex = normalized.lastIndexOf("/");
   return slashIndex > 0 ? normalized.slice(0, slashIndex) : normalized;
+}
+
+/** A degraded activation has already committed the Workspace. Do not mark
+ * onboarding complete or reload into a falsely healthy state; retrying this
+ * screen safely reapplies the runtime transaction. */
+export function onboardingRuntimeApplyDecision(
+  outcome: WorkspaceSettingsRuntimeApplyOutcome,
+): { action: "complete" } | { action: "retry"; errorMessage: string } {
+  if (outcome.status === "applied") return { action: "complete" };
+  if (outcome.status === "degraded") {
+    return {
+      action: "retry",
+      errorMessage: `Your workspace is open, but one runtime service needs attention: ${outcome.errorMessage} Retry to recover it before continuing.`,
+    };
+  }
+  return { action: "retry", errorMessage: outcome.errorMessage };
 }
 
 export function defaultOnboardingAgentCommands(): AgentCommand[] {

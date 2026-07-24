@@ -84,6 +84,9 @@ export interface WorkspaceRuntimeCoordinatorOptions {
 export class WorkspaceRuntimeCoordinator {
   private active: ActiveWorkspaceRuntime | null = null;
   private activationGeneration = 0;
+  /** Distinct from `activationGeneration`: failed or superseded candidates
+   * never replace the generation that owns the committed runtime. */
+  private activeGeneration: number | null = null;
   private lastFailure: { phase: WorkspaceActivationPhase; errorMessage: string } | null = null;
 
   constructor(private readonly options: WorkspaceRuntimeCoordinatorOptions) {}
@@ -96,6 +99,15 @@ export class WorkspaceRuntimeCoordinator {
     return this.lastFailure
       ? { status: "degraded", active: this.active, ...this.lastFailure }
       : { status: "active", active: this.active };
+  }
+
+  /** Records a post-commit resource failure only when it belongs to the
+   * currently active candidate. Late kernel callbacks from a closed watcher
+   * must not degrade the Workspace that replaced it. */
+  reportLateRuntimeFailure(generation: number, phase: WorkspaceActivationPhase, errorMessage: string): boolean {
+    if (!this.active || generation !== this.activeGeneration) return false;
+    this.lastFailure = { phase, errorMessage };
+    return true;
   }
 
   async activate(request: WorkspaceActivationRequest): Promise<WorkspaceActivationOutcome> {
@@ -136,6 +148,7 @@ export class WorkspaceRuntimeCoordinator {
       // process fields change as one final observable transition.
       try {
         this.active = active;
+        this.activeGeneration = candidate.generation;
         this.lastFailure = null;
         this.options.publishActive(active);
         watcher.commit();

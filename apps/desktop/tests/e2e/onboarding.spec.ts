@@ -118,6 +118,7 @@ test("persists an explicit Note Root and edited recommended Commands across rest
     configured: false,
     mutable: true,
     workspaceRootEnv: false,
+    runtimeRootEnv: false,
     selectFolderPath: (workspaceRoot) => path.join(workspaceRoot, "notes", "test-notes"),
   });
   const selectedNoteRoot = path.join(first.workspaceRoot, "notes", "test-notes");
@@ -135,6 +136,11 @@ test("persists an explicit Note Root and edited recommended Commands across rest
   await first.page.getByRole("button", { name: "Open Exo" }).click();
 
   await expect(first.page.getByTestId("sidebar")).toBeVisible();
+  const workspaceRuntimeRoot = path.join(selectedNoteRoot, ".exo");
+  await expect.poll(() => readCommandDiscovery(workspaceRuntimeRoot)).toMatchObject({
+    port: expect.any(Number),
+    token: expect.any(String),
+  });
   const firstSettings = JSON.parse(await readFile(first.settingsPath, "utf8")) as WorkspaceSettings;
   expect(firstSettings.noteRoots).toEqual([selectedNoteRoot]);
   expect(firstSettings.agentCommands?.map((command) => command.command)).toEqual([customClaudeCommand, customCodexCommand]);
@@ -143,6 +149,7 @@ test("persists an explicit Note Root and edited recommended Commands across rest
   const restarted = await relaunchExoWorkspaceFixture(first, {
     configured: false,
     workspaceRootEnv: false,
+    runtimeRootEnv: false,
   });
   await expect(restarted.page.getByTestId("onboarding")).toHaveCount(0);
   await expect(restarted.page.getByTestId("sidebar")).toBeVisible();
@@ -156,6 +163,10 @@ test("persists an explicit Note Root and edited recommended Commands across rest
         ],
       },
     });
+  await expect.poll(() => readCommandDiscovery(workspaceRuntimeRoot)).toMatchObject({
+    port: expect.any(Number),
+    token: expect.any(String),
+  });
 
   await restarted.electronApp.close();
   await first.cleanup();
@@ -279,4 +290,8 @@ async function readOptional(filePath: string): Promise<string | null> {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+}
+
+async function readCommandDiscovery(runtimeRoot: string): Promise<{ port: number; token: string }> {
+  return JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number; token: string };
 }

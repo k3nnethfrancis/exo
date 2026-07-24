@@ -70,6 +70,26 @@ describe("CommandServerLifecycle", () => {
     await expect(readFile(path.join(runtimeRoot, "server.json"), "utf8")).resolves.toContain("token-staged");
     await lifecycle.stop();
   });
+
+  it("keeps B's staged discovery when a concurrent same-root A candidate aborts", async () => {
+    const runtimeRoot = await tempRoot();
+    const lifecycleA = new CommandServerLifecycle({ runtimeRoot, createServer: () => fakeServer("token-a", 41006) });
+    const lifecycleB = new CommandServerLifecycle({ runtimeRoot, createServer: () => fakeServer("token-b", 41007) });
+    await Promise.all([
+      lifecycleA.start({ publishDiscovery: false }),
+      lifecycleB.start({ publishDiscovery: false }),
+    ]);
+    const [stagedA, stagedB] = await Promise.all([
+      lifecycleA.prepareDiscovery(),
+      lifecycleB.prepareDiscovery(),
+    ]);
+
+    stagedA.abort();
+    stagedB.commit();
+
+    await expect(readFile(path.join(runtimeRoot, "server.json"), "utf8")).resolves.toContain("token-b");
+    await Promise.all([lifecycleA.stop(), lifecycleB.stop()]);
+  });
 });
 
 async function tempRoot(): Promise<string> {

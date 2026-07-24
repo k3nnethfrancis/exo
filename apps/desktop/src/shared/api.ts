@@ -103,6 +103,8 @@ export interface WorkspaceRegistryEntry {
 
 export type WorkspaceSettingsRuntimeApplyOutcome =
   | { status: "applied" }
+  /** The Workspace committed, but a noncritical post-commit rebind needs attention. */
+  | { status: "degraded"; errorMessage: string }
   | { status: "failed"; errorMessage: string };
 
 export interface WorkspaceSettingsSaveOutcome extends WorkspaceSettingsSnapshot {

@@ -33,6 +33,11 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 
 ## Protected Surfaces
 
+### `apps/desktop/src/shared/api.ts#workspace-settings-runtime-apply`
+
+- sha256: `d5e1a976b2adb7b694061bfd50786e04bfaa8e3a5468424183ebb4ca71baaee6`
+- review: architect-review: 2026-07-24 Runtime transaction correction adds the bounded `degraded` outcome only: the selected Workspace is already committed, while a noncritical post-commit rebind remains actionable. No new IPC channel, request field, or command-server/CLI route is introduced.
+
 ### `packages/core/src/command-protocol.ts#routes-and-types`
 
 - sha256: `c12a5694574feecbad1508d9e7b3f73d07be7c3c5798ae820faa469380d24373`

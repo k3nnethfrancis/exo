@@ -153,6 +153,43 @@ describe("workspace settings patch persistence", () => {
     expect(revisionRef.current).toBe("revision-2");
   });
 
+  it("keeps a committed degraded runtime save published without throwing it away", async () => {
+    const settings = workspaceSettings();
+    const saveSettings = vi.fn(async (request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> => ({
+      settings: request.settings,
+      revision: "revision-1",
+      runtimeApply: {
+        status: "degraded",
+        errorMessage: "The workspace is active, but command discovery needs recovery.",
+      },
+    }));
+    vi.stubGlobal("window", workspaceWindow(settings, "revision-0", saveSettings));
+    const settingsRef = { current: settings };
+    const revisionRef = { current: "revision-0" };
+    const applyWorkspaceSettings = vi.fn();
+    const onSettingsSaved = vi.fn();
+    const controllerRef: { current: ReturnType<typeof useWorkspaceSettingsController> | null } = { current: null };
+    renderToStaticMarkup(
+      <WorkspaceSettingsControllerHarness
+        controllerRef={controllerRef}
+        options={{
+          workspaceSettingsRef: settingsRef,
+          workspaceSettingsRevisionRef: revisionRef,
+          applyWorkspaceSettings,
+          refreshWorkspaceModel: vi.fn(async () => undefined),
+          setIndexStatus: vi.fn(),
+          onSettingsSaved,
+        }}
+      />,
+    );
+
+    await expect(controllerRef.current!.saveSettingsPatch({ terminalFontSize: 14 })).resolves.toBeUndefined();
+    expect(settingsRef.current.terminalFontSize).toBe(14);
+    expect(revisionRef.current).toBe("revision-1");
+    expect(applyWorkspaceSettings).not.toHaveBeenCalled();
+    expect(onSettingsSaved).toHaveBeenCalledOnce();
+  });
+
   it("queues dialog autosave before structural Apply and advances the revision", async () => {
     const firstSave = deferred<WorkspaceSettingsSaveOutcome>();
     const saveSettings = vi.fn()

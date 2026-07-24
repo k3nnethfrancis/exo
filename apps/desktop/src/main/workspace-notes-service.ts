@@ -86,8 +86,9 @@ export class WorkspaceNotesService {
   invalidateDerivedState(): void {
     this.graph?.invalidate();
     const scope = this.scope;
-    if (this.derivedIndex && scope.runtimeRoot) {
-      void this.derivedIndex
+    const derivedIndex = this.derivedIndex;
+    if (derivedIndex && scope.runtimeRoot) {
+      void derivedIndex
         .graphInvalidate(scope.model, scope.runtimeRoot, scope.controller.signal)
         .catch((error) => {
           if (!isAbortError(error)) console.warn("[exo] derived graph invalidation failed", error);
@@ -100,15 +101,18 @@ export class WorkspaceNotesService {
 
   async handleWorkspaceChange(event: WorkspaceChangeEvent): Promise<void> {
     const scope = this.scope;
+    const derivedIndex = this.derivedIndex;
+    const graph = this.graph;
+    if (!this.isCurrentScope(scope)) return;
     if (!event.filePath) {
       this.folderOverviewCache.clear();
       this.noteFileCache = null;
       this.imageFileCache.clear();
-      if (this.derivedIndex && scope.runtimeRoot) {
-        await this.derivedIndex.graphInvalidate(scope.model, scope.runtimeRoot, scope.controller.signal);
+      if (derivedIndex && scope.runtimeRoot) {
+        await derivedIndex.graphInvalidate(scope.model, scope.runtimeRoot, scope.controller.signal);
         if (!this.isCurrentScope(scope)) return;
       } else {
-        this.graph?.invalidate();
+        graph?.invalidate();
       }
       return;
     }
@@ -118,11 +122,12 @@ export class WorkspaceNotesService {
     this.noteFileCache = null;
     this.imageFileCache.clear();
     if (/\.md$/i.test(changedPath)) {
-      if (this.derivedIndex && scope.runtimeRoot) {
-        await this.derivedIndex.graphRefresh(scope.model, scope.runtimeRoot, changedPath, scope.controller.signal);
+      if (derivedIndex && scope.runtimeRoot) {
+        await derivedIndex.graphRefresh(scope.model, scope.runtimeRoot, changedPath, scope.controller.signal);
         if (!this.isCurrentScope(scope)) return;
       } else {
-        await this.graph?.refreshFile(changedPath);
+        await graph?.refreshFile(changedPath);
+        if (!this.isCurrentScope(scope)) return;
       }
     }
   }
@@ -152,8 +157,10 @@ export class WorkspaceNotesService {
    * claim that Exo opened it.  This shares the same root and symlink boundary
    * as every other workspace read. */
   async authorizeOpenFile(filePath: string): Promise<string> {
-    const authorizedPath = await this.workspaceFiles().existing(filePath);
+    const scope = this.scope;
+    const authorizedPath = await this.workspaceFiles(scope).existing(filePath);
     const fileStat = await stat(authorizedPath);
+    this.assertCurrentScope(scope);
     if (!fileStat.isFile()) {
       throw new Error("Exo can only open an existing file inside the active wiki.");
     }
@@ -168,7 +175,7 @@ export class WorkspaceNotesService {
     }
 
     const model = scope.model;
-    const files = this.noteFileCache ?? await listMarkdownFiles(this.noteRootPaths());
+    const files = this.noteFileCache ?? await listMarkdownFiles(this.noteRootPaths(scope));
     this.assertCurrentScope(scope);
     this.noteFileCache = files;
     const notes = files
@@ -198,8 +205,9 @@ export class WorkspaceNotesService {
   }
 
   async searchTag(tag: string): Promise<SearchResult[]> {
+    const scope = this.scope;
     const normalized = tag.replace(/^#/, "");
-    const files = await listMarkdownFiles(this.noteRootPaths());
+    const files = await listMarkdownFiles(this.noteRootPaths(scope));
     const results: Array<SearchResult | null> = await Promise.all(
       files.map(async (filePath) => {
         const document = await readWorkspaceDocument(filePath);
@@ -223,12 +231,15 @@ export class WorkspaceNotesService {
       }),
     );
 
+    this.assertCurrentScope(scope);
     return results.filter((entry): entry is SearchResult => entry !== null);
   }
 
   async resolveTarget(sourceFilePath: string, target: string): Promise<string | null> {
-    const files = this.workspaceFiles();
+    const scope = this.scope;
+    const files = this.workspaceFiles(scope);
     await files.existing(sourceFilePath);
+    this.assertCurrentScope(scope);
     if (/^https?:\/\//.test(target)) {
       return null;
     }
@@ -237,13 +248,16 @@ export class WorkspaceNotesService {
       ? path.resolve(path.dirname(sourceFilePath), target)
       : path.resolve(path.dirname(sourceFilePath), `${target}.md`);
     await files.writable(relativeCandidate);
+    this.assertCurrentScope(scope);
 
     if (await fileExists(relativeCandidate)) {
+      this.assertCurrentScope(scope);
       return relativeCandidate;
     }
 
     const normalizedTarget = path.basename(target, ".md").toLowerCase();
-    const noteFiles = await listMarkdownFiles(this.noteRootPaths());
+    const noteFiles = await listMarkdownFiles(this.noteRootPaths(scope));
+    this.assertCurrentScope(scope);
     return noteFiles.find((filePath) => path.basename(filePath, ".md").toLowerCase() === normalizedTarget) ?? null;
   }
 
@@ -253,10 +267,12 @@ export class WorkspaceNotesService {
    * this method verifies both source and target through WorkspaceFiles first.
    */
   async resolveMarkdownImage(sourceFilePath: string, target: string, lookupByFilename = false): Promise<{ url: string }> {
-    const files = this.workspaceFiles();
+    const scope = this.scope;
+    const files = this.workspaceFiles(scope);
     const sourcePath = await files.existing(sourceFilePath);
+    this.assertCurrentScope(scope);
     const normalizedTarget = normalizeMarkdownImageTarget(target);
-    const imagePath = await this.resolveMarkdownImagePath(files, sourcePath, normalizedTarget, lookupByFilename);
+    const imagePath = await this.resolveMarkdownImagePath(files, sourcePath, normalizedTarget, lookupByFilename, scope);
     // Point the renderer at the canonical path that WorkspaceFiles authorized,
     // rather than leaving a later file: load to follow a mutable symlink.
     const canonicalImagePath = await realpath(imagePath);
@@ -264,16 +280,18 @@ export class WorkspaceNotesService {
     if (!fileStat.isFile()) {
       throw new Error("Markdown image target must be an existing file.");
     }
+    this.assertCurrentScope(scope);
     return { url: pathToFileURL(canonicalImagePath).toString() };
   }
 
   async ensureTarget(sourceFilePath: string, target: string): Promise<string> {
+    const scope = this.scope;
     const resolved = await this.resolveTarget(sourceFilePath, target);
     if (resolved) {
       return resolved;
     }
 
-    const noteRoot = this.options.getWorkspaceModel().noteRoots.find((root) => isPathWithin(root.path, sourceFilePath));
+    const noteRoot = scope.model.noteRoots.find((root) => isPathWithin(root.path, sourceFilePath));
     const normalizedTarget = target.replace(/\.md$/i, "");
     const targetWithExtension = `${normalizedTarget}.md`;
     const isDailyNoteTarget = /^\d{4}-\d{2}-\d{2}$/.test(normalizedTarget);
@@ -285,21 +303,26 @@ export class WorkspaceNotesService {
         ? path.join(noteRoot?.path ?? path.dirname(sourceFilePath), targetWithExtension)
         : path.join(path.dirname(sourceFilePath), targetWithExtension);
 
-    const authorizedPath = await this.workspaceFiles().writable(nextPath);
+    const authorizedPath = await this.workspaceFiles(scope).writable(nextPath);
+    this.assertCurrentScope(scope);
     await createWorkspaceFile(authorizedPath);
+    this.assertCurrentScope(scope);
     return authorizedPath;
   }
 
   async suggestTargets(sourceFilePath: string, query: string) {
-    await this.workspaceFiles().existing(sourceFilePath);
+    const scope = this.scope;
+    await this.workspaceFiles(scope).existing(sourceFilePath);
+    this.assertCurrentScope(scope);
     const trimmedQuery = query.trim().toLowerCase();
     if (!trimmedQuery) {
       return [];
     }
 
-    const model = this.options.getWorkspaceModel();
+    const model = scope.model;
     const sourceRoot = model.noteRoots.find((root) => isPathWithin(root.path, sourceFilePath));
-    const noteFiles = await listMarkdownFiles(this.noteRootPaths());
+    const noteFiles = await listMarkdownFiles(this.noteRootPaths(scope));
+    this.assertCurrentScope(scope);
     const suggestions = noteFiles
       .map((filePath) => {
         const rootPath = model.noteRoots.find((root) => isPathWithin(root.path, filePath))?.path ?? sourceRoot?.path;
@@ -335,7 +358,8 @@ export class WorkspaceNotesService {
 
   async getGraphContext(filePath: string): Promise<WorkspaceGraphContext | null> {
     const scope = this.scope;
-    const authorizedPath = await this.workspaceFiles().existing(filePath);
+    const authorizedPath = await this.workspaceFiles(scope).existing(filePath);
+    this.assertCurrentScope(scope);
     const derivedIndex = this.derivedIndex;
     if (derivedIndex && scope.runtimeRoot) {
       return this.awaitCurrentScope(scope, derivedIndex.graphContext(
@@ -345,7 +369,7 @@ export class WorkspaceNotesService {
         scope.controller.signal,
       ));
     }
-    return this.workspaceGraph().contextForNote(authorizedPath);
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).contextForNote(authorizedPath));
   }
 
   async getGraphTopology(profileId?: string | null): Promise<GraphTopology> {
@@ -359,7 +383,7 @@ export class WorkspaceNotesService {
         scope.controller.signal,
       ));
     }
-    return this.workspaceGraph().graphTopology(profileId);
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphTopology(profileId));
   }
 
   async previewOntology(): Promise<OntologyReviewState> {
@@ -368,7 +392,7 @@ export class WorkspaceNotesService {
     if (derivedIndex && scope.runtimeRoot) {
       return this.awaitCurrentScope(scope, derivedIndex.ontologyPreview(scope.model, scope.runtimeRoot, scope.controller.signal));
     }
-    return this.workspaceGraph().previewOntology();
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).previewOntology());
   }
 
   async keepOntology(guard: OntologyReviewGuard): Promise<OntologyKeepResult> {
@@ -381,7 +405,8 @@ export class WorkspaceNotesService {
         guard,
         scope.controller.signal,
       ))
-      : await this.workspaceGraph().keepOntology(guard);
+      : await this.awaitCurrentScope(scope, this.workspaceGraph(scope).keepOntology(guard));
+    this.assertCurrentScope(scope);
     if (result.status === "applied") this.options.onGraphChanged?.();
     return result;
   }
@@ -397,7 +422,7 @@ export class WorkspaceNotesService {
         scope.controller.signal,
       ));
     }
-    return this.workspaceGraph().rejectOntology(guard);
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).rejectOntology(guard));
   }
 
   async getGraphConceptSummaries(indexes: number[], sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptSummaryResult> {
@@ -413,7 +438,7 @@ export class WorkspaceNotesService {
         scope.controller.signal,
       ));
     }
-    return this.workspaceGraph().graphConceptSummaries(indexes, sourceSnapshotId, profileId);
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphConceptSummaries(indexes, sourceSnapshotId, profileId));
   }
 
   async graphConceptLookup(
@@ -422,7 +447,8 @@ export class WorkspaceNotesService {
     profileId?: string | null,
   ): Promise<GraphConceptLookupResult> {
     const scope = this.scope;
-    const normalizedReference = await this.authorizeGraphConceptLookupReference(reference);
+    const normalizedReference = await this.authorizeGraphConceptLookupReference(reference, scope);
+    this.assertCurrentScope(scope);
     const derivedIndex = this.derivedIndex;
     if (derivedIndex && scope.runtimeRoot) {
       return this.awaitCurrentScope(scope, derivedIndex.graphConceptLookup(
@@ -434,7 +460,7 @@ export class WorkspaceNotesService {
         scope.controller.signal,
       ));
     }
-    return this.workspaceGraph().graphConceptLookup(normalizedReference, sourceSnapshotId, profileId);
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphConceptLookup(normalizedReference, sourceSnapshotId, profileId));
   }
 
   async getGraphConceptDetailByIndex(index: number, sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptDetailByIndexResult> {
@@ -450,10 +476,10 @@ export class WorkspaceNotesService {
         scope.controller.signal,
       ));
     }
-    return this.workspaceGraph().graphConceptDetailByIndex(index, sourceSnapshotId, profileId);
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphConceptDetailByIndex(index, sourceSnapshotId, profileId));
   }
 
-  private async authorizeGraphConceptLookupReference(reference: GraphConceptLookupReference): Promise<GraphConceptLookupReference> {
+  private async authorizeGraphConceptLookupReference(reference: GraphConceptLookupReference, scope: WorkspaceNotesScope): Promise<GraphConceptLookupReference> {
     if (!reference || typeof reference !== "object") {
       throw new Error("Graph concept lookup requires exactly one of conceptId or filePath.");
     }
@@ -469,18 +495,20 @@ export class WorkspaceNotesService {
     }
     const requestedPath = reference.filePath;
     if (!requestedPath?.trim()) throw new Error("Graph concept lookup filePath must not be empty.");
-    const resolvedPath = await this.workspaceFiles().existing(requestedPath);
-    const model = this.options.getWorkspaceModel();
+    const resolvedPath = await this.workspaceFiles(scope).existing(requestedPath);
+    const model = scope.model;
     const root = model.noteRoots.find((candidate) => isPathWithin(path.resolve(candidate.path), resolvedPath));
     if (!root) throw new Error("Refusing to access a path outside configured note roots.");
     const [canonicalPath, canonicalRoot] = await Promise.all([realpath(resolvedPath), realpath(root.path)]);
+    this.assertCurrentScope(scope);
     return { filePath: path.resolve(root.path, path.relative(canonicalRoot, canonicalPath)) };
   }
 
   async getFolderOverview(directoryPath: string): Promise<FolderOverview> {
     const scope = this.scope;
-    const files = this.workspaceFiles();
+    const files = this.workspaceFiles(scope);
     const authorizedDirectory = await files.existing(directoryPath);
+    this.assertCurrentScope(scope);
     const cached = this.folderOverviewCache.get(authorizedDirectory);
     if (cached) {
       return cached;
@@ -512,20 +540,23 @@ export class WorkspaceNotesService {
   }
 
   async ensureFolderIndex(directoryPath: string) {
-    const authorizedDirectory = await this.workspaceFiles().existing(directoryPath);
+    const scope = this.scope;
+    const authorizedDirectory = await this.workspaceFiles(scope).existing(directoryPath);
+    this.assertCurrentScope(scope);
     const result = await ensureFolderIndex(authorizedDirectory);
+    this.assertCurrentScope(scope);
     this.invalidateFolderOverviewsForPath(result.indexPath);
     return result;
   }
 
-  private workspaceGraph(): WorkspaceGraph {
-    const model = this.options.getWorkspaceModel();
-    const modelKey = [path.resolve(model.workspaceRoot), path.resolve(this.options.getRuntimeRoot?.() ?? ""), ...model.noteRoots
+  private workspaceGraph(scope: WorkspaceNotesScope): WorkspaceGraph {
+    const model = scope.model;
+    const modelKey = [path.resolve(model.workspaceRoot), path.resolve(scope.runtimeRoot), ...model.noteRoots
       .map((root) => `${root.id}:${path.resolve(root.path)}`)
       .sort()]
       .join("\n");
     if (!this.graph || this.graphModelKey !== modelKey) {
-      this.graph = new WorkspaceGraph(model, { runtimeRoot: this.options.getRuntimeRoot?.() });
+      this.graph = new WorkspaceGraph(model, { runtimeRoot: scope.runtimeRoot || undefined });
       this.graphModelKey = modelKey;
       this.folderOverviewCache.clear();
       this.noteFileCache = null;
@@ -546,15 +577,21 @@ export class WorkspaceNotesService {
     }
   }
 
-  private noteRootPaths(): string[] {
-    return this.options.getWorkspaceModel().noteRoots.map((root) => root.path);
+  private noteRootPaths(scope: WorkspaceNotesScope): string[] {
+    return scope.model.noteRoots.map((root) => root.path);
   }
 
-  private workspaceFiles(): WorkspaceFiles {
-    return new WorkspaceFiles(this.noteRootPaths());
+  private workspaceFiles(scope: WorkspaceNotesScope): WorkspaceFiles {
+    return new WorkspaceFiles(this.noteRootPaths(scope));
   }
 
-  private async resolveMarkdownImagePath(files: WorkspaceFiles, sourcePath: string, target: string, lookupByFilename: boolean): Promise<string> {
+  private async resolveMarkdownImagePath(
+    files: WorkspaceFiles,
+    sourcePath: string,
+    target: string,
+    lookupByFilename: boolean,
+    scope: WorkspaceNotesScope,
+  ): Promise<string> {
     if (!target.startsWith("/")) {
       try {
         return await files.existing(path.resolve(path.dirname(sourcePath), target));
@@ -562,11 +599,11 @@ export class WorkspaceNotesService {
         if (!lookupByFilename || target !== path.basename(target) || !isMissingPathError(error)) {
           throw error;
         }
-        return this.resolveMarkdownImageByFilename(files, sourcePath, target);
+        return this.resolveMarkdownImageByFilename(files, sourcePath, target, scope);
       }
     }
 
-    const sourceRoot = this.sourceNoteRoot(sourcePath);
+    const sourceRoot = this.sourceNoteRoot(sourcePath, scope);
 
     const relativeTarget = target.replace(/^\/+/, "");
     const noteRootCandidate = path.resolve(sourceRoot, relativeTarget);
@@ -599,8 +636,8 @@ export class WorkspaceNotesService {
     throw missingError ?? new Error("Markdown image target does not exist.");
   }
 
-  private sourceNoteRoot(sourcePath: string): string {
-    const sourceRoot = this.options.getWorkspaceModel().noteRoots
+  private sourceNoteRoot(sourcePath: string, scope: WorkspaceNotesScope): string {
+    const sourceRoot = scope.model.noteRoots
       .map((root) => path.resolve(root.path))
       .filter((rootPath) => isPathWithin(rootPath, sourcePath))
       .sort((left, right) => right.length - left.length)[0];
@@ -610,9 +647,14 @@ export class WorkspaceNotesService {
     return sourceRoot;
   }
 
-  private async resolveMarkdownImageByFilename(files: WorkspaceFiles, sourcePath: string, target: string): Promise<string> {
+  private async resolveMarkdownImageByFilename(
+    files: WorkspaceFiles,
+    sourcePath: string,
+    target: string,
+    scope: WorkspaceNotesScope,
+  ): Promise<string> {
     const sourceDirectory = path.dirname(sourcePath);
-    const candidates = (await this.imageFilesInRoot(this.sourceNoteRoot(sourcePath)))
+    const candidates = (await this.imageFilesInRoot(this.sourceNoteRoot(sourcePath, scope), scope))
       .filter((candidatePath) => path.basename(candidatePath) === target)
       .sort((left, right) => imageSearchDistance(sourceDirectory, left) - imageSearchDistance(sourceDirectory, right));
 
@@ -637,7 +679,7 @@ export class WorkspaceNotesService {
     }
     const files = listFiles([rootPath]);
     void files.then(() => {
-      if (this.isCurrentScope(scope)) this.imageFileCache.set(rootPath, files);
+      if (this.isCurrentScope(scope) && !scope.controller.signal.aborted) this.imageFileCache.set(rootPath, files);
     }).catch(() => {});
     return files;
   }

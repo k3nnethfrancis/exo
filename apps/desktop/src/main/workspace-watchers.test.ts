@@ -109,6 +109,44 @@ describe("WorkspaceWatcherService subscriptions", () => {
     service.stop();
   });
 
+  it("fails staging when a required Note Root cannot be watched", () => {
+    const service = new WorkspaceWatcherService();
+    expect(() => service.stage({
+      ...emptyWorkspace("/workspace/missing"),
+      noteRoots: [{ id: "notes", label: "Notes", path: "/workspace/missing/notes" }],
+    })).toThrow("Required workspace note root does not exist");
+  });
+
+  it("reports only late watcher errors from the active generation", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-watch-runtime-error-"));
+    const firstRoot = path.join(root, "first");
+    const secondRoot = path.join(root, "second");
+    await Promise.all([mkdir(firstRoot), mkdir(secondRoot)]);
+    const errorHandlers: Array<(error: Error) => void> = [];
+    const close = vi.fn();
+    const createWatcher = vi.fn(() => ({
+      on: (event: string, handler: (error: Error) => void) => {
+        if (event === "error") errorHandlers.push(handler);
+        return undefined;
+      },
+      close,
+    })) as unknown as typeof import("node:fs").watch;
+    const onRuntimeError = vi.fn();
+    const service = new WorkspaceWatcherService(undefined, { createWatcher, onRuntimeError });
+
+    service.start(workspaceForRoot(firstRoot));
+    errorHandlers[0]!(new Error("first failed"));
+    expect(onRuntimeError).toHaveBeenCalledWith(expect.objectContaining({ generation: 1, rootPath: firstRoot, errorMessage: "first failed" }));
+
+    service.start(workspaceForRoot(secondRoot));
+    errorHandlers[0]!(new Error("stale first failed"));
+    errorHandlers[1]!(new Error("second failed"));
+    expect(onRuntimeError).toHaveBeenCalledTimes(2);
+    expect(onRuntimeError).toHaveBeenLastCalledWith(expect.objectContaining({ generation: 2, rootPath: secondRoot, errorMessage: "second failed" }));
+    service.stop();
+    await rm(root, { recursive: true, force: true });
+  });
+
   it("observes the canonical ontology file outside a nested Note Root", async () => {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-watch-"));
     const noteRoot = path.join(workspaceRoot, "notes");
@@ -156,5 +194,12 @@ function emptyWorkspace(workspaceRoot: string) {
     indexedRoots: [],
     indexing: { enabled: false as const, mode: "off" as const, backend: "qmd" as const },
     searchEngine: "filesystem" as const,
+  };
+}
+
+function workspaceForRoot(rootPath: string) {
+  return {
+    ...emptyWorkspace(rootPath),
+    noteRoots: [{ id: "notes", label: "Notes", path: rootPath }],
   };
 }

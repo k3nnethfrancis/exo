@@ -1,4 +1,5 @@
 import { renameSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -81,7 +82,7 @@ export class CommandServerLifecycle {
       throw new Error("Command server is not listening.");
     }
     const info = server.getServerInfo();
-    const temporaryPath = `${this.discoveryPath}.${process.pid}.${Date.now()}.staged`;
+    const temporaryPath = `${this.discoveryPath}.${process.pid}.${randomUUID()}.staged`;
     await writePreparedDiscoveryFile(temporaryPath, info);
     let settled = false;
     return {
@@ -182,7 +183,7 @@ export class CommandServerLifecycle {
 
 async function writeDiscoveryFile(discoveryPath: string, info: ExoCommandServerInfo): Promise<void> {
   const directory = path.dirname(discoveryPath);
-  const temporaryPath = `${discoveryPath}.${process.pid}.${Date.now()}.tmp`;
+  const temporaryPath = `${discoveryPath}.${process.pid}.${randomUUID()}.tmp`;
   const body = `${JSON.stringify(info, null, 2)}\n`;
   try {
     await writeFile(temporaryPath, body, { encoding: "utf8", mode: 0o600 });

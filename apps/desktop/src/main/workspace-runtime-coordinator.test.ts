@@ -71,6 +71,33 @@ describe("WorkspaceRuntimeCoordinator", () => {
     expect(coordinator.current()).toMatchObject({ model: { workspaceRoot: "/destination" } });
   });
 
+  it("traces A to B to A without any stale active scope surviving the return", async () => {
+    const events: string[] = [];
+    const coordinator = coordinatorFor(events);
+    const workspaceA = settings("/workspace-a");
+    const workspaceB = settings("/workspace-b");
+
+    await coordinator.activate(request(workspaceA, "startup"));
+    await coordinator.activate(request(workspaceB));
+    await coordinator.activate(request(workspaceA));
+
+    expect(coordinator.current()).toMatchObject({
+      settings: { workspaceRoot: "/workspace-a" },
+      model: { workspaceRoot: "/workspace-a" },
+      runtimeRoot: "/workspace-a/.exo",
+    });
+    expect(events.filter((event) => event.startsWith("publish:"))).toEqual([
+      "publish:/workspace-a:destination-revision",
+      "publish:/workspace-b:destination-revision",
+      "publish:/workspace-a:destination-revision",
+    ]);
+    expect(events.filter((event) => event.startsWith("terminal:"))).toEqual([
+      "terminal:/workspace-a",
+      "terminal:/workspace-b",
+      "terminal:/workspace-a",
+    ]);
+  });
+
   it("preserves a null operator-startup revision for the first settings save", async () => {
     const events: string[] = [];
     const coordinator = coordinatorFor(events);
@@ -169,6 +196,56 @@ describe("WorkspaceRuntimeCoordinator", () => {
     });
     expect(events).toContain("commit-commands:/destination");
     expect(events).toContain("publish:/destination:destination-revision");
+  });
+
+  it("records a late watcher failure only for the active generation", async () => {
+    const events: string[] = [];
+    const coordinator = coordinatorFor(events);
+    const workspaceA = settings("/workspace-a");
+    const workspaceB = settings("/workspace-b");
+
+    await coordinator.activate(request(workspaceA, "startup"));
+    expect(coordinator.reportLateRuntimeFailure(1, "watcher", "A watcher failed")).toBe(true);
+    expect(coordinator.status()).toMatchObject({
+      status: "degraded",
+      active: { settings: { workspaceRoot: "/workspace-a" } },
+      phase: "watcher",
+      errorMessage: "A watcher failed",
+    });
+
+    await coordinator.activate(request(workspaceB));
+    expect(coordinator.reportLateRuntimeFailure(1, "watcher", "stale A watcher failed")).toBe(false);
+    expect(coordinator.status()).toMatchObject({
+      status: "active",
+      active: { settings: { workspaceRoot: "/workspace-b" } },
+    });
+  });
+
+  it("keeps A's watcher health report valid after a failed B candidate", async () => {
+    const events: string[] = [];
+    const coordinator = coordinatorFor(events, {
+      prepareNoteRoots: async (candidate) => {
+        if (candidate.settings.workspaceRoot === "/workspace-b") {
+          throw new Error("B note roots are unavailable");
+        }
+        events.push(`prepare:${candidate.model.workspaceRoot}`);
+      },
+    });
+
+    await coordinator.activate(request(settings("/workspace-a"), "startup"));
+    await expect(coordinator.activate(request(settings("/workspace-b")))).resolves.toMatchObject({
+      status: "failed",
+      phase: "note-roots",
+      active: { settings: { workspaceRoot: "/workspace-a" } },
+    });
+
+    expect(coordinator.reportLateRuntimeFailure(2, "watcher", "aborted B watcher failed")).toBe(false);
+    expect(coordinator.reportLateRuntimeFailure(1, "watcher", "A watcher failed after B aborted")).toBe(true);
+    expect(coordinator.status()).toMatchObject({
+      status: "degraded",
+      active: { settings: { workspaceRoot: "/workspace-a" } },
+      errorMessage: "A watcher failed after B aborted",
+    });
   });
 });
 

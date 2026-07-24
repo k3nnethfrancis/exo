@@ -401,6 +401,7 @@ async function saveSettings(request: WorkspaceSettingsSaveRequest): Promise<Work
   if (activation.status === "applied" || activation.status === "committed-degraded") {
     if (activation.status === "committed-degraded") {
       logMain("workspace activation committed degraded", activation);
+      return { ...saved, runtimeApply: { status: "degraded", errorMessage: activation.errorMessage } };
     }
     return { ...saved, runtimeApply: { status: "applied" } };
   }
@@ -426,6 +427,7 @@ async function switchWorkspace(workspaceId: string, expectedRevision: string | n
   if (activation.status === "applied" || activation.status === "committed-degraded") {
     if (activation.status === "committed-degraded") {
       logMain("workspace switch committed degraded", activation);
+      return { ...saved, runtimeApply: { status: "degraded", errorMessage: activation.errorMessage } };
     }
     return { ...saved, runtimeApply: { status: "applied" } };
   }
@@ -474,6 +476,17 @@ app.whenReady().then(async () => {
     void refresh.catch((error) => {
       console.warn("[exo] incremental workspace refresh failed", error);
     });
+  }, {
+    onRuntimeError: ({ generation, rootPath, errorMessage }) => {
+      const recorded = workspaceRuntimeCoordinator?.reportLateRuntimeFailure(
+        generation,
+        "watcher",
+        `Watcher failed for ${rootPath}: ${errorMessage}`,
+      );
+      if (recorded) {
+        logMain("active workspace watcher failed", { generation, rootPath, errorMessage });
+      }
+    },
   });
 
   const forcedTheme = process.env.EXO_FORCE_THEME;
@@ -601,7 +614,7 @@ app.whenReady().then(async () => {
         },
       };
     },
-    stageWatcher: async (candidate) => workspaceWatcherService.stage(candidate.model),
+    stageWatcher: async (candidate) => workspaceWatcherService.stage(candidate.model, candidate.generation),
     publishActive: (active) => {
       workspaceSettings = active.settings;
       workspaceSettingsRevision = active.revision;

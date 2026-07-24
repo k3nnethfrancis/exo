@@ -297,6 +297,9 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
         });
         return;
       }
+      const degradedRuntimeMessage = saved.runtimeApply.status === "degraded"
+        ? saved.runtimeApply.errorMessage
+        : null;
       void optionsRef.current.onSettingsSaved?.();
       setDialog((current) => {
         if (!current || dialogSessionIdRef.current !== dialogSessionId) {
@@ -315,12 +318,12 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
               ? {
                   ...workspaceSettingsStructuralDraftFromSettings(saved.settings),
                   appliedWorkspaceKey: workspaceSettingsStructuralKeyFromSettings(saved.settings),
-                  applyStatus: "applied" as const,
-                  applyErrorMessage: null,
+                  applyStatus: degradedRuntimeMessage ? "error" as const : "applied" as const,
+                  applyErrorMessage: degradedRuntimeMessage,
                 }
               : {
-                  saveStatus: "saved" as const,
-                  errorMessage: null,
+                  saveStatus: degradedRuntimeMessage ? "error" as const : "saved" as const,
+                  errorMessage: degradedRuntimeMessage,
                 }
             : {}),
         };
