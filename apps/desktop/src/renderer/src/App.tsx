@@ -315,8 +315,10 @@ export function App() {
   }, [activeDocumentPath, focusedEditorPath, setActiveDocumentPath]);
 
   useEffect(() => {
-    graphInspection.syncEditorDocument(activeDocumentPath);
-  }, [activeDocumentPath, graphInspection.syncEditorDocument]);
+    if (activeDocumentPath) {
+      graphInspection.inspect({ filePath: activeDocumentPath }, "editor");
+    }
+  }, [activeDocumentPath, graphInspection.inspect]);
 
   useEffect(() => {
     if (!workspaceModel) {

@@ -50,7 +50,7 @@ describe("focused editor ownership", () => {
     expect(findFocusedEditorPath(tree, collectLeaves(tree)[0]!.id)).toBeNull();
   });
 
-  it("preserves null ownership when the normalized restored editor has no active document", () => {
+  it("keeps persisted empty-first Connections free of an unrelated note", () => {
     const tree: PaneNode = {
       kind: "leaf",
       id: "editor",

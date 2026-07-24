@@ -20,7 +20,6 @@ export interface InspectedConceptState {
 
 type InspectedConceptAction =
   | { type: "inspect"; concept: InspectedConcept | null; source: InspectionSource }
-  | { type: "sync-editor"; filePath: string | null }
   | { type: "focus"; concept: InspectedConcept; source: InspectionSource };
 
 export const EMPTY_INSPECTED_CONCEPT_STATE: InspectedConceptState = {
@@ -40,12 +39,6 @@ export function reduceInspectedConcept(
       source: action.source,
     };
   }
-  if (action.type === "sync-editor") {
-    if (action.filePath) {
-      return { ...state, concept: { filePath: action.filePath }, source: "editor" };
-    }
-    return state.source === "editor" ? { ...state, concept: null, source: "editor" } : state;
-  }
   return {
     concept: action.concept,
     source: action.source,
@@ -64,8 +57,5 @@ export function useInspectedConcept() {
   const focus = useCallback((concept: InspectedConcept, source: InspectionSource) => {
     dispatch({ type: "focus", concept, source });
   }, []);
-  const syncEditorDocument = useCallback((filePath: string | null) => {
-    dispatch({ type: "sync-editor", filePath });
-  }, []);
-  return { state, inspect, focus, syncEditorDocument };
+  return { state, inspect, focus };
 }

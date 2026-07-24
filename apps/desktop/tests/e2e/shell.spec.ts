@@ -466,6 +466,33 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
   }
 });
 
+test("preserves Graph Target detail when Connections opens the full Graph", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture({
+    mutable: true,
+    initialNoteLabel: "graph-target",
+    prepareWorkspace: async (workspaceRoot) => {
+      const notes = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(path.join(notes, "graph-target.md"), "# Graph Target\n\nA backlink-only target.\n", "utf8");
+      await writeFile(path.join(notes, "graph-source.md"), "# Graph Source\n\n[[graph-target]]\n", "utf8");
+    },
+  });
+
+  try {
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-connections").click();
+    await page.getByTestId("connections-tab-graph").click();
+    const localGraph = page.getByTestId("connections-panel-graph");
+    await expect(localGraph.getByTestId("graph-neighborhood-panel")).toBeVisible();
+    await localGraph.getByRole("button", { name: "Open full graph" }).click();
+
+    const graphPane = page.getByTestId("graph-pane");
+    await expect(graphPane).toBeVisible();
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
+  } finally {
+    await cleanup();
+  }
+});
+
 test("recovers graph Canvas initialization without taking down the workspace", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture({ initialNoteLabel: "focus-note" });
   try {
