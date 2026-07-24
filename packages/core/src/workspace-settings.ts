@@ -272,6 +272,21 @@ async function workspaceRegistryRequiresIdentityMigration(env: NodeJS.ProcessEnv
   if (normalized.workspaces.length === 0) {
     return false;
   }
+  if (activeSettings) {
+    const selectedIdentityKey = workspaceIdentityFromSettings(activeSettings);
+    const selectedNotesFolder = notesFolderFromSettings(activeSettings);
+    const activeEntry = normalized.workspaces.find((entry) => entry.id === normalized.activeWorkspaceId);
+    if (
+      activeEntry
+      && workspaceIdentityFromSettings(activeEntry.settings) === selectedIdentityKey
+      && (
+        activeEntry.notesFolder !== selectedNotesFolder
+        || notesFolderFromSettings(activeEntry.settings) !== selectedNotesFolder
+      )
+    ) {
+      return true;
+    }
+  }
   const seenIdentityKeys = new Set<string>();
   for (const value of rawWorkspaces) {
     const entry = normalizeRegistryEntry(value);

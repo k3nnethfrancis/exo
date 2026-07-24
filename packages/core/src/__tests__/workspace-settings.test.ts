@@ -913,6 +913,58 @@ describe("workspace settings registry", () => {
     }
   });
 
+  it("reconciles an already-v1 physical registry entry to the selected symlink alias once", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-v1-selected-alias-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const otherNotesFolder = path.join(userDataPath, "other-notes");
+    const realNotesFolder = path.join(userDataPath, "real-notes");
+    const aliasNotesFolder = path.join(userDataPath, "alias-notes");
+
+    try {
+      await mkdir(otherNotesFolder);
+      await mkdir(realNotesFolder);
+      await symlink(realNotesFolder, aliasNotesFolder, "dir");
+      await saveWorkspaceSettings(workspaceSettingsFor(otherNotesFolder), env);
+      await saveWorkspaceSettings({ ...workspaceSettingsFor(realNotesFolder), futureSetting: { retained: "physical" } }, env);
+      const physicalRegistry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
+      const physicalEntry = physicalRegistry.workspaces[0]!;
+      const otherEntry = physicalRegistry.workspaces[1]!;
+      const selectedActive = { ...workspaceSettingsFor(aliasNotesFolder), futureSetting: { retained: "selected" } };
+      const seededRegistry = {
+        activeWorkspaceId: physicalEntry.id,
+        workspaces: [
+          { ...physicalEntry, label: "Physical custom label", updatedAt: "2026-07-24T04:00:00.000Z", futureMetadata: { retained: true } },
+          otherEntry,
+        ],
+      };
+      expect(physicalEntry.id).toMatch(/^workspace-v1-/);
+      await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify(selectedActive), { mode: 0o600 });
+      await writeFile(resolveWorkspaceRegistryPath(env), JSON.stringify(seededRegistry), { mode: 0o600 });
+
+      await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({ noteRoots: [aliasNotesFolder] });
+      const afterMigration = await readFile(resolveWorkspaceRegistryPath(env), "utf8");
+      const registry = JSON.parse(afterMigration) as WorkspaceRegistrySnapshot;
+      expect(registry.workspaces).toHaveLength(2);
+      expect(registry.workspaces[0]).toMatchObject({
+        id: physicalEntry.id,
+        label: "Physical custom label",
+        notesFolder: aliasNotesFolder,
+        settings: { noteRoots: [aliasNotesFolder], futureSetting: { retained: "selected" } },
+        updatedAt: "2026-07-24T04:00:00.000Z",
+        futureMetadata: { retained: true },
+      });
+      expect(registry.workspaces[1]).toEqual(otherEntry);
+      expect(registry.activeWorkspaceId).toBe(physicalEntry.id);
+      const migratedInode = (await stat(resolveWorkspaceRegistryPath(env))).ino;
+
+      await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({ noteRoots: [aliasNotesFolder] });
+      expect(await readFile(resolveWorkspaceRegistryPath(env), "utf8")).toBe(afterMigration);
+      expect((await stat(resolveWorkspaceRegistryPath(env))).ino).toBe(migratedInode);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("uses one physical identity for a real Notes Folder and its symlink alias", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-symlink-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };
