@@ -226,7 +226,7 @@ export function resolveFolderOverviewReturnPath(content: EditorPaneContent): str
   ) {
     return content.activeFolderReturnPath;
   }
-  return content.openPaths.at(-1) ?? null;
+  return null;
 }
 
 export function closeFolderOverviewInTree(

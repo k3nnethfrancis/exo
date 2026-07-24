@@ -63,7 +63,15 @@ describe("Folder Overview editor ownership", () => {
         activeFolderReturnPath: "/notes/a.md",
       },
     });
-    expect(closeFolderOverviewContent(inactiveClose.content, "/notes/two").restoredPath).toBe("/notes/a.md");
+    expect(closeFolderOverviewInTree(
+      { kind: "leaf", id: "editor", content: inactiveClose.content },
+      "editor",
+      "/notes/two",
+      "editor",
+    )).toMatchObject({
+      activeDocumentPath: "/notes/a.md",
+      tree: { content: { activePath: "/notes/a.md" } },
+    });
   });
 
   it("restores a reachable review virtual document exactly", () => {
@@ -79,7 +87,7 @@ describe("Folder Overview editor ownership", () => {
     expect(closeFolderOverviewContent(overview, "/notes/projects").restoredPath).toBe(virtualPath);
   });
 
-  it("falls back explicitly after the exact return Note is deleted", () => {
+  it("restores no owner after the exact return Note is deleted", () => {
     const afterDelete = content({
       openPaths: ["/notes/b.md"],
       activePath: null,
@@ -88,7 +96,35 @@ describe("Folder Overview editor ownership", () => {
       activeFolderReturnPath: "/notes/a.md",
     });
 
-    expect(closeFolderOverviewContent(afterDelete, "/notes/projects").restoredPath).toBe("/notes/b.md");
+    expect(closeFolderOverviewInTree(
+      { kind: "leaf", id: "editor", content: afterDelete },
+      "editor",
+      "/notes/projects",
+      "editor",
+    )).toMatchObject({
+      activeDocumentPath: null,
+      tree: { content: { activePath: null } },
+    });
+  });
+
+  it("restores no owner when the captured return path is stale", () => {
+    const stale = content({
+      openPaths: ["/notes/a.md", "/notes/b.md"],
+      activePath: null,
+      openFolderPaths: ["/notes/projects"],
+      activeFolderPath: "/notes/projects",
+      activeFolderReturnPath: "/notes/stale.md",
+    });
+
+    expect(closeFolderOverviewInTree(
+      { kind: "leaf", id: "editor", content: stale },
+      "editor",
+      "/notes/projects",
+      "editor",
+    )).toMatchObject({
+      activeDocumentPath: null,
+      tree: { content: { activePath: null } },
+    });
   });
 
   it("restores a renamed return Note when pane paths were remapped", () => {
@@ -100,10 +136,18 @@ describe("Folder Overview editor ownership", () => {
       activeFolderReturnPath: "/notes/renamed.md",
     });
 
-    expect(closeFolderOverviewContent(afterRename, "/notes/projects").restoredPath).toBe("/notes/renamed.md");
+    expect(closeFolderOverviewInTree(
+      { kind: "leaf", id: "editor", content: afterRename },
+      "editor",
+      "/notes/projects",
+      "editor",
+    )).toMatchObject({
+      activeDocumentPath: "/notes/renamed.md",
+      tree: { content: { activePath: "/notes/renamed.md" } },
+    });
   });
 
-  it("decodes the persisted exact return path and safely accepts legacy layouts without one", () => {
+  it("decodes the persisted exact return path and restores no owner when the field is absent", () => {
     const persisted = {
       kind: "leaf",
       id: "editor",
@@ -142,7 +186,10 @@ describe("Folder Overview editor ownership", () => {
     if (legacy?.kind !== "leaf" || legacy.content.kind !== "editor") {
       throw new Error("expected legacy editor pane");
     }
-    expect(closeFolderOverviewContent(legacy.content, "/notes/projects").restoredPath).toBe("/notes/b.md");
+    expect(closeFolderOverviewInTree(legacy, "editor", "/notes/projects", "editor")).toMatchObject({
+      activeDocumentPath: null,
+      tree: { content: { activePath: null } },
+    });
   });
 
   it("leaves document ownership with a different focused pane when an overview closes", () => {
@@ -185,6 +232,29 @@ describe("Folder Overview editor ownership", () => {
     });
   });
 
+  it("restores a null document owner when Folder Overview had no prior active document", () => {
+    const overview = activateFolderOverviewContent(
+      content({
+        openPaths: ["/notes/a.md", "/notes/b.md"],
+        activePath: null,
+      }),
+      "/notes/projects",
+    );
+    const tree: PaneNode = { kind: "leaf", id: "editor", content: overview };
+
+    expect(overview.activeFolderReturnPath).toBeNull();
+    expect(closeFolderOverviewInTree(tree, "editor", "/notes/projects", "editor")).toMatchObject({
+      activeDocumentPath: null,
+      tree: {
+        content: {
+          activePath: null,
+          activeFolderPath: null,
+          activeFolderReturnPath: null,
+        },
+      },
+    });
+  });
+
   it("opens Folder Overview in an existing editor when a terminal split is focused", () => {
     const tree: PaneNode = {
       kind: "split",
@@ -198,6 +268,33 @@ describe("Folder Overview editor ownership", () => {
     };
 
     expect(resolveFolderOverviewEditorLeaf(tree, "terminal")).toMatchObject({ id: "editor" });
+  });
+
+  it("opens Folder Overview in an existing editor when a preview split is focused", () => {
+    const tree: PaneNode = {
+      kind: "split",
+      id: "root",
+      direction: "horizontal",
+      ratio: 0.5,
+      children: [
+        { kind: "leaf", id: "editor", content: content({ openPaths: ["/notes/a.md"], activePath: "/notes/a.md" }) },
+        { kind: "leaf", id: "preview", content: { kind: "browser", previewId: "preview" } },
+      ],
+    };
+
+    expect(resolveFolderOverviewEditorLeaf(tree, "preview")).toMatchObject({ id: "editor" });
+  });
+
+  it("keeps Folder Overview in the focused editor", () => {
+    const tree = splitEditors(
+      content({ openPaths: ["/notes/a.md"], activePath: "/notes/a.md" }),
+      content({ openPaths: ["/notes/b.md"], activePath: "/notes/b.md" }),
+    );
+
+    expect(resolveFolderOverviewEditorLeaf(tree, "right")).toMatchObject({
+      id: "right",
+      content: { activePath: "/notes/b.md" },
+    });
   });
 
   it("leaves Folder Overview unopened when no editor leaf exists", () => {
