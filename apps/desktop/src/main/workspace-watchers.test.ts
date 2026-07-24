@@ -109,6 +109,70 @@ describe("WorkspaceWatcherService subscriptions", () => {
     service.stop();
   });
 
+  it("keeps first-candidate callbacks hidden until generation one commits", async () => {
+    vi.useFakeTimers();
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-watch-bootstrap-generation-"));
+    const bootstrapRoot = path.join(root, "bootstrap");
+    const candidateRoot = path.join(root, "candidate");
+    await Promise.all([mkdir(bootstrapRoot), mkdir(candidateRoot)]);
+    const { callbacks, createWatcher } = fakeWatcherFactory();
+    const listener = vi.fn();
+    const service = new WorkspaceWatcherService(listener, { createWatcher });
+
+    service.start(workspaceForRoot(bootstrapRoot), 0);
+    const staged = service.stage(workspaceForRoot(candidateRoot), 1);
+    callbacks[1]!("change", "before-commit.md");
+    await vi.advanceTimersByTimeAsync(120);
+    expect(listener).not.toHaveBeenCalled();
+
+    staged.commit();
+    callbacks[1]!("change", "after-commit.md");
+    await vi.advanceTimersByTimeAsync(120);
+    expect(listener).toHaveBeenCalledWith({
+      rootPath: candidateRoot,
+      eventType: "change",
+      filePath: path.join(candidateRoot, "after-commit.md"),
+    });
+
+    service.stop();
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("drops callbacks from aborted and superseded candidate generations", async () => {
+    vi.useFakeTimers();
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-watch-superseded-generation-"));
+    const bootstrapRoot = path.join(root, "bootstrap");
+    const firstRoot = path.join(root, "first");
+    const secondRoot = path.join(root, "second");
+    await Promise.all([mkdir(bootstrapRoot), mkdir(firstRoot), mkdir(secondRoot)]);
+    const { callbacks, createWatcher } = fakeWatcherFactory();
+    const listener = vi.fn();
+    const service = new WorkspaceWatcherService(listener, { createWatcher });
+
+    service.start(workspaceForRoot(bootstrapRoot), 0);
+    const first = service.stage(workspaceForRoot(firstRoot), 1);
+    first.abort();
+    const second = service.stage(workspaceForRoot(secondRoot), 2);
+    callbacks[1]!("change", "aborted.md");
+    callbacks[2]!("change", "before-commit.md");
+    await vi.advanceTimersByTimeAsync(120);
+    expect(listener).not.toHaveBeenCalled();
+
+    second.commit();
+    callbacks[1]!("change", "superseded.md");
+    callbacks[2]!("change", "active.md");
+    await vi.advanceTimersByTimeAsync(120);
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith({
+      rootPath: secondRoot,
+      eventType: "change",
+      filePath: path.join(secondRoot, "active.md"),
+    });
+
+    service.stop();
+    await rm(root, { recursive: true, force: true });
+  });
+
   it("fails staging when a required Note Root cannot be watched", () => {
     const service = new WorkspaceWatcherService();
     expect(() => service.stage({
@@ -202,4 +266,17 @@ function workspaceForRoot(rootPath: string) {
     ...emptyWorkspace(rootPath),
     noteRoots: [{ id: "notes", label: "Notes", path: rootPath }],
   };
+}
+
+function fakeWatcherFactory() {
+  const callbacks: Array<(eventType: string, filename: string) => void> = [];
+  const createWatcher = vi.fn((
+    _rootPath: string,
+    _options: unknown,
+    callback: (eventType: string, filename: string) => void,
+  ) => {
+    callbacks.push(callback);
+    return { on: vi.fn(), close: vi.fn() };
+  }) as unknown as typeof import("node:fs").watch;
+  return { callbacks, createWatcher };
 }

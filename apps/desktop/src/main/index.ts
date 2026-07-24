@@ -54,6 +54,7 @@ import { runStandaloneGraphGpuProbe } from "./gpu-probe-runner";
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const sourceProjectRoot = resolveSourceProjectRoot();
 const gpuStartupPolicy = configureGpuStartup(app, process.env);
+const BOOTSTRAP_WORKSPACE_GENERATION = 0;
 
 if (process.env.EXO_USER_DATA_PATH) {
   app.setPath("userData", process.env.EXO_USER_DATA_PATH);
@@ -665,7 +666,7 @@ app.whenReady().then(async () => {
     // Onboarding has no persisted Workspace yet. It intentionally keeps the
     // small bootstrap runtime until the first settings save enters the same
     // coordinator path used by every later Workspace transition.
-    workspaceWatcherService.start(workspaceModel);
+    workspaceWatcherService.start(workspaceModel, BOOTSTRAP_WORKSPACE_GENERATION);
     void commandServerLifecycle.start().catch((error) => {
       console.error("Failed to start onboarding command server:", error);
       logMain("onboarding command server start failed", serializeError(error));

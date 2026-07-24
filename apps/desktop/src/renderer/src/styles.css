@@ -1740,6 +1740,10 @@ button svg,
 }
 
 .workspace-migration-notice > svg { color: var(--accent); flex: 0 0 auto; }
+.workspace-runtime-apply-notice {
+  border-color: color-mix(in srgb, var(--danger-text) 28%, var(--divider));
+}
+.workspace-runtime-apply-notice > svg { color: var(--danger-text); }
 .workspace-migration-notice > div { min-width: 0; display: grid; gap: 2px; }
 .workspace-migration-notice strong { color: var(--text); font-size: 12px; line-height: 1.2; }
 .workspace-migration-notice span { font-size: 11px; line-height: 1.35; }

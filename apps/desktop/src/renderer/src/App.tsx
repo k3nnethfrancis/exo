@@ -28,6 +28,7 @@ import { PathList } from "./components/PathList";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
+import { WorkspaceRuntimeApplyNotice } from "./components/WorkspaceRuntimeApplyNotice";
 import { AgentInvocationPromptEditor } from "./components/AgentInvocationPromptEditor";
 import { AgentIcon } from "./components/AgentIcon";
 import { useAppKeybindings } from "./hooks/useAppKeybindings";
@@ -224,7 +225,9 @@ export function App() {
     dialog: workspaceSettingsDialog,
     setDialog: setWorkspaceSettingsDialog,
     indexBusy,
+    runtimeApplyIssue,
     saveSettingsPatch,
+    retryRuntimeApply,
   } = workspaceSettingsController;
   useEffect(() => {
     if (!workspaceModel) return;
@@ -472,8 +475,24 @@ export function App() {
   async function dismissMainWikiMigrationNotice() {
     const settings = workspaceSettingsRef.current;
     if (!settings) return;
-    await saveSettingsPatch(acknowledgeMainWikiMigration(settings));
-    setMainWikiMigrationNotice(null);
+    try {
+      await saveSettingsPatch(acknowledgeMainWikiMigration(settings));
+      setMainWikiMigrationNotice(null);
+    } catch {
+      // The controller owns the visible recovery state.
+    }
+  }
+
+  function persistSettingsPatch(patch: Partial<WorkspaceSettings>) {
+    void saveSettingsPatch(patch).catch(() => {
+      // The controller owns the visible recovery state.
+    });
+  }
+
+  function retryWorkspaceSettings() {
+    void retryRuntimeApply().catch(() => {
+      // The controller keeps the current recovery state visible.
+    });
   }
 
   function applyPersistedLayout(layout: WorkspaceSettings["layout"] | undefined) {
@@ -506,14 +525,14 @@ export function App() {
 
   function updateAppearanceMode(nextMode: AppearanceMode) {
     setAppearanceMode(nextMode);
-    void workspaceSettingsController.saveSettingsPatch({ appearanceMode: nextMode });
+    persistSettingsPatch({ appearanceMode: nextMode });
   }
 
   function updateFocusedSurfaceZoom(direction: -1 | 0 | 1, surface = zoomSurface) {
     if (surface === "terminal") {
       setTerminalFontSize((current) => {
         const next = direction === 0 ? DEFAULT_TERMINAL_FONT_SIZE : clampNumber(current + direction, 10, 22);
-        void workspaceSettingsController.saveSettingsPatch({ terminalFontSize: next });
+        persistSettingsPatch({ terminalFontSize: next });
         return next;
       });
       return;
@@ -521,14 +540,14 @@ export function App() {
     if (surface === "explorer") {
       setExplorerScale((current) => {
         const next = direction === 0 ? DEFAULT_EXPLORER_SCALE : clampNumber(Number((current + direction * 0.06).toFixed(2)), 0.82, 1.35);
-        void workspaceSettingsController.saveSettingsPatch({ explorerScale: next });
+        persistSettingsPatch({ explorerScale: next });
         return next;
       });
       return;
     }
     setEditorFontSize((current) => {
       const next = direction === 0 ? DEFAULT_EDITOR_FONT_SIZE : clampNumber(current + direction, 11, 24);
-      void workspaceSettingsController.saveSettingsPatch({ editorFontSize: next });
+      persistSettingsPatch({ editorFontSize: next });
       return next;
     });
   }
@@ -1893,7 +1912,12 @@ export function App() {
       onDeletePath={(targetPath) => workspaceMutations.deleteWorkspacePath(targetPath)}
     />
 
-      {mainWikiMigrationNotice ? (
+      {runtimeApplyIssue ? (
+        <WorkspaceRuntimeApplyNotice
+          message={runtimeApplyIssue.message}
+          onRetry={retryWorkspaceSettings}
+        />
+      ) : mainWikiMigrationNotice ? (
         <aside className="workspace-migration-notice" data-testid="main-wiki-migration-notice" role="status">
           <Folder aria-hidden="true" size={16} strokeWidth={1.8} />
           <div>

@@ -31,12 +31,31 @@ interface UseWorkspaceSettingsControllerOptions {
   onSettingsSaved?: () => void | Promise<void>;
 }
 
+interface WorkspaceRuntimeApplyIssue {
+  message: string;
+}
+
 export function useWorkspaceSettingsController(options: UseWorkspaceSettingsControllerOptions) {
   const [dialog, setDialog] = useState<WorkspaceSettingsDialogState | null>(null);
   const [indexBusy, setIndexBusy] = useState<IndexBusyState>(null);
+  const [runtimeApplyIssue, setRuntimeApplyIssue] = useState<WorkspaceRuntimeApplyIssue | null>(null);
   const optionsRef = useRef(options);
+  const runtimeApplyIssueRef = useRef<{
+    issue: WorkspaceRuntimeApplyIssue;
+    patch: Partial<WorkspaceSettings>;
+  } | null>(null);
   const settingsSaveTailRef = useRef<Promise<void>>(Promise.resolve());
   const dialogSessionIdRef = useRef(0);
+  const publishRuntimeApplyIssue = useCallback((
+    pending: {
+      issue: WorkspaceRuntimeApplyIssue;
+      patch: Partial<WorkspaceSettings>;
+    } | null,
+  ) => {
+    runtimeApplyIssueRef.current = pending;
+    const issue = pending?.issue ?? null;
+    setRuntimeApplyIssue(issue);
+  }, []);
   const enqueueSettingsSave = useCallback((
     buildSettings: (baseSettings: WorkspaceSettings) => WorkspaceSettings,
     publishSavedSettings?: (saved: WorkspaceSettingsSaveOutcome) => Promise<void>,
@@ -66,16 +85,43 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     settingsSaveTailRef.current = result.then(() => undefined, () => undefined);
     return result;
   }, []);
-  const saveSettingsPatch = useCallback((patch: Partial<WorkspaceSettings>): Promise<void> =>
-    enqueueSettingsSave((baseSettings) => ({
-      ...baseSettings,
-      ...patch,
-    })).then((saved) => {
-      if (saved.runtimeApply.status === "failed") {
-        throw new Error(saved.runtimeApply.errorMessage);
-      }
-      void optionsRef.current.onSettingsSaved?.();
-    }), [enqueueSettingsSave]);
+  const saveSettingsPatch = useCallback(async (patch: Partial<WorkspaceSettings>): Promise<void> => {
+    let saved: WorkspaceSettingsSaveOutcome;
+    try {
+      saved = await enqueueSettingsSave((baseSettings) => ({
+        ...baseSettings,
+        ...patch,
+      }));
+    } catch (error) {
+      publishRuntimeApplyIssue({
+        issue: { message: error instanceof Error ? error.message : "Workspace settings could not be applied." },
+        patch,
+      });
+      throw error;
+    }
+
+    if (saved.runtimeApply.status === "failed") {
+      publishRuntimeApplyIssue({
+        issue: { message: saved.runtimeApply.errorMessage },
+        patch,
+      });
+      throw new Error(saved.runtimeApply.errorMessage);
+    }
+    if (saved.runtimeApply.status === "degraded") {
+      publishRuntimeApplyIssue({
+        issue: { message: saved.runtimeApply.errorMessage },
+        patch,
+      });
+    } else {
+      publishRuntimeApplyIssue(null);
+    }
+    await optionsRef.current.onSettingsSaved?.();
+  }, [enqueueSettingsSave, publishRuntimeApplyIssue]);
+  const retryRuntimeApply = useCallback(async (): Promise<void> => {
+    const pending = runtimeApplyIssueRef.current;
+    if (!pending) return;
+    await saveSettingsPatch(pending.patch);
+  }, [saveSettingsPatch]);
 
   useEffect(() => {
     optionsRef.current = options;
@@ -354,7 +400,9 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     dialog,
     setDialog,
     indexBusy,
+    runtimeApplyIssue,
     saveSettingsPatch,
+    retryRuntimeApply,
     openDialog,
     closeDialog,
     chooseFolder,

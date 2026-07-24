@@ -190,6 +190,88 @@ describe("workspace settings patch persistence", () => {
     expect(onSettingsSaved).toHaveBeenCalledOnce();
   });
 
+  it("retries a degraded patch through the current serialized revision", async () => {
+    let persistedSettings = workspaceSettings();
+    let persistedRevision = "revision-0";
+    const saveSettings = vi.fn(async (request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> => {
+      persistedSettings = request.settings;
+      persistedRevision = request.expectedRevision === "revision-0" ? "revision-1" : "revision-2";
+      return {
+        settings: persistedSettings,
+        revision: persistedRevision,
+        runtimeApply: request.expectedRevision === "revision-0"
+          ? { status: "degraded", errorMessage: "Command discovery needs recovery." }
+          : { status: "applied" },
+      };
+    });
+    vi.stubGlobal("window", workspaceWindow(persistedSettings, persistedRevision, saveSettings));
+    const settingsRef = { current: persistedSettings };
+    const revisionRef = { current: persistedRevision };
+    const controllerRef: { current: ReturnType<typeof useWorkspaceSettingsController> | null } = { current: null };
+    renderToStaticMarkup(
+      <WorkspaceSettingsControllerHarness
+        controllerRef={controllerRef}
+        options={{
+          workspaceSettingsRef: settingsRef,
+          workspaceSettingsRevisionRef: revisionRef,
+          applyWorkspaceSettings: vi.fn(),
+          refreshWorkspaceModel: vi.fn(async () => undefined),
+          setIndexStatus: vi.fn(),
+        }}
+      />,
+    );
+
+    await controllerRef.current!.saveSettingsPatch({ terminalFontSize: 14 });
+    await controllerRef.current!.retryRuntimeApply();
+
+    expect(saveSettings.mock.calls.map(([request]) => request.expectedRevision)).toEqual([
+      "revision-0",
+      "revision-1",
+    ]);
+    expect(saveSettings.mock.calls[1]?.[0].settings.terminalFontSize).toBe(14);
+  });
+
+  it("clears an older degraded retry after a later patch applies", async () => {
+    let persistedSettings = workspaceSettings();
+    let persistedRevision = "revision-0";
+    let saveCount = 0;
+    const saveSettings = vi.fn(async (request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> => {
+      saveCount += 1;
+      persistedSettings = request.settings;
+      persistedRevision = `revision-${saveCount}`;
+      return {
+        settings: persistedSettings,
+        revision: persistedRevision,
+        runtimeApply: saveCount === 1
+          ? { status: "degraded", errorMessage: "Command discovery needs recovery." }
+          : { status: "applied" },
+      };
+    });
+    vi.stubGlobal("window", workspaceWindow(persistedSettings, persistedRevision, saveSettings));
+    const settingsRef = { current: persistedSettings };
+    const revisionRef = { current: persistedRevision };
+    const controllerRef: { current: ReturnType<typeof useWorkspaceSettingsController> | null } = { current: null };
+    renderToStaticMarkup(
+      <WorkspaceSettingsControllerHarness
+        controllerRef={controllerRef}
+        options={{
+          workspaceSettingsRef: settingsRef,
+          workspaceSettingsRevisionRef: revisionRef,
+          applyWorkspaceSettings: vi.fn(),
+          refreshWorkspaceModel: vi.fn(async () => undefined),
+          setIndexStatus: vi.fn(),
+        }}
+      />,
+    );
+
+    await controllerRef.current!.saveSettingsPatch({ terminalFontSize: 14 });
+    await controllerRef.current!.saveSettingsPatch({ terminalFontSize: 15 });
+    await controllerRef.current!.retryRuntimeApply();
+
+    expect(saveSettings).toHaveBeenCalledTimes(2);
+    expect(settingsRef.current.terminalFontSize).toBe(15);
+  });
+
   it("queues dialog autosave before structural Apply and advances the revision", async () => {
     const firstSave = deferred<WorkspaceSettingsSaveOutcome>();
     const saveSettings = vi.fn()

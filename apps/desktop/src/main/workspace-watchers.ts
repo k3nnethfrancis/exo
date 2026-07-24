@@ -74,8 +74,8 @@ export class WorkspaceWatcherService {
     };
   }
 
-  start(model: WorkspaceModel): void {
-    this.stage(model).commit();
+  start(model: WorkspaceModel, workspaceGeneration = ++this.nextGeneration): void {
+    this.stage(model, workspaceGeneration).commit();
   }
 
   /**
