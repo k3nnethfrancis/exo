@@ -11,11 +11,19 @@ export class WorkspaceFiles {
   }
 
   async existing(targetPath: string): Promise<string> {
+    return (await this.resolveExisting(targetPath)).resolvedPath;
+  }
+
+  async existingIdentity(targetPath: string): Promise<string> {
+    return (await this.resolveExisting(targetPath)).canonicalPath;
+  }
+
+  private async resolveExisting(targetPath: string): Promise<{ resolvedPath: string; canonicalPath: string }> {
     const resolvedPath = this.absolutePath(targetPath);
     const candidateRoots = this.candidateRoots(resolvedPath);
     const canonicalPath = await realpath(resolvedPath);
     await assertWithinCanonicalRoot(candidateRoots, canonicalPath);
-    return resolvedPath;
+    return { resolvedPath, canonicalPath };
   }
 
   async writable(targetPath: string): Promise<string> {

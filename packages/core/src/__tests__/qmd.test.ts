@@ -83,6 +83,86 @@ describe("QMD index adapter", () => {
     expect(result.results.some((entry) => entry.title === "Focus")).toBe(true);
   });
 
+  it.each(["disabled QMD", "QMD-open failure"] as const)("keeps exact Indexed Root scope during %s filesystem fallback", async (failureMode) => {
+    const root = await fixtureRoot();
+    const docsPath = path.join(root, "docs");
+    const extraPath = path.join(root, "extra");
+    await Promise.all([mkdir(docsPath), mkdir(extraPath)]);
+    const notePath = path.join(root, "notes", "scope-note.md");
+    const docPath = path.join(docsPath, "scope-doc.md");
+    const extraFilePath = path.join(extraPath, "scope-extra.md");
+    await Promise.all([
+      writeFile(notePath, "# Fallback scope\nselected notes\n", "utf8"),
+      writeFile(docPath, "# Fallback scope\nselected docs\n", "utf8"),
+      writeFile(extraFilePath, "# Fallback scope\nnot indexed\n", "utf8"),
+    ]);
+    const model = {
+      ...resolveWorkspaceModel({
+        EXO_WORKSPACE_ROOT: root,
+        EXO_NOTE_ROOTS: [path.join(root, "notes"), docsPath, extraPath].join(path.delimiter),
+        EXO_PROJECT_ROOTS: "",
+      }),
+      indexedRoots: [
+        createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
+        createIndexedRoot(docsPath, { id: "index-docs", label: "docs", kind: "docs" }),
+      ],
+      indexing: failureMode === "disabled QMD"
+        ? { enabled: false, mode: "off" as const, backend: "qmd" as const }
+        : { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
+    };
+    if (failureMode === "QMD-open failure") {
+      createStoreError = new Error("simulated QMD open failure");
+    }
+    const cases = [
+      { rootIds: undefined, expected: [docPath, notePath] },
+      { rootIds: ["index-docs"], expected: [docPath] },
+      { rootIds: [] as string[], expected: [] as string[] },
+      { rootIds: ["missing"], expected: [] as string[] },
+      { rootIds: ["missing", "index-notes"], expected: [notePath] },
+    ];
+
+    for (const { rootIds, expected } of cases) {
+      const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "Fallback scope", { rootIds });
+      expect(result.source).toBe("filesystem");
+      expect(result.results.map((entry) => entry.filePath).sort()).toEqual(expected.slice().sort());
+      expect(result.results.map((entry) => entry.filePath)).not.toContain(extraFilePath);
+    }
+  });
+
+  it("keeps selected-root scope when QMD hydration failure falls back to filesystem search", async () => {
+    const root = await fixtureRoot();
+    const docsPath = path.join(root, "docs");
+    await mkdir(docsPath);
+    const docPath = path.join(docsPath, "focus-doc.md");
+    await writeFile(docPath, "# Focus docs\n", "utf8");
+    const model = {
+      ...resolveWorkspaceModel({
+        EXO_WORKSPACE_ROOT: root,
+        EXO_NOTE_ROOTS: [path.join(root, "notes"), docsPath].join(path.delimiter),
+        EXO_PROJECT_ROOTS: "",
+      }),
+      indexedRoots: [
+        createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
+        createIndexedRoot(docsPath, { id: "index-docs", label: "docs", kind: "docs" }),
+      ],
+      indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
+    };
+    searchLexResultsOverride = [qmdResult("qmd://notes/focus.md")];
+    readFileMock.mockRejectedValueOnce(new Error("simulated hydration read failure"));
+
+    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", {
+      rootIds: ["index-notes"],
+      includeContent: true,
+    });
+
+    expect(result.source).toBe("filesystem");
+    expect(result.warnings).toEqual([
+      "QMD search failed (simulated hydration read failure); using degraded filesystem search.",
+    ]);
+    expect(result.results.map((entry) => entry.filePath)).toEqual([path.join(root, "notes", "focus.md")]);
+    expect(result.results.map((entry) => entry.filePath)).not.toContain(docPath);
+  });
+
   it("routes lexical search through QMD collections", async () => {
     const root = await fixtureRoot();
     const indexedRoot = createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" });
@@ -99,38 +179,102 @@ describe("QMD index adapter", () => {
     const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
     expect(result.source).toBe("qmd");
-    expect(stores[0].searchLexCalls).toEqual([{ query: "focus", collection: "notes", limit: 11 }]);
+    expect(stores[0].searchLexCalls).toEqual([{ query: "focus", collection: "notes", limit: 12 }]);
     expect(result.results[0]).toMatchObject({ title: "Focus", source: "qmd" });
   });
 
-  it("refills lexical and vector streams independently during semantic search", async () => {
+  it("orders score ties by canonical identity beyond the first provider prefix", async () => {
     const root = await fixtureRoot();
-    const lexicalPaths = ["lex-a.md", "lex-b.md", "lex-c.md"].map((name) => path.join(root, "notes", name));
-    const vectorPaths = ["vec-a.md", "vec-b.md", "vec-c.md"].map((name) => path.join(root, "notes", name));
-    await Promise.all([...lexicalPaths, ...vectorPaths].map((filePath) => writeFile(filePath, "# Result\n", "utf8")));
+    const notePaths = ["a.md", "b.md", "c.md", "d.md"].map((name) => path.join(root, "notes", name));
+    await Promise.all(notePaths.map((filePath) => writeFile(filePath, "# Result\n", "utf8")));
     searchLexResultsOverride = [
-      qmdResult(path.join(root, "notes", "stale-lex.md"), 1),
-      ...lexicalPaths.map((filePath, index) => qmdResult(filePath, 0.95 - index / 10)),
+      qmdResult(notePaths[1], 1),
+      qmdResult(notePaths[2], 1),
+      qmdResult(notePaths[0], 1),
+      qmdResult(notePaths[3], 0.5),
+    ];
+
+    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", { limit: 2 });
+
+    expect(result.results.map((entry) => entry.filePath)).toEqual(notePaths.slice(0, 2));
+    expect(result.hasMore).toBe(true);
+    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([4]);
+  });
+
+  it("deduplicates canonical identities across lexical and vector cursor pages", async () => {
+    const root = await fixtureRoot();
+    const notePaths = ["a.md", "b.md", "c.md", "d.md", "e.md", "f.md", "g.md", "h.md", "i.md", "j.md", "k.md"].map((name) => path.join(root, "notes", name));
+    await Promise.all(notePaths.map((filePath) => writeFile(filePath, "# Result\n", "utf8")));
+    const aliasPath = path.join(root, "notes", "alias-a.md");
+    await symlink(notePaths[0], aliasPath);
+    searchLexResultsOverride = [
+      qmdResult(aliasPath, 0.95),
+      qmdResult(notePaths[2], 0.9),
+      qmdResult(notePaths[3], 0.88),
+      qmdResult(notePaths[4], 0.8),
+      qmdResult(notePaths[5], 0.7),
+      qmdResult(notePaths[6], 0.6),
     ];
     searchVectorResultsOverride = [
-      qmdResult(path.join(root, "notes", "stale-vector.md"), 0.98),
-      ...vectorPaths.map((filePath, index) => qmdResult(filePath, 0.9 - index / 10)),
+      qmdResult(notePaths[0], 0.94),
+      qmdResult(notePaths[1], 0.92),
+      qmdResult(notePaths[7], 0.87),
+      qmdResult(notePaths[8], 0.79),
+      qmdResult(notePaths[9], 0.69),
+      qmdResult(notePaths[10], 0.59),
     ];
     storeStatusOverride = {
-      totalDocuments: 6,
+      totalDocuments: 11,
       needsEmbedding: 0,
       hasVectorIndex: true,
-      collections: [{ name: "notes", documents: 6, lastUpdated: "2026-05-15T00:00:00.000Z" }],
+      collections: [{ name: "notes", documents: 11, lastUpdated: "2026-05-15T00:00:00.000Z" }],
     };
 
-    const result = await qmdSearchProvider.search(indexedModel(root, "semantic"), path.join(root, ".exo"), "result", { limit: 2 });
+    const model = indexedModel(root, "semantic");
+    const firstPage = await qmdSearchProvider.search(model, path.join(root, ".exo"), "result", { limit: 2 });
+    const secondPage = await qmdSearchProvider.search(model, path.join(root, ".exo"), "result", {
+      limit: 2,
+      offset: firstPage.results.length,
+    });
+    expect(firstPage.results.map((entry) => entry.filePath)).toEqual([aliasPath, notePaths[1]]);
+    expect(firstPage.results[0].score).toBe(0.95);
+    expect(firstPage.hasMore).toBe(true);
+    expect(secondPage.results.map((entry) => entry.filePath)).toEqual([notePaths[2], notePaths[3]]);
+    expect(secondPage.hasMore).toBe(true);
+    const combined = [...firstPage.results, ...secondPage.results];
+    expect(new Set(combined.map((entry) => entry.filePath === aliasPath ? notePaths[0] : entry.filePath)).size).toBe(4);
+    expect(stores.flatMap((store) => store.searchCalls)).toEqual([]);
+    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([4]);
+    expect(stores[0].searchVectorCalls.map((call) => call.limit)).toEqual([4]);
+    expect(stores[1].searchLexCalls.map((call) => call.limit)).toEqual([6]);
+    expect(stores[1].searchVectorCalls.map((call) => call.limit)).toEqual([6]);
+  });
 
-    expect(result.mode).toBe("semantic");
-    expect(result.results.map((entry) => entry.filePath)).toEqual([lexicalPaths[0], vectorPaths[0]]);
-    expect(result.hasMore).toBe(true);
-    expect(result.warnings).toEqual(["Dropped 2 invalid or stale QMD results."]);
-    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([3, 6]);
-    expect(stores[0].searchVectorCalls.map((call) => call.limit)).toEqual([3, 6]);
+  it("returns the available terminal semantic page from QMD's short vector horizon", async () => {
+    const root = await fixtureRoot();
+    const notePaths = ["a.md", "b.md", "c.md"].map((name) => path.join(root, "notes", name));
+    await Promise.all(notePaths.map((filePath) => writeFile(filePath, "# Result\n", "utf8")));
+    searchLexResultsOverride = [qmdResult(notePaths[0], 0.9)];
+    searchVectorResultsOverride = [
+      qmdResult(notePaths[1], 0.8),
+      qmdResult(notePaths[2], 0.7),
+    ];
+    storeStatusOverride = {
+      totalDocuments: 3,
+      needsEmbedding: 0,
+      hasVectorIndex: true,
+      collections: [{ name: "notes", documents: 3, lastUpdated: "2026-05-15T00:00:00.000Z" }],
+    };
+
+    const result = await qmdSearchProvider.search(indexedModel(root, "semantic"), path.join(root, ".exo"), "result", {
+      limit: 2,
+      offset: 2,
+    });
+
+    expect(result.results.map((entry) => entry.filePath)).toEqual([notePaths[2]]);
+    expect(result.hasMore).toBe(false);
+    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([6]);
+    expect(stores[0].searchVectorCalls.map((call) => call.limit)).toEqual([6]);
   });
 
   it("refills a successful hybrid stream before computing pagination", async () => {
@@ -154,7 +298,7 @@ describe("QMD index adapter", () => {
     expect(result.results.map((entry) => entry.filePath)).toEqual(notePaths.slice(0, 2));
     expect(result.hasMore).toBe(true);
     expect(result.warnings).toEqual(["Dropped 1 invalid or stale QMD result."]);
-    expect(stores[0].searchCalls.map((call) => call.limit)).toEqual([3, 6]);
+    expect(stores[0].searchCalls.map((call) => call.limit)).toEqual([4, 8]);
   });
 
   it.each(["semantic", "hybrid"] as const)("refills a fresh lexical stream when %s search falls back", async (mode) => {
@@ -182,11 +326,11 @@ describe("QMD index adapter", () => {
       `${mode[0].toUpperCase()}${mode.slice(1)} search is not ready (no vectors); using lexical search.`,
       "Dropped 1 invalid or stale QMD result.",
     ]);
-    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual(mode === "semantic" ? [3, 3, 6] : [3, 6]);
+    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual(mode === "semantic" ? [4, 4, 8] : [4, 8]);
     if (mode === "semantic") {
-      expect(stores[0].searchVectorCalls.map((call) => call.limit)).toEqual([3]);
+      expect(stores[0].searchVectorCalls.map((call) => call.limit)).toEqual([4]);
     } else {
-      expect(stores[0].searchCalls.map((call) => call.limit)).toEqual([3]);
+      expect(stores[0].searchCalls.map((call) => call.limit)).toEqual([4]);
     }
   });
 
@@ -253,8 +397,8 @@ describe("QMD index adapter", () => {
     expect(new Set([...firstPage.results, ...secondPage.results].map((entry) => entry.filePath)).size).toBe(4);
     expect(firstPage.warnings.filter((warning) => warning.includes("invalid or stale QMD"))).toEqual(["Dropped 1 invalid or stale QMD result."]);
     expect(secondPage.warnings.filter((warning) => warning.includes("invalid or stale QMD"))).toEqual(["Dropped 1 invalid or stale QMD result."]);
-    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([3, 6]);
-    expect(stores[1].searchLexCalls.map((call) => call.limit)).toEqual([5, 10]);
+    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([4, 8]);
+    expect(stores[1].searchLexCalls.map((call) => call.limit)).toEqual([6]);
     expect(readFileMock).not.toHaveBeenCalledWith(stalePath, "utf8");
     expect(firstPage.results.every((entry) => includeContent ? typeof entry.content === "string" : entry.content === undefined)).toBe(true);
   });
@@ -265,15 +409,15 @@ describe("QMD index adapter", () => {
     await Promise.all(notePaths.map((filePath, index) => writeFile(filePath, `# Result ${index + 1}\n`, "utf8")));
     searchLexResultsOverride = notePaths.map((filePath, index) => qmdResult(filePath, 1 - index / 10));
 
-    const originalExisting = WorkspaceFiles.prototype.existing;
+    const originalExistingIdentity = WorkspaceFiles.prototype.existingIdentity;
     const authorityCalls = new Map<string, number>();
-    vi.spyOn(WorkspaceFiles.prototype, "existing").mockImplementation(async function (this: WorkspaceFiles, targetPath: string) {
+    vi.spyOn(WorkspaceFiles.prototype, "existingIdentity").mockImplementation(async function (this: WorkspaceFiles, targetPath: string) {
       const callCount = (authorityCalls.get(targetPath) ?? 0) + 1;
       authorityCalls.set(targetPath, callCount);
       if (targetPath === notePaths[1] && callCount % 2 === 0) {
         throw new Error("simulated path change before hydration");
       }
-      return originalExisting.call(this, targetPath);
+      return originalExistingIdentity.call(this, targetPath);
     });
 
     const firstPage = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", {
@@ -295,8 +439,8 @@ describe("QMD index adapter", () => {
     expect(new Set([...firstPage.results, ...secondPage.results].map((entry) => entry.filePath)).size).toBe(4);
     expect(firstPage.warnings.filter((warning) => warning.includes("invalid or stale QMD"))).toEqual(["Dropped 1 invalid or stale QMD result."]);
     expect(secondPage.warnings.filter((warning) => warning.includes("invalid or stale QMD"))).toEqual(["Dropped 1 invalid or stale QMD result."]);
-    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([3, 6]);
-    expect(stores[1].searchLexCalls.map((call) => call.limit)).toEqual([5, 10]);
+    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([4, 8]);
+    expect(stores[1].searchLexCalls.map((call) => call.limit)).toEqual([6]);
     expect(readFileMock).not.toHaveBeenCalledWith(notePaths[1], "utf8");
   });
 
@@ -311,30 +455,38 @@ describe("QMD index adapter", () => {
     expect(result.results.map((entry) => entry.filePath)).toEqual(notePaths);
     expect(result.hasMore).toBe(false);
     expect(result.warnings).toEqual([]);
-    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([3]);
+    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([4]);
   });
 
-  it("surfaces incomplete results when hydration rejection reaches the hard per-stream scan bound", async () => {
+  it("preserves deep cursor offsets beyond the post-filter refill slack", async () => {
     const root = await fixtureRoot();
-    const cappedPaths = Array.from({ length: 101 }, (_, index) => path.join(root, "notes", `capped-${index}.md`));
+    const notePaths = Array.from({ length: 122 }, (_, index) => path.join(root, "notes", `deep-${String(index).padStart(3, "0")}.md`));
+    await Promise.all(notePaths.map((filePath) => writeFile(filePath, "# Deep result\n", "utf8")));
+    searchLexResultsOverride = notePaths.map((filePath, index) => qmdResult(filePath, 1 - index / 1000));
+    const model = indexedModel(root, "lexical");
+
+    const sixthPage = await qmdSearchProvider.search(model, path.join(root, ".exo"), "deep", { limit: 20, offset: 100 });
+    const seventhPage = await qmdSearchProvider.search(model, path.join(root, ".exo"), "deep", { limit: 20, offset: 120 });
+
+    expect(sixthPage.results.map((entry) => entry.filePath)).toEqual(notePaths.slice(100, 120));
+    expect(sixthPage.hasMore).toBe(true);
+    expect(seventhPage.results.map((entry) => entry.filePath)).toEqual(notePaths.slice(120));
+    expect(seventhPage.hasMore).toBe(false);
+    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([122]);
+    expect(stores[1].searchLexCalls.map((call) => call.limit)).toEqual([142]);
+  });
+
+  it("throws without fallback when a provider stream exhausts its relative refill budget", async () => {
+    const root = await fixtureRoot();
+    const cappedPaths = Array.from({ length: 104 }, (_, index) => path.join(root, "notes", `capped-${index}.md`));
     searchLexResultsOverride = cappedPaths.map((filePath, index) => qmdResult(filePath, 1 - index / 1000));
-    const authorityCalls = new Map<string, number>();
-    vi.spyOn(WorkspaceFiles.prototype, "existing").mockImplementation(async (targetPath: string) => {
-      const callCount = (authorityCalls.get(targetPath) ?? 0) + 1;
-      authorityCalls.set(targetPath, callCount);
-      if (callCount % 2 === 0) {
-        throw new Error("simulated path change before hydration");
-      }
-      return targetPath;
-    });
 
     await expect(qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", {
-      includeContent: true,
       limit: 2,
     })).rejects.toThrow(
-      "QMD search reached the hard scan limit of 100 results in a provider stream before finding enough authorized results or proving exhaustion.",
+      "QMD search exhausted its bounded refill budget of 100 additional results in a provider stream before finding enough authorized results or proving exhaustion.",
     );
-    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([3, 6, 12, 24, 48, 96, 100]);
+    expect(stores[0].searchLexCalls.map((call) => call.limit)).toEqual([4, 8, 16, 32, 64, 103]);
     expect(readFileMock).not.toHaveBeenCalled();
   });
 
@@ -389,18 +541,17 @@ describe("QMD index adapter", () => {
     expect(secondPage.warnings).toEqual(["Dropped 2 invalid or stale QMD results."]);
     expect(thirdPage.warnings).toEqual(["Dropped 2 invalid or stale QMD results."]);
     expect(stores[0].searchLexCalls).toEqual([
-      { query: "result", collection: "notes", limit: 3 },
-      { query: "result", collection: "docs", limit: 3 },
-      { query: "result", collection: "notes", limit: 6 },
+      { query: "result", collection: "notes", limit: 4 },
+      { query: "result", collection: "docs", limit: 4 },
+      { query: "result", collection: "notes", limit: 8 },
     ]);
     expect(stores[1].searchLexCalls).toEqual([
-      { query: "result", collection: "notes", limit: 5 },
-      { query: "result", collection: "docs", limit: 5 },
-      { query: "result", collection: "notes", limit: 10 },
+      { query: "result", collection: "notes", limit: 6 },
+      { query: "result", collection: "docs", limit: 6 },
     ]);
     expect(stores[2].searchLexCalls).toEqual([
-      { query: "result", collection: "notes", limit: 7 },
-      { query: "result", collection: "docs", limit: 7 },
+      { query: "result", collection: "notes", limit: 8 },
+      { query: "result", collection: "docs", limit: 8 },
     ]);
   });
 

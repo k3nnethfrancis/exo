@@ -29,14 +29,15 @@ describe("minimal Exo operator CLI", () => {
     expect(output).toContain("exo.search.v1");
   });
 
-  it("advances two search pages by returned rows through the CLI-owned cursor", async () => {
+  it("advances through page six and offset 100 with the CLI-owned cursor", async () => {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-cursor-"));
-    const resultPaths = ["a.md", "b.md", "c.md", "d.md"].map((name) => path.join(workspaceRoot, name));
+    const resultPaths = Array.from({ length: 120 }, (_, index) =>
+      path.join(workspaceRoot, `result-${String(index).padStart(3, "0")}.md`));
     const offsets: number[] = [];
     const pagingClient = {
       ...client,
       search: async (query: string, options: { limit?: number; offset?: number } = {}) => {
-        const limit = options.limit ?? 2;
+        const limit = options.limit ?? 20;
         const offset = options.offset ?? 0;
         offsets.push(offset);
         const results = resultPaths.slice(offset, offset + limit).map((filePath, index) => ({
@@ -64,36 +65,37 @@ describe("minimal Exo operator CLI", () => {
     };
 
     try {
-      let firstOutput = "";
-      await runCli(["node", "exo", "search", "result", "--limit", "2"], {
-        env,
-        stdout: { write: (text) => { firstOutput += text; } },
-        stderr: { write: () => {} },
-        connectAppClient: async () => pagingClient,
-      });
-      const firstPage = JSON.parse(firstOutput) as {
-        page: { returned: number; next_cursor: string | null };
-        results: Array<{ path: string }>;
-      };
-      expect(firstPage.page).toMatchObject({ returned: 2, next_cursor: expect.any(String) });
+      let cursor: string | null = null;
+      const seenPaths: string[] = [];
+      for (let pageIndex = 0; pageIndex < 6; pageIndex += 1) {
+        let output = "";
+        await runCli([
+          "node",
+          "exo",
+          "search",
+          "result",
+          "--limit",
+          "20",
+          ...(cursor ? ["--cursor", cursor] : []),
+        ], {
+          env,
+          stdout: { write: (text) => { output += text; } },
+          stderr: { write: () => {} },
+          connectAppClient: async () => pagingClient,
+        });
+        const page = JSON.parse(output) as {
+          page: { returned: number; next_cursor: string | null };
+          results: Array<{ path: string }>;
+        };
+        seenPaths.push(...page.results.map((result) => result.path));
+        cursor = page.page.next_cursor;
+        expect(page.page.returned).toBe(20);
+        expect(page.page.next_cursor).toEqual(pageIndex === 5 ? null : expect.any(String));
+      }
 
-      let secondOutput = "";
-      await runCli(["node", "exo", "search", "result", "--limit", "2", "--cursor", firstPage.page.next_cursor!], {
-        env,
-        stdout: { write: (text) => { secondOutput += text; } },
-        stderr: { write: () => {} },
-        connectAppClient: async () => pagingClient,
-      });
-      const secondPage = JSON.parse(secondOutput) as {
-        page: { returned: number; next_cursor: string | null };
-        results: Array<{ path: string }>;
-      };
-
-      expect(offsets).toEqual([0, 2]);
-      expect(firstPage.results.map((result) => result.path)).toEqual(resultPaths.slice(0, 2));
-      expect(secondPage.results.map((result) => result.path)).toEqual(resultPaths.slice(2));
-      expect(secondPage.page).toEqual({ limit: 2, returned: 2, next_cursor: null });
-      expect(new Set([...firstPage.results, ...secondPage.results].map((result) => result.path)).size).toBe(4);
+      expect(offsets).toEqual([0, 20, 40, 60, 80, 100]);
+      expect(seenPaths).toEqual(resultPaths);
+      expect(new Set(seenPaths).size).toBe(120);
     } finally {
       await rm(workspaceRoot, { recursive: true, force: true });
     }

@@ -23,17 +23,28 @@ interface QmdEmbedOptions {
   maxDurationMs?: number;
 }
 
-type QmdStreamFetch = (limit: number) => Promise<unknown[]>;
+interface QmdStream {
+  fetch: (limit: number) => Promise<unknown[]>;
+  /** Scan limit after which a short provider response terminates this adapter stream. Null keeps it ambiguous. */
+  shortResultTerminalScanLimit: number | null;
+}
+
+interface QmdResultCandidate {
+  identity: string;
+  result: IndexSearchResult;
+}
 
 interface FilteredQmdResults {
-  results: IndexSearchResult[];
+  results: QmdResultCandidate[];
   rejectedCount: number;
 }
 
 interface QmdStreamState {
-  fetch: QmdStreamFetch;
+  stream: QmdStream;
   scanLimit: number;
+  maxScanLimit: number;
   rawResults: unknown[];
+  boundaryScore: number | null;
   filtered: FilteredQmdResults;
   exhausted: boolean;
   complete: boolean;
@@ -48,14 +59,14 @@ class QmdStreamQueryError extends Error {
 
 class QmdSearchIncompleteError extends Error {
   constructor() {
-    super(`QMD search reached the hard scan limit of ${MAX_QMD_SCAN_RESULTS_PER_STREAM} results in a provider stream before finding enough authorized results or proving exhaustion.`);
+    super(`QMD search exhausted its bounded refill budget of ${MAX_QMD_REFILL_SLACK_PER_STREAM} additional results in a provider stream before finding enough authorized results or proving exhaustion.`);
     this.name = "QmdSearchIncompleteError";
   }
 }
 
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_CONTENT_LINES = 80;
-const MAX_QMD_SCAN_RESULTS_PER_STREAM = 100;
+const MAX_QMD_REFILL_SLACK_PER_STREAM = 100;
 const QMD_DIRECTORY_NAME = "qmd";
 
 export const qmdSearchProviderMetadata: SearchProviderMetadata = {
@@ -292,38 +303,51 @@ async function searchIndex(
     };
   }
 
+  const selectedRoots = selectIndexedRoots(model.indexedRoots, options.rootIds);
+  const filesystemFallbackModel = scopedFilesystemFallbackModel(model, selectedRoots, options.rootIds);
   if (!shouldUseQmd(model)) {
-    return searchFilesystem(model, trimmedQuery, options, "QMD is unavailable; showing Simple search results.");
+    return searchFilesystem(filesystemFallbackModel, trimmedQuery, options, "QMD is unavailable; showing Simple search results.");
   }
 
   let store: QmdStore | null = null;
   try {
     const qmdStore = await openQmdStore(model, runtimeRoot);
     store = qmdStore;
-    const selectedRoots = selectIndexedRoots(model.indexedRoots, options.rootIds);
     const collections = selectedRoots.map(collectionName);
     const indexedRootFiles = new WorkspaceFiles(selectedRoots.map((root) => root.path));
     const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
     const offset = Math.max(0, options.offset ?? 0);
     const targetResultCount = offset + limit + 1;
     const warnings: string[] = [];
-    const lexicalStreams = (): QmdStreamFetch[] => collections.map(
-      (collection) => (scanLimit) => qmdStore.searchLex(trimmedQuery, { limit: scanLimit, collection }),
-    );
-
     const effectiveMode = options.forceMode ?? model.indexing.mode;
     let actualMode = effectiveMode;
-    if (effectiveMode !== "lexical") {
-      try {
-        const qmdStatus = await qmdStore.getStatus();
-        const pendingEmbeddings = Number(qmdStatus.needsEmbedding ?? 0);
-        if (!Boolean(qmdStatus.hasVectorIndex) || pendingEmbeddings > 0) {
-          warnings.push("Embeddings are not ready; Exo will use lexical fallback if semantic/hybrid search is unavailable.");
-        }
-      } catch {
-        // Status warnings are best-effort; the actual query fallback below remains authoritative.
+    let lexicalExhaustionScanLimit: number | null = null;
+    try {
+      const qmdStatus = await qmdStore.getStatus();
+      const totalDocuments = Number(qmdStatus.totalDocuments ?? 0);
+      if (Number.isSafeInteger(totalDocuments) && totalDocuments >= 0) {
+        // QMD collection FTS scans 10× the requested limit globally before applying
+        // its collection filter. Once that window covers every indexed document,
+        // a short collection result is a truthful exhaustion signal.
+        lexicalExhaustionScanLimit = Math.ceil(totalDocuments / 10);
       }
+      const pendingEmbeddings = Number(qmdStatus.needsEmbedding ?? 0);
+      if (
+        effectiveMode !== "lexical"
+        && (!Boolean(qmdStatus.hasVectorIndex) || pendingEmbeddings > 0)
+      ) {
+        warnings.push("Embeddings are not ready; Exo will use lexical fallback if semantic/hybrid search is unavailable.");
+      }
+    } catch {
+      // Status warnings and lexical exhaustion bounds are best-effort. A stream
+      // without proof keeps refilling until its relative budget fails closed.
     }
+    const lexicalStreams = (): QmdStream[] => collections.map(
+      (collection) => ({
+        fetch: (scanLimit) => qmdStore.searchLex(trimmedQuery, { limit: scanLimit, collection }),
+        shortResultTerminalScanLimit: lexicalExhaustionScanLimit,
+      }),
+    );
 
     let filteredResults: FilteredQmdResults;
     if (effectiveMode === "lexical") {
@@ -340,8 +364,14 @@ async function searchIndex(
           [
             ...lexicalStreams(),
             ...collections.map(
-              (collection): QmdStreamFetch =>
-                (scanLimit) => qmdStore.searchVector(trimmedQuery, { limit: scanLimit, collection }),
+              (collection): QmdStream => ({
+                fetch: (scanLimit) => qmdStore.searchVector(trimmedQuery, { limit: scanLimit, collection }),
+                // QMD vector search exposes an approximate, collection-filtered
+                // candidate horizon rather than an exact cursor. A short response
+                // is terminal for that provider query; semantic pagination is
+                // therefore best-effort over QMD's shipped ranked set.
+                shortResultTerminalScanLimit: 0,
+              }),
             ),
           ],
           targetResultCount,
@@ -369,14 +399,16 @@ async function searchIndex(
       try {
         filteredResults = await refillQmdStreams(
           collections.map(
-            (collection): QmdStreamFetch =>
-              (scanLimit) => qmdStore.search({
+            (collection): QmdStream => ({
+              fetch: (scanLimit) => qmdStore.search({
                 query: trimmedQuery,
                 collections: [collection],
                 limit: scanLimit,
                 intent: options.intent,
                 rerank: true,
               }),
+              shortResultTerminalScanLimit: 0,
+            }),
           ),
           targetResultCount,
           selectedRoots,
@@ -401,8 +433,10 @@ async function searchIndex(
       }
     }
 
-    const pageableResults = filteredResults.results.sort((left, right) => right.score - left.score);
-    const results = pageableResults.slice(offset, offset + limit);
+    const pageableResults = deduplicateQmdCandidates(filteredResults.results);
+    const results = pageableResults
+      .slice(offset, offset + limit)
+      .map((candidate) => candidate.result);
 
     if (filteredResults.rejectedCount > 0) {
       warnings.push(droppedQmdResultWarning(filteredResults.rejectedCount));
@@ -422,14 +456,14 @@ async function searchIndex(
     }
     // If QMD cannot open at all, keep basic workspace search usable. This fallback is intentionally
     // degraded and warning-bearing; admin/status paths should still surface the underlying QMD issue.
-    return searchFilesystem(model, trimmedQuery, options, qmdFallbackWarning(error));
+    return searchFilesystem(filesystemFallbackModel, trimmedQuery, options, qmdFallbackWarning(error));
   } finally {
     await store?.close();
   }
 }
 
 async function refillQmdStreams(
-  streams: readonly QmdStreamFetch[],
+  streams: readonly QmdStream[],
   targetResultCount: number,
   roots: IndexedRoot[],
   indexedRootFiles: WorkspaceFiles,
@@ -439,14 +473,18 @@ async function refillQmdStreams(
     return { results: [], rejectedCount: 0 };
   }
 
-  const requiredResultCount = Number.isFinite(targetResultCount)
-    ? Math.max(1, Math.ceil(targetResultCount))
-    : MAX_QMD_SCAN_RESULTS_PER_STREAM + 1;
-  const initialScanLimit = Math.min(requiredResultCount, MAX_QMD_SCAN_RESULTS_PER_STREAM);
-  const states: QmdStreamState[] = streams.map((fetch) => ({
-    fetch,
+  const roundedTarget = Math.ceil(targetResultCount);
+  const requiredResultCount = Number.isSafeInteger(roundedTarget)
+    ? Math.max(1, roundedTarget)
+    : Number.MAX_SAFE_INTEGER;
+  const maxScanLimit = safeAdd(requiredResultCount, MAX_QMD_REFILL_SLACK_PER_STREAM);
+  const initialScanLimit = safeAdd(requiredResultCount, 1);
+  const states: QmdStreamState[] = streams.map((stream) => ({
+    stream,
     scanLimit: initialScanLimit,
+    maxScanLimit,
     rawResults: [],
+    boundaryScore: null,
     filtered: { results: [], rejectedCount: 0 },
     exhausted: false,
     complete: false,
@@ -455,7 +493,7 @@ async function refillQmdStreams(
   while (states.some((state) => !state.complete)) {
     const activeStates = states.filter((state) => !state.complete);
     const queryResults = await Promise.allSettled(
-      activeStates.map((state) => state.fetch(state.scanLimit)),
+      activeStates.map((state) => state.stream.fetch(state.scanLimit)),
     );
     const queryFailure = queryResults.find((result) => result.status === "rejected");
     if (queryFailure?.status === "rejected") {
@@ -469,7 +507,10 @@ async function refillQmdStreams(
       }
       const state = activeStates[index];
       state.rawResults = queryResult.value.slice(0, state.scanLimit);
-      state.exhausted = queryResult.value.length < state.scanLimit;
+      state.boundaryScore = qmdRawResultScore(state.rawResults.at(-1));
+      state.exhausted = queryResult.value.length < state.scanLimit
+        && state.stream.shortResultTerminalScanLimit !== null
+        && state.scanLimit >= state.stream.shortResultTerminalScanLimit;
     }
 
     const filteredResults = await Promise.all(
@@ -480,12 +521,12 @@ async function refillQmdStreams(
     for (let index = 0; index < activeStates.length; index += 1) {
       const state = activeStates[index];
       state.filtered = filteredResults[index];
-      if (state.filtered.results.length >= requiredResultCount || state.exhausted) {
+      if (state.exhausted || hasCompleteOrderedPrefix(state, requiredResultCount)) {
         state.complete = true;
-      } else if (state.scanLimit >= MAX_QMD_SCAN_RESULTS_PER_STREAM) {
+      } else if (state.scanLimit >= state.maxScanLimit) {
         reachedIncompleteCap = true;
       } else {
-        state.scanLimit = Math.min(state.scanLimit * 2, MAX_QMD_SCAN_RESULTS_PER_STREAM);
+        state.scanLimit = Math.min(safeAdd(state.scanLimit, state.scanLimit), state.maxScanLimit);
       }
     }
     if (reachedIncompleteCap) {
@@ -499,6 +540,20 @@ async function refillQmdStreams(
   };
 }
 
+function hasCompleteOrderedPrefix(state: QmdStreamState, requiredResultCount: number): boolean {
+  if (state.filtered.results.length < requiredResultCount || state.boundaryScore === null) {
+    return false;
+  }
+  const cutoffScore = state.filtered.results[requiredResultCount - 1]?.result.score;
+  return cutoffScore !== undefined && state.boundaryScore < cutoffScore;
+}
+
+function safeAdd(left: number, right: number): number {
+  return left > Number.MAX_SAFE_INTEGER - right
+    ? Number.MAX_SAFE_INTEGER
+    : left + right;
+}
+
 async function filterQmdStreamResults(
   rawResults: unknown[],
   roots: IndexedRoot[],
@@ -509,20 +564,22 @@ async function filterQmdStreamResults(
     .map((result) => mapQmdResult(result, roots))
     .filter((result): result is IndexSearchResult => result !== null);
   const authorizedResults = await Promise.all(
-    mappedResults.map(async (result) =>
-      (await isAuthorizedIndexedRootPath(indexedRootFiles, result.filePath)) ? result : null),
+    mappedResults.map(async (result) => {
+      const identity = await authorizedIndexedRootIdentity(indexedRootFiles, result.filePath);
+      return identity ? { identity, result } : null;
+    }),
   );
   let rejectedCount = rawResults.length
     - mappedResults.length
     + authorizedResults.filter((result) => result === null).length;
-  let results = authorizedResults.filter((result): result is IndexSearchResult => result !== null);
+  let results = authorizedResults.filter((result): result is QmdResultCandidate => result !== null);
 
   if (options.includeContent) {
     const hydratedResults = await Promise.all(
-      results.map(async (result) => ({
-        result,
+      results.map(async (candidate) => ({
+        candidate,
         content: await readAuthorizedBoundedContent(
-          result.filePath,
+          candidate.result.filePath,
           indexedRootFiles,
           options.maxLinesPerResult ?? DEFAULT_CONTENT_LINES,
         ),
@@ -530,11 +587,17 @@ async function filterQmdStreamResults(
     );
     rejectedCount += hydratedResults.filter(({ content }) => content === null).length;
     results = hydratedResults
-      .filter((entry): entry is { result: IndexSearchResult; content: string } => entry.content !== null)
-      .map(({ result, content }) => ({ ...result, content }));
+      .filter((entry): entry is {
+        candidate: QmdResultCandidate;
+        content: { body: string; identity: string };
+      } => entry.content !== null)
+      .map(({ candidate, content }) => ({
+        identity: content.identity,
+        result: { ...candidate.result, content: content.body },
+      }));
   }
 
-  return { results, rejectedCount };
+  return { results: deduplicateQmdCandidates(results), rejectedCount };
 }
 
 async function readIndexDocument(
@@ -641,6 +704,25 @@ function selectIndexedRoots(roots: IndexedRoot[], rootIds: string[] | undefined)
   return roots.filter((root) => selectedIds.has(root.id));
 }
 
+function scopedFilesystemFallbackModel(
+  model: WorkspaceModel,
+  selectedRoots: IndexedRoot[],
+  rootIds: string[] | undefined,
+): WorkspaceModel {
+  if (rootIds === undefined && model.indexedRoots.length === 0) {
+    return model;
+  }
+  return {
+    ...model,
+    noteRoots: selectedRoots.map((root) => ({
+      id: root.id,
+      label: root.label,
+      path: root.path,
+    })),
+    indexedRoots: selectedRoots,
+  };
+}
+
 function collectionName(root: IndexedRoot): string {
   return root.id.replace(/^index-/, "") || root.label;
 }
@@ -666,6 +748,35 @@ function mapQmdResult(rawResult: unknown, roots: IndexedRoot[]): IndexSearchResu
     docid: stringValue(result.docid) ? `#${String(result.docid).replace(/^#/, "")}` : undefined,
     source: "qmd",
   };
+}
+
+function qmdRawResultScore(rawResult: unknown): number | null {
+  if (!rawResult || typeof rawResult !== "object") {
+    return null;
+  }
+  return numberValue((rawResult as Record<string, unknown>).score);
+}
+
+function deduplicateQmdCandidates(candidates: QmdResultCandidate[]): QmdResultCandidate[] {
+  const byIdentity = new Map<string, QmdResultCandidate>();
+  for (const candidate of candidates) {
+    const existing = byIdentity.get(candidate.identity);
+    if (!existing || compareQmdCandidates(candidate, existing) < 0) {
+      byIdentity.set(candidate.identity, candidate);
+    }
+  }
+  return [...byIdentity.values()].sort(compareQmdCandidates);
+}
+
+function compareQmdCandidates(left: QmdResultCandidate, right: QmdResultCandidate): number {
+  return right.result.score - left.result.score
+    || compareText(left.identity, right.identity)
+    || compareText(left.result.filePath, right.result.filePath)
+    || compareText(left.result.docid ?? "", right.result.docid ?? "");
+}
+
+function compareText(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function resolveQmdPath(displayPath: string | null, roots: IndexedRoot[]): string | null {
@@ -702,15 +813,34 @@ async function isAuthorizedIndexedRootPath(indexedRootFiles: WorkspaceFiles, tar
   }
 }
 
+async function authorizedIndexedRootIdentity(
+  indexedRootFiles: WorkspaceFiles,
+  targetPath: string,
+): Promise<string | null> {
+  try {
+    return await indexedRootFiles.existingIdentity(targetPath);
+  } catch {
+    return null;
+  }
+}
+
 function isDocid(value: string): boolean {
   return /^#[a-zA-Z0-9]+$/.test(value.trim());
 }
 
-async function readAuthorizedBoundedContent(filePath: string, indexedRootFiles: WorkspaceFiles, maxLines: number): Promise<string | null> {
-  if (!(await isAuthorizedIndexedRootPath(indexedRootFiles, filePath))) {
+async function readAuthorizedBoundedContent(
+  filePath: string,
+  indexedRootFiles: WorkspaceFiles,
+  maxLines: number,
+): Promise<{ body: string; identity: string } | null> {
+  const identity = await authorizedIndexedRootIdentity(indexedRootFiles, filePath);
+  if (!identity) {
     return null;
   }
-  return sliceLines(await readFile(filePath, "utf8"), undefined, maxLines);
+  return {
+    body: sliceLines(await readFile(filePath, "utf8"), undefined, maxLines),
+    identity,
+  };
 }
 
 function droppedQmdResultWarning(count: number): string {
