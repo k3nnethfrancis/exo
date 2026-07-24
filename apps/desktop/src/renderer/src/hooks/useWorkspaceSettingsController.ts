@@ -40,22 +40,20 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
   const [indexBusy, setIndexBusy] = useState<IndexBusyState>(null);
   const [runtimeApplyIssue, setRuntimeApplyIssue] = useState<WorkspaceRuntimeApplyIssue | null>(null);
   const optionsRef = useRef(options);
-  const runtimeApplyIssueRef = useRef<{
-    issue: WorkspaceRuntimeApplyIssue;
-    patch: Partial<WorkspaceSettings>;
-  } | null>(null);
+  const runtimeApplyIssueRef = useRef<WorkspaceRuntimeApplyIssue | null>(null);
   const settingsSaveTailRef = useRef<Promise<void>>(Promise.resolve());
   const dialogSessionIdRef = useRef(0);
-  const publishRuntimeApplyIssue = useCallback((
-    pending: {
-      issue: WorkspaceRuntimeApplyIssue;
-      patch: Partial<WorkspaceSettings>;
-    } | null,
-  ) => {
-    runtimeApplyIssueRef.current = pending;
-    const issue = pending?.issue ?? null;
+  const publishRuntimeApplyIssue = useCallback((issue: WorkspaceRuntimeApplyIssue | null) => {
+    runtimeApplyIssueRef.current = issue;
     setRuntimeApplyIssue(issue);
   }, []);
+  const reconcileRuntimeApply = useCallback((saved: WorkspaceSettingsSaveOutcome) => {
+    if (saved.runtimeApply.status === "applied") {
+      publishRuntimeApplyIssue(null);
+      return;
+    }
+    publishRuntimeApplyIssue({ message: saved.runtimeApply.errorMessage });
+  }, [publishRuntimeApplyIssue]);
   const enqueueSettingsSave = useCallback((
     buildSettings: (baseSettings: WorkspaceSettings) => WorkspaceSettings,
     publishSavedSettings?: (saved: WorkspaceSettingsSaveOutcome) => Promise<void>,
@@ -94,34 +92,34 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       }));
     } catch (error) {
       publishRuntimeApplyIssue({
-        issue: { message: error instanceof Error ? error.message : "Workspace settings could not be applied." },
-        patch,
+        message: error instanceof Error ? error.message : "Workspace settings could not be applied.",
       });
       throw error;
     }
 
-    if (saved.runtimeApply.status === "failed") {
-      publishRuntimeApplyIssue({
-        issue: { message: saved.runtimeApply.errorMessage },
-        patch,
-      });
-      throw new Error(saved.runtimeApply.errorMessage);
-    }
-    if (saved.runtimeApply.status === "degraded") {
-      publishRuntimeApplyIssue({
-        issue: { message: saved.runtimeApply.errorMessage },
-        patch,
-      });
-    } else {
-      publishRuntimeApplyIssue(null);
+    reconcileRuntimeApply(saved);
+    if (saved.runtimeApply.status === "failed") throw new Error(saved.runtimeApply.errorMessage);
+    await optionsRef.current.onSettingsSaved?.();
+  }, [enqueueSettingsSave, publishRuntimeApplyIssue, reconcileRuntimeApply]);
+  const retryRuntimeApply = useCallback(async (): Promise<void> => {
+    // A Retry click can race a newer save that is already queued. Let that
+    // save settle first: if it applies, it clears this issue and recovery must
+    // not replay or supersede it.
+    await settingsSaveTailRef.current;
+    if (!runtimeApplyIssueRef.current) return;
+    const saved = await enqueueSettingsSave((currentSettings) => currentSettings);
+    reconcileRuntimeApply(saved);
+    if (saved.runtimeApply.status === "failed") throw new Error(saved.runtimeApply.errorMessage);
+    optionsRef.current.applyWorkspaceSettings(saved.settings);
+    await optionsRef.current.refreshWorkspaceModel();
+    try {
+      optionsRef.current.setIndexStatus(await window.exo.workspace.getIndexStatus());
+    } catch (error) {
+      console.warn("[exo] failed to refresh search status", error);
+      optionsRef.current.setIndexStatus(null);
     }
     await optionsRef.current.onSettingsSaved?.();
-  }, [enqueueSettingsSave, publishRuntimeApplyIssue]);
-  const retryRuntimeApply = useCallback(async (): Promise<void> => {
-    const pending = runtimeApplyIssueRef.current;
-    if (!pending) return;
-    await saveSettingsPatch(pending.patch);
-  }, [saveSettingsPatch]);
+  }, [enqueueSettingsSave, reconcileRuntimeApply]);
 
   useEffect(() => {
     optionsRef.current = options;
@@ -314,6 +312,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
           }
         },
       );
+      reconcileRuntimeApply(saved);
       if (saved.runtimeApply.status === "failed") {
         const runtimeApplyErrorMessage = saved.runtimeApply.errorMessage;
         setDialog((current) => {
