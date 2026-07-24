@@ -17,19 +17,17 @@ const screenshotOptions = {
 } as const;
 
 async function cycleAppearanceTo(page: Page, targetMode: "system" | "light" | "dark") {
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    const currentMode = await page.locator("html").getAttribute("data-appearance-mode");
-    if (currentMode === targetMode) {
-      return;
-    }
-
-    if (!(await page.getByTestId("workspace-appearance").isVisible().catch(() => false))) {
-      await page.getByTestId("workspace-menu-button").click();
-    }
-    await page.getByTestId("workspace-appearance").click();
+  const currentMode = await page.locator("html").getAttribute("data-appearance-mode");
+  if (currentMode === targetMode) {
+    return;
   }
 
-  throw new Error(`Unable to reach appearance mode ${targetMode}.`);
+  await page.getByTestId("workspace-menu-toggle").click();
+  await page.getByTestId("workspace-menu-settings").click();
+  await page.getByTestId("workspace-settings-tab-appearance").click();
+  await page.getByTestId("workspace-settings-appearance").selectOption(targetMode);
+  await expect(page.locator("html")).toHaveAttribute("data-appearance-mode", targetMode);
+  await page.getByTestId("workspace-settings-close").click();
 }
 
 test("captures the default workspace shell", async () => {
@@ -40,22 +38,22 @@ test("captures the default workspace shell", async () => {
   await cleanup();
 });
 
-test("captures terminal pane with agent tabs", async () => {
+test("captures terminal pane with shell tabs", async () => {
   const { page, cleanup } = await launchExoTerminalFixture();
   await cycleAppearanceTo(page, "dark");
-  await page.getByTestId("launch-claude").click();
-  await page.getByTestId("launch-codex").click();
+  await page.getByTestId("new-terminal").click();
+  await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
   await settleForScreenshot(page);
-  await expect(page).toHaveScreenshot("workspace-terminal-agents.png", screenshotOptions);
+  await expect(page).toHaveScreenshot("workspace-terminal-tabs.png", screenshotOptions);
   await cleanup();
 });
 
-test("captures the expanded project roots drawer", async () => {
+test("captures the expanded workspace menu", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture();
   await cycleAppearanceTo(page, "dark");
-  await page.getByTestId("project-roots-toggle").click();
+  await page.getByTestId("workspace-menu-toggle").click();
   await settleForScreenshot(page);
-  await expect(page).toHaveScreenshot("workspace-project-roots-expanded.png", screenshotOptions);
+  await expect(page).toHaveScreenshot("workspace-menu-expanded.png", screenshotOptions);
   await cleanup();
 });
 
