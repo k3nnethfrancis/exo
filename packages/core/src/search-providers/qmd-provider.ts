@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile } from "node:fs/promises";
+import { access, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { IndexReadOptions, IndexSearchOptions, IndexUpdateOptions, SearchProvider, SearchProviderMetadata } from "../search-provider";
@@ -69,6 +69,14 @@ const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_CONTENT_LINES = 80;
 const MAX_QMD_REFILL_SLACK_PER_STREAM = 100;
 const QMD_DIRECTORY_NAME = "qmd";
+const QMD_PENDING_COLLECTION_REINDEX_FILE = "pending-collection-reindex";
+
+class QmdCollectionConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "QmdCollectionConfigurationError";
+  }
+}
 
 export const qmdSearchProviderMetadata: SearchProviderMetadata = {
   id: "qmd",
@@ -454,7 +462,7 @@ async function searchIndex(
       hasMore: pageableResults.length > offset + results.length,
     };
   } catch (error) {
-    if (error instanceof QmdSearchIncompleteError) {
+    if (error instanceof QmdSearchIncompleteError || error instanceof QmdCollectionConfigurationError) {
       throw error;
     }
     // If QMD cannot open at all, keep basic workspace search usable. This fallback is intentionally
@@ -652,31 +660,35 @@ async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise
   await mkdir(getQmdRuntimePath(runtimeRoot), { recursive: true });
   const qmd = await import("@tobilu/qmd");
   const collections = qmdCollectionIdentity(model.indexedRoots);
+  await assertDistinctQmdPhysicalOwners(model.indexedRoots);
+  const collectionConfig = qmdCollectionConfig(model.indexedRoots, collections);
   const rootsNeedingReindex = await rootsNeedingQmdCollectionReindex(qmd, runtimeRoot, model.indexedRoots, collections);
+  const hasPendingReindex = await hasPendingQmdCollectionReindex(runtimeRoot);
+  if (rootsNeedingReindex.length > 0 && !hasPendingReindex) {
+    // Publish recovery state before QMD applies the new collection config. If
+    // this process stops after that sync, the next open conservatively rebuilds
+    // every current root rather than trusting partially migrated documents.
+    await writePendingQmdCollectionReindex(runtimeRoot);
+  }
   const store = await qmd.createStore({
     dbPath: getQmdDbPath(runtimeRoot),
     config: {
       global_context: "Exo-managed QMD search provider. Indexed roots are explicitly selected by the user.",
-      collections: Object.fromEntries(
-        model.indexedRoots.map((root) => [
-          collections.nameFor(root),
-          {
-            path: root.path,
-            pattern: root.pattern,
-            ignore: root.ignore,
-            context: {
-              "/": `${root.kind} root: ${root.label}`,
-            },
-          },
-        ]),
-      ),
+      collections: collectionConfig,
     },
   });
-  if (rootsNeedingReindex.length > 0) {
+  if (rootsNeedingReindex.length > 0 || hasPendingReindex) {
     // QMD 2.5.3 syncs inline collection configuration but does not transfer
-    // document collection names. Reindex only roots whose existing configured
-    // collection name changed for that same path.
-    await store.update({ collections: rootsNeedingReindex.map((root) => collections.nameFor(root)) });
+    // document collection names. A pending marker is deliberately only a
+    // presence bit: after interrupted work, rebuild every *current* root so
+    // root additions/removals cannot leave a shadow registry to reconcile.
+    try {
+      await store.update({ collections: model.indexedRoots.map((root) => collections.nameFor(root)) });
+      await clearPendingQmdCollectionReindex(runtimeRoot);
+    } catch (error) {
+      await store.close();
+      throw error;
+    }
   }
   return store;
 }
@@ -758,6 +770,67 @@ function qmdCollectionName(root: IndexedRoot): string {
     .digest("hex")}`;
 }
 
+function qmdCollectionConfig(
+  roots: IndexedRoot[],
+  collections: QmdCollectionIdentity,
+): Record<string, { path: string; pattern: string; ignore: string[]; context: Record<string, string> }> {
+  const entries = roots.map((root) => [
+    collections.nameFor(root),
+    {
+      path: root.path,
+      pattern: root.pattern,
+      ignore: root.ignore,
+      context: { "/": `${root.kind} root: ${root.label}` },
+    },
+  ] as const);
+  const rootsByName = new Map<string, IndexedRoot[]>();
+  for (const [name, root] of entries.map(([name], index) => [name, roots[index]] as const)) {
+    const group = rootsByName.get(name) ?? [];
+    group.push(root);
+    rootsByName.set(name, group);
+  }
+  for (const [name, group] of rootsByName) {
+    if (group.length > 1) {
+      throw new QmdCollectionConfigurationError(
+        `QMD collection identity ${name} is shared by configured Indexed Roots ${group.map((root) => `${root.id} (${root.path})`).join(", ")}. Configure one policy per root path.`,
+      );
+    }
+  }
+  return Object.fromEntries(entries);
+}
+
+async function assertDistinctQmdPhysicalOwners(roots: IndexedRoot[]): Promise<void> {
+  const files = new WorkspaceFiles(roots.map((root) => root.path));
+  const identities = await Promise.all(roots.map(async (root) => {
+    try {
+      return { root, identity: await files.existingIdentity(root.path) };
+    } catch (error) {
+      if (isMissingFilesystemPath(error)) {
+        // Missing paths have no truthful physical identity. Exact lexical
+        // duplicates remain caught by qmdCollectionConfig below.
+        return { root, identity: null };
+      }
+      throw error;
+    }
+  }));
+  const rootsByIdentity = new Map<string, IndexedRoot[]>();
+  for (const { root, identity } of identities) {
+    if (!identity) {
+      continue;
+    }
+    const group = rootsByIdentity.get(identity) ?? [];
+    group.push(root);
+    rootsByIdentity.set(identity, group);
+  }
+  for (const [identity, group] of rootsByIdentity) {
+    if (group.length > 1) {
+      throw new QmdCollectionConfigurationError(
+        `QMD physical root identity ${identity} is shared by configured Indexed Roots ${group.map((root) => `${root.id} (${root.path})`).join(", ")}. Configure one policy per physical root.`,
+      );
+    }
+  }
+}
+
 async function rootsNeedingQmdCollectionReindex(
   qmd: QmdModule,
   runtimeRoot: string,
@@ -771,12 +844,63 @@ async function rootsNeedingQmdCollectionReindex(
   try {
     store = await qmd.createStore({ dbPath: getQmdDbPath(runtimeRoot) });
     const existing = await store.listCollections();
-    return roots.filter((root) => existing.some((collection) =>
-      path.resolve(collection.pwd) === path.resolve(root.path)
-      && collection.name !== collections.nameFor(root)));
+    const reindex = await Promise.all(roots.map(async (root) => {
+      const matches = await Promise.all(existing
+        .filter((collection) => collection.name !== collections.nameFor(root))
+        .map((collection) => existingQmdCollectionMatchesRoot(collection.pwd, root)));
+      return matches.some(Boolean) ? root : null;
+    }));
+    return reindex.filter((root): root is IndexedRoot => root !== null);
   } finally {
     await store?.close();
   }
+}
+
+async function existingQmdCollectionMatchesRoot(storedPath: string, root: IndexedRoot): Promise<boolean> {
+  if (path.resolve(storedPath) === path.resolve(root.path)) {
+    return true;
+  }
+  // WorkspaceFiles owns the canonical realpath containment policy. Comparing
+  // each candidate as a configured root keeps this migration check from
+  // inventing a second filesystem-identity rule.
+  const files = new WorkspaceFiles([root.path, storedPath]);
+  try {
+    const [rootIdentity, storedIdentity] = await Promise.all([
+      files.existingIdentity(root.path),
+      files.existingIdentity(storedPath),
+    ]);
+    return rootIdentity === storedIdentity;
+  } catch (error) {
+    if (isMissingFilesystemPath(error)) {
+      // A missing legacy path cannot truthfully prove a physical alias. The
+      // equal-lexical-path case returned above remains the narrow fallback.
+      return false;
+    }
+    throw error;
+  }
+}
+
+function pendingQmdCollectionReindexPath(runtimeRoot: string): string {
+  return path.join(getQmdRuntimePath(runtimeRoot), QMD_PENDING_COLLECTION_REINDEX_FILE);
+}
+
+async function hasPendingQmdCollectionReindex(runtimeRoot: string): Promise<boolean> {
+  return pathExists(pendingQmdCollectionReindexPath(runtimeRoot));
+}
+
+async function writePendingQmdCollectionReindex(runtimeRoot: string): Promise<void> {
+  const markerPath = pendingQmdCollectionReindexPath(runtimeRoot);
+  const temporaryPath = `${markerPath}.tmp`;
+  await writeFile(temporaryPath, "", "utf8");
+  await rename(temporaryPath, markerPath);
+}
+
+async function clearPendingQmdCollectionReindex(runtimeRoot: string): Promise<void> {
+  await rm(pendingQmdCollectionReindexPath(runtimeRoot), { force: true });
+}
+
+function isMissingFilesystemPath(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && "code" in error && ((error as NodeJS.ErrnoException).code === "ENOENT" || (error as NodeJS.ErrnoException).code === "ENOTDIR");
 }
 
 function mapQmdResult(rawResult: unknown, collections: QmdCollectionIdentity): IndexSearchResult | null {

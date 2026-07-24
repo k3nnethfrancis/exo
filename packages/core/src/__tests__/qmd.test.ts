@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -19,6 +19,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 const stores: MockStore[] = [];
 const tempPaths: string[] = [];
 let createStoreError: Error | null = null;
+let updateError: Error | null = null;
 let searchLexResultsOverride: unknown[] | null = null;
 const searchLexResultsByCollection = new Map<string, unknown[]>();
 let searchVectorResultsOverride: unknown[] | null = null;
@@ -49,6 +50,7 @@ afterEach(async () => {
   vi.restoreAllMocks();
   stores.splice(0);
   createStoreError = null;
+  updateError = null;
   searchLexResultsOverride = null;
   searchLexResultsByCollection.clear();
   searchVectorResultsOverride = null;
@@ -198,6 +200,97 @@ describe("QMD index adapter", () => {
 
     expect(stores).toHaveLength(2);
     expect(stores[1].updateOptions).toEqual([]);
+    expect(await fileExists(pendingQmdCollectionReindexPath(root))).toBe(false);
+  });
+
+  it("rejects duplicate collection identities instead of collapsing root policies", async () => {
+    const root = await fixtureRoot();
+    const notesPath = path.join(root, "notes");
+    const first = createIndexedRoot(notesPath, { id: "first", label: "first", kind: "notes", pattern: "**/*.md", ignore: ["first/**"] });
+    const second = createIndexedRoot(notesPath, { id: "second", label: "second", kind: "docs", pattern: "**/*.md", ignore: ["second/**"] });
+    const model = { ...indexedModel(root, "lexical"), indexedRoots: [first, second] };
+
+    await expect(qmdSearchProvider.search(model, path.join(root, ".exo"), "focus")).rejects.toThrow("QMD physical root identity");
+    await expect(qmdSearchProvider.update(model, path.join(root, ".exo"))).rejects.toThrow("QMD physical root identity");
+    expect(stores).toEqual([]);
+  });
+
+  it("rejects current symlink aliases of the same physical QMD root", async () => {
+    const root = await fixtureRoot();
+    const physicalPath = path.join(root, "notes");
+    const aliasPath = path.join(root, "notes-alias");
+    await symlink(physicalPath, aliasPath);
+    const physical = createIndexedRoot(physicalPath, { id: "physical", label: "physical", kind: "notes" });
+    const alias = createIndexedRoot(aliasPath, { id: "alias", label: "alias", kind: "docs" });
+    const model = { ...indexedModel(root, "lexical"), indexedRoots: [physical, alias] };
+
+    await expect(qmdSearchProvider.search(model, path.join(root, ".exo"), "focus")).rejects.toThrow("QMD physical root identity");
+    await expect(qmdSearchProvider.update(model, path.join(root, ".exo"))).rejects.toThrow("QMD physical root identity");
+    expect(stores).toEqual([]);
+  });
+
+  it("migrates a physical legacy collection to a current symlink root once", async () => {
+    const root = await fixtureRoot();
+    const physicalPath = path.join(root, "notes");
+    const aliasPath = path.join(root, "notes-alias");
+    await symlink(physicalPath, aliasPath);
+    await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
+    await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
+    existingQmdCollections = [{ name: "legacy-physical", pwd: physicalPath }];
+    existingQmdDocumentCollections = ["legacy-physical"];
+    const aliasRoot = createIndexedRoot(aliasPath, { id: "index-notes", label: "notes", kind: "notes" });
+    const model = { ...indexedModel(root, "lexical"), indexedRoots: [aliasRoot] };
+
+    const first = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+
+    const migratedStore = stores[1];
+    const aliasCollection = configuredCollectionForPath(migratedStore, aliasPath);
+    expect(migratedStore.updateOptions).toEqual([{ collections: [aliasCollection] }]);
+    expect(migratedStore.visibleDocumentCollectionsBeforeUpdates).toEqual([[]]);
+    expect(first.results.map((entry) => entry.filePath)).toEqual([path.join(aliasPath, "focus.md")]);
+
+    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+
+    expect(stores[3].updateOptions).toEqual([]);
+  });
+
+  it("retries an interrupted migration against all current roots and clears its marker", async () => {
+    const root = await fixtureRoot();
+    const physicalPath = path.join(root, "notes");
+    const aliasPath = path.join(root, "notes-alias");
+    const docsPath = path.join(root, "docs");
+    const projectsPath = path.join(root, "projects");
+    await symlink(physicalPath, aliasPath);
+    await Promise.all([mkdir(docsPath), mkdir(projectsPath)]);
+    await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
+    await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
+    existingQmdCollections = [{ name: "legacy-physical", pwd: physicalPath }];
+    const aliasRoot = createIndexedRoot(aliasPath, { id: "index-notes", label: "notes", kind: "notes" });
+    const legacyModel = { ...indexedModel(root, "lexical"), indexedRoots: [aliasRoot] };
+    updateError = new Error("simulated reindex failure");
+
+    const failed = await qmdSearchProvider.search(legacyModel, path.join(root, ".exo"), "focus");
+    expect(failed.source).toBe("filesystem");
+    expect(stores[1].updateCalls).toBe(1);
+    expect(await fileExists(pendingQmdCollectionReindexPath(root))).toBe(true);
+
+    const docsRoot = createIndexedRoot(docsPath, { id: "index-docs", label: "docs", kind: "docs" });
+    const projectsRoot = createIndexedRoot(projectsPath, { id: "index-projects", label: "projects", kind: "docs" });
+    const currentModel = { ...indexedModel(root, "lexical"), indexedRoots: [docsRoot, projectsRoot] };
+
+    updateError = null;
+    const retried = await qmdSearchProvider.search(currentModel, path.join(root, ".exo"), "focus");
+    expect(retried.source).toBe("qmd");
+    expect(stores[3].updateOptions).toEqual([{
+      collections: [
+        configuredCollectionForPath(stores[3], docsPath),
+        configuredCollectionForPath(stores[3], projectsPath),
+      ],
+    }]);
+    expect(await fileExists(pendingQmdCollectionReindexPath(root))).toBe(false);
+
+    await qmdSearchProvider.search(currentModel, path.join(root, ".exo"), "focus");
+    expect(stores[5].updateCalls).toBe(0);
   });
 
   it("keeps colliding root IDs independently configured, searchable, updatable, and resolvable", async () => {
@@ -346,7 +439,12 @@ describe("QMD index adapter", () => {
     await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
     const configuredStore = stores[1];
-    expect(configuredStore.updateOptions).toEqual([{ collections: [configuredCollectionForPath(configuredStore, secondPath)] }]);
+    expect(configuredStore.updateOptions).toEqual([{
+      collections: [
+        configuredCollectionForPath(configuredStore, firstPath),
+        configuredCollectionForPath(configuredStore, secondPath),
+      ],
+    }]);
     expect(configuredCollectionForPath(configuredStore, secondPath)).not.toBe("duplicate");
     expect(configuredStore.visibleDocumentCollectionsBeforeUpdates).toEqual([[]]);
     expect(existingQmdCollections.map((collection) => collection.name)).toEqual(Object.keys(configuredStore.config.collections));
@@ -1197,6 +1295,9 @@ class MockStore {
     this.visibleDocumentCollectionsBeforeUpdates.push(
       existingQmdDocumentCollections.filter((collection) => collections.includes(collection)),
     );
+    if (updateError) {
+      throw updateError;
+    }
   }
 
   async embed(options?: unknown) {
@@ -1241,4 +1342,15 @@ function configuredCollectionForPath(store: MockStore, rootPath: string): string
     .find(([, config]) => path.resolve(config.path) === path.resolve(rootPath))?.[0];
   expect(collection).toMatch(/^[A-Za-z0-9_-]+$/);
   return collection!;
+}
+
+function pendingQmdCollectionReindexPath(root: string): string {
+  return path.join(root, ".exo", "qmd", "pending-collection-reindex");
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  return access(filePath).then(
+    () => true,
+    () => false,
+  );
 }
