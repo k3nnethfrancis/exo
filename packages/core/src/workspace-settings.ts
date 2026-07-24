@@ -6,6 +6,7 @@ import path from "node:path";
 
 import type { IndexMode, LegacyWorkspaceLayoutSettings, WorkspaceCanvasLayoutSettings, WorkspaceLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
 import { normalizeAgentCommands, normalizeAgentInvocationPrompt } from "./agent-invocation";
+import { isPathWithinRoot } from "./path-containment";
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
 import { normalizeMigrationMetadata } from "./workspace-migration";
 
@@ -463,13 +464,18 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
         if (!entry || typeof entry !== "object" || typeof entry.path !== "string" || !entry.path.trim()) {
           return roots;
         }
-        const root = createIndexedRoot(entry.path, {
-          id: typeof entry.id === "string" ? entry.id : `index-root-${index + 1}`,
-          label: typeof entry.label === "string" ? entry.label : undefined,
-          kind: entry.kind === "notes" || entry.kind === "docs" || entry.kind === "code" || entry.kind === "mixed" ? entry.kind : "mixed",
-          pattern: typeof entry.pattern === "string" ? entry.pattern : undefined,
-          ignore: Array.isArray(entry.ignore) ? entry.ignore.filter((item): item is string => typeof item === "string") : [],
-        });
+        const root: WorkspaceSettings["indexedRoots"][number] = {
+          // Indexed Root settings are serialized user data. Preserve future
+          // root-local fields while normalizing the fields this version owns.
+          ...entry,
+          ...createIndexedRoot(entry.path, {
+            id: typeof entry.id === "string" ? entry.id : `index-root-${index + 1}`,
+            label: typeof entry.label === "string" ? entry.label : undefined,
+            kind: entry.kind === "notes" || entry.kind === "docs" || entry.kind === "code" || entry.kind === "mixed" ? entry.kind : "mixed",
+            pattern: typeof entry.pattern === "string" ? entry.pattern : undefined,
+            ignore: Array.isArray(entry.ignore) ? entry.ignore.filter((item): item is string => typeof item === "string") : [],
+          }),
+        };
         // Match IndexingService.addRoot: the later complete policy replaces an
         // exact resolved-path owner and moves to the end of survivor order.
         return [...roots.filter((candidate) => candidate.path !== root.path), root];
@@ -536,11 +542,6 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     layout: normalizeWorkspaceLayout(input.layout),
     ...(migrationMetadata ? { migrationMetadata } : {}),
   };
-}
-
-function isPathWithinRoot(rootPath: string, targetPath: string): boolean {
-  const relative = path.relative(path.resolve(rootPath), path.resolve(targetPath));
-  return relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..");
 }
 
 /** Paths dropped by the Note-Root-only settings migration. Kept separate from

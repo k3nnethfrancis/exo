@@ -4,6 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createDefaultClaudeAgentCommand } from "../agent-invocation";
+import type { WorkspaceSettings } from "../types";
 import {
   loadWorkspaceSettings,
   listWorkspaceRegistryEntries,
@@ -537,12 +538,30 @@ describe("workspace settings registry", () => {
   it("preserves configured and future settings across load, edit, save, and reload", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-lossless-settings-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };
-    const initialSettings = {
+    const initialSettings: WorkspaceSettings & {
+      indexedRoots: Array<WorkspaceSettings["indexedRoots"][number] & {
+        opaqueRootOptions: { version: number; includeDrafts: boolean };
+      }>;
+      futureSettings: { version: number; preferences: string[] };
+      piHarness: { command: string };
+    } = {
       workspaceRoot: "/tmp/exo-lossless/notes",
       defaultTerminalCwd: "/tmp/exo-lossless",
       noteRoots: ["/tmp/exo-lossless/notes"],
       projectRoots: [],
-      indexedRoots: [],
+      indexedRoots: [{
+        id: "index-lossless",
+        label: "Lossless notes",
+        path: "/tmp/exo-lossless/notes",
+        kind: "notes",
+        pattern: "**/*.md",
+        ignore: [],
+        backend: "qmd",
+        opaqueRootOptions: {
+          version: 2,
+          includeDrafts: true,
+        },
+      }],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
       appearanceMode: "system",
       colorThemeId: "exo-neutral",
@@ -578,9 +597,6 @@ describe("workspace settings registry", () => {
       piHarness: {
         command: "/opt/retired-pi",
       },
-    } as Parameters<typeof saveWorkspaceSettings>[0] & {
-      futureSettings: { version: number; preferences: string[] };
-      piHarness: { command: string };
     };
 
     try {
@@ -597,6 +613,12 @@ describe("workspace settings registry", () => {
         layout: initialSettings.layout,
         futureSettings: initialSettings.futureSettings,
         piHarness: initialSettings.piHarness,
+        indexedRoots: [{
+          opaqueRootOptions: {
+            version: 2,
+            includeDrafts: true,
+          },
+        }],
       });
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
