@@ -189,10 +189,10 @@ class DirectInvocationProcess implements InvocationProcess {
   private async stopProcessGroup(): Promise<void> {
     if (this.exitEvent) return;
     if (this.finalizationError) throw this.finalizationError;
-    signalProcessGroup(this.child, "SIGTERM");
+    if (!await signalProcessGroupOrObserveExit(this.child, "SIGTERM", this.stopGraceMs)) return;
     if (await closesWithin(this.closed, this.stopGraceMs)) return;
     if (this.finalizationError) throw this.finalizationError;
-    signalProcessGroup(this.child, "SIGKILL");
+    if (!await signalProcessGroupOrObserveExit(this.child, "SIGKILL", this.stopGraceMs)) return;
     if (!await closesWithin(this.closed, this.stopGraceMs)) {
       if (this.finalizationError) throw this.finalizationError;
       throw new Error("Invocation process group did not exit after forced termination.");
@@ -258,11 +258,32 @@ function signalProcessGroup(child: ChildProcess, signal: NodeJS.Signals): void {
 
 async function terminateResidualProcessGroup(child: ChildProcess, graceMs: number): Promise<void> {
   if (!processGroupExists(child)) return;
-  signalProcessGroup(child, "SIGTERM");
+  if (!await signalProcessGroupOrObserveExit(child, "SIGTERM", graceMs)) return;
   if (await processGroupExitsWithin(child, graceMs)) return;
-  signalProcessGroup(child, "SIGKILL");
+  if (!await signalProcessGroupOrObserveExit(child, "SIGKILL", graceMs)) return;
   if (!await processGroupExitsWithin(child, graceMs)) {
     throw new Error("Invocation descendants remained after forced process-group termination.");
+  }
+}
+
+/**
+ * A natural exit can race a Stop request on macOS: probing the process group
+ * succeeds while the kernel is reaping it, but the subsequent signal returns
+ * EPERM. Wait for that short reaping window before surfacing a real ownership
+ * problem; never silently ignore a group that remains alive.
+ */
+async function signalProcessGroupOrObserveExit(
+  child: ChildProcess,
+  signal: NodeJS.Signals,
+  graceMs: number,
+): Promise<boolean> {
+  try {
+    signalProcessGroup(child, signal);
+    return true;
+  } catch (error) {
+    if (!isNodeErrorCode(error, "EPERM")) throw error;
+    if (await processGroupExitsWithin(child, graceMs)) return false;
+    throw error;
   }
 }
 
