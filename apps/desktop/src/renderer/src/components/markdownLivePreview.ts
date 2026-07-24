@@ -1,5 +1,5 @@
 import { type Extension, RangeSetBuilder, StateEffect, StateField, type Text, Transaction } from "@codemirror/state";
-import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { LIST_GEOMETRY, listGeometryStyleVariables } from "./listGeometry";
 import {
   listContinuationOutdentKeymap,
@@ -13,9 +13,16 @@ import {
   type ListContext,
   markdownPreviewMetadata,
   type MarkdownPreviewMetadata,
-  type TableContext,
   updateMarkdownPreviewMetadataForChanges,
 } from "./markdown-live-preview/metadata";
+import {
+  GraphReferencesWidget,
+  ListFoldToggleWidget,
+  MarkdownImageWidget,
+  markdownImageTarget,
+  TaskPrefixWidget,
+  TableWidget,
+} from "./markdown-live-preview/widgets";
 
 const toggleFoldEffect = StateEffect.define<number>();
 
@@ -417,62 +424,6 @@ function buildDecorations(view: EditorView, options: MarkdownLivePreviewOptions,
   return builder.finish();
 }
 
-class GraphReferencesWidget extends WidgetType {
-  constructor(private readonly references: MarkdownGraphReferences) {
-    super();
-  }
-
-  toDOM() {
-    const wrap = document.createElement("section");
-    wrap.className = "markdown-graph-references";
-    wrap.dataset.testid = "markdown-graph-references";
-    wrap.contentEditable = "false";
-    wrap.setAttribute("aria-label", "Graph references");
-
-    if (this.references.backlinks.length > 0) {
-      wrap.appendChild(this.renderGroup("Backlinks", this.references.backlinks, "backlinks"));
-    }
-    if (this.references.references.length > 0) {
-      wrap.appendChild(this.renderGroup("References", this.references.references, "references"));
-    }
-
-    return wrap;
-  }
-
-  eq(other: GraphReferencesWidget) {
-    return JSON.stringify(other.references) === JSON.stringify(this.references);
-  }
-
-  ignoreEvent(event: Event) {
-    return event.type !== "click" && event.type !== "mousedown";
-  }
-
-  private renderGroup(title: string, items: MarkdownGraphReferenceItem[], testId: string) {
-    const group = document.createElement("div");
-    group.className = "markdown-graph-references__group";
-    group.dataset.testid = `markdown-graph-${testId}`;
-
-    const heading = document.createElement("div");
-    heading.className = "markdown-graph-references__title";
-    heading.textContent = title;
-    group.appendChild(heading);
-
-    const list = document.createElement("div");
-    list.className = "markdown-graph-references__items";
-    for (const item of items) {
-      const button = document.createElement("button");
-      button.className = "markdown-graph-references__item";
-      button.type = "button";
-      button.dataset.exoLinkTarget = item.target;
-      button.dataset.exoLinkKind = "wikilink";
-      button.textContent = item.label;
-      list.appendChild(button);
-    }
-    group.appendChild(list);
-    return group;
-  }
-}
-
 export function shouldSuppressGeneratedTitleLine(lineText: string, suppressedGeneratedTitle: string | null): boolean {
   if (!suppressedGeneratedTitle) {
     return false;
@@ -707,91 +658,6 @@ function applyObsidianImageEmbeds(
   }
 }
 
-export function markdownImageTarget(rawTarget: string): string {
-  // Optional Markdown titles follow a target in quotes or parentheses. Keep
-  // ordinary spaces in local filenames intact.
-  return rawTarget.trim().replace(/\s+(?:"[^"]*"|'[^']*'|\([^)]*\))$/, "").trim();
-}
-
-class MarkdownImageWidget extends WidgetType {
-  constructor(
-    private readonly alt: string,
-    private readonly target: string,
-    private readonly resolveImage: MarkdownLivePreviewOptions["onResolveImage"],
-    private readonly lookupByFilename = false,
-  ) {
-    super();
-  }
-
-  toDOM() {
-    const wrap = document.createElement("span");
-    wrap.className = "exo-md-image exo-md-image--loading";
-    wrap.contentEditable = "false";
-    wrap.dataset.testid = "markdown-image";
-    wrap.setAttribute("aria-label", this.alt || "Markdown image");
-
-    const fallback = document.createElement("span");
-    fallback.className = "exo-md-image__fallback";
-    fallback.textContent = this.alt || "Image";
-    wrap.appendChild(fallback);
-
-    const appendImage = (url: string) => {
-      const image = document.createElement("img");
-      image.className = "exo-md-image__asset";
-      image.src = url;
-      image.alt = this.alt;
-      image.loading = "lazy";
-      image.decoding = "async";
-      image.addEventListener("load", () => {
-        wrap.classList.remove("exo-md-image--loading", "exo-md-image--missing");
-        fallback.remove();
-      }, { once: true });
-      image.addEventListener("error", () => {
-        wrap.classList.remove("exo-md-image--loading");
-        wrap.classList.add("exo-md-image--missing");
-        image.remove();
-      }, { once: true });
-      wrap.appendChild(image);
-    };
-
-    const remoteUrl = remoteMarkdownImageUrl(this.target);
-    if (remoteUrl) {
-      appendImage(remoteUrl);
-      return wrap;
-    }
-
-    void this.resolveImage(this.target, { lookupByFilename: this.lookupByFilename }).then(({ url }) => {
-      appendImage(url);
-    }).catch(() => {
-      wrap.classList.remove("exo-md-image--loading");
-      wrap.classList.add("exo-md-image--missing");
-    });
-    return wrap;
-  }
-
-  eq(other: MarkdownImageWidget) {
-    return other.alt === this.alt && other.target === this.target;
-  }
-
-  ignoreEvent() {
-    return false;
-  }
-}
-
-/**
- * HTTP(S) images are public references in the Markdown document, so the
- * renderer loads them directly. Local paths still use the main-process
- * resolver, which enforces Note Root containment before returning a file URL.
- */
-export function remoteMarkdownImageUrl(target: string): string | null {
-  try {
-    const url = new URL(target);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
 function applyDelimited(
   text: string,
   lineFrom: number,
@@ -879,131 +745,9 @@ function applyMarkdownLinks(text: string, lineFrom: number, out: DecorationEntry
   }
 }
 
-class TaskPrefixWidget extends WidgetType {
-  constructor(
-    private readonly checked: boolean,
-    private readonly depth: number,
-    private readonly checkboxPos: number,
-  ) {
-    super();
-  }
-
-  toDOM() {
-    const span = document.createElement("span");
-    span.className = "exo-md-list-prefix exo-md-list-prefix--task";
-    const bulletLeft = LIST_GEOMETRY.baseIndent + this.depth * LIST_GEOMETRY.indentStep - LIST_GEOMETRY.markerLaneWidth;
-    span.style.left = `${bulletLeft}px`;
-    const checkbox = document.createElement("span");
-    checkbox.className = `exo-md-checkbox ${this.checked ? "exo-md-checkbox--checked" : ""}`;
-    checkbox.dataset.exoCheckboxPos = String(this.checkboxPos);
-    span.appendChild(checkbox);
-    return span;
-  }
-
-  eq(other: TaskPrefixWidget) {
-    return other.checked === this.checked && other.depth === this.depth && other.checkboxPos === this.checkboxPos;
-  }
-
-  ignoreEvent(event: Event) {
-    return event.type !== "mousedown";
-  }
-}
-
-class ListFoldToggleWidget extends WidgetType {
-  constructor(
-    private readonly depth: number,
-    private readonly isFolded: boolean,
-    private readonly parentAnchor: number,
-  ) {
-    super();
-  }
-
-  toDOM() {
-    const span = document.createElement("span");
-    span.className = "exo-md-list-prefix exo-md-list-prefix--fold";
-    const bulletLeft = LIST_GEOMETRY.baseIndent + this.depth * LIST_GEOMETRY.indentStep - LIST_GEOMETRY.markerLaneWidth;
-    span.style.left = `${bulletLeft - 14}px`;
-    span.style.width = "14px";
-
-    const fold = document.createElement("span");
-    fold.className = `exo-md-fold-toggle ${this.isFolded ? "exo-md-fold-toggle--folded" : ""}`;
-    fold.dataset.exoFoldAnchor = String(this.parentAnchor);
-    span.appendChild(fold);
-    return span;
-  }
-
-  eq(other: ListFoldToggleWidget) {
-    return other.depth === this.depth && other.isFolded === this.isFolded && other.parentAnchor === this.parentAnchor;
-  }
-
-  ignoreEvent(event: Event) {
-    return event.type === "mousedown";
-  }
-}
-
 function listLineStyle(depth: number) {
   const padLeft = LIST_GEOMETRY.baseIndent + depth * LIST_GEOMETRY.indentStep;
   return `${listGeometryStyleVariables()};--exo-list-depth:${depth};padding-left:${padLeft}px;`;
 }
 
 // ---------------------------------------------------------------------------
-class TableWidget extends WidgetType {
-  constructor(private readonly ctx: TableContext) {
-    super();
-  }
-
-  toDOM() {
-    const wrap = document.createElement("div");
-    wrap.className = "exo-md-table-wrap";
-
-    const table = document.createElement("table");
-    table.className = "exo-md-table";
-
-    const thead = document.createElement("thead");
-    const headerRow = document.createElement("tr");
-    this.ctx.headers.forEach((cell, idx) => {
-      const th = document.createElement("th");
-      th.textContent = cell;
-      const align = this.ctx.alignments[idx] ?? "left";
-      th.style.textAlign = align;
-      headerRow.appendChild(th);
-    });
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-
-    const tbody = document.createElement("tbody");
-    for (const row of this.ctx.rows) {
-      const tr = document.createElement("tr");
-      row.forEach((cell, idx) => {
-        const td = document.createElement("td");
-        td.textContent = cell;
-        const align = this.ctx.alignments[idx] ?? "left";
-        td.style.textAlign = align;
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
-    }
-    table.appendChild(tbody);
-
-    wrap.appendChild(table);
-    return wrap;
-  }
-
-  eq(other: TableWidget) {
-    if (other.ctx.headers.length !== this.ctx.headers.length) return false;
-    if (other.ctx.rows.length !== this.ctx.rows.length) return false;
-    if (other.ctx.headers.some((h, i) => h !== this.ctx.headers[i])) return false;
-    if (other.ctx.alignments.some((a, i) => a !== this.ctx.alignments[i])) return false;
-    for (let r = 0; r < this.ctx.rows.length; r += 1) {
-      const a = this.ctx.rows[r];
-      const b = other.ctx.rows[r];
-      if (a.length !== b.length) return false;
-      if (a.some((c, i) => c !== b[i])) return false;
-    }
-    return true;
-  }
-
-  ignoreEvent() {
-    return false;
-  }
-}
