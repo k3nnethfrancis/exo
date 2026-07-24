@@ -891,12 +891,24 @@ export function App() {
   }
 
   function closeFolderOverview(leafId: PaneNodeId, directoryPath: string) {
+    const leaf = findNode(canvasTree, (node) => node.id === leafId) as PaneLeaf | undefined;
+    const editorContent = leaf?.content.kind === "editor" ? leaf.content : null;
+    const closesActiveOverview = editorContent?.activeFolderPath === directoryPath;
+    const nextActivePath = editorContent?.activeFolderPath === directoryPath
+      ? editorContent.openPaths.at(-1) ?? null
+      : null;
     canvasActions.updateLeafContent(leafId, (content) => content.kind !== "editor" ? content : {
       ...content,
       openFolderPaths: (content.openFolderPaths ?? []).filter((path) => path !== directoryPath),
       activeFolderPath: content.activeFolderPath === directoryPath ? null : content.activeFolderPath,
       activePath: content.activeFolderPath === directoryPath ? content.openPaths.at(-1) ?? null : content.activePath,
     });
+    if (closesActiveOverview) {
+      canvasActions.focusLeaf(leafId);
+      setActiveDocumentPath(nextActivePath);
+      setActiveTag(null);
+      setTagResults([]);
+    }
   }
 
   function closeDocumentInPane(leafId: PaneNodeId, filePath: string) {
