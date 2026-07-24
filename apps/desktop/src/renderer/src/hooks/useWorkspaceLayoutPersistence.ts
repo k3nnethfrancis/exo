@@ -32,6 +32,7 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
     options.canvas,
     options.sidebarCollapsed,
     options.sidebarWidth,
+    options.utilityWidth,
     options.layoutPersistenceReady,
     options.onboardingActive,
     options.workspaceModel,
