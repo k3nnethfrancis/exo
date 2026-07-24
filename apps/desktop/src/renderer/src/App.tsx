@@ -57,6 +57,7 @@ import {
   paneId,
   pruneEmptyLeaves,
   removeNode,
+  resolveFolderOverviewEditorLeaf,
   type PaneLeaf,
   type PaneNodeId,
 } from "./hooks/usePaneTree";
@@ -892,9 +893,13 @@ export function App() {
   }
 
   function openFolderOverview(directoryPath: string, leafId = focusedPaneId) {
-    canvasActions.updateLeafContent(leafId, (content) =>
+    const editorLeaf = resolveFolderOverviewEditorLeaf(canvasTree, focusedPaneId, leafId);
+    if (!editorLeaf) {
+      return;
+    }
+    canvasActions.updateLeafContent(editorLeaf.id, (content) =>
       content.kind !== "editor" ? content : activateFolderOverviewContent(content, directoryPath));
-    canvasActions.focusLeaf(leafId);
+    canvasActions.focusLeaf(editorLeaf.id);
     setActiveDocumentPath(null);
     setActiveTag(null);
     setTagResults([]);

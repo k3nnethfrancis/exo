@@ -221,6 +221,96 @@ describe("workspace settings patch persistence", () => {
     expect(settingsRef.current.terminalFontSize).toBe(16);
   });
 
+  it("publishes each structural Apply model and index status before the next Apply starts", async () => {
+    const firstSave = deferred<WorkspaceSettingsSaveOutcome>();
+    const secondSave = deferred<WorkspaceSettingsSaveOutcome>();
+    const firstRefresh = deferred<void>();
+    const secondRefresh = deferred<void>();
+    const firstStatus = deferred<ReturnType<typeof indexStatus>>();
+    const secondStatus = deferred<ReturnType<typeof indexStatus>>();
+    const settingsRef = { current: workspaceSettings() };
+    const revisionRef = { current: "revision-0" };
+    const ui = {
+      settings: settingsRef.current,
+      modelWorkspaceRoot: null as string | null,
+      indexStatus: null as ReturnType<typeof indexStatus> | null,
+    };
+    const saveSettings = vi.fn()
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockImplementationOnce(() => secondSave.promise);
+    const refreshWorkspaceModel = vi.fn(async () => {
+      const modelWorkspaceRoot = settingsRef.current.workspaceRoot;
+      const refresh = modelWorkspaceRoot === "/workspace-a" ? firstRefresh : secondRefresh;
+      await refresh.promise;
+      ui.modelWorkspaceRoot = modelWorkspaceRoot;
+    });
+    const getIndexStatus = vi.fn(() =>
+      settingsRef.current.workspaceRoot === "/workspace-a" ? firstStatus.promise : secondStatus.promise);
+    vi.stubGlobal("window", {
+      exo: {
+        workspace: {
+          getSettings: vi.fn(async () => ({ settings: settingsRef.current, revision: revisionRef.current })),
+          saveSettings,
+          getIndexStatus,
+        },
+      },
+    });
+    const controllerRef: { current: ReturnType<typeof useWorkspaceSettingsController> | null } = { current: null };
+    renderToStaticMarkup(
+      <WorkspaceSettingsControllerHarness
+        controllerRef={controllerRef}
+        options={{
+          workspaceSettingsRef: settingsRef,
+          workspaceSettingsRevisionRef: revisionRef,
+          applyWorkspaceSettings: (settings) => { ui.settings = settings; },
+          refreshWorkspaceModel,
+          setIndexStatus: (status) => { ui.indexStatus = typeof status === "function" ? status(ui.indexStatus) : status; },
+        }}
+      />,
+    );
+    const controller = controllerRef.current;
+    if (!controller) throw new Error("Workspace Settings controller did not render.");
+
+    const applyA = controller.saveDialog(
+      workspaceSettingsDialogFixture({ workspaceRoot: "/workspace-a" }),
+      { includeStructural: true },
+    );
+    const applyB = controller.saveDialog(
+      workspaceSettingsDialogFixture({ workspaceRoot: "/workspace-b" }),
+      { includeStructural: true },
+    );
+
+    await flushMicrotasks();
+    firstSave.resolve(saveOutcome({ ...settingsRef.current, workspaceRoot: "/workspace-a" }, "revision-1"));
+    await flushMicrotasks();
+    expect(refreshWorkspaceModel).toHaveBeenCalledTimes(1);
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+
+    firstRefresh.resolve();
+    await flushMicrotasks();
+    expect(getIndexStatus).toHaveBeenCalledTimes(1);
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+
+    firstStatus.resolve(indexStatus("A"));
+    await waitForSaveCount(saveSettings, 2);
+    secondSave.resolve(saveOutcome({ ...settingsRef.current, workspaceRoot: "/workspace-b" }, "revision-2"));
+    await flushMicrotasks();
+    expect(refreshWorkspaceModel).toHaveBeenCalledTimes(2);
+
+    secondRefresh.resolve();
+    await flushMicrotasks();
+    expect(getIndexStatus).toHaveBeenCalledTimes(2);
+    secondStatus.resolve(indexStatus("B"));
+    await Promise.all([applyA, applyB]);
+
+    expect(ui).toMatchObject({
+      settings: { workspaceRoot: "/workspace-b" },
+      modelWorkspaceRoot: "/workspace-b",
+      indexStatus: indexStatus("B"),
+    });
+    expect(revisionRef.current).toBe("revision-2");
+  });
+
   it("surfaces a genuine external revision conflict without overwriting local settings", async () => {
     const settingsRef = { current: workspaceSettings() };
     const revisionRef = { current: "revision-0" };
@@ -363,6 +453,7 @@ function workspaceWindow(
       workspace: {
         getSettings: vi.fn(async () => ({ settings, revision })),
         saveSettings,
+        getIndexStatus: vi.fn(async () => indexStatus("default")),
       },
     },
   };
@@ -392,6 +483,14 @@ function workspaceSettings(): WorkspaceSettings {
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",
   };
+}
+
+function indexStatus(label: string) {
+  return {
+    workspaceId: `workspace-${label}`,
+    updatedAt: 0,
+    roots: [],
+  } as unknown as import("@exo/core").IndexStatus;
 }
 
 function deferred<Value>() {

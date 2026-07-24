@@ -5,6 +5,7 @@ import {
   closeFolderOverviewContent,
   closeFolderOverviewInTree,
   decodeCanvas,
+  resolveFolderOverviewEditorLeaf,
   type EditorPaneContent,
   type PaneNode,
 } from "./usePaneTree";
@@ -182,6 +183,36 @@ describe("Folder Overview editor ownership", () => {
         { content: { activePath: "/notes/b.md" } },
       ],
     });
+  });
+
+  it("opens Folder Overview in an existing editor when a terminal split is focused", () => {
+    const tree: PaneNode = {
+      kind: "split",
+      id: "root",
+      direction: "horizontal",
+      ratio: 0.5,
+      children: [
+        { kind: "leaf", id: "editor", content: content({ openPaths: ["/notes/a.md"], activePath: "/notes/a.md" }) },
+        { kind: "leaf", id: "terminal", content: { kind: "terminal", terminalId: "shell" } },
+      ],
+    };
+
+    expect(resolveFolderOverviewEditorLeaf(tree, "terminal")).toMatchObject({ id: "editor" });
+  });
+
+  it("leaves Folder Overview unopened when no editor leaf exists", () => {
+    const tree: PaneNode = {
+      kind: "split",
+      id: "root",
+      direction: "horizontal",
+      ratio: 0.5,
+      children: [
+        { kind: "leaf", id: "terminal", content: { kind: "terminal", terminalId: "shell" } },
+        { kind: "leaf", id: "preview", content: { kind: "browser", previewId: "preview" } },
+      ],
+    };
+
+    expect(resolveFolderOverviewEditorLeaf(tree, "terminal")).toBeUndefined();
   });
 });
 

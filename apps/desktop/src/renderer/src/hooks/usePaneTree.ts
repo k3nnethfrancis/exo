@@ -137,6 +137,23 @@ export function findEditorLeaf(tree: PaneNode): PaneLeaf | undefined {
   return findNode(tree, (n) => n.kind === "leaf" && n.content.kind === "editor") as PaneLeaf | undefined;
 }
 
+/** Choose the targeted editor when present, otherwise retain Explorer's focused-editor-first behavior. */
+export function resolveFolderOverviewEditorLeaf(
+  tree: PaneNode,
+  focusedLeafId: PaneNodeId,
+  targetLeafId = focusedLeafId,
+): PaneLeaf | undefined {
+  const target = findNode(tree, (node) => node.id === targetLeafId);
+  if (target?.kind === "leaf" && target.content.kind === "editor") {
+    return target;
+  }
+  const focused = findNode(tree, (node) => node.id === focusedLeafId);
+  if (focused?.kind === "leaf" && focused.content.kind === "editor") {
+    return focused;
+  }
+  return findEditorLeaf(tree);
+}
+
 /** Find the leaf containing a specific file path. */
 export function findEditorLeafByPath(tree: PaneNode, filePath: string): PaneLeaf | undefined {
   return findNode(tree, (n) =>

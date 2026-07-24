@@ -4,7 +4,7 @@ import type {
   WorkspaceSettings,
   WorkspaceSettingsRevision,
 } from "@exo/core";
-import type { IndexSyncStateEvent } from "../../../shared/api";
+import type { IndexSyncStateEvent, WorkspaceSettingsSaveOutcome } from "../../../shared/api";
 import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
 import type { AppearanceMode } from "../appearance";
@@ -39,9 +39,11 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
   const dialogSessionIdRef = useRef(0);
   const enqueueSettingsSave = useCallback((
     buildSettings: (baseSettings: WorkspaceSettings) => WorkspaceSettings,
+    publishSavedSettings?: (saved: WorkspaceSettingsSaveOutcome) => Promise<void>,
   ) => {
-    // Every renderer-originated Settings write shares this stream. The next
-    // request reads the revision synchronously published by its predecessor.
+    // Every renderer-originated Settings write and its dependent renderer
+    // publication share this stream. The next request reads the revision and
+    // workspace model published by its predecessor.
     const result = settingsSaveTailRef.current.then(async () => {
       const baseSnapshot = optionsRef.current.workspaceSettingsRef.current
         ? {
@@ -58,6 +60,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       });
       optionsRef.current.workspaceSettingsRef.current = saved.settings;
       optionsRef.current.workspaceSettingsRevisionRef.current = saved.revision;
+      await publishSavedSettings?.(saved);
       return saved;
     });
     settingsSaveTailRef.current = result.then(() => undefined, () => undefined);
@@ -249,9 +252,24 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     );
 
     try {
-      const saved = await enqueueSettingsSave((baseSettings) =>
-        workspaceSettingsFromDialog(settingsDialog, saveOptions, baseSettings));
-      optionsRef.current.applyWorkspaceSettings(saved.settings);
+      const saved = await enqueueSettingsSave(
+        (baseSettings) => workspaceSettingsFromDialog(settingsDialog, saveOptions, baseSettings),
+        saveOptions.includeStructural
+          ? async (savedSettings) => {
+              optionsRef.current.applyWorkspaceSettings(savedSettings.settings);
+              if (savedSettings.runtimeApply.status === "failed") {
+                return;
+              }
+              await optionsRef.current.refreshWorkspaceModel();
+              try {
+                optionsRef.current.setIndexStatus(await window.exo.workspace.getIndexStatus());
+              } catch (error) {
+                console.warn("[exo] failed to refresh search status", error);
+                optionsRef.current.setIndexStatus(null);
+              }
+            }
+          : undefined,
+      );
       if (saved.runtimeApply.status === "failed") {
         const runtimeApplyErrorMessage = saved.runtimeApply.errorMessage;
         setDialog((current) => {
@@ -309,12 +327,6 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
             : {}),
         };
       });
-      if (saveOptions.includeStructural) {
-        void optionsRef.current.refreshWorkspaceModel();
-        void window.exo.workspace.getIndexStatus().then(optionsRef.current.setIndexStatus).catch((error) => {
-          console.warn("[exo] failed to refresh search status", error);
-        });
-      }
     } catch (error) {
       setDialog((current) =>
         current
