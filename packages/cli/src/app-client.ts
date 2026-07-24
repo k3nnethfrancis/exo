@@ -247,7 +247,7 @@ function discoveryFailure(
       serverJsonPath,
       port: info?.port,
       pid: info?.pid,
-      message: discoveryFailureMessage(code, runtimeRoot, serverJsonPath, info),
+      message: discoveryFailureMessage(code, serverJsonPath, info),
       causeMessage,
       processCheck,
     },
@@ -274,7 +274,6 @@ export function formatAppClientDiscoveryFailure(failure: AppClientDiscoveryFailu
 
 function discoveryFailureMessage(
   code: AppClientDiscoveryFailureCode,
-  runtimeRoot: string,
   serverJsonPath: string,
   info?: Partial<ExoCommandServerInfo>,
 ): string {

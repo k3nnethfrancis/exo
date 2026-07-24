@@ -63,7 +63,7 @@ type ReviewPreflight =
 export class InvocationReviewService {
   private readonly store: InvocationStore;
 
-  constructor(private readonly workspaceRoot: string) {
+  constructor(workspaceRoot: string) {
     this.store = new InvocationStore(workspaceRoot);
   }
 

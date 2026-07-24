@@ -73,9 +73,7 @@ import {
   workspaceSettingsStructuralDraftKey,
 } from "./workspaceSettingsModel";
 import { pathLabel } from "./workspaceTree";
-import { summarizeIndexStatus } from "./indexStatusPresentation";
 import { getPreviewTitle, markdownPreviewExcerpt, suggestWikilinkTargetsFromTrees } from "./graphAffordances";
-import { summarizeTerminalStatusLine } from "./terminalSessions";
 import { workspaceBreadcrumb, type WorkspaceBreadcrumbSegment } from "./workspaceBreadcrumb";
 import { DEFAULT_UTILITY_SURFACE_STATE, isUtilityDestinationActive, reduceUtilitySurface } from "./utilitySurfaceModel";
 import { addPreviewTab, closePreviewTab, EMPTY_PREVIEW_TABS, selectPreviewTab, updatePreviewTabUrl } from "./previewTabsModel";
@@ -204,7 +202,6 @@ export function App() {
     setOnboardingState,
     bootstrapError,
     layoutPersistenceReady,
-    setLayoutPersistenceReady,
     workspaceSettingsRef,
     workspaceSettingsRevisionRef,
   } = workspaceBootstrap;
@@ -1608,12 +1605,6 @@ export function App() {
     );
   }
 
-  const indexStatusLine = summarizeIndexStatus(indexStatus, indexBusy);
-  const terminalStatusLine = summarizeTerminalStatusLine(
-    terminalSessions,
-    activeTerminalId,
-    terminalState.hydratingTerminalIds,
-  );
   const workspaceLabel = workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "Exo";
   const titleSegments = activeDocument
     ? workspaceBreadcrumb(activeDocument.filePath, workspaceModel?.noteRoots.map((root) => root.path) ?? [])
@@ -2007,10 +1998,6 @@ export function App() {
       ) : null}
     </>
   );
-}
-
-function uniqueMessages(messages: string[]): string[] {
-  return [...new Set(messages.map((message) => message.trim()).filter(Boolean))];
 }
 
 function joinPath(parentPath: string, name: string): string {

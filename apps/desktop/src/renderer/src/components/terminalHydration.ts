@@ -35,7 +35,7 @@ export function shouldApplyTerminalHydration(
 }
 
 export function markTerminalHydrationApplied(
-  state: TerminalHydrationViewState,
+  _state: TerminalHydrationViewState,
   frame: TerminalHydrationFrame,
 ): TerminalHydrationViewState {
   return {

@@ -11,6 +11,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:unused": "tsc -p tsconfig.production.json --noEmit",
     "test": "vitest run src/main src/renderer/src",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3,node-pty",
     "setup:runtime": "node scripts/setup-runtime.mjs"
@@ -38,13 +39,10 @@
     "@uiw/react-codemirror": "4.25.8",
     "@xterm/addon-fit": "0.11.0",
     "@xterm/addon-unicode11": "0.9.0",
-    "clsx": "2.1.1",
     "lucide-react": "0.577.0",
     "node-pty": "^1.1.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "react-markdown": "^10.1.0",
-    "remark-gfm": "^4.0.1",
     "xterm": "5.3.0"
   },
   "devDependencies": {

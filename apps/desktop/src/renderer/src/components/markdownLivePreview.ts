@@ -703,8 +703,8 @@ export function updateMarkdownPreviewMetadataForChanges(
     tableContexts: tableStructureTouched
       ? collectTableMetadata(nextDoc)
       : tableContentTouched
-        ? refreshTableMetadataForChanges(nextDoc, changes, remapTableMetadata(previousDoc, nextDoc, changes, metadata.tableContexts))
-        : remapTableMetadata(previousDoc, nextDoc, changes, metadata.tableContexts),
+        ? refreshTableMetadataForChanges(nextDoc, changes, remapTableMetadata(nextDoc, changes, metadata.tableContexts))
+        : remapTableMetadata(nextDoc, changes, metadata.tableContexts),
     codeFenceContexts: codeFenceStructureTouched
       ? collectCodeFenceMetadata(nextDoc)
       : remapCodeFenceMetadata(previousDoc, nextDoc, changes, metadata.codeFenceContexts),
@@ -1782,7 +1782,6 @@ function addTableContext(contexts: Map<number, TableContext>, context: TableCont
 }
 
 function remapTableMetadata(
-  previousDoc: Text,
   nextDoc: Text,
   changes: ChangeSet,
   contexts: Map<number, TableContext>,

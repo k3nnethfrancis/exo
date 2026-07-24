@@ -429,7 +429,7 @@ export function shouldSkipTerminalHydration(
 export function shouldBufferTerminalDataForHydration(
   rendered: boolean,
   pendingReason: TerminalHydrationReason | undefined,
-  alreadyHydrated: boolean,
+  _alreadyHydrated: boolean,
 ): boolean {
   if (!rendered) {
     return true;

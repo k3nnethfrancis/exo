@@ -4,7 +4,6 @@ import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from 
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
 
 import type { TerminalSessionInfo, WorkspaceRegistryEntry, WorkspaceSetupState } from "../../../shared/api";
-import type { PaneNode } from "./usePaneTree";
 import { loadInitialTrees, type UseWorkspaceTreesOptions } from "./useWorkspaceTrees";
 import { pathLabel } from "../workspaceTree";
 
@@ -339,7 +338,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     setSetupState,
     bootstrapError,
     layoutPersistenceReady,
-    setLayoutPersistenceReady,
     workspaceSettingsRef,
     workspaceSettingsRevisionRef,
     selectNotesFolderForOnboarding,

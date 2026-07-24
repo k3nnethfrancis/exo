@@ -49,10 +49,6 @@ export function FileTree(props: FileTreeProps) {
   const {
     noteRoots,
     collapsed,
-    appearanceMode,
-    resolvedAppearance,
-    onAppearanceModeChange,
-    onToggleCollapsed,
     onOpenFile,
     onOpenFolder,
     onExpandDirectory,

@@ -470,10 +470,53 @@ assertPngCornerAlpha('apps/desktop/build/icon.png', 0);
 assertIcnsContainsLargeIcon('apps/desktop/build/icon.icns');
 
 const packageJson = JSON.parse(read('package.json'));
+
+function assertPackageExportsResolve() {
+  const packageManifests = [
+    'apps/desktop/package.json',
+    'benchmarks/graphbench/package.json',
+    'packages/cli/package.json',
+    'packages/core/package.json',
+  ];
+  for (const manifestPath of packageManifests) {
+    const manifest = JSON.parse(read(manifestPath));
+    if (!manifest.exports) continue;
+    for (const [subpath, target] of Object.entries(manifest.exports)) {
+      if (typeof target !== 'string') {
+        fail(`${manifestPath} export ${subpath} must resolve to one file target`);
+        continue;
+      }
+      const targetPath = path.join(path.dirname(manifestPath), target);
+      assertFile(targetPath);
+    }
+  }
+}
+
+function assertFilteredVitestTargetsExist() {
+  const packageRoots = new Map([
+    ['@exo/desktop', 'apps/desktop'],
+    ['@exo/core', 'packages/core'],
+    ['@exo/cli', 'packages/cli'],
+  ]);
+  for (const [scriptName, script] of Object.entries(packageJson.scripts ?? {})) {
+    for (const match of script.matchAll(/pnpm --filter (\S+) exec vitest run ([^&]+)/g)) {
+      const packageRoot = packageRoots.get(match[1]);
+      if (!packageRoot) continue;
+      for (const target of match[2].trim().split(/\s+/)) {
+        if (!/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(target)) continue;
+        assertFile(path.join(packageRoot, target));
+      }
+    }
+  }
+}
+
+assertPackageExportsResolve();
+assertFilteredVitestTargetsExist();
+
 if (packageJson.packageManager !== 'pnpm@11.2.2') {
   fail('package.json packageManager must stay pinned to pnpm@11.2.2');
 }
-for (const scriptName of ['ci:check', 'check:repo', 'check', 'build', 'test', 'typecheck', 'dev:qa', 'install:local', 'install:mac-app', 'pack:mac', 'dist:mac']) {
+for (const scriptName of ['ci:check', 'check:repo', 'check', 'check:unused', 'build', 'test', 'typecheck', 'dev:qa', 'install:local', 'install:mac-app', 'pack:mac', 'dist:mac']) {
   if (!packageJson.scripts?.[scriptName]) {
     fail(`package.json missing script: ${scriptName}`);
   }

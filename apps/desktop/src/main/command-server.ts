@@ -6,7 +6,6 @@ import {
   EXO_COMMAND_ROUTES,
   EXO_COMMAND_TOKEN_HEADER,
   type ExoCommandServerInfo,
-  type ExoCommandTerminalInfo,
   type ExoOpenFileRequest,
   type ExoSpawnAgentCommandRequest,
   type ExoSpawnAgentCommandResponse,
