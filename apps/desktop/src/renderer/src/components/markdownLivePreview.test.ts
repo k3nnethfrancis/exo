@@ -2,19 +2,21 @@ import { EditorState, StateField } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 
 import {
-  clampSelectionToRenderedListText,
   collectListMetadata,
-  listEnterEdit,
   markdownImageTarget,
   markdownLivePreview,
   markdownPreviewMetadata,
-  slashDateCommandEdit,
   shouldSuppressGeneratedTitleLine,
   updateMarkdownPreviewMetadataForChanges,
   updateListMetadataForChanges,
   visibleLineNumbers,
-  wikilinkExitEdit,
 } from "./markdownLivePreview";
+import {
+  clampSelectionToRenderedListText,
+  listEnterEdit,
+  slashDateCommandEdit,
+  wikilinkExitEdit,
+} from "./markdown-live-preview/commands";
 
 function foldedListParentAnchorsField() {
   const field = markdownLivePreview({
