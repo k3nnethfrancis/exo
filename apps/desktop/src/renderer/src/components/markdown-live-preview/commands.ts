@@ -2,7 +2,7 @@ import { Annotation, EditorSelection, EditorState, Prec, RangeSetBuilder, Transa
 import { indentLess } from "@codemirror/commands";
 import { Decoration, EditorView, keymap } from "@codemirror/view";
 
-import { collectListMetadata } from "../markdownLivePreview";
+import { collectListMetadata } from "./metadata";
 
 const listPrefixPattern = /^(\s*)((?:[-*+]|\d+[.)]))\s+/;
 const taskListPrefixPattern = /^(\s*)([-*+])\s+\[[ xX]\]\s+/;

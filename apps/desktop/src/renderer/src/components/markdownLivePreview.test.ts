@@ -2,15 +2,17 @@ import { EditorState, StateField } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 
 import {
-  collectListMetadata,
   markdownImageTarget,
   markdownLivePreview,
-  markdownPreviewMetadata,
   shouldSuppressGeneratedTitleLine,
-  updateMarkdownPreviewMetadataForChanges,
-  updateListMetadataForChanges,
   visibleLineNumbers,
 } from "./markdownLivePreview";
+import {
+  collectListMetadata,
+  markdownPreviewMetadata,
+  updateListMetadataForChanges,
+  updateMarkdownPreviewMetadataForChanges,
+} from "./markdown-live-preview/metadata";
 import {
   clampSelectionToRenderedListText,
   listEnterEdit,
