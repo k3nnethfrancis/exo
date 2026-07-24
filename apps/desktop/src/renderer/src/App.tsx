@@ -61,7 +61,7 @@ import {
   type PaneLeaf,
   type PaneNodeId,
 } from "./hooks/usePaneTree";
-import { collectOpenEditorPaths, findActiveEditorPath } from "./paneTreeSelectors";
+import { collectOpenEditorPaths, findActiveEditorPath, findFocusedEditorPath } from "./paneTreeSelectors";
 import {
   clampNumber,
   DEFAULT_EDITOR_FONT_SIZE,
@@ -253,6 +253,10 @@ export function App() {
     discardAndReloadDocument,
   } = openDocumentsState;
   const openEditorPaths = useMemo(() => collectOpenEditorPaths(canvasTree), [canvasTree]);
+  const focusedEditorPath = useMemo(
+    () => findFocusedEditorPath(canvasTree, focusedPaneId),
+    [canvasTree, focusedPaneId],
+  );
   const inspectedPath = graphInspection.state.concept
     ? graphInspection.state.concept.filePath ?? null
     : activeDocumentPath;
@@ -297,6 +301,18 @@ export function App() {
     if (inspectedPath) openPaths.add(inspectedPath);
     openDocumentsState.pruneToOpenPaths(openPaths);
   }, [inspectedPath, openEditorPaths]);
+
+  useEffect(() => {
+    latestPaneNavigationRef.current.invalidateUnavailablePanes(new Set(
+      collectLeaves(canvasTree)
+        .filter((leaf) => leaf.content.kind === "editor")
+        .map((leaf) => leaf.id),
+    ));
+  }, [canvasTree]);
+
+  useEffect(() => {
+    if (activeDocumentPath !== focusedEditorPath) setActiveDocumentPath(focusedEditorPath);
+  }, [activeDocumentPath, focusedEditorPath, setActiveDocumentPath]);
 
   useEffect(() => {
     if (activeDocumentPath) {
@@ -582,8 +598,8 @@ export function App() {
     return status;
   }
 
-  async function invokeInlineAgent(draft: InlineAgentDraft) {
-    const document = activeDocument;
+  async function invokeInlineAgent(draft: InlineAgentDraft, documentPath: string) {
+    const document = openDocuments[documentPath] ?? null;
     if (!document) {
       return;
     }
@@ -598,7 +614,7 @@ export function App() {
     // React propagation is deliberately deprioritized for typing latency, so
     // publish this exact snapshot to the synchronous document ref before any
     // trust/fingerprint await can race the invocation save.
-    flushSync(() => updateBody(draft.documentBody));
+    flushSync(() => updateBody(document.filePath, draft.documentBody));
     let authorization;
     try {
       authorization = await window.exo.workspace.getAgentInvocationAuthorization({
@@ -1803,17 +1819,27 @@ export function App() {
               onClosePane={collectLeaves(canvasTree).length > 1 ? () => canvasActions.removeLeaf(leaf.id) : null}
               dragManager={dragManager}
               onOpenGraph={() => openGraphCanvas(pane.activePath ?? undefined)}
-              onUpdateFrontmatter={updateFrontmatter}
-              onBodyChange={updateBody}
+              onUpdateFrontmatter={(key, value) => {
+                if (leaf.content.kind === "editor" && leaf.content.activePath) {
+                  updateFrontmatter(leaf.content.activePath, key, value);
+                }
+              }}
+              onBodyChange={(body) => {
+                if (leaf.content.kind === "editor" && leaf.content.activePath) {
+                  updateBody(leaf.content.activePath, body);
+                }
+              }}
               onSave={() => void (leaf.content.kind === "editor" && leaf.content.activePath ? saveDocument(leaf.content.activePath) : Promise.resolve())}
               onOpenTag={(tag) => void openTag(tag)}
               onOpenTarget={(target) => void openKnowledgeTarget(target)}
               onSuggestTargets={(query) => suggestNoteTargets(query)}
               onPreviewTarget={(target) => previewKnowledgeTarget(target)}
               agentCommands={workspaceSettingsRef.current?.agentCommands ?? []}
-              onInvokeAgent={(draft) => void invokeInlineAgent(draft)}
+              onInvokeAgent={(draft) => {
+                if (pane.activePath) void invokeInlineAgent(draft, pane.activePath);
+              }}
               invocationReview={
-                activeReviewEntry && activeReviewPayload && pane.activePath && invocationReviewMatchesPath(activeReviewPayload, pane.activePath, activeReviewEntry.source)
+                isFocused && activeReviewEntry && activeReviewPayload && pane.activePath && invocationReviewMatchesPath(activeReviewPayload, pane.activePath, activeReviewEntry.source)
                   ? {
                       payload: activeReviewPayload,
                       queue: {

@@ -18,6 +18,47 @@ const AUTOSAVE_IDLE_DELAY_MS = 2_000;
 const AUTOSAVE_MAX_DELAY_MS = 5_000;
 const CONTEXT_COMMIT_IDLE_DELAY_MS = 500;
 
+/**
+ * Editor panes emit their own document path. Mutations must never infer that
+ * target from ambient focus because another split may have gained focus before
+ * React processes the event.
+ */
+export function applyDocumentBodyEdit(
+  documents: Record<string, OpenEditorDocument>,
+  filePath: string,
+  body: string,
+): Record<string, OpenEditorDocument> | null {
+  const currentDocument = documents[filePath];
+  if (!currentDocument || currentDocument.readOnly) return null;
+  const title = currentDocument.kind === "markdown" && noteTitleSource(currentDocument.body) !== noteTitleSource(body)
+    ? noteTitle(filePath, currentDocument.frontmatter, body)
+    : currentDocument.title;
+  return {
+    ...documents,
+    [filePath]: { ...currentDocument, body, title, dirty: true },
+  };
+}
+
+export function applyDocumentFrontmatterEdit(
+  documents: Record<string, OpenEditorDocument>,
+  filePath: string,
+  key: string,
+  value: unknown,
+): Record<string, OpenEditorDocument> | null {
+  const currentDocument = documents[filePath];
+  if (!currentDocument || currentDocument.readOnly) return null;
+  const frontmatter = { ...currentDocument.frontmatter, [key]: value };
+  return {
+    ...documents,
+    [filePath]: {
+      ...currentDocument,
+      frontmatter,
+      title: currentDocument.kind === "markdown" ? noteTitle(filePath, frontmatter, currentDocument.body) : currentDocument.title,
+      dirty: true,
+    },
+  };
+}
+
 export interface UseOpenDocumentsOptions {
   workspaceModel: WorkspaceModel | null;
   getOpenEditorPaths: () => Set<string>;
@@ -236,51 +277,18 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     }
   }
 
-  function updateBody(body: string) {
-    const filePath = activeDocumentPathRef.current;
-    if (!filePath || !openDocumentsRef.current[filePath] || openDocumentsRef.current[filePath]?.readOnly) {
-      return;
-    }
-
-    const currentDocument = openDocumentsRef.current[filePath];
-    const title = currentDocument.kind === "markdown" && noteTitleSource(currentDocument.body) !== noteTitleSource(body)
-      ? noteTitle(filePath, currentDocument.frontmatter, body)
-      : currentDocument.title;
-    const nextDocuments = {
-      ...openDocumentsRef.current,
-      [filePath]: {
-        ...currentDocument,
-        body,
-        title,
-        dirty: true,
-      },
-    };
+  function updateBody(filePath: string, body: string) {
+    const nextDocuments = applyDocumentBodyEdit(openDocumentsRef.current, filePath, body);
+    if (!nextDocuments) return;
     openDocumentsRef.current = nextDocuments;
     setOpenDocuments(nextDocuments);
     setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
     scheduleAutosave(filePath);
   }
 
-  function updateFrontmatter(key: string, value: unknown) {
-    const filePath = activeDocumentPathRef.current;
-    if (!filePath || !openDocumentsRef.current[filePath] || openDocumentsRef.current[filePath]?.readOnly) {
-      return;
-    }
-
-    const currentDocument = openDocumentsRef.current[filePath];
-    const frontmatter = {
-      ...currentDocument.frontmatter,
-      [key]: value,
-    };
-    const nextDocuments = {
-      ...openDocumentsRef.current,
-      [filePath]: {
-        ...currentDocument,
-        frontmatter,
-        title: currentDocument.kind === "markdown" ? noteTitle(filePath, frontmatter, currentDocument.body) : currentDocument.title,
-        dirty: true,
-      },
-    };
+  function updateFrontmatter(filePath: string, key: string, value: unknown) {
+    const nextDocuments = applyDocumentFrontmatterEdit(openDocumentsRef.current, filePath, key, value);
+    if (!nextDocuments) return;
     openDocumentsRef.current = nextDocuments;
     setOpenDocuments(nextDocuments);
     setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
