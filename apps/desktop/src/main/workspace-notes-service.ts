@@ -33,6 +33,7 @@ export interface WorkspaceNotesServiceOptions {
   getWorkspaceModel: () => WorkspaceModel;
   getRuntimeRoot?: () => string;
   derivedIndex?: DerivedIndexClient;
+  derivedIndexFactory?: () => DerivedIndexClient;
   onGraphChanged?: () => void;
 }
 
@@ -53,8 +54,12 @@ export class WorkspaceNotesService {
   private noteFileCache: string[] | null = null;
   private readonly imageFileCache = new Map<string, Promise<string[]>>();
   private scope: WorkspaceNotesScope;
+  private derivedIndex: DerivedIndexClient | undefined;
+  private readonly createDerivedIndex: (() => DerivedIndexClient) | undefined;
 
   constructor(private readonly options: WorkspaceNotesServiceOptions) {
+    this.createDerivedIndex = options.derivedIndexFactory;
+    this.derivedIndex = options.derivedIndex ?? this.createDerivedIndex?.();
     this.scope = this.createScope({
       model: options.getWorkspaceModel(),
       runtimeRoot: options.getRuntimeRoot?.() ?? "",
@@ -64,6 +69,11 @@ export class WorkspaceNotesService {
 
   activateWorkspace(activation: WorkspaceNotesActivation): void {
     this.scope.controller.abort();
+    if (this.createDerivedIndex) {
+      const previousDerivedIndex = this.derivedIndex;
+      this.derivedIndex = this.createDerivedIndex();
+      previousDerivedIndex?.dispose();
+    }
     this.scope = this.createScope(activation);
     this.graph?.invalidate();
     this.graph = null;
@@ -76,8 +86,8 @@ export class WorkspaceNotesService {
   invalidateDerivedState(): void {
     this.graph?.invalidate();
     const scope = this.scope;
-    if (this.options.derivedIndex && scope.runtimeRoot) {
-      void this.options.derivedIndex
+    if (this.derivedIndex && scope.runtimeRoot) {
+      void this.derivedIndex
         .graphInvalidate(scope.model, scope.runtimeRoot, scope.controller.signal)
         .catch((error) => {
           if (!isAbortError(error)) console.warn("[exo] derived graph invalidation failed", error);
@@ -94,8 +104,8 @@ export class WorkspaceNotesService {
       this.folderOverviewCache.clear();
       this.noteFileCache = null;
       this.imageFileCache.clear();
-      if (this.options.derivedIndex && scope.runtimeRoot) {
-        await this.options.derivedIndex.graphInvalidate(scope.model, scope.runtimeRoot, scope.controller.signal);
+      if (this.derivedIndex && scope.runtimeRoot) {
+        await this.derivedIndex.graphInvalidate(scope.model, scope.runtimeRoot, scope.controller.signal);
         if (!this.isCurrentScope(scope)) return;
       } else {
         this.graph?.invalidate();
@@ -108,8 +118,8 @@ export class WorkspaceNotesService {
     this.noteFileCache = null;
     this.imageFileCache.clear();
     if (/\.md$/i.test(changedPath)) {
-      if (this.options.derivedIndex && scope.runtimeRoot) {
-        await this.options.derivedIndex.graphRefresh(scope.model, scope.runtimeRoot, changedPath, scope.controller.signal);
+      if (this.derivedIndex && scope.runtimeRoot) {
+        await this.derivedIndex.graphRefresh(scope.model, scope.runtimeRoot, changedPath, scope.controller.signal);
         if (!this.isCurrentScope(scope)) return;
       } else {
         await this.graph?.refreshFile(changedPath);
@@ -125,6 +135,19 @@ export class WorkspaceNotesService {
     return scope.generation === this.scope.generation;
   }
 
+  private async awaitCurrentScope<Result>(scope: WorkspaceNotesScope, request: Promise<Result>): Promise<Result> {
+    const result = await request;
+    this.assertCurrentScope(scope);
+    return result;
+  }
+
+  private assertCurrentScope(scope: WorkspaceNotesScope): void {
+    if (this.isCurrentScope(scope) && !scope.controller.signal.aborted) return;
+    const error = new Error("Workspace request was superseded by a Workspace change.");
+    error.name = "AbortError";
+    throw error;
+  }
+
   /** Validates an operator-requested file before a command-server response can
    * claim that Exo opened it.  This shares the same root and symlink boundary
    * as every other workspace read. */
@@ -138,13 +161,15 @@ export class WorkspaceNotesService {
   }
 
   async searchFilenames(query: string): Promise<WorkspaceSearchResults> {
+    const scope = this.scope;
     const normalizedQuery = query.trim().toLowerCase();
     if (!normalizedQuery) {
       return { notes: [], tags: [] };
     }
 
-    const model = this.options.getWorkspaceModel();
+    const model = scope.model;
     const files = this.noteFileCache ?? await listMarkdownFiles(this.noteRootPaths());
+    this.assertCurrentScope(scope);
     this.noteFileCache = files;
     const notes = files
       .map((filePath) => {
@@ -309,70 +334,84 @@ export class WorkspaceNotesService {
   }
 
   async getGraphContext(filePath: string): Promise<WorkspaceGraphContext | null> {
+    const scope = this.scope;
     const authorizedPath = await this.workspaceFiles().existing(filePath);
-    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
-      return this.options.derivedIndex.graphContext(
-        this.options.getWorkspaceModel(),
-        this.options.getRuntimeRoot(),
+    const derivedIndex = this.derivedIndex;
+    if (derivedIndex && scope.runtimeRoot) {
+      return this.awaitCurrentScope(scope, derivedIndex.graphContext(
+        scope.model,
+        scope.runtimeRoot,
         authorizedPath,
-      );
+        scope.controller.signal,
+      ));
     }
     return this.workspaceGraph().contextForNote(authorizedPath);
   }
 
   async getGraphTopology(profileId?: string | null): Promise<GraphTopology> {
-    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
-      return this.options.derivedIndex.graphTopology(
-        this.options.getWorkspaceModel(),
-        this.options.getRuntimeRoot(),
+    const scope = this.scope;
+    const derivedIndex = this.derivedIndex;
+    if (derivedIndex && scope.runtimeRoot) {
+      return this.awaitCurrentScope(scope, derivedIndex.graphTopology(
+        scope.model,
+        scope.runtimeRoot,
         profileId,
-      );
+        scope.controller.signal,
+      ));
     }
     return this.workspaceGraph().graphTopology(profileId);
   }
 
   async previewOntology(): Promise<OntologyReviewState> {
-    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
-      return this.options.derivedIndex.ontologyPreview(
-        this.options.getWorkspaceModel(),
-        this.options.getRuntimeRoot(),
-      );
+    const scope = this.scope;
+    const derivedIndex = this.derivedIndex;
+    if (derivedIndex && scope.runtimeRoot) {
+      return this.awaitCurrentScope(scope, derivedIndex.ontologyPreview(scope.model, scope.runtimeRoot, scope.controller.signal));
     }
     return this.workspaceGraph().previewOntology();
   }
 
   async keepOntology(guard: OntologyReviewGuard): Promise<OntologyKeepResult> {
-    const result = this.options.derivedIndex && this.options.getRuntimeRoot
-      ? await this.options.derivedIndex.ontologyKeep(
-        this.options.getWorkspaceModel(),
-        this.options.getRuntimeRoot(),
+    const scope = this.scope;
+    const derivedIndex = this.derivedIndex;
+    const result = derivedIndex && scope.runtimeRoot
+      ? await this.awaitCurrentScope(scope, derivedIndex.ontologyKeep(
+        scope.model,
+        scope.runtimeRoot,
         guard,
-      )
+        scope.controller.signal,
+      ))
       : await this.workspaceGraph().keepOntology(guard);
     if (result.status === "applied") this.options.onGraphChanged?.();
     return result;
   }
 
   async rejectOntology(guard: OntologyReviewGuard): Promise<OntologyRejectResult> {
-    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
-      return this.options.derivedIndex.ontologyReject(
-        this.options.getWorkspaceModel(),
-        this.options.getRuntimeRoot(),
+    const scope = this.scope;
+    const derivedIndex = this.derivedIndex;
+    if (derivedIndex && scope.runtimeRoot) {
+      return this.awaitCurrentScope(scope, derivedIndex.ontologyReject(
+        scope.model,
+        scope.runtimeRoot,
         guard,
-      );
+        scope.controller.signal,
+      ));
     }
     return this.workspaceGraph().rejectOntology(guard);
   }
 
   async getGraphConceptSummaries(indexes: number[], sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptSummaryResult> {
-    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
-      return this.options.derivedIndex.graphConceptSummaries(
-        this.options.getWorkspaceModel(),
-        this.options.getRuntimeRoot(),
+    const scope = this.scope;
+    const derivedIndex = this.derivedIndex;
+    if (derivedIndex && scope.runtimeRoot) {
+      return this.awaitCurrentScope(scope, derivedIndex.graphConceptSummaries(
+        scope.model,
+        scope.runtimeRoot,
         indexes,
         sourceSnapshotId,
         profileId,
-      );
+        scope.controller.signal,
+      ));
     }
     return this.workspaceGraph().graphConceptSummaries(indexes, sourceSnapshotId, profileId);
   }
@@ -382,28 +421,34 @@ export class WorkspaceNotesService {
     sourceSnapshotId: string,
     profileId?: string | null,
   ): Promise<GraphConceptLookupResult> {
+    const scope = this.scope;
     const normalizedReference = await this.authorizeGraphConceptLookupReference(reference);
-    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
-      return this.options.derivedIndex.graphConceptLookup(
-        this.options.getWorkspaceModel(),
-        this.options.getRuntimeRoot(),
+    const derivedIndex = this.derivedIndex;
+    if (derivedIndex && scope.runtimeRoot) {
+      return this.awaitCurrentScope(scope, derivedIndex.graphConceptLookup(
+        scope.model,
+        scope.runtimeRoot,
         normalizedReference,
         sourceSnapshotId,
         profileId,
-      );
+        scope.controller.signal,
+      ));
     }
     return this.workspaceGraph().graphConceptLookup(normalizedReference, sourceSnapshotId, profileId);
   }
 
   async getGraphConceptDetailByIndex(index: number, sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptDetailByIndexResult> {
-    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
-      return this.options.derivedIndex.graphConceptDetailByIndex(
-        this.options.getWorkspaceModel(),
-        this.options.getRuntimeRoot(),
+    const scope = this.scope;
+    const derivedIndex = this.derivedIndex;
+    if (derivedIndex && scope.runtimeRoot) {
+      return this.awaitCurrentScope(scope, derivedIndex.graphConceptDetailByIndex(
+        scope.model,
+        scope.runtimeRoot,
         index,
         sourceSnapshotId,
         profileId,
-      );
+        scope.controller.signal,
+      ));
     }
     return this.workspaceGraph().graphConceptDetailByIndex(index, sourceSnapshotId, profileId);
   }
@@ -433,6 +478,7 @@ export class WorkspaceNotesService {
   }
 
   async getFolderOverview(directoryPath: string): Promise<FolderOverview> {
+    const scope = this.scope;
     const files = this.workspaceFiles();
     const authorizedDirectory = await files.existing(directoryPath);
     const cached = this.folderOverviewCache.get(authorizedDirectory);
@@ -460,6 +506,7 @@ export class WorkspaceNotesService {
       children,
       graphContext: null,
     };
+    this.assertCurrentScope(scope);
     this.folderOverviewCache.set(authorizedDirectory, overview);
     return overview;
   }
@@ -583,14 +630,21 @@ export class WorkspaceNotesService {
     throw new Error(`Markdown image target does not exist: ${target}`);
   }
 
-  private imageFilesInRoot(rootPath: string): Promise<string[]> {
+  private imageFilesInRoot(rootPath: string, scope = this.scope): Promise<string[]> {
     const cached = this.imageFileCache.get(rootPath);
     if (cached) {
       return cached;
     }
     const files = listFiles([rootPath]);
-    this.imageFileCache.set(rootPath, files);
+    void files.then(() => {
+      if (this.isCurrentScope(scope)) this.imageFileCache.set(rootPath, files);
+    }).catch(() => {});
     return files;
+  }
+
+  dispose(): void {
+    this.scope.controller.abort();
+    this.derivedIndex?.dispose();
   }
 }
 

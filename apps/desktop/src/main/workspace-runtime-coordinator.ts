@@ -22,10 +22,12 @@ export type WorkspaceActivationPhase =
   | "recovery"
   | "note-roots"
   | "command-server"
-  | "watcher";
+  | "watcher"
+  | "post-commit";
 
 export type WorkspaceActivationOutcome =
   | { status: "applied"; active: ActiveWorkspaceRuntime }
+  | { status: "committed-degraded"; active: ActiveWorkspaceRuntime; errorMessage: string }
   | { status: "superseded" }
   | {
     status: "failed";
@@ -132,13 +134,22 @@ export class WorkspaceRuntimeCoordinator {
       // This is the sole active-scope commit. The composition-root callback is
       // intentionally a synchronous assignment, so `current()` and the main
       // process fields change as one final observable transition.
-      this.active = active;
-      this.lastFailure = null;
-      this.options.publishActive(active);
-      watcher.commit();
-      this.options.invalidateDerivedState(candidate);
-      this.options.setTerminalDefaultCwd(candidate);
-      this.options.reconcileIndex(request.previousSettings, candidate, request.reason);
+      try {
+        this.active = active;
+        this.lastFailure = null;
+        this.options.publishActive(active);
+        watcher.commit();
+        this.options.invalidateDerivedState(candidate);
+        this.options.setTerminalDefaultCwd(candidate);
+        this.options.reconcileIndex(request.previousSettings, candidate, request.reason);
+      } catch (error) {
+        // Discovery is already atomically live. Reporting this as a failed
+        // activation would falsely claim A while commands resolve to B, so
+        // retain B and surface an honest degraded runtime instead.
+        const errorMessage = errorMessageFor(error);
+        this.lastFailure = { phase: "post-commit", errorMessage };
+        return { status: "committed-degraded", active, errorMessage };
+      }
       return { status: "applied", active };
     } catch (error) {
       await stagedCommandServer?.abort().catch(() => {});

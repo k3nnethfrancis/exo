@@ -207,7 +207,13 @@ export class WorkspaceWatcherService {
 
 function closeWatchers(watchers: FSWatcher[]): void {
   for (const watcher of watchers) {
-    watcher.close();
+    try {
+      watcher.close();
+    } catch (error) {
+      // Closing an already-dead kernel watcher must never turn a committed
+      // Workspace transition into a false failure after discovery is live.
+      console.warn("[exo] workspace watcher close failed", error);
+    }
   }
 }
 

@@ -80,7 +80,6 @@ let onboardingRuntimeRoot: string | null = null;
 let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
 let indexingService: IndexingService;
-let graphDerivedIndex: UtilityDerivedIndexClient;
 let workspaceNotesService: WorkspaceNotesService;
 let invocationRunner: InvocationRunner;
 let workspaceRuntimeCoordinator: WorkspaceRuntimeCoordinator;
@@ -399,17 +398,21 @@ async function saveSettings(request: WorkspaceSettingsSaveRequest): Promise<Work
     revision: saved.revision,
     reason: "settings-apply",
   });
-  return activation.status === "applied"
-    ? { ...saved, runtimeApply: { status: "applied" } }
-    : {
-      ...saved,
-      runtimeApply: {
-        status: "failed",
-        errorMessage: activation.status === "failed"
-          ? activation.errorMessage
-          : "A newer Workspace request superseded this activation.",
-      },
-    };
+  if (activation.status === "applied" || activation.status === "committed-degraded") {
+    if (activation.status === "committed-degraded") {
+      logMain("workspace activation committed degraded", activation);
+    }
+    return { ...saved, runtimeApply: { status: "applied" } };
+  }
+  return {
+    ...saved,
+    runtimeApply: {
+      status: "failed",
+      errorMessage: activation.status === "failed"
+        ? activation.errorMessage
+        : "A newer Workspace request superseded this activation.",
+    },
+  };
 }
 
 async function switchWorkspace(workspaceId: string, expectedRevision: string | null): Promise<WorkspaceSettingsSaveOutcome> {
@@ -420,17 +423,21 @@ async function switchWorkspace(workspaceId: string, expectedRevision: string | n
     revision: saved.revision,
     reason: "workspace-switch",
   });
-  return activation.status === "applied"
-    ? { ...saved, runtimeApply: { status: "applied" } }
-    : {
-      ...saved,
-      runtimeApply: {
-        status: "failed",
-        errorMessage: activation.status === "failed"
-          ? activation.errorMessage
-          : "A newer Workspace request superseded this activation.",
-      },
-    };
+  if (activation.status === "applied" || activation.status === "committed-degraded") {
+    if (activation.status === "committed-degraded") {
+      logMain("workspace switch committed degraded", activation);
+    }
+    return { ...saved, runtimeApply: { status: "applied" } };
+  }
+  return {
+    ...saved,
+    runtimeApply: {
+      status: "failed",
+      errorMessage: activation.status === "failed"
+        ? activation.errorMessage
+        : "A newer Workspace request superseded this activation.",
+    },
+  };
 }
 
 function applyOnboardingRuntimeEnv() {
@@ -438,7 +445,6 @@ function applyOnboardingRuntimeEnv() {
     return;
   }
   onboardingRuntimeRoot = path.join(app.getPath("userData"), "onboarding-runtime");
-  process.env.EXO_RUNTIME_ROOT = onboardingRuntimeRoot;
 }
 
 app.whenReady().then(async () => {
@@ -503,9 +509,6 @@ app.whenReady().then(async () => {
   terminalManager = new TerminalManager(
     workspaceModel.defaultTerminalCwd,
   );
-  const foregroundDerivedIndex = new UtilityDerivedIndexClient();
-  const maintenanceDerivedIndex = new UtilityDerivedIndexClient();
-  graphDerivedIndex = new UtilityDerivedIndexClient();
   indexingService = new IndexingService({
     getWorkspaceModel: () => workspaceModel,
     getCurrentSettings: () => currentSettings(),
@@ -522,8 +525,8 @@ app.whenReady().then(async () => {
     },
     sendState: (event) => sendToRenderer("workspace:index-sync-state", event),
     errorMessage,
-    foregroundDerivedIndex,
-    maintenanceDerivedIndex,
+    foregroundDerivedIndexFactory: () => new UtilityDerivedIndexClient(),
+    maintenanceDerivedIndexFactory: () => new UtilityDerivedIndexClient(),
     getSystemIdleTimeMs: () => powerMonitor.getSystemIdleTime() * 1_000,
   });
   invocationRunner = new InvocationRunner({
@@ -552,7 +555,7 @@ app.whenReady().then(async () => {
   workspaceNotesService = new WorkspaceNotesService({
     getWorkspaceModel: () => workspaceModel,
     getRuntimeRoot: () => resolveRuntimeRoot(),
-    derivedIndex: graphDerivedIndex,
+    derivedIndexFactory: () => new UtilityDerivedIndexClient(),
     onGraphChanged: () => sendToRenderer("workspace:graph-changed", { source: "ontology" }),
   });
   commandServerLifecycle = new CommandServerLifecycle({
@@ -583,7 +586,7 @@ app.whenReady().then(async () => {
         log: logMain,
       });
       await destinationLifecycle.start({ publishDiscovery: false });
-      const discovery = destinationLifecycle.prepareDiscovery();
+      const discovery = await destinationLifecycle.prepareDiscovery();
       return {
         commit: () => {
           discovery.commit();
@@ -604,7 +607,11 @@ app.whenReady().then(async () => {
       workspaceSettingsRevision = active.revision;
       workspaceModel = active.model;
       workspaceSetupComplete = true;
-      applyWorkspaceSettings(active.settings);
+      try {
+        applyWorkspaceSettings(active.settings);
+      } catch (error) {
+        logMain("workspace theme apply failed after runtime commit", serializeError(error));
+      }
     },
     invalidateDerivedState: (candidate) => {
       workspaceNotesService.activateWorkspace({
@@ -685,6 +692,10 @@ function resolveRuntimeRoot(): string {
     return process.env.EXO_RUNTIME_ROOT;
   }
 
+  if (!workspaceSetupComplete && onboardingRuntimeRoot) {
+    return onboardingRuntimeRoot;
+  }
+
   // Settings own the active workspace after startup. Falling back to the launch
   // directory here made packaged Exo derive `/.exo`, because Electron launches
   // the app from `/` rather than from the user's workspace.
@@ -720,7 +731,7 @@ app.on("before-quit", (event) => {
   void commandServerLifecycle?.stop();
   workspaceWatcherService?.stop();
   indexingService?.dispose();
-  graphDerivedIndex?.dispose();
+  workspaceNotesService?.dispose();
 });
 
 app.on("window-all-closed", () => {

@@ -1,4 +1,4 @@
-import { closeSync, fsyncSync, openSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { renameSync, rmSync } from "node:fs";
 import { open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -74,7 +74,7 @@ export class CommandServerLifecycle {
    * Committing the prepared rename is synchronous so a coordinator can publish
    * the active Workspace in the same event-loop turn.
    */
-  prepareDiscovery(): StagedCommandServerDiscovery {
+  async prepareDiscovery(): Promise<StagedCommandServerDiscovery> {
     const server = this.server;
     const generation = this.generation;
     if (!server || !server.isListening()) {
@@ -82,7 +82,7 @@ export class CommandServerLifecycle {
     }
     const info = server.getServerInfo();
     const temporaryPath = `${this.discoveryPath}.${process.pid}.${Date.now()}.staged`;
-    writeDiscoveryFileSync(temporaryPath, info);
+    await writePreparedDiscoveryFile(temporaryPath, info);
     let settled = false;
     return {
       commit: () => {
@@ -93,6 +93,9 @@ export class CommandServerLifecycle {
           throw new Error("Command server generation is no longer current.");
         }
         renameSync(temporaryPath, this.discoveryPath);
+        void syncDiscoveryDirectory(path.dirname(this.discoveryPath)).catch((error) => {
+          this.options.log?.("command server discovery directory sync failed", { error });
+        });
         settled = true;
       },
       abort: () => {
@@ -208,13 +211,32 @@ async function writeDiscoveryFile(discoveryPath: string, info: ExoCommandServerI
   }
 }
 
-function writeDiscoveryFileSync(discoveryPath: string, info: ExoCommandServerInfo): void {
+async function writePreparedDiscoveryFile(discoveryPath: string, info: ExoCommandServerInfo): Promise<void> {
   const body = `${JSON.stringify(info, null, 2)}\n`;
-  const descriptor = openSync(discoveryPath, "w", 0o600);
   try {
-    writeFileSync(descriptor, body, "utf8");
-    fsyncSync(descriptor);
-  } finally {
-    closeSync(descriptor);
+    await writeFile(discoveryPath, body, { encoding: "utf8", mode: 0o600 });
+    const descriptor = await open(discoveryPath, "r+");
+    try {
+      await descriptor.sync();
+    } finally {
+      await descriptor.close();
+    }
+  } catch (error) {
+    await rm(discoveryPath, { force: true });
+    throw error;
+  }
+}
+
+async function syncDiscoveryDirectory(directory: string): Promise<void> {
+  try {
+    const handle = await open(directory, "r");
+    try {
+      await handle.sync();
+    } finally {
+      await handle.close();
+    }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "EINVAL" && code !== "ENOTSUP" && code !== "EPERM") throw error;
   }
 }

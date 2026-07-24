@@ -236,6 +236,33 @@ describe("IndexingService", () => {
     service.dispose();
   });
 
+  it("replaces the serialized maintenance worker so B never queues behind held A native work", async () => {
+    vi.useFakeTimers();
+    const settingsA = workspaceSettings();
+    const settingsB = { ...workspaceSettings(), workspaceRoot: "/workspace-b", defaultTerminalCwd: "/workspace-b", noteRoots: ["/workspace-b/notes"] };
+    const heldA = deferred<IndexStatus>();
+    const workerA = derivedIndexClient();
+    const workerB = derivedIndexClient();
+    vi.mocked(workerA.update).mockImplementationOnce(() => heldA.promise);
+    const workers = [workerA, workerB];
+    const service = indexingService(settingsA, undefined, workerA, derivedIndexClient(), {
+      maintenanceDerivedIndexFactory: () => workers.shift() ?? workerB,
+    });
+
+    service.scheduleReconciliation("a", 0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(workerA.update).toHaveBeenCalledOnce();
+    service.activateWorkspace({ model: workspaceModel(settingsB), settings: settingsB, runtimeRoot: "/workspace-b/.exo" });
+    expect(workerA.dispose).toHaveBeenCalledOnce();
+    service.scheduleReconciliation("b", 0);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(workerB.update).toHaveBeenCalledWith(expect.objectContaining({ workspaceRoot: "/workspace-b" }), "/workspace-b/.exo", ["index-notes"], expect.anything());
+
+    heldA.resolve(indexStatus(0, "lexical"));
+    await vi.advanceTimersByTimeAsync(0);
+    service.dispose();
+  });
+
   it.each([
     { name: "lexical mode", mode: "lexical" as const, strategy: "on-save" as const, pending: 1, updates: 1 },
     { name: "Manual only", mode: "hybrid" as const, strategy: "manual" as const, pending: 1, updates: 0 },
@@ -552,6 +579,7 @@ function indexingService(
     getSystemIdleTimeMs?: () => number;
     autoEmbeddingPolicy?: AutoEmbeddingPolicy;
     sendState?: IndexingServiceOptions["sendState"];
+    maintenanceDerivedIndexFactory?: () => DerivedIndexClient;
   } = {},
 ) {
   return new IndexingService({
@@ -563,6 +591,7 @@ function indexingService(
     errorMessage: (error) => error instanceof Error ? error.message : String(error),
     foregroundDerivedIndex,
     maintenanceDerivedIndex,
+    maintenanceDerivedIndexFactory: options.maintenanceDerivedIndexFactory,
     now: () => Date.now(),
     getSystemIdleTimeMs: options.getSystemIdleTimeMs,
     autoEmbeddingPolicy: options.autoEmbeddingPolicy,

@@ -149,6 +149,27 @@ describe("WorkspaceRuntimeCoordinator", () => {
       commandDiscoveryWorkspace: "/source",
     });
   });
+
+  it("reports committed-degraded rather than falsely restoring A after discovery commits", async () => {
+    const events: string[] = [];
+    const coordinator = coordinatorFor(events, {
+      invalidateDerivedState: () => { throw new Error("derived refresh failed"); },
+    });
+
+    await expect(coordinator.activate(request(settings("/destination")))).resolves.toMatchObject({
+      status: "committed-degraded",
+      active: { settings: { workspaceRoot: "/destination" } },
+      errorMessage: "derived refresh failed",
+    });
+    expect(coordinator.current()).toMatchObject({ settings: { workspaceRoot: "/destination" } });
+    expect(coordinator.status()).toMatchObject({
+      status: "degraded",
+      active: { settings: { workspaceRoot: "/destination" } },
+      phase: "post-commit",
+    });
+    expect(events).toContain("commit-commands:/destination");
+    expect(events).toContain("publish:/destination:destination-revision");
+  });
 });
 
 function coordinatorFor(

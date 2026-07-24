@@ -64,7 +64,7 @@ describe("CommandServerLifecycle", () => {
     await lifecycle.start({ publishDiscovery: false });
     await expect(readFile(path.join(runtimeRoot, "server.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
 
-    const staged = lifecycle.prepareDiscovery();
+    const staged = await lifecycle.prepareDiscovery();
     staged.commit();
 
     await expect(readFile(path.join(runtimeRoot, "server.json"), "utf8")).resolves.toContain("token-staged");

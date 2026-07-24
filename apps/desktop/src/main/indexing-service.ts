@@ -53,7 +53,10 @@ export interface IndexingServiceOptions {
   sendState: (event: { state: "running" | "idle" | "error"; reason: string; result?: IndexSyncResult; error?: string }) => void;
   errorMessage: (error: unknown) => string;
   foregroundDerivedIndex?: DerivedIndexClient;
+  foregroundDerivedIndexFactory?: () => DerivedIndexClient;
   maintenanceDerivedIndex?: DerivedIndexClient;
+  /** Creates an isolated maintenance worker for each Workspace generation. */
+  maintenanceDerivedIndexFactory?: () => DerivedIndexClient;
   now?: () => number;
   getSystemIdleTimeMs?: () => number;
   autoEmbeddingPolicy?: AutoEmbeddingPolicy;
@@ -100,8 +103,10 @@ interface WorkspaceMaintenanceState {
 
 export class IndexingService {
   private disposed = false;
-  private readonly foregroundDerivedIndex: DerivedIndexClient;
-  private readonly maintenanceDerivedIndex: DerivedIndexClient;
+  private foregroundDerivedIndex: DerivedIndexClient;
+  private readonly createForegroundDerivedIndex: (() => DerivedIndexClient) | null;
+  private maintenanceDerivedIndex: DerivedIndexClient;
+  private readonly createMaintenanceDerivedIndex: (() => DerivedIndexClient) | null;
   private readonly now: () => number;
   private readonly getSystemIdleTimeMs: () => number;
   private readonly autoEmbeddingPolicy: AutoEmbeddingPolicy;
@@ -109,8 +114,16 @@ export class IndexingService {
   private state: WorkspaceMaintenanceState;
 
   constructor(private readonly options: IndexingServiceOptions) {
-    this.foregroundDerivedIndex = options.foregroundDerivedIndex ?? new UtilityDerivedIndexClient();
-    this.maintenanceDerivedIndex = options.maintenanceDerivedIndex ?? new UtilityDerivedIndexClient();
+    this.createForegroundDerivedIndex = options.foregroundDerivedIndexFactory
+      ?? (options.foregroundDerivedIndex ? null : () => new UtilityDerivedIndexClient());
+    this.foregroundDerivedIndex = this.createForegroundDerivedIndex
+      ? this.createForegroundDerivedIndex()
+      : options.foregroundDerivedIndex!;
+    this.createMaintenanceDerivedIndex = options.maintenanceDerivedIndexFactory
+      ?? (options.maintenanceDerivedIndex ? null : () => new UtilityDerivedIndexClient());
+    this.maintenanceDerivedIndex = this.createMaintenanceDerivedIndex
+      ? this.createMaintenanceDerivedIndex()
+      : options.maintenanceDerivedIndex!;
     this.now = options.now ?? Date.now;
     this.getSystemIdleTimeMs = options.getSystemIdleTimeMs ?? (() => 0);
     this.autoEmbeddingPolicy = options.autoEmbeddingPolicy ?? DEFAULT_AUTO_EMBEDDING_POLICY;
@@ -123,9 +136,22 @@ export class IndexingService {
 
   /** Rebinds maintenance to one immutable Workspace scope and aborts old work. */
   activateWorkspace(activation: IndexingWorkspaceActivation): void {
+    const previousForegroundClient = this.foregroundDerivedIndex;
+    const previousMaintenanceClient = this.maintenanceDerivedIndex;
     this.state.scope.maintenanceAbortController.abort();
     this.state.foregroundAbortController.abort();
     this.disposeMaintenanceState(this.state);
+    // A utility process can be in a native/QMD call that only cooperatively
+    // observes cancellation.  A new client is the generation boundary: B
+    // never queues behind an uninterruptible A operation.
+    if (this.createForegroundDerivedIndex) {
+      this.foregroundDerivedIndex = this.createForegroundDerivedIndex();
+      previousForegroundClient.dispose();
+    }
+    if (this.createMaintenanceDerivedIndex) {
+      this.maintenanceDerivedIndex = this.createMaintenanceDerivedIndex();
+      previousMaintenanceClient.dispose();
+    }
     this.state = this.createMaintenanceState(activation);
     this.options.sendState({ state: "idle", reason: "workspace-activated" });
   }
@@ -595,7 +621,6 @@ export class IndexingService {
 
   private async runMaintenance<Result>(state: WorkspaceMaintenanceState, run: () => Promise<Result>): Promise<Result> {
     if (this.disposed) throw new Error("Indexing service has been disposed.");
-    const { scope } = state;
     state.maintenanceWorkCount += 1;
     this.clearAutomaticEmbeddingTimer(state);
     try {
@@ -721,10 +746,6 @@ export class IndexingService {
       generation: ++this.workspaceGeneration,
       maintenanceAbortController: new AbortController(),
     };
-  }
-
-  private isCurrentWorkspace(scope: IndexingWorkspaceScope): boolean {
-    return scope.generation === this.state.scope.generation;
   }
 
   private createMaintenanceState(activation: IndexingWorkspaceActivation): WorkspaceMaintenanceState {
