@@ -196,7 +196,7 @@ test("makes a legacy multi-root migration visible once without touching retired 
 });
 
 test("boots the shell, opens notes, and creates terminals on demand", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture();
+  const { page, cleanup } = await launchExoWorkspaceFixture({ mutable: true });
 
   await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
   await expect(page.getByTestId("editor-panel")).toContainText("Linked references:");
@@ -238,6 +238,7 @@ test("boots the shell, opens notes, and creates terminals on demand", async () =
   await expect(page.getByTestId("editor-title")).toHaveText("related-note");
 
   await cleanup();
+  expect(existsSync(path.join(repoRoot, "fixtures/test-workspace/notes/test-notes", `${tagName}.md`))).toBe(false);
 });
 
 test("keeps editor, full graph, and backlink-only Connections on one navigation contract", async () => {
