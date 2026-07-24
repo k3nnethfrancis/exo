@@ -99,6 +99,90 @@ test("every non-structural Settings round trip preserves commands, layout, and o
   }
 });
 
+test("an explicit empty Commands list stays empty and does not offer @claude", async () => {
+  const fixture = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
+      await writeFile(settingsPath, JSON.stringify({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [path.join(workspaceRoot, "notes/test-notes")],
+        projectRoots: [],
+        agentCommands: [],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        searchEngine: "filesystem",
+        appearanceMode: "system",
+        colorThemeId: "exo-neutral",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+      }, null, 2), "utf8");
+    },
+  });
+
+  try {
+    await editSettingsAndClose(fixture.page, "terminal", async (page) => {
+      await page.getByTestId("workspace-settings-terminal-font-size").fill("14");
+    });
+    await expect.poll(() => persistedSettings(fixture.settingsPath)).toMatchObject({ agentCommands: [] });
+
+    await fixture.page.locator(".editor-surface .cm-content").click();
+    await fixture.page.keyboard.press("Meta+End");
+    await fixture.page.keyboard.type("@claude");
+    await expect(fixture.page.getByTestId("agent-suggestions")).toHaveCount(0);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("a disabled Claude command stays unavailable to inline completion", async () => {
+  const fixture = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
+      await writeFile(settingsPath, JSON.stringify({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [path.join(workspaceRoot, "notes/test-notes")],
+        projectRoots: [],
+        agentCommands: [{
+          id: "claude",
+          label: "Claude",
+          handle: "claude",
+          command: "/bin/echo",
+          adapter: "claude-code",
+          continuityPolicy: "continuous",
+          cwdPolicy: "workspace_root",
+          promptDelivery: "stdin",
+          version: 1,
+          enabled: false,
+        }],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        searchEngine: "filesystem",
+        appearanceMode: "system",
+        colorThemeId: "exo-neutral",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+      }, null, 2), "utf8");
+    },
+  });
+
+  try {
+    await fixture.page.locator(".editor-surface .cm-content").click();
+    await fixture.page.keyboard.press("Meta+End");
+    await fixture.page.keyboard.type("@claude");
+    await expect(fixture.page.getByTestId("agent-suggestions")).toHaveCount(0);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 test("structural Settings Apply preserves retained Indexed Root policy", async () => {
   const fixture = await launchExoWorkspaceFixture({
     mutable: true,

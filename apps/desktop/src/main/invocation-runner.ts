@@ -9,7 +9,6 @@ import {
   buildInvocationChangeset,
   agentCommandSnapshot,
   agentCommandExecutableFingerprint,
-  createDefaultClaudeAgentCommand,
   deriveAgentCommandLaunch,
   formatCliInvocationPrompt,
   formatNoteInvocationPrompt,
@@ -1191,8 +1190,7 @@ export class InvocationRunner extends EventEmitter {
 
   private resolveCommand(settings: WorkspaceSettings, handleInput: string): AgentCommand {
     const handle = normalizeAgentHandle(handleInput);
-    const command = settings.agentCommands?.find((entry) => entry.handle === handle)
-      ?? (handle === "claude" ? createDefaultClaudeAgentCommand() : undefined);
+    const command = settings.agentCommands?.find((entry) => entry.handle === handle);
     if (!handle || !command) throw new InvocationRunnerError("not-found", `No AgentCommand is configured for @${handleInput.replace(/^@/, "")}.`);
     return command;
   }

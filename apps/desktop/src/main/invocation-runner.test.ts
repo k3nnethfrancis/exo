@@ -20,6 +20,27 @@ afterEach(async () => {
 });
 
 describe("InvocationRunner readiness parity", () => {
+  it("rejects an absent @claude command instead of launching an implicit default", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
+    temporaryRoots.push(root);
+    const runner = createRunner({ ...settings(root, createDefaultClaudeAgentCommand()), agentCommands: [] });
+
+    await expect(runner.prepare({ context: "cli", handle: "claude", message: "test" })).rejects.toMatchObject({
+      code: "not-found",
+    } satisfies Partial<InvocationRunnerError>);
+  });
+
+  it("keeps a disabled @claude command disabled", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
+    temporaryRoots.push(root);
+    const disabledClaude = { ...createDefaultClaudeAgentCommand(), enabled: false };
+    const runner = createRunner(settings(root, disabledClaude));
+
+    await expect(runner.prepare({ context: "cli", handle: "claude", message: "test" })).rejects.toMatchObject({
+      code: "disabled",
+    } satisfies Partial<InvocationRunnerError>);
+  });
+
   it("uses the same facts and cwd as prepare", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-runner-"));
     temporaryRoots.push(root);

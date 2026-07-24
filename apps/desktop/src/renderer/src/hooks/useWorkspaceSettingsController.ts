@@ -5,7 +5,6 @@ import type {
   WorkspaceSettingsRevision,
 } from "@exo/core";
 import type { IndexSyncStateEvent, WorkspaceSettingsSaveOutcome } from "../../../shared/api";
-import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
 import type { AppearanceMode } from "../appearance";
 import { normalizeColorThemeId } from "../theme/registry";
@@ -199,7 +198,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       explorerScale: String(settings.explorerScale),
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
-      agentCommands: settings.agentCommands?.length ? settings.agentCommands : [createDefaultClaudeAgentCommand()],
+      agentCommands: settings.agentCommands ?? [],
       agentInvocationPrompt: settings.agentInvocationPrompt ?? DEFAULT_AGENT_INVOCATION_PROMPT,
       saveStatus: "saved",
       errorMessage: null,

@@ -10,7 +10,6 @@ import { EditorSelection, Prec } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
 import { Clock3, Code2, Network, Plus, Save, SlidersHorizontal } from "lucide-react";
 import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exo/core";
-import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 import type { InvocationFileReviewPayload } from "../../../shared/api";
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
 import type { ExoThemeVariant } from "../theme/types";
@@ -198,10 +197,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const graphReferences = useMemo((): MarkdownGraphReferences | null => {
     return graphReferencesForMarkdownMode(showNoteMetadata, rawMarkdownMode, graphContext);
   }, [graphContext, rawMarkdownMode, showNoteMetadata]);
-  const invocationCommands = useMemo(() => {
-    const enabled = agentCommands.filter((command) => command.enabled);
-    return enabled.some((command) => command.handle === "claude") ? enabled : [createDefaultClaudeAgentCommand(), ...enabled];
-  }, [agentCommands]);
+  const invocationCommands = useMemo(() => agentCommands.filter((command) => command.enabled), [agentCommands]);
   const invokeAgentRef = useRef(onInvokeAgent);
   const bodyChangeRef = useRef(onBodyChange);
   const openTargetRef = useRef(onOpenTarget);
