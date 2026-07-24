@@ -247,15 +247,53 @@ describe("QMD index adapter", () => {
     expect(updatedCollections).toEqual(expect.arrayContaining([firstCollection, secondCollection]));
   });
 
+  it("keeps duplicate root IDs at distinct paths independently configured, selected, updated, and resolved", async () => {
+    const root = await fixtureRoot();
+    const firstPath = path.join(root, "duplicate-first");
+    const secondPath = path.join(root, "duplicate-second");
+    await Promise.all([mkdir(firstPath), mkdir(secondPath)]);
+    await Promise.all([
+      writeFile(path.join(firstPath, "focus.md"), "# First duplicate\n", "utf8"),
+      writeFile(path.join(secondPath, "focus.md"), "# Second duplicate\n", "utf8"),
+    ]);
+    const first = createIndexedRoot(firstPath, { id: "index-duplicate", label: "first", kind: "notes" });
+    const second = createIndexedRoot(secondPath, { id: "index-duplicate", label: "second", kind: "docs" });
+    const model = {
+      ...indexedModel(root, "lexical"),
+      indexedRoots: [first, second],
+    };
+
+    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", { rootIds: [first.id] });
+
+    const configuredStore = stores[1];
+    const collectionEntries = Object.entries(configuredStore.config.collections);
+    const firstCollection = collectionEntries.find(([, config]) => config.path === firstPath)?.[0];
+    const secondCollection = collectionEntries.find(([, config]) => config.path === secondPath)?.[0];
+    expect(firstCollection).toMatch(/^exo-root-[0-9a-f]{64}$/);
+    expect(secondCollection).toMatch(/^exo-root-[0-9a-f]{64}$/);
+    expect(firstCollection).not.toBe(secondCollection);
+    expect(Object.keys(configuredStore.config.collections)).toHaveLength(2);
+    expect(configuredStore.searchLexCalls.map((call) => call.collection)).toEqual([firstCollection, secondCollection]);
+    expect(result.results.map((entry) => entry.filePath).sort()).toEqual([
+      path.join(firstPath, "focus.md"),
+      path.join(secondPath, "focus.md"),
+    ].sort());
+
+    await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds: [first.id] });
+
+    const updatingStore = stores[3];
+    expect(updatingStore.updateOptions).toEqual([{ collections: [firstCollection, secondCollection] }]);
+  });
+
   it("reconfigures a legacy collision once before serving newly distinct roots", async () => {
     const root = await fixtureRoot();
     const firstPath = path.join(root, "first");
     const secondPath = path.join(root, "second");
     await Promise.all([mkdir(firstPath), mkdir(secondPath)]);
-    const first = createIndexedRoot(firstPath, { id: "x", label: "first", kind: "notes" });
-    const second = createIndexedRoot(secondPath, { id: "index-x", label: "second", kind: "docs" });
-    existingQmdCollections = [{ name: "x", pwd: secondPath }];
-    existingQmdDocumentCollections = ["x"];
+    const first = createIndexedRoot(firstPath, { id: "index-duplicate", label: "first", kind: "notes" });
+    const second = createIndexedRoot(secondPath, { id: "index-duplicate", label: "second", kind: "docs" });
+    existingQmdCollections = [{ name: "duplicate", pwd: secondPath }];
+    existingQmdDocumentCollections = ["duplicate"];
     const model = {
       ...indexedModel(root, "lexical"),
       indexedRoots: [first, second],

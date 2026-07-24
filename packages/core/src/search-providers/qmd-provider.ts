@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -740,14 +741,14 @@ interface QmdCollectionIdentity {
   rootFor(name: string): IndexedRoot | null;
 }
 
-const SAFE_QMD_COLLECTION_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const SAFE_QMD_COLLECTION_NAME = /^[A-Za-z0-9_-]+$/;
 
 /**
  * Owns every conversion between an Indexed Root ID and QMD's collection
  * namespace. Legacy names remain for ordinary roots when they are already a
- * safe URI segment and unique in this Workspace. Every ambiguous or unsafe
- * ID is encoded from its UTF-16 code units, so it is injective even for
- * punctuation, case distinctions, and malformed Unicode input.
+ * QMD name and unique in this Workspace. Every ambiguous or unsafe identity
+ * uses a bounded SHA-256 name derived from the exact ID plus resolved path,
+ * so distinct roots with the same ID cannot overwrite one another.
  */
 function qmdCollectionIdentity(roots: IndexedRoot[]): QmdCollectionIdentity {
   const names = new Map<IndexedRoot, string>();
@@ -774,7 +775,7 @@ function qmdCollectionIdentity(roots: IndexedRoot[]): QmdCollectionIdentity {
     }
     let changed = false;
     for (const root of rootsToEncode) {
-      const encoded = encodeQmdCollectionId(root.id);
+      const encoded = encodeQmdCollectionIdentity(root);
       if (names.get(root) !== encoded) {
         names.set(root, encoded);
         changed = true;
@@ -787,7 +788,7 @@ function qmdCollectionIdentity(roots: IndexedRoot[]): QmdCollectionIdentity {
 
   return {
     changedRoots: roots.filter((root) => names.get(root) !== legacyQmdCollectionName(root)),
-    nameFor: (root) => names.get(root) ?? encodeQmdCollectionId(root.id),
+    nameFor: (root) => names.get(root) ?? encodeQmdCollectionIdentity(root),
     rootFor: (name) => roots.find((root) => names.get(root) === name) ?? null,
   };
 }
@@ -796,8 +797,12 @@ function legacyQmdCollectionName(root: IndexedRoot): string {
   return root.id.replace(/^index-/, "");
 }
 
-function encodeQmdCollectionId(id: string): string {
-  return `exo-root-${Array.from({ length: id.length }, (_, index) => id.charCodeAt(index).toString(16).padStart(4, "0")).join("")}`;
+function encodeQmdCollectionIdentity(root: IndexedRoot): string {
+  return `exo-root-${createHash("sha256")
+    .update(root.id)
+    .update("\0")
+    .update(path.resolve(root.path))
+    .digest("hex")}`;
 }
 
 async function hasLegacyQmdCollections(
