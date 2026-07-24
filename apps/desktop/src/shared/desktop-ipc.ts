@@ -1,5 +1,5 @@
 import type { DesktopApi, IndexSyncStateEvent, TerminalDataEvent, TerminalSessionInfo, WorkspaceSettingsSection } from "./api";
-import type { InvocationRecord } from "@exo/core";
+import type { InvocationActivityEvent, InvocationRecord } from "@exo/core";
 
 type WorkspaceApi = DesktopApi["workspace"];
 type NotesApi = DesktopApi["notes"];
@@ -16,19 +16,27 @@ export interface DesktopInvokeHandlers {
   "workspace:save-settings": WorkspaceApi["saveSettings"];
   "workspace:select-folder": WorkspaceApi["selectFolder"];
   "workspace:get-index-status": WorkspaceApi["getIndexStatus"];
+  "workspace:ontology-preview": WorkspaceApi["previewOntology"];
+  "workspace:ontology-keep": WorkspaceApi["keepOntology"];
+  "workspace:ontology-reject": WorkspaceApi["rejectOntology"];
   "workspace:resolve-preview-target": WorkspaceApi["resolvePreviewTarget"];
   "workspace:launch-agent-invocation": WorkspaceApi["launchAgentInvocation"];
+  "workspace:get-agent-invocation-authorization": WorkspaceApi["getAgentInvocationAuthorization"];
   "workspace:get-agent-command-trust": WorkspaceApi["getAgentCommandTrust"];
+  "workspace:reset-agent-command-trust": WorkspaceApi["resetAgentCommandTrust"];
   "workspace:get-agent-command-launch-facts": WorkspaceApi["getAgentCommandLaunchFacts"];
   "workspace:get-agent-command-continuity": WorkspaceApi["getAgentCommandContinuity"];
   "workspace:reset-agent-command-continuity": WorkspaceApi["resetAgentCommandContinuity"];
   "workspace:test-agent-command": WorkspaceApi["testAgentCommand"];
   "workspace:configure-provider-mcp": WorkspaceApi["configureProviderMcp"];
   "workspace:get-cli-installation-status": WorkspaceApi["getCliInstallationStatus"];
+  "workspace:record-renderer-diagnostic": WorkspaceApi["recordRendererDiagnostic"];
   "workspace:end-agent-invocation": WorkspaceApi["endAgentInvocation"];
-  "workspace:get-invocation-review": WorkspaceApi["getInvocationReview"];
-  "workspace:keep-invocation-review": WorkspaceApi["keepInvocationReview"];
-  "workspace:reject-invocation-review": WorkspaceApi["rejectInvocationReview"];
+  "workspace:list-pending-invocation-reviews": WorkspaceApi["listPendingInvocationReviews"];
+  "workspace:list-invocation-history": WorkspaceApi["listInvocationHistory"];
+  "workspace:get-invocation-file-review": WorkspaceApi["getInvocationFileReview"];
+  "workspace:review-invocation-file": WorkspaceApi["reviewInvocationFile"];
+  "workspace:review-invocation-all": WorkspaceApi["reviewInvocationAll"];
   "workspace:resume-invocation-in-terminal": WorkspaceApi["resumeInvocationInTerminal"];
   "workspace:index-sync": WorkspaceApi["syncIndex"];
   "workspace:index-update": WorkspaceApi["updateIndex"];
@@ -49,8 +57,10 @@ export interface DesktopInvokeHandlers {
   "notes:save": NotesApi["save"];
   "notes:stat": NotesApi["stat"];
   "notes:get-graph-context": NotesApi["getGraphContext"];
-  "notes:get-graph-view": NotesApi["getGraphView"];
-  "notes:get-graph-concept-detail": NotesApi["getGraphConceptDetail"];
+  "notes:get-graph-topology": NotesApi["getGraphTopology"];
+  "notes:get-graph-concept-summaries": NotesApi["getGraphConceptSummaries"];
+  "notes:graph-concept-lookup": NotesApi["graphConceptLookup"];
+  "notes:get-graph-concept-detail-by-index": NotesApi["getGraphConceptDetailByIndex"];
   "notes:resolve-target": NotesApi["resolveTarget"];
   "notes:resolve-markdown-image": NotesApi["resolveMarkdownImage"];
   "notes:ensure-target": NotesApi["ensureTarget"];
@@ -70,11 +80,11 @@ export interface DesktopInvokeHandlers {
 export interface DesktopEventPayloads {
   "workspace:changed": { rootPath: string; eventType: string; filePath: string | null };
   "workspace:index-sync-state": IndexSyncStateEvent;
+  "workspace:graph-changed": { source: "ontology" };
+  "workspace:ontology-candidate-changed": undefined;
   "workspace:invocation-updated": InvocationRecord;
+  "workspace:invocation-activity": InvocationActivityEvent;
   "command:open-file": string;
-  "command:open-preview": { url: string };
-  "command:focus-preview": undefined;
-  "command:close-preview": undefined;
   "command:open-settings": { section: WorkspaceSettingsSection };
   "terminal:created": TerminalSessionInfo;
   "terminal:updated": TerminalSessionInfo;

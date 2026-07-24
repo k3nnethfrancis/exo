@@ -8,7 +8,6 @@ const onePixelPng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z7KkAAAAASUVORK5CYII=",
   "base64",
 );
-
 const sibsSvgFiles = [
   "organizational-ecology-v4.svg",
   "levels-of-agentic-work-v1.svg",
@@ -28,6 +27,7 @@ test("loads a root-relative site image through the Electron notes resolver", asy
       const imagePath = path.join(siteRoot, "images/posts/self-improving-business-systems/loop-stack.png");
       const relativeImagePath = path.join(siteRoot, "blog/attachments/relative.png");
       const embeddedImagePath = path.join(siteRoot, "blog/images/embedded.png");
+      const vectorImagePath = path.join(siteRoot, "blog/attachments/vector.svg");
       const noteRootImagePath = path.join(workspaceRoot, "notes/test-notes/images/root-control.png");
       await mkdir(path.dirname(notePath), { recursive: true });
       await mkdir(path.dirname(imagePath), { recursive: true });
@@ -36,11 +36,12 @@ test("loads a root-relative site image through the Electron notes resolver", asy
       await mkdir(path.dirname(noteRootImagePath), { recursive: true });
       await writeFile(
         notePath,
-        "# Self-Improving Business Systems\n\n![Relative control](attachments/relative.png)\n\n![Note root control](/images/root-control.png)\n\n![The nested agentic work loop and human governance loop](/images/posts/self-improving-business-systems/loop-stack.png)\n\n![[embedded.png|640]]\n\n![Remote control](https://assets.example.test/exo.png)\n",
+        "# Self-Improving Business Systems\n\n![Relative control](attachments/relative.png)\n\n![Vector control](attachments/vector.svg)\n\n![Note root control](/images/root-control.png)\n\n![The nested agentic work loop and human governance loop](/images/posts/self-improving-business-systems/loop-stack.png)\n\n![[embedded.png|640]]\n\n![Remote control](https://assets.example.test/exo.png)\n",
         "utf8",
       );
       await writeFile(imagePath, onePixelPng);
       await writeFile(relativeImagePath, onePixelPng);
+      await writeFile(vectorImagePath, '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 120"><rect width="320" height="120" fill="#2f716c"/></svg>', "utf8");
       await writeFile(embeddedImagePath, onePixelPng);
       await writeFile(noteRootImagePath, onePixelPng);
     },
@@ -56,16 +57,20 @@ test("loads a root-relative site image through the Electron notes resolver", asy
     }, notePath);
 
     const relativeControl = page.getByLabel("Relative control");
+    const vectorControl = page.getByLabel("Vector control");
     const noteRootControl = page.getByLabel("Note root control");
     const imageWidget = page.getByLabel("The nested agentic work loop and human governance loop");
     const embeddedImage = page.getByLabel("embedded.png");
     const remoteControl = page.getByLabel("Remote control");
     await expect(relativeControl).toBeVisible();
+    await expect(vectorControl).toBeVisible();
     await expect(noteRootControl).toBeVisible();
     await expect(imageWidget).toBeVisible();
     await expect(embeddedImage).toBeVisible();
     await expect(remoteControl).toBeVisible();
     await expect.poll(() => loadedWidth(relativeControl)).toBeGreaterThan(0);
+    await expect.poll(() => loadedWidth(vectorControl)).toBeGreaterThan(0);
+    await expect.poll(() => renderedWidth(vectorControl)).toBeGreaterThan(0);
     await expect.poll(() => loadedWidth(noteRootControl)).toBeGreaterThan(0);
     await expect
       .poll(() => loadedWidth(imageWidget))
@@ -130,4 +135,8 @@ test("renders every root-relative SVG used by Self-Improving Business Systems", 
 
 function loadedWidth(widget: Locator): Promise<number> {
   return widget.locator("img").evaluateAll((images) => images[0]?.naturalWidth ?? 0);
+}
+
+function renderedWidth(widget: Locator): Promise<number> {
+  return widget.locator("img").evaluateAll((images) => images[0]?.getBoundingClientRect().width ?? 0);
 }

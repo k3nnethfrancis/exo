@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
 import { formatDocumentAgentResponse, isDocumentAgentProtocolId } from "./document-agent-protocol";
+import { normalizeInvocationChangeset, type InvocationChangeset } from "./invocation-changeset";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "./agent-invocation-prompt";
 export { DEFAULT_AGENT_INVOCATION_PROMPT } from "./agent-invocation-prompt";
 export { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
@@ -22,6 +23,10 @@ export type AgentCommandCwdPolicy = (typeof AGENT_COMMAND_CWD_POLICIES)[number];
 export type AgentCommandAdapter = (typeof AGENT_COMMAND_ADAPTERS)[number];
 export type InvocationContinuityPolicy = "continuous" | "fresh";
 export type InvocationContinuityOutcome = "fresh" | "resumed" | "resume-failed" | "resume-failed-fresh";
+export type InvocationAuthorizationDecision =
+  | { kind: "trusted" }
+  | { kind: "run-once" }
+  | { kind: "always-allow" };
 
 export interface AgentCommand {
   id: string;
@@ -60,7 +65,6 @@ export type InvocationStatus =
   | "timeout-ended"
   | "failed"
   | "orphaned";
-export type InvocationAttributionStatus = "pending" | "likely" | "ambiguous" | "unattributed";
 export type InvocationMentionProvenance = "human-authored" | "prior-invocation-authored" | "unknown";
 
 export interface AgentCommandSnapshot {
@@ -78,39 +82,6 @@ export interface AgentCommandSnapshot {
   executableFingerprint: string;
 }
 
-export interface InvocationChangedFileRef {
-  path: string;
-  kind: "created" | "modified" | "deleted" | "unknown";
-  observedAt?: string;
-  attribution: InvocationAttributionStatus;
-  diffRefId?: string;
-}
-
-export interface InvocationDiffRef {
-  id: string;
-  path: string;
-  format: "unified" | "json" | "external";
-  ref: string;
-}
-
-export interface InvocationAttributionSummary {
-  status: InvocationAttributionStatus;
-  reason?: string;
-}
-
-export type InvocationReviewStatus = "pending" | "kept" | "rejected";
-
-/**
- * Review state refers to the one tagged document snapshot captured by Exo.
- * It is provenance, not a second durable document model.
- */
-export interface InvocationReviewSummary {
-  status: InvocationReviewStatus;
-  beforeSha256: string | null;
-  afterSha256: string | null;
-  reviewedAt?: string;
-}
-
 export interface InvocationContinuitySummary {
   policy: InvocationContinuityPolicy;
   outcome: InvocationContinuityOutcome;
@@ -121,6 +92,8 @@ export interface InvocationRecord {
   id: string;
   /** Immutable origin for runtime scoping; older records may omit it. */
   workspaceRoot?: string;
+  /** Immutable authorized Note Roots used to capture and recover this run. */
+  noteRoots?: string[];
   status: InvocationStatus;
   context: InvocationContextKind;
   taggedDocumentPath?: string;
@@ -141,10 +114,8 @@ export interface InvocationRecord {
   /** Provider-emitted provenance, never inferred from command output. */
   providerSessionId?: string;
   continuity: InvocationContinuitySummary;
-  changedFileRefs: InvocationChangedFileRef[];
-  diffRefs: InvocationDiffRef[];
-  attribution: InvocationAttributionSummary;
-  review?: InvocationReviewSummary;
+  /** Exact multi-file proposal derived from immutable launch/settled manifests. */
+  changeset?: InvocationChangeset;
 }
 
 const AGENT_HANDLE_PATTERN = /^[a-z][a-z0-9_-]{1,31}$/;
@@ -476,6 +447,7 @@ export function normalizeInvocationRecord(input: unknown): InvocationRecord | nu
   return {
     id,
     ...optionalStringField("workspaceRoot", candidate.workspaceRoot),
+    ...optionalAbsolutePaths("noteRoots", candidate.noteRoots),
     status,
     context,
     ...(taggedDocumentPath ? { taggedDocumentPath } : {}),
@@ -494,11 +466,21 @@ export function normalizeInvocationRecord(input: unknown): InvocationRecord | nu
     ...optionalStringField("terminalSessionId", candidate.terminalSessionId),
     ...optionalProviderSessionId(candidate.providerSessionId),
     continuity: normalizeInvocationContinuity(candidate.continuity),
-    changedFileRefs: normalizeChangedFileRefs(candidate.changedFileRefs),
-    diffRefs: normalizeDiffRefs(candidate.diffRefs),
-    attribution: normalizeAttributionSummary(candidate.attribution),
-    ...optionalReviewSummary(candidate.review),
+    ...optionalChangeset(candidate.changeset),
   };
+}
+
+function optionalAbsolutePaths(key: "noteRoots", value: unknown): { noteRoots?: string[] } {
+  if (!Array.isArray(value)) return {};
+  const paths = [...new Set(value
+    .filter((entry): entry is string => typeof entry === "string" && path.isAbsolute(entry))
+    .map((entry) => path.resolve(entry)))].sort();
+  return paths.length > 0 && paths.length === value.length ? { [key]: paths } : {};
+}
+
+function optionalChangeset(value: unknown): { changeset?: InvocationChangeset } {
+  const changeset = normalizeInvocationChangeset(value);
+  return changeset ? { changeset } : {};
 }
 
 function normalizeInvocationContinuity(value: unknown): InvocationContinuitySummary {
@@ -520,25 +502,6 @@ function normalizeInvocationContinuity(value: unknown): InvocationContinuitySumm
 
 function optionalProtocolInvocationId(value: unknown): { protocolInvocationId?: string } {
   return isDocumentAgentProtocolId(value) ? { protocolInvocationId: value } : {};
-}
-
-function optionalReviewSummary(value: unknown): { review?: InvocationReviewSummary } {
-  if (!value || typeof value !== "object") {
-    return {};
-  }
-  const candidate = value as Partial<InvocationReviewSummary>;
-  const status = candidate.status === "kept" || candidate.status === "rejected" ? candidate.status : "pending";
-  const beforeSha256 = normalizeNullableSha256(candidate.beforeSha256);
-  const afterSha256 = normalizeNullableSha256(candidate.afterSha256);
-  if (beforeSha256 === undefined || afterSha256 === undefined) {
-    return {};
-  }
-  return { review: { status, beforeSha256, afterSha256, ...optionalStringField("reviewedAt", candidate.reviewedAt) } };
-}
-
-function normalizeNullableSha256(value: unknown): string | null | undefined {
-  if (value === null) return null;
-  return typeof value === "string" && /^[a-f0-9]{64}$/i.test(value) ? value : undefined;
 }
 
 function optionalProviderSessionId(value: unknown): { providerSessionId?: string } {
@@ -655,74 +618,6 @@ function normalizeInvocationContext(value: unknown): InvocationContextKind {
 
 function normalizeInvocationMentionProvenance(value: unknown): InvocationMentionProvenance {
   return value === "human-authored" || value === "prior-invocation-authored" ? value : "unknown";
-}
-
-function normalizeAttributionStatus(value: unknown): InvocationAttributionStatus {
-  return value === "likely" || value === "ambiguous" || value === "unattributed" ? value : "pending";
-}
-
-function normalizeAttributionSummary(value: unknown): InvocationAttributionSummary {
-  if (!value || typeof value !== "object") {
-    return { status: "pending" };
-  }
-  const candidate = value as Partial<InvocationAttributionSummary>;
-  return {
-    status: normalizeAttributionStatus(candidate.status),
-    ...optionalStringField("reason", candidate.reason),
-  };
-}
-
-function normalizeChangedFileRefs(value: unknown): InvocationChangedFileRef[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.reduce<InvocationChangedFileRef[]>((refs, entry) => {
-    if (!entry || typeof entry !== "object") {
-      return refs;
-    }
-    const candidate = entry as Partial<InvocationChangedFileRef>;
-    const filePath = normalizeRequiredString(candidate.path);
-    if (!filePath) {
-      return refs;
-    }
-    refs.push({
-      path: filePath,
-      kind: normalizeChangedFileKind(candidate.kind),
-      ...optionalStringField("observedAt", candidate.observedAt),
-      attribution: normalizeAttributionStatus(candidate.attribution),
-      ...optionalStringField("diffRefId", candidate.diffRefId),
-    });
-    return refs;
-  }, []);
-}
-
-function normalizeDiffRefs(value: unknown): InvocationDiffRef[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.reduce<InvocationDiffRef[]>((refs, entry) => {
-    if (!entry || typeof entry !== "object") {
-      return refs;
-    }
-    const candidate = entry as Partial<InvocationDiffRef>;
-    const id = normalizeRequiredString(candidate.id);
-    const filePath = normalizeRequiredString(candidate.path);
-    const ref = normalizeRequiredString(candidate.ref);
-    if (!id || !filePath || !ref) {
-      return refs;
-    }
-    refs.push({
-      id,
-      path: filePath,
-      format: candidate.format === "json" || candidate.format === "external" ? candidate.format : "unified",
-      ref,
-    });
-    return refs;
-  }, []);
-}
-
-function normalizeChangedFileKind(value: unknown): InvocationChangedFileRef["kind"] {
-  return value === "created" || value === "modified" || value === "deleted" ? value : "unknown";
 }
 
 function optionalStringField<Key extends string>(key: Key, value: unknown): { [Property in Key]?: string } {

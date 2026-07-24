@@ -1,17 +1,17 @@
 import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { flushSync } from "react-dom";
 
-import CodeMirror, { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
+import CodeMirror, { ExternalChange, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 import { indentWithTab } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { bracketMatching, foldGutter } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection, Prec } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
-import { ArrowUpRight, Check, CircleAlert, Code2, LoaderCircle, Network, Plus, Save, SlidersHorizontal, X } from "lucide-react";
-import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
+import { Clock3, Code2, Network, Plus, Save, SlidersHorizontal } from "lucide-react";
+import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
-import type { InvocationReviewPayload } from "../../../shared/api";
+import type { InvocationFileReviewPayload } from "../../../shared/api";
 import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
 import type { ExoThemeVariant } from "../theme/types";
 import { codeLanguageForPath } from "./codeLanguages";
@@ -20,8 +20,9 @@ import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterVa
 import { markdownInlineFormattingEdit } from "./markdownInlineFormatting";
 import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
 import { inlineAgentComposerExtension, isPersistedInvocationPosition, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
-import { presentInvocation } from "../invocationPresentation";
-import { invocationInlineReviewExtension } from "../invocationInlineReview";
+import { invocationInlineReviewExtension, invocationReviewOriginal } from "../invocationInlineReview";
+import type { EditorFaultContext } from "./editorFaultDiagnostics";
+import { InvocationReviewControls, type InvocationReviewPosition, type InvocationReviewQueueProjection } from "./invocation";
 import {
   buildNoteGraphContext,
   graphReferencesForMarkdownMode,
@@ -61,6 +62,7 @@ interface AgentSuggestionState {
 
 interface EditorDocument extends NoteDocument {
   dirty: boolean;
+  readOnly?: boolean;
 }
 
 interface NoteEditorProps {
@@ -80,6 +82,9 @@ interface NoteEditorProps {
   agentCommands: AgentCommand[];
   onInvokeAgent: (draft: InlineAgentDraft) => void;
   invocationReview: NoteInvocationReview | null;
+  editingFrozen: boolean;
+  historyAvailable: boolean;
+  onOpenHistory: () => void;
   onFocus: () => void;
   theme: ExoThemeVariant;
   fontSize: number;
@@ -88,6 +93,7 @@ interface NoteEditorProps {
   isNoteDocument: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
   scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
+  onDiagnosticContext: (context: EditorFaultContext) => void;
 }
 
 const STANDARD_NOTE_PROPERTY_KEYS = ["title", "date", "tags"] as const;
@@ -110,6 +116,9 @@ export function NoteEditor(props: NoteEditorProps) {
     agentCommands,
     onInvokeAgent,
     invocationReview,
+    editingFrozen,
+    historyAvailable,
+    onOpenHistory,
     onFocus,
     theme,
     fontSize,
@@ -118,10 +127,13 @@ export function NoteEditor(props: NoteEditorProps) {
     isNoteDocument,
     revealLineRequest,
     scrollRestoreRequest,
+    onDiagnosticContext,
   } = props;
   const [rawMarkdownMode, setRawMarkdownMode] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(false);
   const codeMirrorRef = useRef<ReactCodeMirrorRef>(null);
+  const renderedDocumentPathRef = useRef<string | null>(null);
+  const pendingDocumentSyncRef = useRef<{ filePath: string; body: string } | null>(null);
   const scrollTopByPathRef = useRef<Map<string, number>>(new Map());
   const selectionByPathRef = useRef<Map<string, { anchor: number; head: number }>>(new Map());
   const seededAuthoringPathsRef = useRef<Set<string>>(new Set());
@@ -135,8 +147,10 @@ export function NoteEditor(props: NoteEditorProps) {
   const [agentSuggestions, setAgentSuggestions] = useState<AgentSuggestionState | null>(null);
   const [wikilinkPreview, setWikilinkPreview] = useState<WikilinkPreviewState | null>(null);
   const [inlineComposerActive, setInlineComposerActive] = useState(false);
+  const [inlineComposerHandle, setInlineComposerHandle] = useState<string | null>(null);
   const [newPropertyKey, setNewPropertyKey] = useState("");
   const [newPropertyValue, setNewPropertyValue] = useState("");
+  const [reviewPosition, setReviewPosition] = useState<InvocationReviewPosition | undefined>(undefined);
 
   useEffect(() => {
     setRawMarkdownMode(false);
@@ -148,8 +162,21 @@ export function NoteEditor(props: NoteEditorProps) {
   }, [document?.filePath]);
 
   const documentPath = document?.filePath ?? "";
+  if (renderedDocumentPathRef.current !== documentPath) {
+    renderedDocumentPathRef.current = documentPath;
+    pendingDocumentSyncRef.current = document ? { filePath: document.filePath, body: document.body } : null;
+  }
   const useMarkdownEditing = shouldUseMarkdownRenderer(document);
   const showNoteMetadata = useMarkdownEditing && isNoteDocument;
+
+  useEffect(() => {
+    onDiagnosticContext({
+      notePath: document?.filePath ?? null,
+      mode: !document ? "empty" : !useMarkdownEditing ? "code" : rawMarkdownMode ? "markdown-raw" : "markdown-live",
+      selection: selectionByPathRef.current.get(document?.filePath ?? "") ?? null,
+      agentHandle: inlineComposerHandle,
+    });
+  }, [document?.filePath, inlineComposerHandle, onDiagnosticContext, rawMarkdownMode, useMarkdownEditing]);
   const displayTitle = document ? getDocumentDisplayTitle(document.filePath, document.kind) : "";
   const suppressedGeneratedTitle = useMemo(
     () => (document && showNoteMetadata ? generatedDailyTitleForPath(document.filePath) : null),
@@ -176,31 +203,60 @@ export function NoteEditor(props: NoteEditorProps) {
     return enabled.some((command) => command.handle === "claude") ? enabled : [createDefaultClaudeAgentCommand(), ...enabled];
   }, [agentCommands]);
   const invokeAgentRef = useRef(onInvokeAgent);
+  const bodyChangeRef = useRef(onBodyChange);
   const openTargetRef = useRef(onOpenTarget);
   const openTagRef = useRef(onOpenTag);
+  const suggestTargetsRef = useRef(onSuggestTargets);
+  const previewTargetRef = useRef(onPreviewTarget);
   const resolveMarkdownImageRef = useRef(window.exo.notes.resolveMarkdownImage);
   const saveRef = useRef(onSave);
   const zoomEditorRef = useRef(onZoomEditor);
-  useEffect(() => {
-    invokeAgentRef.current = onInvokeAgent;
-  }, [onInvokeAgent]);
-  useEffect(() => { openTargetRef.current = onOpenTarget; }, [onOpenTarget]);
-  useEffect(() => { openTagRef.current = onOpenTag; }, [onOpenTag]);
-  useEffect(() => { saveRef.current = onSave; }, [onSave]);
-  useEffect(() => { zoomEditorRef.current = onZoomEditor; }, [onZoomEditor]);
+  // Event callbacks must stay stable for CodeMirror configuration without
+  // becoming stale for the first input after switching Notes.
+  invokeAgentRef.current = onInvokeAgent;
+  bodyChangeRef.current = onBodyChange;
+  openTargetRef.current = onOpenTarget;
+  openTagRef.current = onOpenTag;
+  suggestTargetsRef.current = onSuggestTargets;
+  previewTargetRef.current = onPreviewTarget;
+  saveRef.current = onSave;
+  zoomEditorRef.current = onZoomEditor;
+
+  useLayoutEffect(() => {
+    const pending = pendingDocumentSyncRef.current;
+    const view = codeMirrorRef.current?.view;
+    if (!pending || pending.filePath !== documentPath || !view) {
+      return;
+    }
+    pendingDocumentSyncRef.current = null;
+    const currentBody = view.state.doc.toString();
+    if (currentBody === pending.body) {
+      return;
+    }
+    view.dispatch({
+      changes: { from: 0, to: view.state.doc.length, insert: pending.body },
+      annotations: ExternalChange.of(true),
+    });
+  });
   const agentComposer = useMemo(
     () => inlineAgentComposerExtension({
       onSend: (draft) => {
         setInlineComposerActive(false);
+        setInlineComposerHandle(null);
         invokeAgentRef.current(draft);
       },
       onClose: (documentBody) => {
         setInlineComposerActive(false);
-        startTransition(() => onBodyChange(documentBody));
+        setInlineComposerHandle(null);
+        startTransition(() => bodyChangeRef.current(documentBody));
+      },
+      onRestore: (documentBody) => {
+        setInlineComposerActive(true);
+        bodyChangeRef.current(documentBody);
       },
       renderPersistedInvocations: !rawMarkdownMode,
     }),
-    [onBodyChange, rawMarkdownMode],
+    [rawMarkdownMode],
   );
   const normalizedNewPropertyKey = normalizeFrontmatterPropertyKey(newPropertyKey);
   const newPropertyKeyFeedback = frontmatterPropertyKeyFeedback(newPropertyKey, document?.frontmatter ?? {});
@@ -227,8 +283,14 @@ export function NoteEditor(props: NoteEditorProps) {
         }
         const range = update.state.selection.main;
         selectionByPathRef.current.set(documentPath, { anchor: range.anchor, head: range.head });
+        onDiagnosticContext({
+          notePath: documentPath,
+          mode: !useMarkdownEditing ? "code" : rawMarkdownMode ? "markdown-raw" : "markdown-live",
+          selection: { anchor: range.anchor, head: range.head },
+          agentHandle: inlineComposerHandle,
+        });
       }),
-    [documentPath],
+    [documentPath, inlineComposerHandle, onDiagnosticContext, rawMarkdownMode, useMarkdownEditing],
   );
   const maybeUpdateWikilinkSuggestions = useMemo(
     () =>
@@ -262,7 +324,7 @@ export function NoteEditor(props: NoteEditorProps) {
         const surfaceRect = surface?.getBoundingClientRect();
         const left = cursorCoords && surfaceRect ? cursorCoords.left - surfaceRect.left : 24;
         const top = cursorCoords && surfaceRect ? cursorCoords.bottom - surfaceRect.top + 4 : 48;
-        void onSuggestTargets(linkContext.query).then((suggestions) => {
+        void suggestTargetsRef.current(linkContext.query).then((suggestions) => {
           if (requestId !== wikilinkSuggestionRequestRef.current) {
             return;
           }
@@ -280,7 +342,7 @@ export function NoteEditor(props: NoteEditorProps) {
           }
         });
       },
-    [onSuggestTargets, rawMarkdownMode, useMarkdownEditing],
+    [rawMarkdownMode, useMarkdownEditing],
   );
   const maybeUpdateAgentSuggestions = useMemo(
     () =>
@@ -328,11 +390,11 @@ export function NoteEditor(props: NoteEditorProps) {
       (value: string, update: ViewUpdate) => {
         // CodeMirror has already applied this edit. Deprioritise the
         // workspace-model update so long inline requests stay responsive.
-        startTransition(() => onBodyChange(value));
+        startTransition(() => bodyChangeRef.current(value));
         maybeUpdateWikilinkSuggestions(update);
         maybeUpdateAgentSuggestions(update);
       },
-    [maybeUpdateAgentSuggestions, maybeUpdateWikilinkSuggestions, onBodyChange],
+    [maybeUpdateAgentSuggestions, maybeUpdateWikilinkSuggestions],
   );
   const acceptAgentSuggestion = useMemo(
     () =>
@@ -342,6 +404,7 @@ export function NoteEditor(props: NoteEditorProps) {
         if (!view || !active) return;
         openInlineAgentComposer(view, { from: active.from, to: active.to, handle: command.handle });
         setInlineComposerActive(true);
+        setInlineComposerHandle(command.handle);
         setAgentSuggestions(null);
       },
     [agentSuggestions],
@@ -440,7 +503,7 @@ export function NoteEditor(props: NoteEditorProps) {
         const requestId = ++wikilinkPreviewRequestRef.current;
         setWikilinkPreview({ target: linkTarget, left, top, title: linkTarget, excerpt: "", loading: true });
 
-        void onPreviewTarget(linkTarget).then((preview) => {
+        void previewTargetRef.current(linkTarget).then((preview) => {
           if (requestId !== wikilinkPreviewRequestRef.current) {
             return;
           }
@@ -455,7 +518,7 @@ export function NoteEditor(props: NoteEditorProps) {
           }
         });
       },
-    [onPreviewTarget, rawMarkdownMode, useMarkdownEditing, wikilinkPreview?.target],
+    [rawMarkdownMode, useMarkdownEditing, wikilinkPreview?.target],
   );
   const handleEditorSurfaceMouseLeave = useMemo(
     () =>
@@ -471,7 +534,7 @@ export function NoteEditor(props: NoteEditorProps) {
         {
           key: "Mod-s",
           run: (view) => {
-            if (inlineComposerActive) flushSync(() => onBodyChange(view.state.doc.toString()));
+            if (inlineComposerActive) flushSync(() => bodyChangeRef.current(view.state.doc.toString()));
             saveRef.current();
             return true;
           },
@@ -507,7 +570,7 @@ export function NoteEditor(props: NoteEditorProps) {
         indentWithTab,
         ...lintKeymap,
       ]),
-    [inlineComposerActive, onBodyChange],
+    [inlineComposerActive],
   );
 
   const markdownPreviewExtensions = useMemo(
@@ -545,11 +608,11 @@ export function NoteEditor(props: NoteEditorProps) {
   );
   const invocationReviewExtensions = useMemo(
     () => invocationInlineReviewExtension({
-      payload: invocationReview?.reviewPayload ?? null,
+      payload: invocationReview?.payload ?? null,
       documentKind: document?.kind ?? "text",
       rawMarkdownMode,
     }),
-    [document?.kind, invocationReview?.reviewPayload, rawMarkdownMode],
+    [document?.kind, invocationReview?.payload, rawMarkdownMode],
   );
   const editorExtensions = useMemo(
     () => useMarkdownEditing
@@ -652,6 +715,10 @@ export function NoteEditor(props: NoteEditorProps) {
   const handleEditorCreated = useMemo(
     () =>
       (view: EditorView) => {
+        const pendingSync = pendingDocumentSyncRef.current;
+        if (pendingSync?.filePath === documentPath && view.state.doc.toString() === pendingSync.body) {
+          pendingDocumentSyncRef.current = null;
+        }
         if (!document || !useMarkdownEditing || rawMarkdownMode || seededAuthoringPathsRef.current.has(document.filePath)) {
           return;
         }
@@ -665,8 +732,51 @@ export function NoteEditor(props: NoteEditorProps) {
         selectionByPathRef.current.set(document.filePath, { anchor: position, head: position });
         view.focus();
       },
-    [document, rawMarkdownMode, useMarkdownEditing],
+    [document, documentPath, rawMarkdownMode, useMarkdownEditing],
   );
+
+  useLayoutEffect(() => {
+    const view = codeMirrorRef.current?.view;
+    if (!view || !invocationReview?.payload) {
+      setReviewPosition(undefined);
+      return;
+    }
+    const payload = invocationReview.payload;
+    const original = invocationReviewOriginal(payload, document?.kind ?? "text");
+    // This effect reruns when the reviewed document or payload changes. Cache
+    // its offset between those changes; never rescan the full note on scroll.
+    const changedOffset = firstChangedOffset(original, view.state.doc.toString());
+    const place = () => {
+      const coords = view.coordsAtPos(clampPosition(changedOffset, view.state.doc.length));
+      const surface = view.dom.closest<HTMLElement>(".editor-surface");
+      const bounds = surface?.getBoundingClientRect();
+      if (!coords || !bounds) return;
+      const maxWidth = Math.max(180, Math.min(390, bounds.width - 24));
+      const left = Math.max(bounds.left + 12, Math.min(coords.left + 20, bounds.right - maxWidth - 12));
+      const preferredTop = coords.bottom + 8;
+      const top = preferredTop + 190 <= bounds.bottom
+        ? preferredTop
+        : Math.max(bounds.top + 12, coords.top - 174);
+      setReviewPosition({ left, top, maxWidth, origin: `${Math.round(coords.left)}px ${Math.round(coords.top)}px` });
+    };
+    let frame: number | null = null;
+    const schedulePlacement = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        place();
+      });
+    };
+    place();
+    const scroller = view.scrollDOM;
+    scroller.addEventListener("scroll", schedulePlacement, { passive: true });
+    window.addEventListener("resize", schedulePlacement);
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      scroller.removeEventListener("scroll", schedulePlacement);
+      window.removeEventListener("resize", schedulePlacement);
+    };
+  }, [document?.body, document?.filePath, document?.kind, invocationReview?.payload]);
 
   useEffect(() => {
     if (!document || !revealLineRequest || revealLineRequest.filePath !== document.filePath) {
@@ -757,13 +867,6 @@ export function NoteEditor(props: NoteEditorProps) {
     );
   }
 
-  const invocationPresentation = invocationReview
-    ? presentInvocation(invocationReview.record, invocationReview.hasDirtyConflict)
-    : null;
-  const InvocationStatusIcon = invocationPresentation?.tone === "active"
-    ? LoaderCircle
-    : invocationPresentation?.tone === "danger" ? CircleAlert : Check;
-
   return (
     <section
       className={`editor-panel ${compact ? "editor-panel--compact" : ""}`}
@@ -787,6 +890,18 @@ export function NoteEditor(props: NoteEditorProps) {
                 type="button"
               >
                 <SlidersHorizontal size={14} />
+              </button>
+            ) : null}
+            {historyAvailable ? (
+              <button
+                aria-label="Open invocation history"
+                className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
+                data-testid="open-invocation-history"
+                onClick={onOpenHistory}
+                title="History"
+                type="button"
+              >
+                <Clock3 size={14} />
               </button>
             ) : null}
             {showNoteMetadata ? (
@@ -818,7 +933,7 @@ export function NoteEditor(props: NoteEditorProps) {
             disabled={!document.dirty || saveStatus === "saving"}
             onClick={() => {
               const view = codeMirrorRef.current?.view;
-              if (inlineComposerActive && view) flushSync(() => onBodyChange(view.state.doc.toString()));
+              if (inlineComposerActive && view) flushSync(() => bodyChangeRef.current(view.state.doc.toString()));
               void saveRef.current();
             }}
             title={document.dirty ? "Save" : "No unsaved changes"}
@@ -931,7 +1046,6 @@ export function NoteEditor(props: NoteEditorProps) {
                 ) : null}
               </div>
             </div>
-            {graphPropertyEntries.length === 0 ? <div className="properties-card__empty">No properties</div> : null}
           </div>
         </div>
       ) : !useMarkdownEditing ? (
@@ -945,7 +1059,7 @@ export function NoteEditor(props: NoteEditorProps) {
       ) : null}
 
       <div
-        className={`editor-surface ${useMarkdownEditing && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!useMarkdownEditing ? "editor-surface--code" : ""} ${invocationReview?.reviewPayload?.invocation.review?.status === "pending" && !rawMarkdownMode ? "editor-surface--invocation-review" : ""}`}
+        className={`editor-surface ${useMarkdownEditing && !rawMarkdownMode ? "editor-surface--live-preview" : ""} ${!useMarkdownEditing ? "editor-surface--code" : ""} ${invocationReview && !rawMarkdownMode ? "editor-surface--invocation-review" : ""}`}
         onKeyDownCapture={handleEditorSurfaceKeyDown}
         onMouseLeave={handleEditorSurfaceMouseLeave}
         onMouseMove={handleEditorSurfaceMouseMove}
@@ -961,9 +1075,10 @@ export function NoteEditor(props: NoteEditorProps) {
             foldGutter: false,
             highlightSelectionMatches: false,
           }}
+          editable={!document.readOnly && !editingFrozen && !invocationReview?.decisionPending}
           onBlur={() => {
             const view = codeMirrorRef.current?.view;
-            if (inlineComposerActive && view) startTransition(() => onBodyChange(view.state.doc.toString()));
+            if (inlineComposerActive && view) startTransition(() => bodyChangeRef.current(view.state.doc.toString()));
           }}
           onChange={inlineComposerActive ? undefined : handleEditorChange}
           onCreateEditor={handleEditorCreated}
@@ -1033,71 +1148,21 @@ export function NoteEditor(props: NoteEditorProps) {
             ))}
           </div>
         ) : null}
-        {invocationReview && invocationPresentation ? (
-          <div className={`invocation-review invocation-review--${invocationPresentation.tone}`} data-testid="invocation-review-banner" role="status">
-            <InvocationStatusIcon aria-hidden="true" className={`invocation-review__status-icon ${invocationPresentation.tone === "active" ? "invocation-review__status-icon--spinning" : ""}`} size={15} strokeWidth={1.8} />
-            <div className="invocation-review__summary">
-              <strong>{invocationPresentation.title}</strong>
-              <span>{invocationPresentation.detail}</span>
-            </div>
-            <div className="invocation-review__actions">
-              {invocationReview.hasDirtyConflict ? (
-                <>
-                  <button className="toolbar-button" data-testid="invocation-keep-dirty-buffer" onClick={invocationReview.onKeepDirtyBuffer} type="button">
-                    Keep buffer
-                  </button>
-                  <button className="toolbar-button toolbar-button--primary" data-testid="invocation-reload-disk" onClick={invocationReview.onReloadFromDisk} type="button">
-                    Reload disk
-                  </button>
-                </>
-              ) : null}
-              {invocationReview.record.status === "running" ? (
-                <button className="toolbar-button" data-testid="invocation-end-observation" onClick={invocationReview.onEndObservation} type="button">
-                  End
-                </button>
-              ) : null}
-              {invocationReview.onResumeInTerminal ? (
-                <button className="invocation-review__resume" data-testid="invocation-resume-terminal" onClick={invocationReview.onResumeInTerminal} title="Open this session in Terminal" type="button">
-                  <span><strong>Resume</strong><code>{invocationPresentation.resumeCommand}</code></span>
-                  <ArrowUpRight aria-hidden="true" size={14} strokeWidth={1.8} />
-                </button>
-              ) : null}
-              {invocationPresentation.dismissible ? (
-                <button aria-label="Dismiss invocation status" className="icon-button invocation-review__dismiss" data-testid="invocation-dismiss" onClick={invocationReview.onDismiss} title="Dismiss" type="button">
-                  <X aria-hidden="true" size={14} />
-                </button>
-              ) : null}
-            </div>
-            {invocationReview.reviewPayload?.before !== null && invocationReview.reviewPayload?.before !== undefined && invocationReview.reviewPayload.after !== null ? (
-              <div className="invocation-review__proposal" data-testid="invocation-review-proposal">
-                <div className="invocation-review__proposal-header">
-                  <span>
-                    <strong>Saved to disk.</strong>
-                    {invocationReview.hasDirtyConflict
-                      ? " Showing changes against your current buffer. Reject is unavailable until the buffer matches disk."
-                      : " Review changes inline. Reject restores the pre-invocation snapshot."}
-                  </span>
-                  {invocationReview.reviewPayload.invocation.review?.status === "pending" ? (
-                    <span>
-                      <button className="toolbar-button" data-testid="invocation-keep-review" onClick={invocationReview.onKeepReview} type="button">Keep</button>
-                      {invocationReview.reviewPayload.canReject ? (
-                        <button
-                          className="toolbar-button"
-                          data-testid="invocation-reject-review"
-                          disabled={invocationReview.hasDirtyConflict}
-                          onClick={invocationReview.onRejectReview}
-                          title={invocationReview.hasDirtyConflict ? "Resolve the editor/disk conflict before restoring the snapshot" : "Restore the pre-invocation snapshot"}
-                          type="button"
-                        >
-                          Reject
-                        </button>
-                      ) : null}
-                    </span>
-                  ) : <span>{invocationReview.reviewPayload.invocation.review?.status === "kept" ? "Kept" : "Rejected"}</span>}
-                </div>
-              </div>
-            ) : null}
-          </div>
+        {invocationReview ? (
+          <InvocationReviewControls
+            queue={invocationReview.queue}
+            decisionPending={invocationReview.decisionPending}
+            position={reviewPosition}
+            onNavigate={invocationReview.onNavigate}
+            onKeepCurrent={() => invocationReview.onKeepCurrent()}
+            onRejectCurrent={() => invocationReview.onRejectCurrent()}
+            onKeepAll={invocationReview.readOnly ? undefined : invocationReview.onKeepAll}
+            onRejectAll={invocationReview.readOnly ? undefined : invocationReview.onRejectAll}
+            onKeepConflict={invocationReview.readOnly ? undefined : () => invocationReview.onKeepCurrent()}
+            onRefreshConflict={invocationReview.onRefreshConflict}
+            onOpenConflict={invocationReview.onOpenConflict}
+            onDismiss={invocationReview.onDismiss}
+          />
         ) : null}
       </div>
 
@@ -1106,20 +1171,29 @@ export function NoteEditor(props: NoteEditorProps) {
 }
 
 interface NoteInvocationReview {
-  record: InvocationRecord;
-  hasDirtyConflict: boolean;
-  onEndObservation: () => void;
-  onKeepDirtyBuffer: () => void;
-  onReloadFromDisk: () => void;
-  reviewPayload: InvocationReviewPayload | null;
-  onKeepReview: () => void;
-  onRejectReview: () => void;
-  onResumeInTerminal?: () => void;
-  onDismiss: () => void;
+  payload: InvocationFileReviewPayload;
+  queue: InvocationReviewQueueProjection;
+  readOnly: boolean;
+  decisionPending: boolean;
+  onNavigate: (index: number) => void;
+  onKeepCurrent: () => void;
+  onRejectCurrent: () => void;
+  onKeepAll?: () => void;
+  onRejectAll?: () => void;
+  onRefreshConflict: () => void;
+  onOpenConflict: () => void;
+  onDismiss?: () => void;
 }
 
 function clampPosition(position: number, docLength: number): number {
   return Math.max(0, Math.min(position, docLength));
+}
+
+export function firstChangedOffset(before: string, after: string): number {
+  const shared = Math.min(before.length, after.length);
+  let index = 0;
+  while (index < shared && before.charCodeAt(index) === after.charCodeAt(index)) index += 1;
+  return index;
 }
 
 function initialMarkdownAuthoringPosition(body: string): number | null {

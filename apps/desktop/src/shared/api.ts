@@ -5,8 +5,11 @@ import type {
   FolderIndexResult,
   FolderIndexStatus,
   FolderOverview,
-  GraphConceptDetail,
-  GraphViewBundle,
+  GraphConceptDetailByIndexResult,
+  GraphConceptLookupReference,
+  GraphConceptLookupResult,
+  GraphConceptSummaryResult,
+  GraphTopology,
   NoteDocument,
   WorkspaceGraphContext,
   SearchResult,
@@ -19,6 +22,14 @@ import type {
   WorkspaceSearchResults,
   InvocationRecord,
   AgentCommandTrustStatus,
+  AgentCommand,
+  InvocationAuthorizationDecision,
+  InvocationActivityEvent,
+  InvocationFileChange,
+  OntologyKeepResult,
+  OntologyRejectResult,
+  OntologyReviewGuard,
+  OntologyReviewState,
 } from "@exo/core";
 
 export type TerminalKind = "shell";
@@ -114,8 +125,8 @@ export interface LaunchAgentInvocationInput {
   message: string;
   documentFrontmatter?: Record<string, unknown>;
   documentBody?: string;
-  allowUntrustedOneShot?: boolean;
-  persistTrust?: boolean;
+  authorization: InvocationAuthorizationDecision;
+  expectedFingerprint: string;
 }
 
 export interface LaunchAgentInvocationResponse {
@@ -125,12 +136,40 @@ export interface LaunchAgentInvocationResponse {
   terminal?: TerminalSessionInfo;
 }
 
-export interface InvocationReviewPayload {
+export interface InvocationFileReviewPayload {
   invocation: InvocationRecord;
-  patch: string | null;
-  before: string | null;
-  after: string | null;
+  change: InvocationFileChange;
+  beforeText: string | null;
+  afterText: string | null;
+  /** The artifact is valid but deliberately too large to move across IPC. */
+  beforeTextOmitted?: boolean;
+  afterTextOmitted?: boolean;
+  canKeep: boolean;
   canReject: boolean;
+}
+
+export interface InvocationReviewListItem {
+  invocationId: string;
+  createdAt: string;
+  endedAt?: string;
+  command: Pick<InvocationRecord["command"], "handle" | "label">;
+  changedFileCount: number;
+  pendingFileCount: number;
+  /** Opaque review keys in deterministic changeset order. */
+  pendingChangeIds: string[];
+  status: InvocationRecord["status"];
+}
+
+export interface InvocationHistoryItem {
+  invocationId: string;
+  createdAt: string;
+  endedAt?: string;
+  command: Pick<InvocationRecord["command"], "handle" | "label">;
+  outcome: "kept" | "rejected" | "pending" | "failed";
+  changedFileCount: number;
+  /** Opaque review keys in deterministic changeset order. */
+  changeIds: string[];
+  providerSessionId?: string;
 }
 
 export interface AgentCommandLaunchFacts {
@@ -146,6 +185,11 @@ export interface AgentCommandLaunchFacts {
   launchable: boolean;
   block?: "disabled" | "unsupported-prompt-delivery" | "invalid-cwd-policy" | "document-required" | "cwd-missing" | "executable-missing";
   detail: string;
+}
+
+export interface AgentInvocationAuthorizationFacts extends AgentCommandLaunchFacts {
+  command: AgentCommand;
+  trusted: boolean;
 }
 
 export interface TestAgentCommandInput {
@@ -183,7 +227,20 @@ export interface CliInstallationStatus {
   installCommand?: string;
 }
 
+/** A content-free renderer fault record, retained only in Exo's local main log. */
+export interface RendererEditorDiagnostic {
+  kind: "editor-render-fault";
+  occurredAt: string;
+  notePath: string | null;
+  mode: "markdown-live" | "markdown-raw" | "code" | "empty";
+  selection: { anchor: number; head: number } | null;
+  agentHandle: string | null;
+  errorSignature: string;
+}
+
 export interface DesktopApi {
+  /** Present only in explicit test launches; absent from ordinary production. */
+  test?: { graphHooks: true };
   workspace: {
     getModel: () => Promise<WorkspaceModel>;
     getSettings: () => Promise<WorkspaceSettingsSnapshot>;
@@ -194,21 +251,30 @@ export interface DesktopApi {
     saveSettings: (request: WorkspaceSettingsSaveRequest) => Promise<WorkspaceSettingsSaveOutcome>;
     selectFolder: (options?: { title?: string; allowMultiple?: boolean; buttonLabel?: string }) => Promise<string[]>;
     getIndexStatus: () => Promise<IndexStatus>;
+    previewOntology: () => Promise<OntologyReviewState>;
+    keepOntology: (guard: OntologyReviewGuard) => Promise<OntologyKeepResult>;
+    rejectOntology: (guard: OntologyReviewGuard) => Promise<OntologyRejectResult>;
     resolvePreviewTarget: (target: string) => Promise<{ url: string; source: "url" | "file" }>;
     launchAgentInvocation: (input: LaunchAgentInvocationInput) => Promise<LaunchAgentInvocationResponse>;
+    getAgentInvocationAuthorization: (input: { handle: string; documentPath: string }) => Promise<AgentInvocationAuthorizationFacts>;
     getAgentCommandTrust: (handle: string) => Promise<AgentCommandTrustStatus>;
+    resetAgentCommandTrust: (handle: string) => Promise<{ revoked: boolean }>;
     getAgentCommandLaunchFacts: (commandId: string) => Promise<AgentCommandLaunchFacts>;
     getAgentCommandContinuity: (commandId: string) => Promise<AgentCommandContinuityStatus>;
     resetAgentCommandContinuity: (commandId: string) => Promise<{ cleared: number }>;
     testAgentCommand: (input: TestAgentCommandInput) => Promise<LaunchAgentInvocationResponse>;
     configureProviderMcp: (input: ProviderMcpSetupInput) => Promise<ProviderMcpSetupResult[]>;
     getCliInstallationStatus: () => Promise<CliInstallationStatus>;
+    recordRendererDiagnostic: (diagnostic: RendererEditorDiagnostic) => Promise<void>;
     endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;
-    getInvocationReview: (invocationId: string) => Promise<InvocationReviewPayload | null>;
-    keepInvocationReview: (invocationId: string) => Promise<InvocationRecord | null>;
-    rejectInvocationReview: (input: { invocationId: string; expectedAfterSha256: string | null }) => Promise<InvocationRecord>;
+    listPendingInvocationReviews: () => Promise<InvocationReviewListItem[]>;
+    listInvocationHistory: (notePath: string) => Promise<InvocationHistoryItem[]>;
+    getInvocationFileReview: (input: { invocationId: string; changeId: string }) => Promise<InvocationFileReviewPayload>;
+    reviewInvocationFile: (input: { invocationId: string; changeId: string; action: "keep" | "reject" }) => Promise<InvocationRecord>;
+    reviewInvocationAll: (input: { invocationId: string; action: "keep" | "reject" }) => Promise<InvocationRecord>;
     resumeInvocationInTerminal: (invocationId: string) => Promise<TerminalSessionInfo>;
     onInvocationUpdated: (callback: (record: InvocationRecord) => void) => () => void;
+    onInvocationActivity: (callback: (event: InvocationActivityEvent) => void) => () => void;
     syncIndex: () => Promise<IndexSyncResult>;
     updateIndex: () => Promise<IndexStatus>;
     embedIndex: () => Promise<IndexStatus>;
@@ -229,10 +295,9 @@ export interface DesktopApi {
     deletePath: (targetPath: string) => Promise<void>;
     onDidChange: (callback: (event: { rootPath: string; eventType: string; filePath: string | null }) => void) => () => void;
     onIndexSyncState: (callback: (event: IndexSyncStateEvent) => void) => () => void;
+    onGraphChanged: (callback: () => void) => () => void;
+    onOntologyCandidateChanged: (callback: () => void) => () => void;
     onCommandOpenFile: (callback: (filePath: string) => void) => () => void;
-    onCommandOpenPreview: (callback: (event: { url: string }) => void) => () => void;
-    onCommandFocusPreview: (callback: () => void) => () => void;
-    onCommandClosePreview: (callback: () => void) => () => void;
     onCommandOpenSettings: (callback: (event: { section: WorkspaceSettingsSection }) => void) => () => void;
   };
   notes: {
@@ -240,8 +305,10 @@ export interface DesktopApi {
     save: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<void>;
     stat: (filePath: string) => Promise<FileStatInfo | null>;
     getGraphContext: (filePath: string) => Promise<WorkspaceGraphContext | null>;
-    getGraphView: (profileId?: string | null) => Promise<GraphViewBundle>;
-    getGraphConceptDetail: (conceptId: string, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptDetail | null>;
+    getGraphTopology: (profileId?: string | null) => Promise<GraphTopology>;
+    getGraphConceptSummaries: (indexes: number[], sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptSummaryResult>;
+    graphConceptLookup: (reference: GraphConceptLookupReference, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptLookupResult>;
+    getGraphConceptDetailByIndex: (index: number, sourceSnapshotId: string, profileId?: string | null) => Promise<GraphConceptDetailByIndexResult>;
     resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
     resolveMarkdownImage: (sourceFilePath: string, target: string, lookupByFilename?: boolean) => Promise<ResolvedMarkdownImage>;
     ensureTarget: (sourceFilePath: string, target: string) => Promise<string>;

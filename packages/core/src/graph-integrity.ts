@@ -59,7 +59,7 @@ function isInspectableEvidence(evidence: KnowledgeGraphSnapshot["relations"][num
       return Boolean(evidence.noteId && evidence.property);
     case "path":
       return Boolean(evidence.detail);
-    case "profile-rule":
+    case "ontology-rule":
     case "model":
       return Boolean(evidence.producer?.id && evidence.producer.version);
   }

@@ -1,5 +1,3 @@
-import type { InvocationRecord } from "./agent-invocation";
-
 export const EXO_COMMAND_ROUTES = {
   status: "/status",
   show: "/show",
@@ -39,7 +37,12 @@ export interface ExoSpawnAgentCommandRequest {
 
 export interface ExoSpawnAgentCommandResponse {
   ok: true;
-  invocation: InvocationRecord;
+  invocation: {
+    id: string;
+    status: string;
+    handle: string;
+    createdAt: string;
+  };
   terminal: ExoCommandTerminalInfo;
 }
 

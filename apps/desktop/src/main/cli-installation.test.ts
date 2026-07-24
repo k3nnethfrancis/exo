@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { inspectCliInstallation } from "./cli-installation";
+import { findSourceProjectRoot, inspectCliInstallation } from "./cli-installation";
 
 const roots: string[] = [];
 
@@ -25,6 +25,22 @@ async function fixture() {
 }
 
 describe("CLI installation diagnosis", () => {
+  it("does not mistake packaged resources for a source checkout", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-source-root-"));
+    roots.push(root);
+    const resources = path.join(root, "Exo.app", "Contents", "Resources");
+    const project = path.join(root, "project");
+    await mkdir(path.join(resources, "assets"), { recursive: true });
+    await mkdir(path.join(project, "bin"), { recursive: true });
+    await mkdir(path.join(project, "scripts"), { recursive: true });
+    await writeFile(path.join(project, "package.json"), "{}\n", "utf8");
+    await writeFile(path.join(project, "bin", "exo"), "#!/bin/sh\n", "utf8");
+    await writeFile(path.join(project, "scripts", "install-local"), "#!/bin/sh\n", "utf8");
+
+    expect(findSourceProjectRoot([resources])).toBeUndefined();
+    expect(findSourceProjectRoot([resources, project])).toBe(project);
+  });
+
   it("recognizes the current checkout shim", async () => {
     const { bin, project, root, source, command } = await fixture();
     await symlink(source, command);

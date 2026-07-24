@@ -1,7 +1,7 @@
 # Exo graph system: experiment report and production plan
 
-Status: accepted direction; foundation and Canvas interaction tracer implemented on `feat/graph-system-foundation`, acceptance pending
-Date: 2026-07-17
+Status: Launch Gate D complete; production graph foundation accepted
+Date: 2026-07-20
 
 ## Executive decision
 
@@ -20,13 +20,13 @@ contract:
    interaction.
 
 Exo will not impose one ontology. Generic Markdown remains the zero-configuration
-profile. Optional user-owned **Knowledge Profiles** may interpret properties and
+Format. An optional reviewed **Workspace Ontology** may interpret Properties and
 relationships, with Open Knowledge Format 0.1 as the first interoperability
-profile. Profiles never become a second canonical database, and unknown
+Format. Formats and Ontologies never become a second canonical database, and unknown
 properties or types must survive round trips.
 
 Graph quality will not be reduced to a universal scalar. Exo will report
-evidenced mechanical integrity, profile conformance, and stability separately
+evidenced mechanical integrity, Format/Ontology conformance, and stability separately
 from visual layout quality.
 
 ## What the graph lab built
@@ -146,27 +146,27 @@ set; an explicit label-density control is unnecessary.
 Edge uniformity, stress, overlap, and neighborhood preservation describe a
 layout. They do not tell us whether a Note is true, whether the user's ontology
 is appropriate, or whether an agent can find the right evidence. Density,
-orphan count, and modularity are likewise descriptive unless a declared profile
+orphan count, and modularity are likewise descriptive unless a declared evaluation profile
 or task makes them normative.
 
-### Semantic similarity is evidence, not an authored relation
+### Semantic similarity is evidence, not a document-origin Relation
 
 Embeddings can reveal likely duplicates, missing tags, or unlinked related
 concepts. They must remain versioned Derived Signals until accepted. A strong
 semantic match is a proposal candidate; a weak semantic match across an
-authored link may be an important bridge rather than a defect.
+document-origin link may be an important bridge rather than a defect.
 
 ### Quality is multidimensional
 
 There is no honest universal `graph quality = 82` metric. The useful model is:
 
 ```text
-Q(graph, knowledge profile) =
+Q(graph, evaluation profile) =
   [conformance, integrity, semantic alignment, stability]
 ```
 
 Each dimension must show its evidence and confidence. A quality report should
-say “seven Metric concepts have no declared source relation,” not merely display
+say “seven Metric concepts have no ontology-defined source Relation,” not merely display
 a score.
 
 ### Interoperability and ontology are different
@@ -194,26 +194,27 @@ this section describes the architectural relationships.
 
 **Note** is the Markdown file and remains canonical. **Property** is a lossless
 frontmatter fact on that Note. **Concept** is the graph identity projected from
-a Note by the active format/profile rules. Generic Markdown and OKF both default
-to one Concept per Note.
+a Note by its Format and optional kept Ontology rules. Generic Markdown and
+OKF normally project one Concept per Note; headings label or structure that
+Note rather than becoming Concepts themselves.
 
 **Relation** connects two Concepts. It records a family, optional user-defined
-predicate, authority, resolution, and Evidence. A Relation may be authored in
-Markdown, declared through a profile-interpreted property, or derived by a
+predicate, origin, resolution, and Evidence. Origin is `document` for Markdown,
+`ontology` for a kept Ontology-interpreted Property, or `inferred` for a
 versioned machine process.
 
-**Knowledge Profile** is optional, user-owned interpretation. It can declare
-concept types, property value shapes, which properties contain concept
-references, expected relations, and validation rules. It does not own Notes,
-silently rewrite them, or reject unknown data.
+**Workspace Ontology** is optional, reviewed user-owned interpretation. It can
+declare Concept Types, Property value shapes, which Properties contain Concept
+references, expected Relations, and validation rules. It does not own Notes,
+silently rewrite them, or reject unknown data. **Format** remains the separate
+Note Root interoperability contract.
 
 **Graph View** maps a selected graph projection into encodings and layout
 weights. It changes presentation, not knowledge.
 
-### Proposed graph snapshot 0.2
+### Knowledge graph snapshot 0.3
 
-The exact TypeScript may change during the tracer implementation, but these
-semantic fields are required:
+The implemented semantic snapshot preserves these fields:
 
 ```ts
 type PropertyValue =
@@ -237,14 +238,14 @@ interface RelationEdge {
   family: "link" | "property-reference" | "tag-membership" |
           "hierarchy" | "semantic";
   predicate?: string;            // open vocabulary
-  authority: "authored" | "declared" | "derived";
+  origin: "document" | "ontology" | "inferred";
   resolution: "resolved" | "unresolved" | "ambiguous" | "external";
   confidence?: number;
   evidence: readonly RelationEvidence[];
 }
 
 interface RelationEvidence {
-  kind: "source-span" | "property" | "path" | "profile-rule" | "model";
+  kind: "source-span" | "property" | "path" | "ontology-rule" | "model";
   noteId?: string;
   property?: string;
   sourceRange?: { from: number; to: number };
@@ -256,25 +257,28 @@ Closed renderer enums must not become ontology enums. Dense numeric node kinds
 and edge styles may still exist inside a compiled Graph View, but they are
 projection-local performance data rather than the durable graph contract.
 
-### Current model gap
+### Consolidated production contract
 
-Exo currently has two overlapping graph representations:
+`WorkspaceGraph` is the only production knowledge-graph boundary. Its
+schema-agnostic 0.3 snapshot owns open Concept Types, lossless Properties,
+Relations, resolution, origin, and Evidence. Connections adapts that graph
+to a bounded focused-Note context. The full Graph Pane receives a compact,
+string-free typed topology with profile/topology/transport hashes and retrieves
+labels, paths, Properties, Findings, and Relation Evidence through bounded,
+snapshot-qualified lookup, summary, and index-detail reads.
 
-- `packages/core/src/graph.ts` models `note | tag | external | unresolved` nodes
-  and `wikilink | markdownLink | hasTag` edges.
-- `packages/core/src/workspace-graph.ts` independently models Note identities,
-  Markdown links, backlinks, and neighborhoods.
-
-Both preserve useful behavior, but their closed kinds cannot express arbitrary
-concept types, relation predicates, evidence, or declared versus derived
-authority. Production work should consolidate them, not add a third graph model
-for Stellar.
+The former 0.1 `GraphSnapshot`/query modules, object `GraphViewProjection`
+compiler and IPC route, unbounded concept-id detail route, and duplicate
+renderer scene have been deleted. Canvas and WebGPU now share the same scene
+contract rather than carrying a compatibility graph representation.
 
 ## How properties become useful without becoming mandatory
 
 The base graph preserves every supported YAML value and exposes it through a
-generic property inspector and filter. A Knowledge Profile may then interpret
-selected keys:
+generic property inspector and filter. A Workspace Ontology may then interpret
+selected keys. A property alone is not a Relation: for example, `type: project`
+classifies its existing Note, while a reference-valued property needs an
+Ontology rule before it produces an ontology-origin Relation.
 
 | Fact | Possible Graph View projection |
 | --- | --- |
@@ -286,11 +290,11 @@ selected keys:
 | numeric property | optional size, heat, or priority |
 | enum property | facet, color, or region |
 | reference property | directed typed Relation |
-| Markdown link | strong authored directed Relation |
-| semantic similarity | faint derived overlay or proposal evidence |
+| Markdown link | strong document-origin directed Relation |
+| semantic similarity | faint inferred overlay or proposal evidence |
 
-No property should affect physics merely because it exists. The user or a
-profile chooses that mapping. The same graph can therefore support topology,
+No Property should affect physics merely because it exists. The user chooses
+that mapping through a Graph View. The same graph can therefore support topology,
 lineage, ontology, semantic, and temporal views without changing its Notes.
 
 ## Graph verification
@@ -306,14 +310,14 @@ lineage, ontology, semantic, and temporal views without changing its Notes.
 - bounded update, query, traversal, and render latency; and
 - graceful behavior under malformed or partially available documents.
 
-### Profile conformance checks
+### Format and Ontology conformance checks
 
 - required properties and valid value shapes;
-- declared relationship expectations;
+- Ontology-defined relationship expectations;
 - duplicate canonical resources;
-- reachability from declared entry Concepts;
+- reachability from Ontology-defined entry Concepts;
 - domain-specific citation or provenance requirements; and
-- profile/version compatibility.
+- Format/Ontology version compatibility.
 
 Graph contract tests own schema conformance, identity, link resolution,
 Evidence, unknown-field preservation, deterministic snapshots, and malformed
@@ -334,33 +338,34 @@ pixels, positions, interactions, memory, resilience, and latency.
 
 Gate: the fixtures and expected facts are reviewable without any renderer.
 
-### Phase 1 — Consolidate the knowledge graph
+### Phase 1 — Consolidate the knowledge graph — complete
 
 1. Inventory consumers of `GraphSnapshot` and `WorkspaceGraph`.
-2. Introduce graph snapshot 0.2 behind a compatibility adapter.
+2. Introduce knowledge snapshot 0.3 behind `WorkspaceGraph`.
 3. Preserve arbitrary nested frontmatter values and stable Note identity.
-4. Add Relation authority, resolution, predicate, and Evidence.
-5. Move backlinks, neighborhoods, and graph context onto the consolidated model.
-6. Delete the superseded graph representation only after parity tests pass.
+4. Add Relation origin, resolution, predicate, and Evidence.
+5. Keep backlinks, neighborhoods, and graph context on the consolidated model.
+6. Delete the superseded snapshot/query, object-IPC, and renderer-scene paths
+   after their consumer and parity audits pass.
 
 Gate: current links, backlinks, tags, Folder Overview, Connections, and search
 hydration remain behaviorally identical; unknown fields survive a round trip.
 
-### Phase 2 — Add profile interpretation
+### Phase 2 — Add Format and Ontology interpretation
 
-1. Implement Generic Markdown as the zero-requirement profile.
-2. Implement OKF 0.1 as a data-only built-in profile: one Markdown concept per
+1. Implement Generic Markdown as the zero-requirement Format.
+2. Implement OKF 0.1 as a data-only built-in Format: one Markdown Concept per
    document, path-relative concept IDs, required `type`, permissive properties,
    ordinary Markdown relation edges, and reserved-file handling.
-3. Define the smallest user-owned Knowledge Profile format for concept types,
-   property shapes, reference-valued properties, relation expectations, and
-   visual hints.
-4. Add best-effort behavior for unknown profile versions and types.
-5. Expose profile status and violations without blocking ordinary Markdown use.
+3. Define the smallest reviewed Workspace Ontology format for Concept Types,
+   Property shapes, reference-valued Properties, Relation expectations, and
+   validation rules. Presentation remains exclusively a Graph View concern.
+4. Add best-effort behavior for unknown Format versions and open Types.
+5. Expose Format/Ontology status and Findings without blocking ordinary Markdown use.
 
 Gate: Exo loads both fixtures without mutation, preserves unknown data, explains
-every interpreted edge, and falls back to Generic Markdown when no profile is
-selected.
+every interpreted edge, and retains the chosen Format's base graph when no
+Ontology is active.
 
 ### Phase 3 — Complete graph contract verification
 
@@ -378,7 +383,7 @@ unknown data without affecting editor latency.
    topology: numeric indices, CSR adjacency, visual classes, weights, and cold
    metadata.
 2. Keep ontology strings and properties out of hot draw loops.
-3. Derive stable layout seeds from graph/profile/view versions.
+3. Derive stable layout seeds from graph/Format/Ontology/View versions.
 4. Preserve positions for unchanged Concepts and align new layout epochs to the
    previous mental map.
 5. Compile selection, path, focal labels, and relation explanations in the scene,
@@ -387,7 +392,7 @@ unknown data without affecting editor latency.
 Gate: the same projection drives WebGPU and Canvas fallback with identical
 selection, path, labels, and relation explanations.
 
-### Phase 5 — Integrate Stellar into Exo
+### Phase 5 — Integrate the spatial graph into Exo — complete
 
 1. Add Graph as a normal Workspace Canvas Pane using the renderer-neutral scene.
 2. Stream topology/layout epochs from isolated derived work; never block Note
@@ -404,16 +409,21 @@ selection, path, labels, and relation explanations.
    until a real provenance/change stream exists.
 6. Keep editable canonical frontmatter in the editor Properties surface and use
    graph/Connections detail to explain Concept properties, visual mappings,
-   Relation authority, Evidence, and profile findings.
-7. Provide a focused Concept detail surface with properties, authored/derived
-   relationship distinction, Evidence, and profile violations.
+   Relation origin, Evidence, and Ontology findings.
+7. Provide a focused Concept detail surface with Properties, document/inferred
+   relationship distinction, Evidence, and Ontology Findings.
 8. Make semantic overlays and suggestions opt-in and visibly derived.
 9. Persist only derived layout state under `.exo/`; never write canonical Notes
    from graph navigation.
 
-Gate: packaged-app E2E passes interaction, accessibility, device-loss fallback,
-idle quiescence, Note-update continuity, and editor-latency-under-graph-load
-budgets on a private real-Workspace copy.
+Gate passed: source and packaged-app journeys cover interaction, hardware
+WebGPU, Canvas/device-loss fallback, idle quiescence, Note-update continuity,
+Terminal coexistence, and editor/navigation latency under graph/index load.
+The guarded private-copy journey covers both renderer paths without modifying
+the source. The bounded Connections neighborhood now also uses the same scene,
+focal-label planner, presentation compiler, palette, and Canvas renderer while
+remaining passive and worker-free. Evidence:
+`docs/reviews/output/2026-07-20-launch-gate-d.md`.
 
 ### Phase 6 — Ship the first graph-maintenance Skill
 
@@ -425,13 +435,13 @@ budgets on a private real-Workspace copy.
 4. Verify that proposals remain understandable, reviewable, and reversible.
 5. Do not add another maintenance Skill until this one demonstrates value.
 
-Gate: reviewed proposals resolve a declared profile violation without silently
+Gate: reviewed proposals resolve an Ontology finding without silently
 expanding Exo's authority.
 
 ### Phase 7 — Ontology onboarding
 
 Only after the prior gates, let a configured Command inspect selected Note Roots
-and propose a Knowledge Profile, Folder/Index guidance, and migration plan.
+and propose a Workspace Ontology, Folder/Index guidance, and migration plan.
 Show before/after graph and utility evidence. Every filesystem change remains a
 normal explicit invocation diff; ontology inference never becomes an automatic
 initializer.
@@ -456,6 +466,8 @@ only their appropriate slice:
 - `graph-product-checkpoint.md` — plain-English progress, remaining work, and
   the accepted navigation/Connections/Properties direction.
 - `../CONTEXT.md` — canonical product language.
+- `note-root-formats.md` — Generic Markdown and OKF compatibility boundary.
+- `workspace-ontology.md` — reviewed `ontology.yaml` contract.
 - `adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` — durable decision.
 - `architecture.md` — production boundaries and current/planned ownership.
 - `../roadmap.md` — sequencing and gates.

@@ -1,16 +1,17 @@
-import { ExternalLink, X } from "lucide-react";
-import { useId, useState, type KeyboardEvent } from "react";
-import type { InvocationRecord, NoteDocument, SearchResult, WorkspaceGraphContext } from "@exo/core";
+import { ArrowUpRight, Bot, ExternalLink, X } from "lucide-react";
+import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
+import type { NoteDocument, SearchResult, WorkspaceGraphContext } from "@exo/core";
+import type { InvocationHistoryItem } from "../../../shared/api";
 
 import { buildNoteGraphContext } from "../graphAffordances";
 import { GraphNeighborhoodView } from "./GraphNeighborhoodView";
+import { AgentIcon } from "./AgentIcon";
 
-type ConnectionTab = "outline" | "links" | "graph" | "activity";
-const CONNECTION_TABS: readonly { id: ConnectionTab; label: string }[] = [
+type ConnectionTab = "outline" | "links" | "graph" | "history";
+const CONNECTION_TABS: readonly { id: Exclude<ConnectionTab, "history">; label: string }[] = [
   { id: "outline", label: "Outline" },
   { id: "links", label: "Links" },
   { id: "graph", label: "Graph" },
-  { id: "activity", label: "Activity" },
 ];
 
 interface InspectorDockProps {
@@ -19,13 +20,15 @@ interface InspectorDockProps {
   open: boolean;
   activeTag: string | null;
   tagResults: SearchResult[];
-  /** U1 can provide reviewed invocation history when the Canvas owns that stream. */
-  invocationHistory?: readonly InvocationRecord[];
   onToggle: () => void;
   onOpenTarget: (target: string) => void;
   onOpenExternal: (target: string) => void;
   onOpenTag: (tag: string) => void;
   onOpenGraphCanvas?: (focusPath: string) => void;
+  invocationHistory: InvocationHistoryItem[];
+  requestedTab?: { tab: "history"; nonce: number } | null;
+  onOpenInvocationHistory: (item: InvocationHistoryItem) => void;
+  onResumeInvocation: (invocationId: string) => void;
 }
 
 export function InspectorDock(props: InspectorDockProps) {
@@ -35,12 +38,15 @@ export function InspectorDock(props: InspectorDockProps) {
     open,
     activeTag,
     tagResults,
-    invocationHistory = [],
     onToggle,
     onOpenTarget,
     onOpenExternal,
     onOpenTag,
     onOpenGraphCanvas,
+    invocationHistory,
+    requestedTab,
+    onOpenInvocationHistory,
+    onResumeInvocation,
   } = props;
   const [activeTab, setActiveTab] = useState<ConnectionTab>("outline");
   const tabListId = useId();
@@ -51,8 +57,18 @@ export function InspectorDock(props: InspectorDockProps) {
   const externalLinks = isMarkdown ? graphContext?.externalLinks ?? [] : [];
   const tags = isMarkdown ? graphContext?.tags ?? [] : [];
   const outline = isMarkdown ? extractOutline(document?.body ?? "") : [];
-  const propertyEntries = Object.entries(document?.frontmatter ?? {}).filter(([key]) => !key.startsWith("branch_"));
-  const meaningfulActivity = invocationHistory.filter(hasMeaningfulInvocationActivity);
+  const tabs = useMemo<readonly { id: ConnectionTab; label: string }[]>(
+    () => invocationHistory.length > 0 ? [...CONNECTION_TABS, { id: "history", label: "History" }] : CONNECTION_TABS,
+    [invocationHistory.length],
+  );
+
+  useEffect(() => {
+    if (requestedTab?.tab === "history" && invocationHistory.length > 0) setActiveTab("history");
+  }, [invocationHistory.length, requestedTab?.nonce, requestedTab?.tab]);
+
+  useEffect(() => {
+    if (activeTab === "history" && invocationHistory.length === 0) setActiveTab("outline");
+  }, [activeTab, invocationHistory.length]);
 
   if (!open) {
     return null;
@@ -69,22 +85,8 @@ export function InspectorDock(props: InspectorDockProps) {
       </header>
       <div className="connections-rail__content">
       <div className="connections-panel">
-        <section className="connections-panel__properties" data-testid="properties-graph-panel">
-          <div className="connections-panel__section-title">Properties</div>
-          {!isMarkdown ? <div className="footer-empty">No note selected</div> : propertyEntries.length ? (
-            <div className="graph-properties">
-              {propertyEntries.slice(0, 8).map(([key, value]) => (
-                <div key={key} className="graph-property-row">
-                  <span className="graph-property-row__key">{key}</span>
-                  <span className="graph-property-row__value">{formatPropertyValue(value)}</span>
-                </div>
-              ))}
-            </div>
-          ) : <div className="footer-empty">No properties</div>}
-        </section>
-
         <div className="connections-tabs" role="tablist" aria-label="Note connections" id={tabListId}>
-          {CONNECTION_TABS.map((tab, index) => (
+          {tabs.map((tab, index) => (
             <button
               key={tab.id}
               id={`${tabListId}-${tab.id}`}
@@ -93,7 +95,7 @@ export function InspectorDock(props: InspectorDockProps) {
               className="connections-tabs__tab"
               data-testid={`connections-tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
-              onKeyDown={(event) => moveConnectionTab(event, index, setActiveTab)}
+              onKeyDown={(event) => moveConnectionTab(event, index, tabs, setActiveTab)}
               role="tab"
               tabIndex={activeTab === tab.id ? 0 : -1}
               type="button"
@@ -116,12 +118,10 @@ export function InspectorDock(props: InspectorDockProps) {
           ) : activeTab === "links" ? (
             <LinksTab isMarkdown={isMarkdown} backlinks={backlinks} references={referenceLinks} externalLinks={externalLinks} tags={tags} activeTag={activeTag} tagResults={tagResults} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
           ) : activeTab === "graph" ? (
-            <GraphNeighborhoodView neighborhood={graphContext?.neighborhood ?? null} onOpenCanvas={onOpenGraphCanvas} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
-          ) : meaningfulActivity.length ? (
-            <ActivityTab records={meaningfulActivity} />
-          ) : (
-            <div className="footer-empty" data-testid="connections-activity-empty">No activity yet</div>
-          )}
+            <GraphNeighborhoodView neighborhood={graphContext?.neighborhood ?? null} onOpenCanvas={onOpenGraphCanvas} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} />
+          ) : activeTab === "history" ? (
+            <InvocationHistoryTab items={invocationHistory} onOpen={onOpenInvocationHistory} onResume={onResumeInvocation} />
+          ) : null}
         </div>
       </div>
       </div>
@@ -171,26 +171,61 @@ function ConnectionList(props: { title: string; items: Array<{ label: string; ta
   return <section className="connections-panel__section"><div className="connections-panel__section-title">{props.title}</div>{props.items.length ? props.items.map((item) => <button key={`${item.label}-${item.target}`} className="footer-item" onClick={() => props.onOpen(item.target)} type="button">{item.label}{props.external ? <ExternalLink size={12} /> : null}</button>) : <div className="footer-empty">{props.empty}</div>}</section>;
 }
 
-function ActivityTab({ records }: { records: readonly InvocationRecord[] }) {
-  return <section className="connections-panel__section">{records.map((record) => <div className="connections-activity" key={record.id}><strong>@{record.command.handle}</strong><span>{record.changedFileRefs.length} changed file{record.changedFileRefs.length === 1 ? "" : "s"}</span></div>)}</section>;
-}
-
-export function hasMeaningfulInvocationActivity(record: Pick<InvocationRecord, "status" | "changedFileRefs" | "diffRefs">): boolean {
-  return record.changedFileRefs.length > 0 || record.diffRefs.length > 0 || record.status === "failed" || record.status === "orphaned";
-}
-
-function moveConnectionTab(event: KeyboardEvent<HTMLButtonElement>, index: number, setTab: (tab: ConnectionTab) => void) {
+function moveConnectionTab(event: KeyboardEvent<HTMLButtonElement>, index: number, tabs: readonly { id: ConnectionTab }[], setTab: (tab: ConnectionTab) => void) {
   if (event.key !== "ArrowRight" && event.key !== "ArrowLeft" && event.key !== "Home" && event.key !== "End") return;
   event.preventDefault();
-  const next = event.key === "Home" ? 0 : event.key === "End" ? CONNECTION_TABS.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + CONNECTION_TABS.length) % CONNECTION_TABS.length;
-  setTab(CONNECTION_TABS[next].id);
-  requestAnimationFrame(() => document.getElementById(`${(event.currentTarget.parentElement as HTMLElement).id}-${CONNECTION_TABS[next].id}`)?.focus());
+  const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+  setTab(tabs[next].id);
+  requestAnimationFrame(() => document.getElementById(`${(event.currentTarget.parentElement as HTMLElement).id}-${tabs[next].id}`)?.focus());
 }
 
-function formatPropertyValue(value: unknown): string {
-  if (Array.isArray(value)) return value.map(String).join(", ");
-  if (value === null || value === undefined) return "";
-  return typeof value === "object" ? JSON.stringify(value) : String(value);
+export function InvocationHistoryTab({ items, onOpen, onResume }: {
+  items: InvocationHistoryItem[];
+  onOpen: (item: InvocationHistoryItem) => void;
+  onResume: (invocationId: string) => void;
+}) {
+  return (
+    <section className="invocation-history" data-testid="invocation-history-panel">
+      {items.map((item) => (
+        <div className="invocation-history__row" key={item.invocationId}>
+          {item.changeIds.length > 0 ? <button className="invocation-history__open" onClick={() => onOpen(item)} type="button">
+            <span className={`invocation-history__status invocation-history__status--${item.outcome}`} aria-hidden="true" />
+            <span className="invocation-history__agent" aria-hidden="true">
+              {item.command.handle === "claude" || item.command.handle === "codex"
+                ? <AgentIcon kind={item.command.handle} size={14} />
+                : <Bot size={14} />}
+            </span>
+            <span>
+              <strong>@{item.command.handle}</strong>
+              <small>{relativeInvocationTime(item.endedAt ?? item.createdAt)} · {item.outcome}{item.changedFileCount > 1 ? ` · ${item.changedFileCount} files` : ""}</small>
+            </span>
+          </button> : <div className="invocation-history__open invocation-history__open--status">
+            <span className={`invocation-history__status invocation-history__status--${item.outcome}`} aria-hidden="true" />
+            <span className="invocation-history__agent" aria-hidden="true">
+              {item.command.handle === "claude" || item.command.handle === "codex"
+                ? <AgentIcon kind={item.command.handle} size={14} />
+                : <Bot size={14} />}
+            </span>
+            <span>
+              <strong>@{item.command.handle}</strong>
+              <small>{relativeInvocationTime(item.endedAt ?? item.createdAt)} · {item.outcome}</small>
+            </span>
+          </div>}
+          {item.providerSessionId ? (
+            <button aria-label={`Resume ${item.command.label} in Terminal`} className="invocation-history__resume" onClick={() => onResume(item.invocationId)} title="Resume in Terminal" type="button"><ArrowUpRight size={14} /></button>
+          ) : null}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+export function relativeInvocationTime(iso: string, now = Date.now()): string {
+  const elapsed = Math.max(0, now - new Date(iso).getTime());
+  if (elapsed < 60_000) return "now";
+  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m`;
+  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h`;
+  return `${Math.floor(elapsed / 86_400_000)}d`;
 }
 
 function extractOutline(body: string): Array<{ level: number; text: string }> {

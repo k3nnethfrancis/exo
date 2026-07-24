@@ -1,0 +1,36 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["outcome", "summary", "candidateSource", "features", "evidence", "conflicts", "question"],
+  "properties": {
+    "outcome": { "enum": ["proposal", "abstain", "question"] },
+    "summary": { "type": "string" },
+    "candidateSource": { "type": ["string", "null"] },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conceptTypes", "properties", "relations", "pathDefaults", "validationRules"],
+      "properties": {
+        "conceptTypes": { "type": "array", "description": "Exact atomic identifiers used as keys under candidateSource.types. No paths or explanations.", "items": { "type": "string" } },
+        "properties": { "type": "array", "description": "Exact atomic identifiers used as keys under candidateSource.properties. No value types or explanations.", "items": { "type": "string" } },
+        "relations": { "type": "array", "description": "Exact Property identifiers whose candidateSource definition declares a predicate. No signatures or explanations.", "items": { "type": "string" } },
+        "pathDefaults": { "type": "array", "description": "Canonical type-id:path-glob entries, one per configured path.", "items": { "type": "string" } },
+        "validationRules": { "type": "array", "description": "Exact atomic rule ids from candidateSource.rules. No rule bodies or explanations.", "items": { "type": "string" } }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "detail"],
+        "properties": {
+          "path": { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    },
+    "conflicts": { "type": "array", "items": { "type": "string" } },
+    "question": { "type": ["string", "null"] }
+  }
+}

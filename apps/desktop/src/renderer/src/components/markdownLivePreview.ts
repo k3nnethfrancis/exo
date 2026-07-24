@@ -1,4 +1,4 @@
-import { Annotation, EditorSelection, EditorState, Prec, Transaction, type Extension, RangeSetBuilder, StateEffect, StateField, type SelectionRange } from "@codemirror/state";
+import { Annotation, EditorSelection, EditorState, Prec, Transaction, type ChangeSet, type Extension, RangeSetBuilder, StateEffect, StateField, type SelectionRange, type Text } from "@codemirror/state";
 import { indentLess } from "@codemirror/commands";
 import { Decoration, EditorView, ViewPlugin, WidgetType, keymap, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { LIST_GEOMETRY, listGeometryStyleVariables } from "./listGeometry";
@@ -50,7 +50,7 @@ interface MarkdownLivePreviewOptions {
   graphReferences?: MarkdownGraphReferences | null;
 }
 
-interface ListContext {
+export interface ListContext {
   depth: number;
   marker: string;
   ordered: boolean;
@@ -58,7 +58,7 @@ interface ListContext {
   prefixLength: number;
 }
 
-interface CodeFenceContext {
+export interface CodeFenceContext {
   startLine: number;
   endLine: number;
   language: string;
@@ -90,8 +90,8 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
       }
 
       update(update: ViewUpdate) {
-        if (update.docChanged && markdownStructureChanged(update, this.metadata)) {
-          this.metadata = markdownPreviewMetadata(update.state.doc);
+        if (update.docChanged) {
+          this.metadata = updateMarkdownPreviewMetadata(update, this.metadata);
         }
         if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(tr => tr.effects.some(e => e.is(toggleFoldEffect)))) {
           this.decorations = buildDecorations(update.view, options, this.metadata);
@@ -265,13 +265,60 @@ const listContinuationOutdentKeymap = Prec.highest(keymap.of([
 const wikilinkExitKeymap = Prec.highest(keymap.of([
   {
     key: "Tab",
-    run: exitWikilink,
+    run: (view) => expandSlashDateCommand(view) || exitWikilink(view),
   },
   {
     key: "Enter",
-    run: exitWikilink,
+    run: (view) => expandSlashDateCommand(view) || exitWikilink(view),
   },
 ]));
+
+function expandSlashDateCommand(view: EditorView): boolean {
+  const range = view.state.selection.main;
+  if (!range.empty) {
+    return false;
+  }
+  const edit = slashDateCommandEdit(view.state, range.head);
+  if (!edit) {
+    return false;
+  }
+  view.dispatch({
+    changes: { from: edit.from, to: edit.to, insert: edit.insert },
+    selection: EditorSelection.cursor(edit.selection),
+    scrollIntoView: true,
+    userEvent: "input.complete",
+  });
+  return true;
+}
+
+export function slashDateCommandEdit(
+  state: EditorState,
+  pos: number,
+  now = new Date(),
+): { from: number; to: number; insert: string; selection: number } | null {
+  const line = state.doc.lineAt(pos);
+  const beforeCursor = state.doc.sliceString(line.from, pos);
+  const match = beforeCursor.match(/(^|\s)\/(today|tomorrow)$/i);
+  if (!match) {
+    return null;
+  }
+
+  const day = new Date(now);
+  if (match[2].toLowerCase() === "tomorrow") {
+    day.setDate(day.getDate() + 1);
+  }
+  const target = localIsoDate(day);
+  const insert = `[[${target}]]`;
+  const from = pos - match[0].length + match[1].length;
+  return { from, to: pos, insert, selection: from + insert.length };
+}
+
+function localIsoDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 const listPrefixSelectionFilter = EditorState.transactionFilter.of((tr) => {
   if (!tr.selection || !tr.changes.empty) {
@@ -589,13 +636,13 @@ interface DecorationEntry {
   decoration: Decoration;
 }
 
-interface MarkdownPreviewMetadata {
+export interface MarkdownPreviewMetadata {
   listContexts: Map<number, ListContext>;
   tableContexts: Map<number, TableContext>;
   codeFenceContexts: Map<number, CodeFenceContext>;
 }
 
-function markdownPreviewMetadata(doc: EditorState["doc"]): MarkdownPreviewMetadata {
+export function markdownPreviewMetadata(doc: Text): MarkdownPreviewMetadata {
   return {
     listContexts: collectListMetadata(doc),
     tableContexts: collectTableMetadata(doc),
@@ -603,31 +650,81 @@ function markdownPreviewMetadata(doc: EditorState["doc"]): MarkdownPreviewMetada
   };
 }
 
-/** Most keystrokes only affect inline decoration. Rebuilding list, table, and
- * fence metadata for a whole note on every character made normal editing and
- * selection visibly stall. Refresh the structural cache only when an edit can
- * alter a block boundary or touches an existing structured block. */
-function markdownStructureChanged(update: ViewUpdate, metadata: MarkdownPreviewMetadata): boolean {
-  let changed = false;
-  update.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
-    if (changed) {
-      return;
-    }
-    const before = update.startState.doc.sliceString(fromA, toA);
+/** Keep structural metadata out of the keystroke critical path. The three
+ * metadata families are independent: a local list edit must not rescan every
+ * table and code fence in a large note. List metadata is sparse and can be
+ * repaired inside the affected blank-line-bounded block; complex changes fall
+ * back to the full collector for correctness. */
+function updateMarkdownPreviewMetadata(update: ViewUpdate, metadata: MarkdownPreviewMetadata): MarkdownPreviewMetadata {
+  return updateMarkdownPreviewMetadataForChanges(update.startState.doc, update.state.doc, update.changes, metadata);
+}
+
+export function updateMarkdownPreviewMetadataForChanges(
+  previousDoc: Text,
+  nextDoc: Text,
+  changes: ChangeSet,
+  metadata: MarkdownPreviewMetadata,
+): MarkdownPreviewMetadata {
+  let listChanged = false;
+  let tableStructureTouched = false;
+  let tableContentTouched = false;
+  let codeFenceStructureTouched = false;
+  changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+    const before = previousDoc.sliceString(fromA, toA);
     const after = inserted.toString();
     const changedText = `${before}${after}`;
-    if (/\n|[`~]|\|/.test(changedText)) {
-      changed = true;
-      return;
-    }
-    const previousLine = update.startState.doc.lineAt(fromA);
-    const nextLine = update.state.doc.lineAt(fromB);
-    changed = listStructureSignature(previousLine.text) !== listStructureSignature(nextLine.text)
+    const previousLine = previousDoc.lineAt(fromA);
+    const previousEndLine = previousDoc.lineAt(toA);
+    const nextLine = nextDoc.lineAt(fromB);
+    const nextEndLine = nextDoc.lineAt(toB);
+    const lineBoundaryChanged = changedText.includes("\n");
+
+    listChanged ||= lineBoundaryChanged
+      || listStructureSignature(previousLine.text) !== listStructureSignature(nextLine.text);
+    const tableRangeTouched = metadataIntersectsRange(metadata.tableContexts, previousLine.number, previousEndLine.number);
+    tableContentTouched ||= tableRangeTouched;
+    tableStructureTouched ||= changedText.includes("|")
+      || tableStructureSignature(previousLine.text) !== tableStructureSignature(nextLine.text)
+      || tableStructureSignature(previousEndLine.text) !== tableStructureSignature(nextEndLine.text)
+      || (lineBoundaryChanged && (
+        tableRangeTouched
+        || linesAroundRangeContain(previousDoc, previousLine.number, previousEndLine.number, "|")
+        || linesAroundRangeContain(nextDoc, nextLine.number, nextEndLine.number, "|")
+      ));
+    codeFenceStructureTouched ||= /[`~]/.test(changedText)
       || openingFenceSignature(previousLine.text) !== openingFenceSignature(nextLine.text)
-      || metadata.tableContexts.has(previousLine.number)
-      || metadata.tableContexts.has(nextLine.number);
+      || openingFenceSignature(previousEndLine.text) !== openingFenceSignature(nextEndLine.text);
   });
-  return changed;
+
+  return {
+    listContexts: listChanged
+      ? updateListMetadataForChanges(previousDoc, nextDoc, changes, metadata.listContexts)
+      : metadata.listContexts,
+    tableContexts: tableStructureTouched
+      ? collectTableMetadata(nextDoc)
+      : tableContentTouched
+        ? refreshTableMetadataForChanges(nextDoc, changes, remapTableMetadata(previousDoc, nextDoc, changes, metadata.tableContexts))
+        : remapTableMetadata(previousDoc, nextDoc, changes, metadata.tableContexts),
+    codeFenceContexts: codeFenceStructureTouched
+      ? collectCodeFenceMetadata(nextDoc)
+      : remapCodeFenceMetadata(previousDoc, nextDoc, changes, metadata.codeFenceContexts),
+  };
+}
+
+function linesAroundRangeContain(doc: Text, startLine: number, endLine: number, token: string): boolean {
+  const from = Math.max(1, startLine - 1);
+  const to = Math.min(doc.lines, endLine + 1);
+  for (let lineNumber = from; lineNumber <= to; lineNumber += 1) {
+    if (doc.line(lineNumber).text.includes(token)) return true;
+  }
+  return false;
+}
+
+function metadataIntersectsRange<T>(contexts: ReadonlyMap<number, T>, startLine: number, endLine: number): boolean {
+  for (let lineNumber = Math.max(1, startLine - 1); lineNumber <= endLine + 1; lineNumber += 1) {
+    if (contexts.has(lineNumber)) return true;
+  }
+  return false;
 }
 
 function listStructureSignature(text: string): string {
@@ -639,6 +736,10 @@ function listStructureSignature(text: string): string {
 function openingFenceSignature(text: string): string {
   const fence = parseOpeningCodeFence(text);
   return fence ? `${fence.markerChar}${fence.markerLength}:${fence.language}` : "";
+}
+
+function tableStructureSignature(text: string): string {
+  return `${tableLinePattern.test(text) ? "row" : "text"}:${tableSeparatorPattern.test(text) ? "separator" : "content"}`;
 }
 
 export function visibleLineNumbers(
@@ -1372,8 +1473,58 @@ function indentationColumns(whitespace: string, tabSize = 4) {
   return columns;
 }
 
-function collectListMetadata(doc: EditorView["state"]["doc"]) {
-  const listContexts = new Map<number, ListContext>();
+export function updateListMetadataForChanges(
+  previousDoc: Text,
+  nextDoc: Text,
+  changes: ChangeSet,
+  previousContexts: ReadonlyMap<number, ListContext>,
+): Map<number, ListContext> {
+  const changedRanges: Array<{ fromA: number; toA: number; fromB: number; toB: number }> = [];
+  changes.iterChanges((fromA, toA, fromB, toB) => {
+    changedRanges.push({ fromA, toA, fromB, toB });
+  });
+  if (changedRanges.length !== 1) {
+    return collectListMetadata(nextDoc);
+  }
+
+  const [change] = changedRanges;
+  const previousRange = listMetadataBlockRange(previousDoc, change.fromA, change.toA);
+  const nextRange = listMetadataBlockRange(nextDoc, change.fromB, change.toB);
+  const lineDelta = nextDoc.lines - previousDoc.lines;
+  const nextContexts = new Map<number, ListContext>();
+
+  for (const [lineNumber, context] of previousContexts) {
+    if (lineNumber < previousRange.startLine) {
+      nextContexts.set(lineNumber, context);
+    } else if (lineNumber > previousRange.endLine) {
+      nextContexts.set(lineNumber + lineDelta, context);
+    }
+  }
+  collectListMetadata(nextDoc, nextRange.startLine, nextRange.endLine, nextContexts);
+  return nextContexts;
+}
+
+function listMetadataBlockRange(doc: Text, from: number, to: number): { startLine: number; endLine: number } {
+  let startLine = doc.lineAt(Math.min(from, doc.length)).number;
+  let endLine = doc.lineAt(Math.min(to, doc.length)).number;
+
+  // Include both neighbours when the edit sits on a blank line. Joining or
+  // splitting at that boundary can merge two independently parsed blocks.
+  while (startLine > 1 && doc.line(startLine - 1).text.trim().length > 0) {
+    startLine -= 1;
+  }
+  while (endLine < doc.lines && doc.line(endLine + 1).text.trim().length > 0) {
+    endLine += 1;
+  }
+  return { startLine, endLine };
+}
+
+export function collectListMetadata(
+  doc: Text,
+  startLine = 1,
+  endLine = doc.lines,
+  listContexts = new Map<number, ListContext>(),
+) {
   const stack: Array<{
     indent: number;
     depth: number;
@@ -1381,7 +1532,7 @@ function collectListMetadata(doc: EditorView["state"]["doc"]) {
     ordered: boolean;
   }> = [];
 
-  for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber += 1) {
+  for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
     const line = doc.line(lineNumber);
     const text = line.text;
     const isBlank = text.trim().length === 0;
@@ -1494,6 +1645,27 @@ function addCodeFenceContext(contexts: Map<number, CodeFenceContext>, startLine:
   }
 }
 
+function remapCodeFenceMetadata(
+  previousDoc: Text,
+  nextDoc: Text,
+  changes: ChangeSet,
+  contexts: Map<number, CodeFenceContext>,
+): Map<number, CodeFenceContext> {
+  if (contexts.size === 0 || previousDoc.lines === nextDoc.lines) return contexts;
+  const remapped = new Map<number, CodeFenceContext>();
+  for (const context of new Set(contexts.values())) {
+    const mappedStart = changes.mapPos(previousDoc.line(context.startLine).from, 1);
+    const mappedEnd = changes.mapPos(previousDoc.line(context.endLine).to, -1);
+    addCodeFenceContext(
+      remapped,
+      nextDoc.lineAt(Math.min(mappedStart, nextDoc.length)).number,
+      nextDoc.lineAt(Math.min(mappedEnd, nextDoc.length)).number,
+      context.language,
+    );
+  }
+  return remapped;
+}
+
 function parseOpeningCodeFence(text: string) {
   const match = text.match(/^( {0,3})(`{3,}|~{3,})(.*)$/);
   if (!match) {
@@ -1526,7 +1698,7 @@ function isClosingCodeFence(text: string, markerChar: "`" | "~", markerLength: n
 
 type ColumnAlign = "left" | "center" | "right";
 
-interface TableContext {
+export interface TableContext {
   /** First line of the table block (the header row), 1-indexed */
   startLine: number;
   /** Last line of the table block (inclusive) */
@@ -1565,40 +1737,96 @@ function collectTableMetadata(doc: import("@codemirror/state").Text): Map<number
   const result = new Map<number, TableContext>();
   let i = 1;
   while (i <= doc.lines) {
-    const line = doc.line(i);
-    const text = line.text;
-    if (tableLinePattern.test(text)) {
-      // Need at least 2 lines: header + separator
-      const next = i + 1 <= doc.lines ? doc.line(i + 1) : null;
-      if (next && tableSeparatorPattern.test(next.text)) {
-        const startLine = i;
-        const startOffset = line.from;
-        const headers = parseTableRow(text);
-        const alignments = parseAlignments(next.text);
-        const rows: string[][] = [];
-        let endLine = i + 1;
-        let endOffset = next.to;
-        // Consume body rows
-        let j = i + 2;
-        while (j <= doc.lines) {
-          const bodyLine = doc.line(j);
-          if (!tableLinePattern.test(bodyLine.text)) break;
-          rows.push(parseTableRow(bodyLine.text));
-          endLine = j;
-          endOffset = bodyLine.to;
-          j += 1;
-        }
-        const ctx: TableContext = { startLine, endLine, startOffset, endOffset, headers, rows, alignments };
-        for (let ln = startLine; ln <= endLine; ln += 1) {
-          result.set(ln, ctx);
-        }
-        i = endLine + 1;
-        continue;
-      }
+    const context = tableContextAtLine(doc, i);
+    if (context) {
+      addTableContext(result, context);
+      i = context.endLine + 1;
+      continue;
     }
     i += 1;
   }
   return result;
+}
+
+function tableContextAtLine(doc: Text, startLine: number): TableContext | null {
+  const line = doc.line(startLine);
+  if (!tableLinePattern.test(line.text)) return null;
+  const separator = startLine + 1 <= doc.lines ? doc.line(startLine + 1) : null;
+  if (!separator || !tableSeparatorPattern.test(separator.text)) return null;
+
+  const rows: string[][] = [];
+  let endLine = startLine + 1;
+  let endOffset = separator.to;
+  for (let lineNumber = startLine + 2; lineNumber <= doc.lines; lineNumber += 1) {
+    const bodyLine = doc.line(lineNumber);
+    if (!tableLinePattern.test(bodyLine.text)) break;
+    rows.push(parseTableRow(bodyLine.text));
+    endLine = lineNumber;
+    endOffset = bodyLine.to;
+  }
+  return {
+    startLine,
+    endLine,
+    startOffset: line.from,
+    endOffset,
+    headers: parseTableRow(line.text),
+    rows,
+    alignments: parseAlignments(separator.text),
+  };
+}
+
+function addTableContext(contexts: Map<number, TableContext>, context: TableContext): void {
+  for (let lineNumber = context.startLine; lineNumber <= context.endLine; lineNumber += 1) {
+    contexts.set(lineNumber, context);
+  }
+}
+
+function remapTableMetadata(
+  previousDoc: Text,
+  nextDoc: Text,
+  changes: ChangeSet,
+  contexts: Map<number, TableContext>,
+): Map<number, TableContext> {
+  if (contexts.size === 0) return contexts;
+  const remapped = new Map<number, TableContext>();
+  for (const context of new Set(contexts.values())) {
+    const startOffset = changes.mapPos(context.startOffset, 1);
+    const endOffset = changes.mapPos(context.endOffset, -1);
+    const startLine = nextDoc.lineAt(Math.min(startOffset, nextDoc.length)).number;
+    const endLine = nextDoc.lineAt(Math.min(endOffset, nextDoc.length)).number;
+    const nextContext: TableContext = { ...context, startLine, endLine, startOffset, endOffset };
+    addTableContext(remapped, nextContext);
+  }
+  return remapped;
+}
+
+function refreshTableMetadataForChanges(
+  nextDoc: Text,
+  changes: ChangeSet,
+  contexts: Map<number, TableContext>,
+): Map<number, TableContext> {
+  const starts = new Set<number>();
+  changes.iterChanges((_fromA, _toA, fromB, toB) => {
+    const firstLine = nextDoc.lineAt(fromB).number;
+    const lastLine = nextDoc.lineAt(toB).number;
+    for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
+      const context = contexts.get(lineNumber);
+      if (context) starts.add(context.startLine);
+    }
+  });
+  if (starts.size === 0) return contexts;
+
+  const refreshed = new Map(contexts);
+  for (const startLine of starts) {
+    const previous = refreshed.get(startLine);
+    if (!previous) continue;
+    for (let lineNumber = previous.startLine; lineNumber <= previous.endLine; lineNumber += 1) {
+      refreshed.delete(lineNumber);
+    }
+    const next = tableContextAtLine(nextDoc, startLine);
+    if (next) addTableContext(refreshed, next);
+  }
+  return refreshed;
 }
 
 class TableWidget extends WidgetType {

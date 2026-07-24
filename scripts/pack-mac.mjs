@@ -202,6 +202,34 @@ function run(command, args, { cwd = repoRoot, label = `${command} ${args.join(' 
   });
 }
 
+export function restoreLocalElectronRuntime(runCommand = run) {
+  return runCommand('pnpm', ['--filter', '@exo/desktop', 'setup:runtime'], {
+    label: 'restore local Electron runtime',
+  });
+}
+
+export async function withElectronRuntimeRestore(
+  buildPackage,
+  { restore = restoreLocalElectronRuntime, log = (message) => console.error(message) } = {},
+) {
+  let packagingError;
+  try {
+    return await buildPackage();
+  } catch (error) {
+    packagingError = error;
+    throw error;
+  } finally {
+    try {
+      await restore();
+    } catch (error) {
+      if (!packagingError) {
+        throw error;
+      }
+      log(`[exo pack:mac] failed to restore local Electron runtime after packaging failure: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+}
+
 async function main() {
   const builderArgs = process.argv.slice(2);
   if (builderArgs.length === 0) {
@@ -216,11 +244,11 @@ async function main() {
     console.error(
       `[exo pack:mac] electron-builder timeout ${formatDuration(timeouts.timeoutMs)}, idle timeout ${formatDuration(timeouts.idleTimeoutMs)}`,
     );
-    await run('electron-builder', ['--projectDir', 'apps/desktop', ...builderArgs], {
+    await withElectronRuntimeRestore(() => run('electron-builder', ['--projectDir', 'apps/desktop', ...builderArgs], {
       label: 'electron-builder packaging',
       timeoutMs: timeouts.timeoutMs,
       idleTimeoutMs: timeouts.idleTimeoutMs,
-    });
+    }));
   } catch (error) {
     cleanMacOutputDirectories(repoRoot, { log: (message) => console.error(`[exo pack:mac] ${message}`) });
     if (error.packagingTimeout) {

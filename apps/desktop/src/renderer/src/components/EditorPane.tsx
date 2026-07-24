@@ -1,10 +1,15 @@
-import type { AgentCommand, InvocationRecord, NoteDocument, WorkspaceGraphContext } from "@exo/core";
-import type { InvocationReviewPayload } from "../../../shared/api";
+import { useCallback, useRef, useState } from "react";
+
+import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exo/core";
+import type { InvocationFileReviewPayload } from "../../../shared/api";
+import type { InvocationReviewQueueProjection } from "./invocation";
 import type { DragManager } from "../hooks/useDragManager";
 import type { ExoThemeVariant } from "../theme/types";
 
 import { ChromeTab } from "./Chrome";
 import { getDocumentDisplayTitle } from "./documentDisplay";
+import { EditorFaultBoundary } from "./EditorFaultBoundary";
+import type { EditorFaultContext } from "./editorFaultDiagnostics";
 import { NoteEditor } from "./NoteEditor";
 import { FolderOverviewPane } from "./FolderOverviewPane";
 import type { InlineAgentDraft } from "./inlineAgentComposer";
@@ -26,7 +31,6 @@ interface EditorPaneProps {
   documents: Record<string, EditorDocument>;
   graphContextByPath: Record<string, WorkspaceGraphContext>;
   saveStatuses: Record<string, "idle" | "saving" | "saved" | "error">;
-  propertiesCollapsed: boolean;
   isFocused: boolean;
   onFocusPane: () => void;
   onActivateTab: (filePath: string) => void;
@@ -34,10 +38,10 @@ interface EditorPaneProps {
   onActivateFolder: (directoryPath: string) => void;
   onCloseFolder: (directoryPath: string) => void;
   onOpenFolder: (directoryPath: string) => void;
+  onOpenFile: (filePath: string) => void;
   /** Close this entire pane (merge back into parent split). Null when this is the only pane. */
   onClosePane: (() => void) | null;
   dragManager: DragManager;
-  onToggleProperties: () => void;
   onOpenGraph: () => void;
   onUpdateFrontmatter: (key: string, value: unknown) => void;
   onBodyChange: (body: string) => void;
@@ -49,6 +53,9 @@ interface EditorPaneProps {
   agentCommands: AgentCommand[];
   onInvokeAgent: (draft: InlineAgentDraft) => void;
   invocationReview: EditorInvocationReview | null;
+  editingFrozen: boolean;
+  historyAvailable: boolean;
+  onOpenHistory: () => void;
   theme: ExoThemeVariant;
   fontSize: number;
   onZoomEditor: (direction: -1 | 0 | 1) => void;
@@ -64,7 +71,6 @@ export function EditorPane(props: EditorPaneProps) {
     documents,
     graphContextByPath,
     saveStatuses,
-    propertiesCollapsed,
     isFocused,
     onFocusPane,
     onActivateTab,
@@ -72,9 +78,9 @@ export function EditorPane(props: EditorPaneProps) {
     onActivateFolder,
     onCloseFolder,
     onOpenFolder,
+    onOpenFile,
     onClosePane,
     dragManager,
-    onToggleProperties,
     onOpenGraph,
     onUpdateFrontmatter,
     onBodyChange,
@@ -86,6 +92,9 @@ export function EditorPane(props: EditorPaneProps) {
     agentCommands,
     onInvokeAgent,
     invocationReview,
+    editingFrozen,
+    historyAvailable,
+    onOpenHistory,
     theme,
     fontSize,
     onZoomEditor,
@@ -97,6 +106,21 @@ export function EditorPane(props: EditorPaneProps) {
 
   const activeDocument = pane.activePath ? documents[pane.activePath] ?? null : null;
   const activeGraphContext = pane.activePath ? graphContextByPath[pane.activePath] ?? null : null;
+  const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
+  const faultContextRef = useRef<EditorFaultContext>({
+    notePath: activeDocument?.filePath ?? null,
+    mode: activeDocument?.kind === "markdown" ? "markdown-live" : activeDocument ? "code" : "empty",
+    selection: null,
+    agentHandle: null,
+  });
+  const updateFaultContext = useCallback((context: EditorFaultContext) => {
+    faultContextRef.current = context;
+  }, []);
+  faultContextRef.current = {
+    ...faultContextRef.current,
+    notePath: activeDocument?.filePath ?? null,
+    mode: activeDocument?.kind === "markdown" ? "markdown-live" : activeDocument ? "code" : "empty",
+  };
 
   return (
     <div
@@ -156,12 +180,12 @@ export function EditorPane(props: EditorPaneProps) {
         ) : null}
       </div>
 
-      {pane.activeFolderPath ? <FolderOverviewPane directoryPath={pane.activeFolderPath} onOpenFolder={onOpenFolder} onOpenFile={onActivateTab} onClose={() => onCloseFolder(pane.activeFolderPath!)} /> : <NoteEditor
+      {pane.activeFolderPath ? <FolderOverviewPane directoryPath={pane.activeFolderPath} onOpenFolder={onOpenFolder} onOpenFile={onOpenFile} onClose={() => onCloseFolder(pane.activeFolderPath!)} /> : <EditorFaultBoundary key={pane.activePath ?? "empty"} getContext={() => faultContextRef.current}><NoteEditor
         document={activeDocument}
         graphContext={activeGraphContext}
         saveStatus={pane.activePath ? saveStatuses[pane.activePath] ?? "idle" : "idle"}
         propertiesCollapsed={propertiesCollapsed}
-        onToggleProperties={onToggleProperties}
+        onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
         onOpenGraph={onOpenGraph}
         onUpdateFrontmatter={onUpdateFrontmatter}
         onBodyChange={onBodyChange}
@@ -173,6 +197,9 @@ export function EditorPane(props: EditorPaneProps) {
         agentCommands={agentCommands}
         onInvokeAgent={onInvokeAgent}
         invocationReview={invocationReview}
+        editingFrozen={editingFrozen}
+        historyAvailable={historyAvailable}
+        onOpenHistory={onOpenHistory}
         onFocus={onFocusPane}
         theme={theme}
         fontSize={fontSize}
@@ -181,20 +208,23 @@ export function EditorPane(props: EditorPaneProps) {
         isNoteDocument={activeDocument ? isNoteDocument(activeDocument.filePath) : false}
         revealLineRequest={revealLineRequest}
         scrollRestoreRequest={scrollRestoreRequest}
-      />}
+        onDiagnosticContext={updateFaultContext}
+      /></EditorFaultBoundary>}
     </div>
   );
 }
 
 export interface EditorInvocationReview {
-  record: InvocationRecord;
-  hasDirtyConflict: boolean;
-  onEndObservation: () => void;
-  onKeepDirtyBuffer: () => void;
-  onReloadFromDisk: () => void;
-  reviewPayload: InvocationReviewPayload | null;
-  onKeepReview: () => void;
-  onRejectReview: () => void;
-  onResumeInTerminal?: () => void;
-  onDismiss: () => void;
+  payload: InvocationFileReviewPayload;
+  queue: InvocationReviewQueueProjection;
+  readOnly: boolean;
+  decisionPending: boolean;
+  onNavigate: (index: number) => void;
+  onKeepCurrent: () => void;
+  onRejectCurrent: () => void;
+  onKeepAll?: () => void;
+  onRejectAll?: () => void;
+  onRefreshConflict: () => void;
+  onOpenConflict: () => void;
+  onDismiss?: () => void;
 }

@@ -26,6 +26,7 @@ window.addEventListener(
 );
 
 const api: DesktopApi = {
+  ...(process.env.EXO_TEST === "1" ? { test: { graphHooks: true as const } } : {}),
   workspace: {
     getModel: () => invokeDesktop("workspace:get-model"),
     getSettings: () => invokeDesktop("workspace:get-settings"),
@@ -36,24 +37,37 @@ const api: DesktopApi = {
     saveSettings: (request) => invokeDesktop("workspace:save-settings", request),
     selectFolder: (options) => invokeDesktop("workspace:select-folder", options),
     getIndexStatus: () => invokeDesktop("workspace:get-index-status"),
+    previewOntology: () => invokeDesktop("workspace:ontology-preview"),
+    keepOntology: (guard) => invokeDesktop("workspace:ontology-keep", guard),
+    rejectOntology: (guard) => invokeDesktop("workspace:ontology-reject", guard),
     resolvePreviewTarget: (target) => invokeDesktop("workspace:resolve-preview-target", target),
     launchAgentInvocation: (input) => invokeDesktop("workspace:launch-agent-invocation", input),
+    getAgentInvocationAuthorization: (input) => invokeDesktop("workspace:get-agent-invocation-authorization", input),
     getAgentCommandTrust: (handle) => invokeDesktop("workspace:get-agent-command-trust", handle),
+    resetAgentCommandTrust: (handle) => invokeDesktop("workspace:reset-agent-command-trust", handle),
     getAgentCommandLaunchFacts: (commandId) => invokeDesktop("workspace:get-agent-command-launch-facts", commandId),
     getAgentCommandContinuity: (commandId) => invokeDesktop("workspace:get-agent-command-continuity", commandId),
     resetAgentCommandContinuity: (commandId) => invokeDesktop("workspace:reset-agent-command-continuity", commandId),
     testAgentCommand: (input) => invokeDesktop("workspace:test-agent-command", input),
     configureProviderMcp: (input) => invokeDesktop("workspace:configure-provider-mcp", input),
     getCliInstallationStatus: () => invokeDesktop("workspace:get-cli-installation-status"),
+    recordRendererDiagnostic: (diagnostic) => invokeDesktop("workspace:record-renderer-diagnostic", diagnostic),
     endAgentInvocation: (invocationId) => invokeDesktop("workspace:end-agent-invocation", invocationId),
-    getInvocationReview: (invocationId) => invokeDesktop("workspace:get-invocation-review", invocationId),
-    keepInvocationReview: (invocationId) => invokeDesktop("workspace:keep-invocation-review", invocationId),
-    rejectInvocationReview: (input) => invokeDesktop("workspace:reject-invocation-review", input),
+    listPendingInvocationReviews: () => invokeDesktop("workspace:list-pending-invocation-reviews"),
+    listInvocationHistory: (notePath) => invokeDesktop("workspace:list-invocation-history", notePath),
+    getInvocationFileReview: (input) => invokeDesktop("workspace:get-invocation-file-review", input),
+    reviewInvocationFile: (input) => invokeDesktop("workspace:review-invocation-file", input),
+    reviewInvocationAll: (input) => invokeDesktop("workspace:review-invocation-all", input),
     resumeInvocationInTerminal: (invocationId) => invokeDesktop("workspace:resume-invocation-in-terminal", invocationId),
     onInvocationUpdated: (callback) => {
       const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
       ipcRenderer.on("workspace:invocation-updated", listener);
       return () => ipcRenderer.removeListener("workspace:invocation-updated", listener);
+    },
+    onInvocationActivity: (callback) => {
+      const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
+      ipcRenderer.on("workspace:invocation-activity", listener);
+      return () => ipcRenderer.removeListener("workspace:invocation-activity", listener);
     },
     syncIndex: () => invokeDesktop("workspace:index-sync"),
     updateIndex: () => invokeDesktop("workspace:index-update"),
@@ -81,25 +95,20 @@ const api: DesktopApi = {
       ipcRenderer.on("workspace:index-sync-state", listener);
       return () => ipcRenderer.removeListener("workspace:index-sync-state", listener);
     },
+    onGraphChanged: (callback) => {
+      const listener = () => callback();
+      ipcRenderer.on("workspace:graph-changed", listener);
+      return () => ipcRenderer.removeListener("workspace:graph-changed", listener);
+    },
+    onOntologyCandidateChanged: (callback) => {
+      const listener = () => callback();
+      ipcRenderer.on("workspace:ontology-candidate-changed", listener);
+      return () => ipcRenderer.removeListener("workspace:ontology-candidate-changed", listener);
+    },
     onCommandOpenFile: (callback) => {
       const listener = (_event: unknown, filePath: string) => callback(filePath);
       ipcRenderer.on("command:open-file", listener);
       return () => ipcRenderer.removeListener("command:open-file", listener);
-    },
-    onCommandOpenPreview: (callback) => {
-      const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
-      ipcRenderer.on("command:open-preview", listener);
-      return () => ipcRenderer.removeListener("command:open-preview", listener);
-    },
-    onCommandFocusPreview: (callback) => {
-      const listener = () => callback();
-      ipcRenderer.on("command:focus-preview", listener);
-      return () => ipcRenderer.removeListener("command:focus-preview", listener);
-    },
-    onCommandClosePreview: (callback) => {
-      const listener = () => callback();
-      ipcRenderer.on("command:close-preview", listener);
-      return () => ipcRenderer.removeListener("command:close-preview", listener);
     },
     onCommandOpenSettings: (callback) => {
       const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);
@@ -112,8 +121,10 @@ const api: DesktopApi = {
     save: (filePath, frontmatter, body) => invokeDesktop("notes:save", filePath, frontmatter, body),
     stat: (filePath) => invokeDesktop("notes:stat", filePath),
     getGraphContext: (filePath) => invokeDesktop("notes:get-graph-context", filePath),
-    getGraphView: (profileId) => invokeDesktop("notes:get-graph-view", profileId),
-    getGraphConceptDetail: (conceptId, sourceSnapshotId, profileId) => invokeDesktop("notes:get-graph-concept-detail", conceptId, sourceSnapshotId, profileId),
+    getGraphTopology: (profileId) => invokeDesktop("notes:get-graph-topology", profileId),
+    getGraphConceptSummaries: (indexes, sourceSnapshotId, profileId) => invokeDesktop("notes:get-graph-concept-summaries", indexes, sourceSnapshotId, profileId),
+    graphConceptLookup: (reference, sourceSnapshotId, profileId) => invokeDesktop("notes:graph-concept-lookup", reference, sourceSnapshotId, profileId),
+    getGraphConceptDetailByIndex: (index, sourceSnapshotId, profileId) => invokeDesktop("notes:get-graph-concept-detail-by-index", index, sourceSnapshotId, profileId),
     resolveTarget: (sourceFilePath, target) => invokeDesktop("notes:resolve-target", sourceFilePath, target),
     resolveMarkdownImage: (sourceFilePath, target, lookupByFilename) => invokeDesktop("notes:resolve-markdown-image", sourceFilePath, target, lookupByFilename),
     ensureTarget: (sourceFilePath, target) => invokeDesktop("notes:ensure-target", sourceFilePath, target),

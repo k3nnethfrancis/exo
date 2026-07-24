@@ -12,9 +12,10 @@ The `refactor/note-native-exo` branch is intentionally simplifying to Note Roots
 The note-native simplification, Folder Overview, inline invocation, derived-work
 isolation, and isolated graph lab are now established substrate. Current graph
 work must follow `docs/graph-system-report-and-plan.md`: consolidate the knowledge
-model, prove optional profiles and utility on fixtures, then integrate the
-spatial Graph View. Do not import the lab as a third semantics path or add a new
-public contract without assignment and review.
+model, keep Note Root Formats separate from the reviewed Workspace Ontology,
+prove utility on fixtures, then integrate the spatial Graph View. Do not import
+the lab as a third semantics path or add a new public contract without assignment
+and review.
 
 ## Start Here
 
@@ -46,7 +47,7 @@ Before contributing, scan `skills/`. For broad Exo development, load the relevan
 - `skills/submit-exo-issue/SKILL.md` - available for contributors and intake agents that file, promote, deduplicate, or assign Exo bug/QA/setup reports. The lead/orchestrator may follow the tracker convention directly without invoking this skill.
 - `skills/terminal-stability/SKILL.md` - use before changing terminal runtime, rendering, settings, tests, or Command launch behavior.
 - `skills/graph-system-stability/SKILL.md` - use before changing graph domain
-  types, Knowledge Profiles, graph queries, integrity checks, layout, scene,
+  types, Note Root Formats, Workspace Ontology rules, graph queries, integrity checks, layout, scene,
   rendering, Graph Pane integration, or graph performance tests.
 - `skills/deslopify-frontend/SKILL.md` - use before changing setup, settings, onboarding, future extension settings, or other configuration UI.
 
@@ -138,11 +139,14 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Folder containment and inherited guidance are current graph facts. A future
   Skill may consume a Folder Index chain only through the normal reviewed
   invocation path.
-- Exo should not impose one global schema or ontology. Users create ontologies through folders, Folder Indexes, properties, tags, links, and relationships; Exo detects, visualizes, searches, and helps maintain that user-owned structure.
-- Knowledge Profiles are optional user-owned interpretations of open Concept
-  types, Properties, Relations, and validation rules. Generic Markdown requires
-  none; OKF 0.1 is the first planned interoperability profile. Profiles must
-  preserve unknown user data and never become a second canonical database.
+- Exo never requires a schema. One optional user-owned `ontology.yaml` may
+  passively interpret open Concept Types, Properties, reference Relations, and
+  validation rules across a Workspace. It preserves unknown data, never mutates
+  Notes, and cannot contain executable or presentation behavior.
+- Note Root Formats and the Workspace Ontology are separate. Generic Markdown
+  and permissive OKF 0.1 are Formats; the Ontology applies after Format
+  projection. Relation origin is `document | ontology | inferred` and remains
+  separate from authorship.
 - Graph Views change layout and visual encoding, not knowledge. Renderer-local
   numeric kinds are performance projections and must not become ontology enums.
 - Keep graph contract tests and the repo-local graph performance suite separate.
@@ -180,7 +184,7 @@ CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build 
 - Preserve unrelated local edits. Before staging, inspect `git status` and include only files that belong to the current task.
 - UI and terminal changes require app QA in the real Electron app, not only browser or unit tests. Use focused automated tests first, then manually exercise the affected workflow.
 - Before changing terminal runtime, terminal rendering, terminal settings, terminal tests, or agent terminal launch behavior, use `skills/terminal-stability/SKILL.md` and follow its ownership rules, fallback discipline, invariants, checks, and manual QA script.
-- Before changing graph domain types, snapshots, profile interpretation, graph
+- Before changing graph domain types, snapshots, Format or Ontology interpretation, graph
   queries, layout, scene, WebGPU/Canvas rendering, Graph Pane integration, or
   graph benchmarks, use `skills/graph-system-stability/SKILL.md` and identify
   which graph layer owns the change before editing.

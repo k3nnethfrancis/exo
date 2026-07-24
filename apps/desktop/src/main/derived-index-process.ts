@@ -5,8 +5,15 @@ import type {
   IndexSearchOptions,
   IndexStatus,
   IndexSyncResult,
-  GraphConceptDetail,
-  GraphViewBundle,
+  GraphConceptDetailByIndexResult,
+  GraphConceptLookupReference,
+  GraphConceptLookupResult,
+  GraphConceptSummaryResult,
+  GraphTopology,
+  OntologyKeepResult,
+  OntologyRejectResult,
+  OntologyReviewGuard,
+  OntologyReviewState,
   WorkspaceGraphContext,
   WorkspaceIndexSearchResponse,
   WorkspaceModel,
@@ -37,10 +44,15 @@ export interface DerivedIndexClient {
   ): Promise<IndexStatus>;
   sync(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<IndexSyncResult>;
   graphContext(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<WorkspaceGraphContext | null>;
-  graphView(model: WorkspaceModel, runtimeRoot: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphViewBundle>;
-  graphConceptDetail(model: WorkspaceModel, runtimeRoot: string, conceptId: string, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptDetail | null>;
+  graphTopology(model: WorkspaceModel, runtimeRoot: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphTopology>;
+  graphConceptSummaries(model: WorkspaceModel, runtimeRoot: string, indexes: number[], sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptSummaryResult>;
+  graphConceptLookup(model: WorkspaceModel, runtimeRoot: string, reference: GraphConceptLookupReference, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptLookupResult>;
+  graphConceptDetailByIndex(model: WorkspaceModel, runtimeRoot: string, index: number, sourceSnapshotId: string, profileId?: string | null, signal?: AbortSignal): Promise<GraphConceptDetailByIndexResult>;
   graphRefresh(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<void>;
   graphInvalidate(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<void>;
+  ontologyPreview(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<OntologyReviewState>;
+  ontologyKeep(model: WorkspaceModel, runtimeRoot: string, guard: OntologyReviewGuard, signal?: AbortSignal): Promise<OntologyKeepResult>;
+  ontologyReject(model: WorkspaceModel, runtimeRoot: string, guard: OntologyReviewGuard, signal?: AbortSignal): Promise<OntologyRejectResult>;
   dispose(): void;
 }
 
@@ -127,24 +139,46 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
     return this.request({ operation: "graph-context", context: { model, runtimeRoot }, filePath }, signal);
   }
 
-  graphView(
+  graphTopology(
     model: WorkspaceModel,
     runtimeRoot: string,
     profileId?: string | null,
     signal?: AbortSignal,
-  ): Promise<GraphViewBundle> {
-    return this.request({ operation: "graph-view", context: { model, runtimeRoot }, profileId }, signal);
+  ): Promise<GraphTopology> {
+    return this.request({ operation: "graph-topology", context: { model, runtimeRoot }, profileId }, signal);
   }
 
-  graphConceptDetail(
+  graphConceptSummaries(
     model: WorkspaceModel,
     runtimeRoot: string,
-    conceptId: string,
+    indexes: number[],
     sourceSnapshotId: string,
     profileId?: string | null,
     signal?: AbortSignal,
-  ): Promise<GraphConceptDetail | null> {
-    return this.request({ operation: "graph-concept-detail", context: { model, runtimeRoot }, conceptId, sourceSnapshotId, profileId }, signal);
+  ): Promise<GraphConceptSummaryResult> {
+    return this.request({ operation: "graph-concept-summaries", context: { model, runtimeRoot }, indexes, sourceSnapshotId, profileId }, signal);
+  }
+
+  graphConceptLookup(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    reference: GraphConceptLookupReference,
+    sourceSnapshotId: string,
+    profileId?: string | null,
+    signal?: AbortSignal,
+  ): Promise<GraphConceptLookupResult> {
+    return this.request({ operation: "graph-concept-lookup", context: { model, runtimeRoot }, reference, sourceSnapshotId, profileId }, signal);
+  }
+
+  graphConceptDetailByIndex(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    index: number,
+    sourceSnapshotId: string,
+    profileId?: string | null,
+    signal?: AbortSignal,
+  ): Promise<GraphConceptDetailByIndexResult> {
+    return this.request({ operation: "graph-concept-detail-by-index", context: { model, runtimeRoot }, index, sourceSnapshotId, profileId }, signal);
   }
 
   async graphRefresh(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<void> {
@@ -153,6 +187,28 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
 
   async graphInvalidate(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<void> {
     await this.request({ operation: "graph-invalidate", context: { model, runtimeRoot } }, signal);
+  }
+
+  ontologyPreview(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<OntologyReviewState> {
+    return this.request({ operation: "ontology-preview", context: { model, runtimeRoot } }, signal);
+  }
+
+  ontologyKeep(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    guard: OntologyReviewGuard,
+    signal?: AbortSignal,
+  ): Promise<OntologyKeepResult> {
+    return this.request({ operation: "ontology-keep", context: { model, runtimeRoot }, guard }, signal);
+  }
+
+  ontologyReject(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    guard: OntologyReviewGuard,
+    signal?: AbortSignal,
+  ): Promise<OntologyRejectResult> {
+    return this.request({ operation: "ontology-reject", context: { model, runtimeRoot }, guard }, signal);
   }
 
   dispose(): void {

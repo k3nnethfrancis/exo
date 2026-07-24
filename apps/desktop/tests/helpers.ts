@@ -41,11 +41,14 @@ interface LaunchExoFixtureOptions {
   env?: Record<string, string>;
   cwd?: string;
   prepareWorkspace?: (workspaceRoot: string) => Promise<void>;
+  prepareHome?: (homeRoot: string) => Promise<void>;
+  selectFolderPath?: (workspaceRoot: string) => string;
   initialNoteLabel?: string | null;
   configured?: boolean;
   workspaceRootEnv?: boolean;
   runtimeRootEnv?: boolean;
   expectOnboarding?: boolean;
+  stripEnvironment?: readonly string[];
   prepareSettings?: (input: { settingsPath: string; userDataRoot: string; workspaceRoot: string }) => Promise<void>;
 }
 
@@ -80,6 +83,9 @@ async function launchExoFixtureForJourney(
   const runtimeRoot = path.join(userDataRoot, "runtime");
   const tmuxServerName = tmuxServerNameForRuntimeRoot(runtimeRoot);
   const homeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-home-"));
+  if (options?.prepareHome) {
+    await options.prepareHome(homeRoot);
+  }
   if (options?.mutable || options?.prepareWorkspace) {
     tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-fixture-"));
     workspaceRoot = path.join(tempRoot, "test-workspace");
@@ -115,9 +121,11 @@ async function launchExoFixtureForJourney(
     HOME: homeRoot,
     EXO_SHELL: "/bin/sh",
     EXO_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
+    ...(options?.selectFolderPath ? { EXO_TEST_SELECT_FOLDER_PATH: options.selectFolderPath(workspaceRoot) } : {}),
     ...workspaceEnv,
     ...options?.env,
   };
+  for (const name of options?.stripEnvironment ?? []) delete launchEnv[name];
 
   if (options?.workspaceRootEnv === false) {
     delete launchEnv.EXO_WORKSPACE_ROOT;
@@ -129,8 +137,10 @@ async function launchExoFixtureForJourney(
     delete launchEnv.EXO_RUNTIME_ROOT;
   }
 
+  const packagedAppPath = packagedExecutablePath(process.env.EXO_PACKAGED_APP_PATH);
   const electronApp = await electron.launch({
-    args: [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
+    ...(packagedAppPath ? { executablePath: packagedAppPath } : {}),
+    args: packagedAppPath ? [] : [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
     cwd: options?.cwd ?? repoRoot,
     env: launchEnv,
   });
@@ -207,6 +217,11 @@ interface RelaunchExoFixtureInput {
 
 interface RelaunchExoFixtureOptions {
   env?: Record<string, string>;
+  cwd?: string;
+  configured?: boolean;
+  workspaceRootEnv?: boolean;
+  runtimeRootEnv?: boolean;
+  stripEnvironment?: readonly string[];
 }
 
 interface RelaunchedExoFixture {
@@ -236,6 +251,7 @@ async function relaunchExoFixtureForJourney(
 ): Promise<RelaunchedExoFixture> {
   const userDataRoot = path.dirname(previous.runtimeRoot);
   const tmuxServerName = tmuxServerNameForRuntimeRoot(previous.runtimeRoot);
+  const configured = options?.configured ?? true;
   const launchEnv: NodeJS.ProcessEnv = {
     ...process.env,
     EXO_TEST: "1",
@@ -247,16 +263,31 @@ async function relaunchExoFixtureForJourney(
     EXO_TMUX_SERVER_NAME: tmuxServerName,
     EXO_FORCE_THEME: "dark",
     HOME: previous.homeRoot,
-    EXO_NOTE_ROOTS: path.join(previous.workspaceRoot, "notes/test-notes"),
-    EXO_PROJECT_ROOTS: path.join(previous.workspaceRoot, "projects/sample-project"),
+    ...(configured ? {
+      EXO_NOTE_ROOTS: path.join(previous.workspaceRoot, "notes/test-notes"),
+      EXO_PROJECT_ROOTS: path.join(previous.workspaceRoot, "projects/sample-project"),
+    } : {}),
     EXO_SHELL: "/bin/sh",
     EXO_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
     ...options?.env,
   };
+  for (const name of options?.stripEnvironment ?? []) delete launchEnv[name];
 
+  if (options?.workspaceRootEnv === false) {
+    delete launchEnv.EXO_WORKSPACE_ROOT;
+    delete launchEnv.EXO_DEFAULT_TERMINAL_CWD;
+    delete launchEnv.EXO_NOTE_ROOTS;
+    delete launchEnv.EXO_PROJECT_ROOTS;
+  }
+  if (options?.runtimeRootEnv === false) {
+    delete launchEnv.EXO_RUNTIME_ROOT;
+  }
+
+  const packagedAppPath = packagedExecutablePath(process.env.EXO_PACKAGED_APP_PATH);
   const electronApp = await electron.launch({
-    args: [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
-    cwd: repoRoot,
+    ...(packagedAppPath ? { executablePath: packagedAppPath } : {}),
+    args: packagedAppPath ? [] : [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
+    cwd: options?.cwd ?? repoRoot,
     env: launchEnv,
   });
   const page = electronApp.windows()[0] ?? await electronApp.firstWindow();
@@ -281,6 +312,12 @@ async function relaunchExoFixtureForJourney(
       await rm(previous.homeRoot, { recursive: true, force: true });
     },
   };
+}
+
+function packagedExecutablePath(appPath: string | undefined): string | undefined {
+  return appPath?.endsWith(".app")
+    ? path.join(appPath, "Contents", "MacOS", "Exo")
+    : appPath;
 }
 
 async function cleanupFixtureTmuxSessions(runtimeRoot: string, tmuxServerName: string): Promise<void> {

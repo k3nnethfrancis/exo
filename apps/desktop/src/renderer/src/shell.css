@@ -1228,13 +1228,139 @@
   transform: scale(0.985);
 }
 
+.workspace-menu__footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 4px;
+  align-items: center;
+}
+
+.workspace-menu__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background-color 140ms var(--exo-ease-out), color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
+}
+
+.workspace-menu__icon:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.workspace-menu__icon:active {
+  transform: scale(0.94);
+}
+
+.workspace-help {
+  max-height: min(560px, calc(100vh - 88px));
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.workspace-help__header {
+  display: grid;
+  grid-template-columns: 32px 1fr 32px;
+  align-items: center;
+  min-height: 36px;
+}
+
+.workspace-help__header strong {
+  grid-column: 2;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.workspace-help__section {
+  padding: 7px 4px 2px;
+}
+
+.workspace-help__section + .workspace-help__section {
+  margin-top: 4px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.workspace-help__section h2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 6px 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.workspace-help__section ul {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workspace-help__section li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 27px;
+  padding: 0 6px;
+  border-radius: 7px;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.workspace-help__section li:hover {
+  background: color-mix(in srgb, var(--surface-hover) 70%, transparent);
+}
+
+.workspace-help__section kbd,
+.workspace-help__section code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.workspace-help__section kbd {
+  min-width: 34px;
+  padding: 2px 5px;
+  border: 1px solid var(--surface-border);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--editor-bg) 64%, transparent);
+  color: var(--muted);
+  text-align: center;
+}
+
+.workspace-help__section code {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+}
+
+.workspace-help__section li > span:last-child:not(:first-child) {
+  color: var(--muted);
+  font-size: 10px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .window-chrome__button,
   .exo-side-panel-shell,
   .exo-side-panel-rail__button,
   .workspace-menu-button,
   .workspace-menu,
-  .workspace-menu__item {
+  .workspace-menu__item,
+  .workspace-menu__icon {
     transition-duration: 0.01ms;
     transform: none !important;
   }

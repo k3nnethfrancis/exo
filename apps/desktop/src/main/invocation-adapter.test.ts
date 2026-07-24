@@ -21,18 +21,25 @@ describe("invocation adapter", () => {
   it("builds separate structured Claude fresh and resume commands", () => {
     const command = createDefaultClaudeAgentCommand();
     expect(commandForHeadlessInvocation(command))
-      .toBe('claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep" --output-format json');
+      .toBe('claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep" --output-format stream-json --verbose');
     expect(commandForHeadlessInvocation(command, HEAD))
-      .toBe(`claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep" --output-format json --resume '${SESSION_ID}'`);
+      .toBe(`claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep" --output-format stream-json --verbose --resume '${SESSION_ID}'`);
     expect(commandForHeadlessInvocation({ ...command, command: "claude -p --output-format stream-json" }, HEAD))
       .toBe(`claude -p --output-format stream-json --resume '${SESSION_ID}'`);
+  });
+
+  it("requests Codex JSONL without changing generic Commands", () => {
+    const codex = createDefaultCodexAgentCommand();
+    expect(commandForHeadlessInvocation(codex)).toBe("codex exec --sandbox workspace-write --json -");
+    expect(commandForHeadlessInvocation({ ...codex, command: "codex exec --json -" })).toBe("codex exec --json -");
+    expect(commandForHeadlessInvocation({ ...codex, adapter: "generic", command: "agent -" })).toBe("agent -");
   });
 
   it("does not give Codex or generic Commands unproven continuity", () => {
     const codex = createDefaultCodexAgentCommand();
     expect(codex.continuityPolicy).toBe("fresh");
     expect(supportsAutomaticContinuity(codex)).toBe(false);
-    expect(commandForHeadlessInvocation(codex, HEAD)).toBe(codex.command);
+    expect(commandForHeadlessInvocation(codex, HEAD)).toBe("codex exec --sandbox workspace-write --json -");
     expect(supportsAutomaticContinuity({ ...createDefaultClaudeAgentCommand(), adapter: "generic", continuityPolicy: "fresh" })).toBe(false);
   });
 

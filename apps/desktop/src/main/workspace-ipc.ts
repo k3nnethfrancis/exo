@@ -1,8 +1,8 @@
 import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import path from "node:path";
-import { WorkspaceFiles, type WorkspaceModel } from "@exo/core";
+import { assertOntologyReviewGuard, WorkspaceFiles, type WorkspaceModel } from "@exo/core";
 
-import type { DesktopApi, FileStatInfo, WorkspaceRegistryEntry } from "../shared/api";
+import type { DesktopApi, FileStatInfo, RendererEditorDiagnostic, WorkspaceRegistryEntry } from "../shared/api";
 import { handleDesktopInvoke } from "./typed-ipc";
 
 type WorkspaceApi = DesktopApi["workspace"];
@@ -16,26 +16,36 @@ export interface WorkspaceIpcHandlers {
   embedIndex: WorkspaceApi["embedIndex"];
   ensureTarget: NotesApi["ensureTarget"];
   getIndexStatus: WorkspaceApi["getIndexStatus"];
+  previewOntology: WorkspaceApi["previewOntology"];
+  keepOntology: WorkspaceApi["keepOntology"];
+  rejectOntology: WorkspaceApi["rejectOntology"];
   getFolderIndexStatus: WorkspaceApi["getFolderIndexStatus"];
   getFolderOverview: WorkspaceApi["getFolderOverview"];
   ensureFolderIndex: WorkspaceApi["ensureFolderIndex"];
   launchAgentInvocation: WorkspaceApi["launchAgentInvocation"];
+  getAgentInvocationAuthorization: WorkspaceApi["getAgentInvocationAuthorization"];
   getAgentCommandTrust: WorkspaceApi["getAgentCommandTrust"];
+  resetAgentCommandTrust: WorkspaceApi["resetAgentCommandTrust"];
   getAgentCommandLaunchFacts: WorkspaceApi["getAgentCommandLaunchFacts"];
   getAgentCommandContinuity: WorkspaceApi["getAgentCommandContinuity"];
   resetAgentCommandContinuity: WorkspaceApi["resetAgentCommandContinuity"];
   testAgentCommand: WorkspaceApi["testAgentCommand"];
   configureProviderMcp: WorkspaceApi["configureProviderMcp"];
   getCliInstallationStatus: WorkspaceApi["getCliInstallationStatus"];
+  recordRendererDiagnostic: WorkspaceApi["recordRendererDiagnostic"];
   endAgentInvocation: WorkspaceApi["endAgentInvocation"];
-  getInvocationReview: WorkspaceApi["getInvocationReview"];
-  keepInvocationReview: WorkspaceApi["keepInvocationReview"];
-  rejectInvocationReview: WorkspaceApi["rejectInvocationReview"];
+  listPendingInvocationReviews: WorkspaceApi["listPendingInvocationReviews"];
+  listInvocationHistory: WorkspaceApi["listInvocationHistory"];
+  getInvocationFileReview: WorkspaceApi["getInvocationFileReview"];
+  reviewInvocationFile: WorkspaceApi["reviewInvocationFile"];
+  reviewInvocationAll: WorkspaceApi["reviewInvocationAll"];
   resumeInvocationInTerminal: WorkspaceApi["resumeInvocationInTerminal"];
   resolvePreviewTarget: WorkspaceApi["resolvePreviewTarget"];
   getGraphContext: NotesApi["getGraphContext"];
-  getGraphView: NotesApi["getGraphView"];
-  getGraphConceptDetail: NotesApi["getGraphConceptDetail"];
+  getGraphTopology: NotesApi["getGraphTopology"];
+  getGraphConceptSummaries: NotesApi["getGraphConceptSummaries"];
+  graphConceptLookup: NotesApi["graphConceptLookup"];
+  getGraphConceptDetailByIndex: NotesApi["getGraphConceptDetailByIndex"];
   getMainWindow: () => BrowserWindow | null;
   getModel: () => WorkspaceModel;
   getSettings: WorkspaceApi["getSettings"];
@@ -69,6 +79,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:list-workspaces", async () => handlers.listWorkspaces());
   handleDesktopInvoke("workspace:activate-workspace", async (_event, input) => handlers.activateWorkspace(input));
   handleDesktopInvoke("workspace:get-index-status", async () => handlers.getIndexStatus());
+  handleDesktopInvoke("workspace:ontology-preview", async () => handlers.previewOntology());
+  handleDesktopInvoke("workspace:ontology-keep", async (_event, guard) => handlers.keepOntology(assertOntologyReviewGuard(guard)));
+  handleDesktopInvoke("workspace:ontology-reject", async (_event, guard) => handlers.rejectOntology(assertOntologyReviewGuard(guard)));
   handleDesktopInvoke("workspace:get-folder-index-status", async () => handlers.getFolderIndexStatus());
   handleDesktopInvoke("workspace:get-folder-overview", async (_event, directoryPath) => {
     const authorizedDirectory = await workspaceFiles().existing(directoryPath);
@@ -79,7 +92,12 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const documentPath = await workspaceFiles().existing(input.documentPath);
     return handlers.launchAgentInvocation({ ...input, documentPath });
   });
+  handleDesktopInvoke("workspace:get-agent-invocation-authorization", async (_event, input) => {
+    const documentPath = await workspaceFiles().existing(input.documentPath);
+    return handlers.getAgentInvocationAuthorization({ ...input, documentPath });
+  });
   handleDesktopInvoke("workspace:get-agent-command-trust", async (_event, handle) => handlers.getAgentCommandTrust(handle));
+  handleDesktopInvoke("workspace:reset-agent-command-trust", async (_event, handle) => handlers.resetAgentCommandTrust(handle));
   handleDesktopInvoke("workspace:get-agent-command-launch-facts", async (_event, commandId) =>
     handlers.getAgentCommandLaunchFacts(commandId),
   );
@@ -88,10 +106,22 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:test-agent-command", async (_event, input) => handlers.testAgentCommand(input));
   handleDesktopInvoke("workspace:configure-provider-mcp", async (_event, input) => handlers.configureProviderMcp(input));
   handleDesktopInvoke("workspace:get-cli-installation-status", async () => handlers.getCliInstallationStatus());
+  handleDesktopInvoke("workspace:record-renderer-diagnostic", async (_event, diagnostic) =>
+    handlers.recordRendererDiagnostic(assertRendererEditorDiagnostic(diagnostic)),
+  );
   handleDesktopInvoke("workspace:end-agent-invocation", async (_event, invocationId) => handlers.endAgentInvocation(invocationId));
-  handleDesktopInvoke("workspace:get-invocation-review", async (_event, invocationId) => handlers.getInvocationReview(invocationId));
-  handleDesktopInvoke("workspace:keep-invocation-review", async (_event, invocationId) => handlers.keepInvocationReview(invocationId));
-  handleDesktopInvoke("workspace:reject-invocation-review", async (_event, input) => handlers.rejectInvocationReview(input));
+  handleDesktopInvoke("workspace:list-pending-invocation-reviews", async () => handlers.listPendingInvocationReviews());
+  handleDesktopInvoke("workspace:list-invocation-history", async (_event, notePath) =>
+    handlers.listInvocationHistory(await workspaceFiles().writable(notePath)));
+  handleDesktopInvoke("workspace:get-invocation-file-review", async (_event, input) => handlers.getInvocationFileReview(input));
+  handleDesktopInvoke("workspace:review-invocation-file", async (_event, input) => {
+    assertReviewAction(input.action);
+    return handlers.reviewInvocationFile(input);
+  });
+  handleDesktopInvoke("workspace:review-invocation-all", async (_event, input) => {
+    assertReviewAction(input.action);
+    return handlers.reviewInvocationAll(input);
+  });
   handleDesktopInvoke("workspace:resume-invocation-in-terminal", async (_event, invocationId) => handlers.resumeInvocationInTerminal(invocationId));
   handleDesktopInvoke("workspace:index-sync", async () => handlers.syncIndex());
   handleDesktopInvoke("workspace:index-update", async () => handlers.updateIndex());
@@ -100,6 +130,9 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke(
     "workspace:select-folder",
     async (_event, options) => {
+      if (process.env.EXO_TEST === "1" && process.env.EXO_TEST_SELECT_FOLDER_CANCEL === "1") {
+        return [];
+      }
       if (process.env.EXO_TEST === "1" && process.env.EXO_TEST_SELECT_FOLDER_PATH) {
         return options?.allowMultiple
           ? process.env.EXO_TEST_SELECT_FOLDER_PATH.split(path.delimiter).filter(Boolean)
@@ -124,8 +157,10 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   );
   handleDesktopInvoke(
     "workspace:list-tree",
-    async (_event, rootPath, options) =>
-      handlers.listTree(rootPath, options),
+    async (_event, rootPath, options) => {
+      const authorizedRootPath = await workspaceFiles().existing(rootPath);
+      return handlers.listTree(authorizedRootPath, options);
+    },
   );
   handleDesktopInvoke("workspace:search-notes", async (_event, query) => handlers.searchNotes(query));
   handleDesktopInvoke("workspace:search-workspace", async (_event, query) => handlers.searchWorkspace(query));
@@ -177,9 +212,15 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const authorizedPath = await workspaceFiles().existing(filePath);
     return handlers.getGraphContext(authorizedPath);
   });
-  handleDesktopInvoke("notes:get-graph-view", async (_event, profileId) => handlers.getGraphView(profileId));
-  handleDesktopInvoke("notes:get-graph-concept-detail", async (_event, conceptId, sourceSnapshotId, profileId) =>
-    handlers.getGraphConceptDetail(conceptId, sourceSnapshotId, profileId),
+  handleDesktopInvoke("notes:get-graph-topology", async (_event, profileId) => handlers.getGraphTopology(profileId));
+  handleDesktopInvoke("notes:get-graph-concept-summaries", async (_event, indexes, sourceSnapshotId, profileId) =>
+    handlers.getGraphConceptSummaries(indexes, sourceSnapshotId, profileId),
+  );
+  handleDesktopInvoke("notes:graph-concept-lookup", async (_event, reference, sourceSnapshotId, profileId) =>
+    handlers.graphConceptLookup(reference, sourceSnapshotId, profileId),
+  );
+  handleDesktopInvoke("notes:get-graph-concept-detail-by-index", async (_event, index, sourceSnapshotId, profileId) =>
+    handlers.getGraphConceptDetailByIndex(index, sourceSnapshotId, profileId),
   );
   handleDesktopInvoke("notes:resolve-target", async (_event, sourceFilePath, target) => handlers.resolveTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:resolve-markdown-image", async (_event, sourceFilePath, target, lookupByFilename) =>
@@ -193,4 +234,35 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     window?.focus();
     window?.webContents.focus();
   });
+}
+
+function assertReviewAction(action: unknown): asserts action is "keep" | "reject" {
+  if (action !== "keep" && action !== "reject") throw new Error("Invocation review action must be keep or reject.");
+}
+
+function assertRendererEditorDiagnostic(value: unknown): RendererEditorDiagnostic {
+  if (!value || typeof value !== "object") throw new Error("Invalid renderer diagnostic.");
+  const diagnostic = value as Partial<RendererEditorDiagnostic>;
+  if (diagnostic.kind !== "editor-render-fault" || typeof diagnostic.occurredAt !== "string") {
+    throw new Error("Invalid renderer diagnostic.");
+  }
+  if (diagnostic.notePath !== null && typeof diagnostic.notePath !== "string") throw new Error("Invalid renderer diagnostic path.");
+  if (!(["markdown-live", "markdown-raw", "code", "empty"] as const).includes(diagnostic.mode as RendererEditorDiagnostic["mode"])) {
+    throw new Error("Invalid renderer diagnostic mode.");
+  }
+  if (diagnostic.agentHandle !== null && typeof diagnostic.agentHandle !== "string") throw new Error("Invalid renderer diagnostic agent.");
+  if (typeof diagnostic.errorSignature !== "string") throw new Error("Invalid renderer diagnostic signature.");
+  const selection = diagnostic.selection;
+  if (selection !== null && (!selection || !Number.isInteger(selection.anchor) || !Number.isInteger(selection.head))) {
+    throw new Error("Invalid renderer diagnostic selection.");
+  }
+  return {
+    kind: "editor-render-fault",
+    occurredAt: diagnostic.occurredAt.slice(0, 40),
+    notePath: diagnostic.notePath?.slice(0, 4096) ?? null,
+    mode: diagnostic.mode as RendererEditorDiagnostic["mode"],
+    selection: selection ?? null,
+    agentHandle: diagnostic.agentHandle?.slice(0, 120) ?? null,
+    errorSignature: diagnostic.errorSignature.slice(0, 160),
+  };
 }

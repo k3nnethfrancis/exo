@@ -1,6 +1,6 @@
 # Exo Architecture
 
-Last updated: 2026-07-17
+Last updated: 2026-07-20
 
 Exo is a local, user-owned Markdown exocortex with modular, tunable search, inline agent invocation, and graph management skills.
 
@@ -15,7 +15,7 @@ Exo is a local, user-owned Markdown exocortex with modular, tunable search, inli
 - One Workspace Canvas hosts Note, Terminal, Preview, Graph, and Diff panes.
 - One focused Connections surface exposes Outline, Links, Graph, and earned Activity.
 
-## Folder Index ontology
+## Folder structure and indexes
 
 The current Folder model is:
 
@@ -27,7 +27,34 @@ The current Folder model is:
 - Folder defaults and the nearest Folder Index chain are inherited guidance, not automatic child-note mutations. Explicit Note properties override defaults.
 - Tags and typed relationships express additional membership beyond the primary path.
 
-This produces useful ontology through normal organization without a mandatory schema, ontology database, or ontology plugin. Optional user-owned Knowledge Profiles may interpret these same facts; they do not replace Folder Indexes or become another canonical store.
+This produces useful structure through normal organization without a mandatory
+schema or ontology database. One optional user-owned `ontology.yaml` may
+interpret these facts across the Workspace; it does not replace Folder Indexes
+or become another canonical store.
+
+## Note Root Formats and Workspace Ontology
+
+Every Note Root is first projected by a Format. **Generic Markdown** is the
+zero-configuration default: one resolved Markdown file becomes one Concept,
+headings only label or structure it, authored links connect existing file
+Concepts, and tags are shared tag Concepts. Frontmatter remains lossless;
+`type: project` is an open classification of that same Note, not a separate
+node or edge.
+
+Permissive **OKF 0.1** is a built-in interoperability Format for an existing
+OKF workspace. It is not selected automatically and is not a public format
+setting today. Under that external convention, `index.md` and `log.md` remain
+openable/searchable/editable Notes but do not enter the Concept graph. See
+`note-root-formats.md` for the exact boundary.
+
+An explicitly kept `<Workspace Root>/ontology.yaml` applies after Format
+projection. It may interpret open Concept Types, Property shapes,
+reference-valued Relations, and validation rules. The user-edited file is a
+Candidate; only a separately reviewed Keep may persist its exact accepted
+source under `.exo/ontology` and publish a new graph generation. Candidate
+watcher events alone never invalidate the graph. The Ontology never changes
+Markdown or source document Relations. See `workspace-ontology.md` and ADR
+0006.
 
 ## Accepted graph direction — feature-branch tracer
 
@@ -37,20 +64,23 @@ enforces this separation:
 
 ```text
 canonical Markdown
+  → Note Root Format projection
   → schema-agnostic Knowledge Graph
-  → profile/view projection
+  → explicitly kept Workspace Ontology interpretation
+  → Graph View projection
   → deterministic layout
   → renderer-independent scene
   → WebGPU or Canvas pixels
 ```
 
 The Knowledge Graph preserves open Concept types, arbitrary frontmatter
-Properties, Relations, resolution, authority, and Evidence. Generic Markdown is
-the zero-configuration profile. Open Knowledge Format 0.1 is the first
-implemented built-in interoperability profile on the feature branch. A
-Knowledge Profile may interpret a property as a
-Concept reference or declare validation rules, but unknown properties and types
-must survive and remain usable.
+Properties, Relations, resolution, origin, and Evidence. Generic Markdown is
+the zero-configuration Format. Open Knowledge Format 0.1 is a built-in
+interoperability Format. A kept Workspace Ontology may interpret a Property as
+a Concept reference or declare validation rules, but unknown Properties and
+Types survive and remain usable. Relation origin is always `document`,
+`ontology`, or `inferred`: an Ontology explains a derived relation from
+existing Markdown; it cannot turn it into a document-authored fact.
 
 Graph Views compile this cold semantic model into dense numeric topology and
 visual classes. Closed numeric node/edge kinds are allowed inside a compiled
@@ -58,18 +88,28 @@ View for performance; they are not the ontology contract. Semantic similarity
 and inferred relationships remain versioned Derived Signals until accepted as
 Markdown changes.
 
-Exo still has overlapping legacy `GraphSnapshot` and `WorkspaceGraph`
-representations. The feature branch adds snapshot 0.2 and the dense Graph View
-behind `WorkspaceGraph`, but the protected caller/deletion pass remains before
-the consolidation can be called complete. The Canvas Graph Pane is an
-interaction tracer consuming that projection, not a third semantic model. Do
-not move ontology or relation meaning into Canvas/WebGPU code.
+`WorkspaceGraph` is now the single production graph boundary. It derives the
+schema-agnostic knowledge snapshot used by Connections and compiles the Graph
+Pane's hot path into compact typed topology. Labels, paths, Properties,
+Findings, and Relation Evidence remain cold and are fetched through bounded,
+snapshot-qualified lookup, summary, and index-detail reads. The former object
+Graph View IPC, unbounded concept-detail route, and standalone `GraphSnapshot`
+0.1/query modules have been removed. The Canvas and WebGPU renderers consume
+the same renderer-neutral scene and cannot invent graph semantics.
 
 Two kinds of verification remain deliberately separate. Graph contract tests
 cover identity, resolution, Evidence, and profile conformance. The repo-local
 graph performance suite covers rendering, layout geometry, interaction, memory,
 resilience, and latency. Neither produces an unexplained universal quality
 score.
+
+Electron's normal hardware-acceleration policy is the production default so
+the Graph Pane can capability-detect WebGPU without unsafe Chromium flags. A
+diagnostic `EXO_DISABLE_GPU=1` launch may disable hardware acceleration, but it
+does not change feature lists or renderer semantics; Canvas remains the product
+fallback. Source and exact packaged evidence must compile the production graph
+shaders, submit a bounded draw, and record an explicit absence, adapter, device,
+shader, validation, or success outcome.
 
 ## Deep modules
 
@@ -85,10 +125,11 @@ Owns Note Root identity, path authorization, containment, symlink policy, absolu
 
 Owns the derived Knowledge Graph: Note/Concept identity, lossless Properties,
 Relation resolution and Evidence, backlinks, neighborhoods, graph context, and
-invalidation. Markdown is canonical; graph snapshots and profile interpretations
-are derived. During migration it also owns compatibility for the older graph
-representations. Folder Overview and Graph Views consume this boundary rather
-than creating their own graph models.
+invalidation. Markdown is canonical; graph snapshots and Format/Ontology interpretations
+are derived. Folder Overview, Connections, and Graph Views consume this
+boundary rather than creating their own graph models. Connections receives a
+bounded Note-local context; the full Graph Pane receives string-free typed
+topology and fetches cold metadata only for inspected/focal Concepts.
 
 ### `WorkspaceIndex`
 
@@ -100,7 +141,7 @@ Owns one direct `node-pty` lifecycle and byte-faithful transport. xterm owns the
 
 ### `InvocationRunner`
 
-Owns explicit Command authorization, launch, immutable run context, file observation, honest attribution, failure cleanup, review references, and invocation records.
+Owns explicit Command authorization, launch, immutable run context, process ownership, exact Changeset capture, failure cleanup, review transactions, and invocation records.
 
 ### `WorkspaceCanvas`
 
@@ -131,12 +172,12 @@ The future Skill flow adds a reviewed, bounded proposal step; it is not claimed 
 | Note Roots and files | `WorkspaceModel`, `WorkspaceFiles` | Exo reads and mutates only authorized Note Roots | containment tests; `../issues.md#exo-issue-103`, `../CONTEXT.md` |
 | Workspace settings | `WorkspaceConfigStore`, revisioned `WorkspaceSettings` | Settings preserve unowned/unknown data and configured Commands | settings tests; `../issues.md#exo-issue-102` |
 | Notes and properties | Markdown/frontmatter, `NoteDocument` | Source on disk remains canonical | note/Markdown tests; `../CONTEXT.md` |
-| Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context; the planned schema-agnostic graph preserves open properties, relation authority, and evidence | search/graph tests; `graph-system-report-and-plan.md` |
+| Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context; Knowledge Graph 0.3 preserves open Properties, Relation origin, and Evidence while the Graph Pane uses compact topology plus bounded cold reads | search/graph/transport tests; `graph-system-report-and-plan.md` |
 | Canvas and panes | `WorkspaceCanvasLayoutSettings`, pane tree | Notes, Terminal, Preview, and Connections share one canvas | pane E2E; `../README.md` |
 | Terminal | `TerminalManager`, direct `node-pty`, xterm | Live terminal with bounded reload tail; no durable session history | terminal suite; `terminal-runtime-decision.md` |
 | Commands and invocation | `AgentCommand`, `InvocationRunner`, invocation records | Explicit inline invocation, headless document work, optional session handoff, observed-change review | invocation E2E; `../issues.md#exo-issue-106` |
 | Exo MCP discovery | `packages/cli/src/mcp-server.ts`, `provider-mcp-setup.ts` | Optional provider-owned MCP for tool-capable clients; caller cwd resolves scope, ambiguous scope refuses retrieval, and app retrieval is used only for that exact Workspace. Shell-capable clients keep the Exo CLI path. | MCP + provider-setup tests; `provider-mcp-onboarding.md`, `reviews/2026-07-13-fable-mcp-agent-context-packet.md` |
-| Command server and CLI | `command-protocol.ts`, `CommandServerLifecycle` | Resident-app commands plus app-off read/search/status where supported | command-server tests; `public-contract-reviews.md` |
+| Command server and CLI | `command-protocol.ts`, `CommandServerLifecycle` | Resident-app commands plus app-off search/status | command-server tests; `public-contract-reviews.md` |
 
 This is the maintained pointer index. `tasks.md` decides what is next; it must not be used to imply implementation.
 
@@ -175,7 +216,8 @@ After the launch loop is stable:
 - Command trust is app-local, workspace-scoped, fingerprinted, and invalidated when executable fields change. A moved/copied Workspace fails closed and requires explicit re-authorization.
 - A Command can have an explicit cwd outside Note Roots, but observed-change review is authoritative only inside the Workspace's Note Roots; Exo never claims it reviewed external writes.
 - Human confirmation is required before invocation; agent-authored content cannot auto-chain execution.
-- Unknown writers and overlapping changes remain ambiguous rather than falsely attributed.
+- Exo reports exact observed file state and review decisions; it does not infer
+  who authored bytes outside the explicit invocation/response envelopes.
 - Public CLI commands, command-server routes, and shared protocol types require the repository's architecture-review gate.
 
 See `extension-architecture.md`, `graph-system-report-and-plan.md`,

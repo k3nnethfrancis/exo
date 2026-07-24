@@ -1,6 +1,6 @@
 # Graph product checkpoint
 
-Date: 2026-07-17
+Date: 2026-07-20
 
 ## Source packet for a short technical post
 
@@ -33,9 +33,9 @@ layout intact, and verifies that the settled renderer schedules zero frames.
 
 We also built the production foundation beneath the pixels. Markdown remains
 canonical. The graph preserves open Concept types, lossless Properties, typed
-Relations, authored/declared/derived authority, resolution state, and Evidence.
+Relations, `document | ontology | inferred` origin, resolution state, and Evidence.
 Generic Markdown works without configuration; OKF 0.1 is the first optional
-interoperability profile. A renderer-neutral projection keeps ontology and file
+interoperability Format. A renderer-neutral projection keeps ontology and file
 objects out of hot GPU/draw paths.
 
 ## How we built it
@@ -80,42 +80,42 @@ any published number.
 
 - Large graphs can feel immediate on ordinary hardware.
 - WebGPU can own pixels without owning graph meaning or interaction.
-- The same graph can support authored links, properties, semantic overlays, and
+- The same graph can support document links, Properties, semantic overlays, and
   future model-space projections without confusing them as equally canonical.
 - Speed and readable layout are separate engineering properties and need
   separate tests.
 
-## What is still unfinished
+## What remains after Launch Gate D
 
-1. Finish cross-renderer GPU timing, pixel parity, browser-delivered device loss,
-   and multi-hardware engineering evidence.
+Launch Gate D is complete for the current macOS product surface. Source and the
+exact packaged app now run the production shaders on hardware WebGPU, recover
+to the same complete Canvas scene, remain idle at rest, and preserve editor
+latency under graph/index/Search/Terminal load. The guarded private-copy journey
+passes both renderer paths without touching its source. Canonical evidence:
+[`2026-07-20-launch-gate-d.md`](./reviews/output/2026-07-20-launch-gate-d.md).
+
+The next work is product capability, not unfinished renderer integration:
+
+1. Add cross-adapter GPU timestamps and expand the multi-hardware evidence.
 2. Freeze the OKF/OpenWiki fixtures and schema/compatibility expectations.
-3. Finish the compact typed topology transport, stable persisted layout epochs,
-   clean branch replay, and existing Exo latency regressions.
-4. Integrate the real Stellar renderer into packaged Exo with accessibility,
-   Canvas/device-loss fallback, idle quiescence, continuity, and editor latency
-   under graph load.
-5. Run the bounded embeddings-index projection after those graph contracts
+3. Define and ship user-owned `ontology.yaml`, conformance, and explanations.
+4. Run the bounded embeddings-index projection after those graph contracts
    settle, using only a supported provider export seam.
-6. Ship and evaluate the first reviewable graph-maintenance Skill only after the
+5. Ship and evaluate the first reviewable graph-maintenance Skill only after the
    graph can show trustworthy evidence for its proposals.
 
 ## Interaction and product work we have not finished
 
-Node size is only partially addressed. The performance-suite version now has separate
-comparison, exploration, and image-capture presentation profiles. Exploration
-and capture increase node radius with semantic zoom while the normalized
-comparison profile deliberately keeps every node at four pixels. That is the
-right technical separation, but the public preview and integrated Exo tracer do
-not yet share it, and the real graph still looks too faint at useful overview
-distances. We have not accepted legibility targets at overview, middle, and
-focus distances against the real graph.
+Production Exo now uses adaptive visual/hit radii and a bounded focal-label
+planner. The normalized performance profile deliberately remains visually
+plain so benchmark comparisons do not silently change workload. Continued
+real-device tuning at overview, middle, and focus distances remains product
+polish and must not alter that normalized benchmark profile.
 
-The integrated Canvas tracer now uses a normalized, higher-gain wheel rule and
-supports line-mode wheel deltas; its node floor/radius is also larger at normal
-zoom. Stellar still needs to consume the same rule, and both surfaces need a
-real-trackpad/touch measurement of gestures and time from overview to one Note
-and back.
+Canvas and WebGPU now consume the same anchored camera and gesture intentions,
+including pixel-trackpad pan, modifier/discrete-wheel zoom, and two-pointer
+pinch/pan. The remaining evidence is physical-device gesture counts and visual
+captures, not another input implementation.
 
 The intended navigation contract is:
 
@@ -130,21 +130,21 @@ The intended navigation contract is:
 
 ## Connections and Properties direction
 
-The current Connections rail is transitional and its information architecture
-is wrong. Outline should contain only document headings. Links should contain
-backlinks, outgoing Note links, and external links in clear groups. Graph should
-be a real local neighborhood for the selected Note, with an action to expand to
-the full graph. Activity should be hidden until Exo has a meaningful
-invocation/change/provenance stream to show.
+Connections now gives Outline only headings, groups backlinks/internal/external
+links under Links, uses the shared inspected Concept, and hides History until
+it has content. Its local Graph adapts the bounded canonical neighborhood into
+compact topology and compiles it through the full graph's scene, focal labels,
+palette, presentation compiler, and Canvas renderer. It has no second worker,
+gesture model, animation loop, or SVG renderer.
 
-The local graph may be two-dimensional, but only if it consumes the same
-Knowledge Graph projection, Relation semantics, and selected Concept as the
-full spatial graph. That makes it a small view of one system rather than another
-graph implementation to maintain.
+The local graph is deliberately passive and uses deterministic seed positions
+rather than the full Pane worker's relaxed coordinates. Exact coordinate
+continuity would require App-owned layout state and is not implied by sharing
+Knowledge Graph meaning, inspected Concept, scene, and pixels.
 
 Keep both property surfaces for now. Editor Properties edits canonical Markdown
 frontmatter. Connections/graph Properties explains the currently inspected
-Concept: its interpreted type, Relations, Evidence, profile findings, and which
+Concept: its interpreted type, Relations, Evidence, Ontology Findings, and which
 properties affect graph color, size, grouping, filtering, or physics. Editor,
 Connections, local graph, and full graph must share one explicit inspected
 Concept so changing Pane focus cannot produce unrelated “No properties” states.

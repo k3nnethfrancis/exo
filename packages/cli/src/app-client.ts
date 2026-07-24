@@ -189,20 +189,6 @@ export class AppClient {
     }
   }
 
-  private async delete(path: string): Promise<any> {
-    try {
-      const res = await fetch(`${this.baseUrl}${path}`, {
-        method: "DELETE",
-        headers: this.authHeaders(),
-        signal: AbortSignal.timeout(this.requestTimeoutMs),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-      return res.json();
-    } catch (error) {
-      throw enhanceTimeoutError(error, "DELETE", path, this.requestTimeoutMs);
-    }
-  }
-
   private authHeaders(): Record<string, string> {
     return {
       Authorization: `Bearer ${this.token}`,
@@ -294,7 +280,7 @@ function discoveryFailureMessage(
 ): string {
   switch (code) {
     case "runtime-root-missing":
-      return `Exo runtime root is missing or is not a directory. Start Exo with \`exo start\`, run \`exo runtime status\` to confirm the active workspace, or set EXO_RUNTIME_ROOT.`;
+      return `Exo runtime root is missing or is not a directory. Start Exo with \`exo start\`, run \`exo status\` to confirm the active workspace, or set EXO_RUNTIME_ROOT.`;
     case "server-json-missing":
       return `Exo command server discovery file is missing. Start Exo with \`exo start\`, or set EXO_RUNTIME_ROOT to the runtime containing server.json.`;
     case "server-json-invalid":

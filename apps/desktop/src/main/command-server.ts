@@ -20,7 +20,7 @@ import { InvocationRunnerError, type InvocationResult } from "./invocation-runne
 export interface CommandServerOptions {
   runtimeRoot: string;
   onShowWindow: () => void;
-  onOpenFile: (filePath: string) => void;
+  onOpenFile: (filePath: string) => Promise<void>;
   onIndexSearch: (query: string, options: { limit?: number; offset?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
   onIndexStatus: () => Promise<IndexStatus>;
   onIndexSync: () => Promise<IndexSyncResult>;
@@ -146,7 +146,12 @@ export class CommandServer {
           json(res, { error: "Missing path in body" }, 400);
           return;
         }
-        this.options.onOpenFile(filePath);
+        try {
+          await this.options.onOpenFile(filePath);
+        } catch (error) {
+          json(res, { error: error instanceof Error ? error.message : String(error) }, 400);
+          return;
+        }
         json(res, { ok: true });
         return;
       }
@@ -163,7 +168,24 @@ export class CommandServer {
           if (!result.terminal) {
             throw new Error("CLI agent invocation did not create a terminal session.");
           }
-          json(res, { ok: true, invocation: result.invocation, terminal: result.terminal } satisfies ExoSpawnAgentCommandResponse);
+          json(res, {
+            ok: true,
+            invocation: {
+              id: result.invocation.id,
+              status: result.invocation.status,
+              handle: result.invocation.command.handle,
+              createdAt: result.invocation.createdAt,
+            },
+            terminal: {
+              id: result.terminal.id,
+              title: result.terminal.title,
+              cwd: result.terminal.cwd,
+              kind: result.terminal.kind,
+              ...(result.terminal.command ? { command: result.terminal.command } : {}),
+              status: result.terminal.status,
+              ...(result.terminal.exitCode === undefined ? {} : { exitCode: result.terminal.exitCode }),
+            },
+          } satisfies ExoSpawnAgentCommandResponse);
         } catch (error) {
           if (error instanceof InvocationRunnerError) {
             json(res, { ok: false, code: error.code, error: error.message, ...error.details }, error.code === "agent-command-untrusted" ? 403 : 400);

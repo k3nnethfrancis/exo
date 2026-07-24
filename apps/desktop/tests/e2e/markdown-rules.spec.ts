@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { launchExoWorkspaceFixture } from "../helpers";
@@ -157,6 +157,105 @@ test("continues and exits markdown task list items in live preview", async () =>
       }),
     )
     .toBe("# Task List Edit Test\n\n- [x] follow up\n\n");
+
+  await cleanup();
+});
+
+test("renders and edits ordered lists with aligned nested markers", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const target = path.join(workspaceRoot, "notes/test-notes/ordered-list-edit-test.md");
+      await writeFile(target, "# Ordered List Edit Test\n\n9. first\n   1. nested\n10. second\n", "utf8");
+    },
+  });
+
+  await page.getByRole("button", { name: /ordered-list-edit-test/i }).first().click();
+  const orderedLines = page.locator(".exo-md-line--list-ordered");
+  await expect(orderedLines).toHaveCount(3);
+  await expect
+    .poll(() => orderedLines.evaluateAll((nodes) => nodes.map((node) => ({
+      marker: node.getAttribute("data-exo-list-marker"),
+      depth: node.getAttribute("data-exo-list-depth"),
+      paddingLeft: window.getComputedStyle(node).paddingLeft,
+      markerContent: window.getComputedStyle(node, "::before").content,
+    }))))
+    .toEqual([
+      { marker: "9.", depth: "0", paddingLeft: "30px", markerContent: '"9."' },
+      { marker: "1.", depth: "1", paddingLeft: "58px", markerContent: '"1."' },
+      { marker: "10.", depth: "0", paddingLeft: "30px", markerContent: '"10."' },
+    ]);
+
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) throw new Error("Unable to resolve CodeMirror view");
+    const target = view.state.doc.toString().indexOf("10. second") + "10. second".length;
+    view.dispatch({ selection: { anchor: target } });
+    view.focus();
+  });
+  await page.keyboard.press("Enter");
+  await expect.poll(() => page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    return content?.cmView?.view?.state.doc.toString() ?? "";
+  })).toContain("10. second\n11. ");
+
+  await cleanup();
+});
+
+test("expands slash dates into normal wikilinks and opens the root daily note", async () => {
+  const { page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+    mutable: true,
+    initialNoteLabel: null,
+    prepareWorkspace: async (root) => {
+      await writeFile(path.join(root, "notes/test-notes/slash-date-test.md"), "# Slash Date Test\n\n", "utf8");
+    },
+  });
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const date = [tomorrow.getFullYear(), String(tomorrow.getMonth() + 1).padStart(2, "0"), String(tomorrow.getDate()).padStart(2, "0")].join("-");
+
+  await page.getByRole("button", { name: /slash-date-test/i }).first().click();
+  await page.locator(".cm-content").click();
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) throw new Error("Unable to resolve CodeMirror view");
+    view.dispatch({ selection: { anchor: view.state.doc.length } });
+    view.focus();
+  });
+  await page.keyboard.type("/tomorrow");
+  await page.keyboard.press("Enter");
+  await expect.poll(() => page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    return content?.cmView?.view?.state.doc.toString() ?? "";
+  })).toContain(`[[${date}]]`);
+
+  await page.locator(`[data-exo-link-target="${date}"]`).click();
+  const dailyPath = path.join(workspaceRoot, "notes/test-notes", `${date}.md`);
+  await expect.poll(() => readFile(dailyPath, "utf8").catch(() => "")).toContain(`# ${date}`);
+  await expect(page.getByRole("button", { name: date }).last()).toBeVisible();
+
+  await cleanup();
+});
+
+test("opens inline tags as normal note links while keeping the hash visible", async () => {
+  const { page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+    mutable: true,
+    initialNoteLabel: null,
+    prepareWorkspace: async (root) => {
+      await writeFile(path.join(root, "notes/test-notes/tag-link-test.md"), "# Tag Link Test\n\nDiscuss #strategy today.\n", "utf8");
+    },
+  });
+
+  await page.getByRole("button", { name: /tag-link-test/i }).first().click();
+  const tag = page.locator('[data-exo-tag="strategy"]');
+  await expect(tag).toHaveText("#strategy");
+  await expect(tag).toHaveCSS("cursor", "pointer");
+  await tag.click();
+
+  await expect.poll(() => readFile(path.join(workspaceRoot, "notes/test-notes/strategy.md"), "utf8").catch(() => "")).toContain("# strategy");
+  await expect(page.getByRole("button", { name: "strategy" }).last()).toBeVisible();
 
   await cleanup();
 });

@@ -116,6 +116,32 @@ describe("automatic embedding scheduler policy", () => {
     expect(decideAutoEmbedding(state, context(20_000), policy)).toEqual({ action: "run" });
   });
 
+  it("keeps exhausted unchanged work tripped and gives a genuinely new save a fresh retry budget", () => {
+    let state = recordAutoEmbeddingSave(createAutoEmbeddingSchedulerState(), 1_000);
+    for (let attempt = 0; attempt <= policy.maxRetryAttempts; attempt += 1) {
+      state = recordAutoEmbeddingFailure(state, 2_000 + attempt, policy);
+    }
+    expect(decideAutoEmbedding(state, context(20_000), policy)).toEqual({
+      action: "skip",
+      reason: "retries-exhausted",
+    });
+
+    const duplicateSave = recordAutoEmbeddingSave(state, 1_000);
+    expect(duplicateSave).toMatchObject({ failureCount: policy.maxRetryAttempts + 1 });
+    expect(decideAutoEmbedding(duplicateSave, context(20_000), policy)).toEqual({
+      action: "skip",
+      reason: "retries-exhausted",
+    });
+
+    const newSave = recordAutoEmbeddingSave(state, 20_001);
+    expect(newSave).toMatchObject({
+      lastSaveAtMs: 20_001,
+      failureCount: 0,
+      retryNotBeforeMs: 0,
+    });
+    expect(decideAutoEmbedding(newSave, context(50_001), policy)).toEqual({ action: "run" });
+  });
+
   it("pauses future work without cancelling an active slice and reserves cancellation for disposal", () => {
     const state = createAutoEmbeddingSchedulerState();
     expect(decideAutoEmbedding(

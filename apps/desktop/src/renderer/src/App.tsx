@@ -1,26 +1,29 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Check, Database, Search, ShieldCheck, SquareTerminal } from "lucide-react";
+import { Check, Database, Folder, Search, ShieldCheck, SquareTerminal } from "lucide-react";
 import type {
   AgentCommand,
   FolderIndexStatus,
   IndexStatus,
-  InvocationRecord,
   SearchResult,
   WorkspaceModel,
   WorkspaceSettings,
 } from "@exo/core";
+import { acknowledgeMainWikiMigration, pendingMainWikiMigration } from "@exo/core/workspace-migration";
+import type { InvocationActivityEvent } from "@exo/core/invocation-activity";
 
-import type { CliInstallationStatus, InvocationReviewPayload, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
-import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
+import type { CliInstallationStatus, InvocationFileReviewPayload, InvocationHistoryItem, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
 import { GraphPane } from "./components/GraphPane";
-import { InvocationAuthorizationDialog } from "./components/InvocationAuthorizationDialog";
-import type { InlineAgentDraft } from "./components/inlineAgentComposer";
+import {
+  InvocationActivitySurface,
+} from "./components/invocation";
+import { AppInvocationAuthorizationGate } from "./appInvocationAuthorization";
+import { cancelInlineAgentDraft, type InlineAgentDraft } from "./components/inlineAgentComposer";
 import { PathList } from "./components/PathList";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
@@ -29,6 +32,7 @@ import { AgentInvocationPromptEditor } from "./components/AgentInvocationPromptE
 import { AgentIcon } from "./components/AgentIcon";
 import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments, type OpenEditorDocument } from "./hooks/useOpenDocuments";
+import { useInspectedConcept, type InspectedConcept } from "./hooks/useInspectedConcept";
 import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
@@ -42,7 +46,7 @@ import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { applyTheme } from "./theme/applyTheme";
 import { DEFAULT_COLOR_THEME_ID, resolveTheme } from "./theme/registry";
 import type { ColorThemeId } from "./theme/types";
-import { collectLeaves, findEditorLeaf, findNode, mapLeaves, paneId, pruneEmptyLeaves, removeNode, type PaneLeaf, type PaneNodeId } from "./hooks/usePaneTree";
+import { collectLeaves, findEditorLeaf, findEditorLeafByPath, findNode, mapLeaves, paneId, pruneEmptyLeaves, removeNode, type PaneLeaf, type PaneNodeId } from "./hooks/usePaneTree";
 import { collectOpenEditorPaths, findActiveEditorPath } from "./paneTreeSelectors";
 import {
   clampNumber,
@@ -58,11 +62,44 @@ import { pathLabel } from "./workspaceTree";
 import { summarizeIndexStatus } from "./indexStatusPresentation";
 import { getPreviewTitle, markdownPreviewExcerpt, suggestWikilinkTargetsFromTrees } from "./graphAffordances";
 import { summarizeTerminalStatusLine } from "./terminalSessions";
-import { hasInvocationDirtyConflict, invocationConflictKey } from "./invocationReviewState";
 import { workspaceBreadcrumb, type WorkspaceBreadcrumbSegment } from "./workspaceBreadcrumb";
 import { DEFAULT_UTILITY_SURFACE_STATE, isUtilityDestinationActive, reduceUtilitySurface } from "./utilitySurfaceModel";
 import { addPreviewTab, closePreviewTab, EMPTY_PREVIEW_TABS, selectPreviewTab, updatePreviewTabUrl } from "./previewTabsModel";
 import { LatestPaneNavigation } from "./latestPaneNavigation";
+import {
+  applyInvocationActivityEvent,
+  applyInvocationRecord,
+  acknowledgeInvocationActivity,
+  beginInvocationActivity,
+  bindInvocationActivity,
+  bufferEarlyInvocationActivityEvent,
+  failActiveInvocationActivity,
+  failInvocationActivity,
+  invocationCommandPresentation,
+  takeEarlyInvocationActivityEvents,
+  type InvocationActivityState,
+} from "./invocationActivityState";
+import {
+  activeInvocationReviewChangeId,
+  activeInvocationReviewEntry,
+  applyInvocationReviewRecord,
+  beginInvocationReviewHydration,
+  cacheInvocationFileReview,
+  closeInvocationHistoryReview,
+  EMPTY_INVOCATION_REVIEW_QUEUE,
+  invocationReviewProjection,
+  invocationReviewAffectedOpenPaths,
+  invocationReviewMatchesPath,
+  invocationReviewNavigablePath,
+  invocationHistoryLoadDecision,
+  invocationReviewSourcePath,
+  invocationReviewVirtualPath,
+  mergeInvocationReviewHydration,
+  navigateInvocationReview,
+  openInvocationHistoryReview,
+  type InvocationReviewQueueEntry,
+  type InvocationReviewQueueState,
+} from "./invocationReviewQueue";
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
@@ -71,7 +108,8 @@ interface PendingInvocationAuthorization {
   cwd: string;
   document: OpenEditorDocument;
   draft: InlineAgentDraft;
-  fingerprint: string | null;
+  fingerprint: string;
+  reason: string;
 }
 
 const NOTE_TREE_MAX_DEPTH = 3;
@@ -81,8 +119,7 @@ export function App() {
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
   const [qmdSearchSelected, setQmdSearchSelected] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter, qmdSelected: qmdSearchSelected });
-  const [propertiesCollapsed, setPropertiesCollapsed] = useState(true);
-  const [graphFocusPath, setGraphFocusPath] = useState<string | null>(null);
+  const graphInspection = useInspectedConcept();
   const [onboardingMcp, setOnboardingMcp] = useState({
     providers: ["claude", "codex"] as Array<"claude" | "codex">,
     status: "idle" as "idle" | "saving" | "done" | "error",
@@ -90,16 +127,19 @@ export function App() {
     errorMessage: null as string | null,
   });
   const [cliInstallation, setCliInstallation] = useState<CliInstallationStatus | null>(null);
+  const [mainWikiMigrationNotice, setMainWikiMigrationNotice] = useState<{ retiredNoteRoots: string[] } | null>(null);
   const [tagResults, setTagResults] = useState<SearchResult[]>([]);
   const [activeTag, setActiveTag] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
-  const [invocationReview, setInvocationReview] = useState<{
-    record: InvocationRecord;
-    payload?: InvocationReviewPayload | null;
-  } | null>(null);
+  const [invocationReviewQueue, setInvocationReviewQueue] = useState<InvocationReviewQueueState>(EMPTY_INVOCATION_REVIEW_QUEUE);
+  const [invocationReviewDecisionPending, setInvocationReviewDecisionPending] = useState(false);
+  const [invocationReviewFrozenPaths, setInvocationReviewFrozenPaths] = useState<string[]>([]);
+  const invocationReviewDecisionPendingRef = useRef(false);
+  const [invocationHistory, setInvocationHistory] = useState<InvocationHistoryItem[]>([]);
+  const [inspectorTabRequest, setInspectorTabRequest] = useState<{ tab: "history"; nonce: number } | null>(null);
   const [pendingInvocationAuthorization, setPendingInvocationAuthorization] = useState<PendingInvocationAuthorization | null>(null);
-  const [keptInvocationConflicts, setKeptInvocationConflicts] = useState<Set<string>>(() => new Set());
+  const [invocationActivity, setInvocationActivity] = useState<InvocationActivityState | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [folderIndexStatus, setFolderIndexStatus] = useState<FolderIndexStatus | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
@@ -114,6 +154,8 @@ export function App() {
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
   const terminalRuntimeScrollbackLinesRef = useRef(DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES);
+  const invocationHistoryRequestRef = useRef(0);
+  const invocationActivityEarlyEventsRef = useRef(new Map<string, InvocationActivityEvent[]>());
   const latestPaneNavigationRef = useRef(new LatestPaneNavigation());
   const shellLayout = useShellLayout();
   const { tree: canvasTree, focusedLeafId: focusedPaneId, actions: canvasActions } = shellLayout.canvasPaneTree;
@@ -171,7 +213,12 @@ export function App() {
     dialog: workspaceSettingsDialog,
     setDialog: setWorkspaceSettingsDialog,
     indexBusy,
+    saveSettingsPatch,
   } = workspaceSettingsController;
+  useEffect(() => {
+    if (!workspaceModel) return;
+    setMainWikiMigrationNotice(workspaceSettingsRef.current ? pendingMainWikiMigration(workspaceSettingsRef.current) : null);
+  }, [workspaceModel, workspaceSettingsRef]);
   const openDocumentsState = useOpenDocuments({
     workspaceModel,
     getOpenEditorPaths: () => collectOpenEditorPaths(shellLayout.canvasPaneTree.tree),
@@ -183,16 +230,23 @@ export function App() {
     documentSaveStatuses,
     activeDocumentPath,
     activeDocument,
-    activeGraphContext,
     scrollRestoreRequest: editorScrollRestoreRequest,
     setActiveDocumentPath,
     ensureDocumentLoaded,
+    openVirtualDocument,
     scheduleRefresh: scheduleOpenDocumentRefresh,
-    reloadFromDisk: reloadOpenDocumentFromDisk,
     updateBody,
     updateFrontmatter,
     saveDocument,
+    prepareDocumentsForReview,
+    discardAndReloadDocument,
   } = openDocumentsState;
+  const openEditorPaths = useMemo(() => collectOpenEditorPaths(canvasTree), [canvasTree]);
+  const inspectedPath = graphInspection.state.concept
+    ? graphInspection.state.concept.filePath ?? null
+    : activeDocumentPath;
+  const inspectedDocument = inspectedPath ? openDocuments[inspectedPath] ?? null : null;
+  const inspectedGraphContext = inspectedPath ? graphContextByPath[inspectedPath] ?? null : null;
   const workspaceMutations = useWorkspaceMutations({
     workspaceModel,
     activeDocumentPath,
@@ -217,23 +271,64 @@ export function App() {
   const compactEditorChrome = collectLeaves(canvasTree).length > 1;
   const resolvedAppearance: ResolvedAppearance = appearanceMode === "system" ? (systemPrefersDark ? "dark" : "light") : appearanceMode;
   const resolvedTheme = useMemo(() => resolveTheme(colorThemeId, resolvedAppearance), [colorThemeId, resolvedAppearance]);
+  const activeReviewEntry = activeInvocationReviewEntry(invocationReviewQueue);
+  const activeReviewChangeId = activeInvocationReviewChangeId(invocationReviewQueue);
+  const activeReviewPayload = activeReviewEntry && activeReviewChangeId
+    ? activeReviewEntry.payloads[activeReviewChangeId] ?? null
+    : null;
 
   useEffect(() => {
     terminalRuntimeScrollbackLinesRef.current = terminalRuntimeScrollbackLines;
   }, [terminalRuntimeScrollbackLines]);
 
   useEffect(() => {
-    const openPaths = collectOpenEditorPaths(canvasTree);
+    const openPaths = new Set(openEditorPaths);
+    if (inspectedPath) openPaths.add(inspectedPath);
     openDocumentsState.pruneToOpenPaths(openPaths);
-  }, [canvasTree]);
+  }, [inspectedPath, openEditorPaths]);
+
+  useEffect(() => {
+    if (activeDocumentPath) {
+      graphInspection.inspect({ filePath: activeDocumentPath }, "editor");
+    }
+  }, [activeDocumentPath, graphInspection.inspect]);
 
   useEffect(() => {
     if (!workspaceModel) {
       setFolderIndexStatus(null);
+      setInvocationReviewQueue(EMPTY_INVOCATION_REVIEW_QUEUE);
       return;
     }
+    // The queue is workspace-scoped. Clear the prior workspace synchronously,
+    // then merge hydration so live settlements from this workspace still win.
+    setInvocationReviewQueue(beginInvocationReviewHydration());
     void refreshFolderIndexStatus();
+    let cancelled = false;
+    void window.exo.workspace.listPendingInvocationReviews()
+      .then((items) => {
+        if (!cancelled) setInvocationReviewQueue((current) => mergeInvocationReviewHydration(current, items));
+      })
+      .catch((error) => {
+        console.warn("[exo] failed to load pending invocation reviews", error);
+        if (!cancelled) setInvocationReviewQueue((current) => mergeInvocationReviewHydration(current, []));
+      });
+    return () => { cancelled = true; };
   }, [workspaceModel]);
+
+  useEffect(() => {
+    const decision = invocationHistoryLoadDecision(inspectedDocument);
+    const request = ++invocationHistoryRequestRef.current;
+    if (decision.kind === "clear") {
+      setInvocationHistory([]);
+      return;
+    }
+    if (decision.kind === "preserve") return;
+    let cancelled = false;
+    void window.exo.workspace.listInvocationHistory(decision.filePath)
+      .then((items) => { if (!cancelled && request === invocationHistoryRequestRef.current) setInvocationHistory(items); })
+      .catch(() => { if (!cancelled && request === invocationHistoryRequestRef.current) setInvocationHistory([]); });
+    return () => { cancelled = true; };
+  }, [inspectedDocument?.filePath, inspectedDocument?.readOnly]);
 
   useEffect(() => {
     return window.exo.workspace.onInvocationUpdated((record) => {
@@ -243,11 +338,53 @@ export function App() {
       if (record.taggedDocumentPath) {
         scheduleOpenDocumentRefresh(record.taggedDocumentPath);
       }
-      setKeptInvocationConflicts(new Set());
-      setInvocationReview((current) => current?.record.id === record.id ? { record } : current);
-      void loadInvocationReview(record);
+      setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, record));
+      if (record.context === "note") {
+        setInvocationActivity((current) => applyInvocationRecord(current, record));
+      }
+      if (record.taggedDocumentPath === inspectedPath) {
+        const request = ++invocationHistoryRequestRef.current;
+        void window.exo.workspace.listInvocationHistory(record.taggedDocumentPath)
+          .then((items) => {
+            if (request === invocationHistoryRequestRef.current) setInvocationHistory(items);
+          })
+          .catch(() => undefined);
+      }
     });
-  }, [scheduleOpenDocumentRefresh, workspaceModel?.workspaceRoot]);
+  }, [inspectedPath, scheduleOpenDocumentRefresh, workspaceModel?.workspaceRoot]);
+
+  useEffect(() => {
+    return window.exo.workspace.onInvocationActivity((event) => {
+      setInvocationActivity((current) => {
+        if (current?.invocationId === null && current.kind !== "done" && current.kind !== "failed") {
+          bufferEarlyInvocationActivityEvent(invocationActivityEarlyEventsRef.current, event);
+          return current;
+        }
+        return applyInvocationActivityEvent(current, event);
+      });
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!activeReviewEntry || !activeReviewChangeId || activeReviewPayload) return;
+    let cancelled = false;
+    void window.exo.workspace.getInvocationFileReview({
+      invocationId: activeReviewEntry.invocationId,
+      changeId: activeReviewChangeId,
+    }).then((payload) => {
+      if (cancelled) return;
+      setInvocationReviewQueue((current) => cacheInvocationFileReview(current, payload));
+    }).catch((error) => {
+      if (cancelled) return;
+      console.warn("[exo] failed to load invocation file review", error);
+      setInvocationActivity(failInvocationActivity(activeReviewEntry.command, error));
+    });
+    return () => { cancelled = true; };
+  }, [activeReviewChangeId, activeReviewEntry?.invocationId, activeReviewPayload]);
+
+  useEffect(() => {
+    if (activeReviewPayload) openInvocationReviewDocument(activeReviewPayload, activeReviewEntry?.source ?? "pending");
+  }, [activeReviewEntry?.source, activeReviewPayload?.change.id, activeReviewPayload?.invocation.id]);
 
   useEffect(() => {
     terminalState.pruneHydration(activeTerminalId ? new Set([activeTerminalId]) : new Set());
@@ -290,9 +427,6 @@ export function App() {
   useWorkspaceCommandHandlers({
     workspaceModel,
     openFile,
-    openPreview: createBrowserPane,
-    focusPreview: focusBrowserPane,
-    closePreview: closeBrowserPane,
     openSettings: workspaceSettingsController.openDialog,
     reloadTrees,
     scheduleOpenDocumentRefresh,
@@ -306,6 +440,8 @@ export function App() {
     createShellTerminal: async () => {
       await createUtilityTerminal("shell");
     },
+    toggleExplorerPanel: () => shellLayout.setSidebarCollapsed((current) => !current),
+    toggleUtilityPanel: toggleUtilitySurface,
     updateFocusedSurfaceZoom,
   });
 
@@ -320,6 +456,13 @@ export function App() {
     setExplorerScale(settings.explorerScale);
     setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
     setQmdSearchSelected(settings.searchEngine === "qmd");
+  }
+
+  async function dismissMainWikiMigrationNotice() {
+    const settings = workspaceSettingsRef.current;
+    if (!settings) return;
+    await saveSettingsPatch(acknowledgeMainWikiMigration(settings));
+    setMainWikiMigrationNotice(null);
   }
 
   function applyPersistedLayout(layout: WorkspaceSettings["layout"] | undefined) {
@@ -433,49 +576,63 @@ export function App() {
     if (!document) {
       return;
     }
+    const commandPresentation = invocationCommandPresentation(
+      draft.handle,
+      workspaceSettingsRef.current?.agentCommands ?? [],
+    );
+    // The send gesture receives an immediate, honest response before either
+    // fingerprint or trust IPC can yield to another frame.
+    setInvocationActivity(acknowledgeInvocationActivity(commandPresentation));
     // CodeMirror owns the authoritative post-envelope body. Its ordinary
     // React propagation is deliberately deprioritized for typing latency, so
     // publish this exact snapshot to the synchronous document ref before any
     // trust/fingerprint await can race the invocation save.
     flushSync(() => updateBody(draft.documentBody));
-    const command = workspaceSettingsRef.current?.agentCommands?.find((entry) => entry.handle === draft.handle)
-      ?? (draft.handle === "claude" ? createDefaultClaudeAgentCommand() : undefined);
-    if (!command) {
-      window.alert(`No AgentCommand is configured for @${draft.handle}.`);
-      return;
-    }
-    const cwd = command?.cwdPolicy === "note_dir"
-      ? dirname(document.filePath)
-      : command?.cwdPolicy === "fixed"
-        ? command.fixedCwd ?? workspaceSettingsRef.current?.workspaceRoot ?? ""
-        : workspaceSettingsRef.current?.workspaceRoot ?? "";
-    const fingerprint = await agentCommandExecutableFingerprintForRenderer(command);
-    let trusted: boolean;
+    let authorization;
     try {
-      trusted = (await window.exo.workspace.getAgentCommandTrust(draft.handle)).trusted;
+      authorization = await window.exo.workspace.getAgentInvocationAuthorization({
+        handle: draft.handle,
+        documentPath: document.filePath,
+      });
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : String(error));
+      cancelInlineAgentDraft(draft, () => undefined);
+      setInvocationActivity(failInvocationActivity(commandPresentation, error));
       return;
     }
-    const pending = { command, cwd, document, draft, fingerprint };
-    if (!trusted) {
+    if (!authorization.launchable || !authorization.cwd) {
+      cancelInlineAgentDraft(draft, () => undefined);
+      setInvocationActivity(failInvocationActivity(commandPresentation, authorization.detail));
+      return;
+    }
+    const pending = {
+      command: authorization.command,
+      cwd: authorization.cwd,
+      document,
+      draft,
+      fingerprint: authorization.fingerprint,
+      reason: authorization.detail,
+    };
+    if (!authorization.trusted) {
+      setInvocationActivity(null);
       setPendingInvocationAuthorization(pending);
       return;
     }
-    await startInlineAgentInvocation(pending, false);
+    await startInlineAgentInvocation(pending, { kind: "trusted" });
   }
 
-  async function startInlineAgentInvocation(pending: PendingInvocationAuthorization, persistTrust: boolean) {
+  async function startInlineAgentInvocation(
+    pending: PendingInvocationAuthorization,
+    authorization: { kind: "trusted" | "run-once" | "always-allow" },
+  ) {
     // Authorization is a decision surface, not invocation status. Close it as
     // soon as the decision is made; failures belong to the document status UI.
     setPendingInvocationAuthorization(null);
+    invocationActivityEarlyEventsRef.current.clear();
+    setInvocationActivity(beginInvocationActivity(pending.command));
     try {
       await saveDocument(pending.document.filePath);
       const persisted = await window.exo.notes.read(pending.document.filePath);
-      const expectedBody = pending.document.kind === "markdown"
-        ? markdownBodyAsSaved(pending.draft.documentBody)
-        : pending.draft.documentBody;
-      if (persisted.body !== expectedBody) {
+      if (persisted.body !== pending.draft.documentBody) {
         throw new Error("The document changed after this invocation was composed. Review the note and send it again.");
       }
       const result = await window.exo.workspace.launchAgentInvocation({
@@ -486,88 +643,211 @@ export function App() {
         message: pending.draft.message,
         documentFrontmatter: persisted.frontmatter,
         documentBody: persisted.body,
-        allowUntrustedOneShot: !persistTrust,
-        persistTrust,
+        authorization,
+        expectedFingerprint: pending.fingerprint,
       });
-      setKeptInvocationConflicts(new Set());
-      setInvocationReview({ record: result.invocation });
-      void loadInvocationReview(result.invocation);
+      const earlyEvents = takeEarlyInvocationActivityEvents(invocationActivityEarlyEventsRef.current, result.invocation.id);
+      setInvocationActivity((current) => bindInvocationActivity(current, result.invocation, earlyEvents));
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : String(error));
+      setInvocationActivity(failInvocationActivity(pending.command, error));
     }
   }
 
-  async function endActiveInvocationObservation() {
-    if (!invocationReview) {
-      return;
-    }
-    const finalized = await window.exo.workspace.endAgentInvocation(invocationReview.record.id);
-    if (!finalized) {
-      return;
-    }
-    if (finalized.taggedDocumentPath) {
-      scheduleOpenDocumentRefresh(finalized.taggedDocumentPath);
-    }
-    setKeptInvocationConflicts(new Set());
-    setInvocationReview({ record: finalized });
-    void loadInvocationReview(finalized);
-  }
-
-  async function loadInvocationReview(record: InvocationRecord) {
-    if (record.diffRefs.length === 0) return;
-    const payload = await window.exo.workspace.getInvocationReview(record.id).catch(() => null);
-    setInvocationReview((current) => current?.record.id === record.id ? { record, payload } : current);
-  }
-
-  async function keepInvocationReview() {
-    if (!invocationReview) return;
-    const record = await window.exo.workspace.keepInvocationReview(invocationReview.record.id);
-    if (record) { setInvocationReview({ record }); await loadInvocationReview(record); }
-  }
-
-  async function rejectInvocationReview() {
-    if (!invocationReview?.payload) return;
-    const taggedDocumentPath = invocationReview.record.taggedDocumentPath;
-    if (taggedDocumentPath && openDocuments[taggedDocumentPath]?.dirty) {
-      window.alert("Save or keep your unsaved editor changes before rejecting this invocation.");
-      return;
-    }
-    if (!window.confirm("Reject this invocation’s document change and restore the version from before it ran?")) return;
-    try {
-      const record = await window.exo.workspace.rejectInvocationReview({
-        invocationId: invocationReview.record.id,
-        expectedAfterSha256: invocationReview.payload.invocation.review?.afterSha256 ?? null,
-      });
-      if (record.taggedDocumentPath) await reloadOpenDocumentFromDisk(record.taggedDocumentPath);
-      setInvocationReview({ record });
-      await loadInvocationReview(record);
-    } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
-  }
-
-  async function resumeInvocationInTerminal() {
-    if (!invocationReview) return;
-    try {
-      await window.exo.workspace.resumeInvocationInTerminal(invocationReview.record.id);
-      setInvocationReview(null);
-      dispatchUtility({ type: "select", destination: "terminal" });
-    } catch (error) { window.alert(error instanceof Error ? error.message : String(error)); }
-  }
-
-  function keepInvocationDirtyBuffer(invocationId: string, filePath: string) {
-    setKeptInvocationConflicts((current) => {
-      const next = new Set(current);
-      next.add(invocationConflictKey(invocationId, filePath));
-      return next;
+  function cancelPendingInlineAgentInvocation() {
+    const pending = pendingInvocationAuthorization;
+    if (!pending) return;
+    cancelInlineAgentDraft(pending.draft, () => {
+      setPendingInvocationAuthorization(null);
+      setInvocationActivity(null);
     });
   }
 
-  async function reloadInvocationDiskVersion(invocationId: string, filePath: string) {
-    const confirmed = window.confirm("Reload the disk version and discard unsaved edits in this editor?");
-    if (!confirmed) {
+  async function stopInlineAgentInvocation(invocationId: string) {
+    setInvocationActivity((current) => current?.invocationId === invocationId
+      ? { ...current, kind: "finishing", label: undefined }
+      : current);
+    try {
+      const finalized = await window.exo.workspace.endAgentInvocation(invocationId);
+      if (!finalized) return;
+      if (finalized.taggedDocumentPath) {
+        scheduleOpenDocumentRefresh(finalized.taggedDocumentPath);
+      }
+      setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, finalized));
+      setInvocationActivity((current) => applyInvocationRecord(current, finalized));
+    } catch (error) {
+      setInvocationActivity((current) => current?.invocationId === invocationId
+        ? failActiveInvocationActivity(current, error)
+        : current);
+    }
+  }
+
+  function openInvocationReviewDocument(
+    payload: import("../../shared/api").InvocationFileReviewPayload,
+    source: "pending" | "history",
+  ) {
+    const path = invocationReviewSourcePath(payload);
+    if (!path) return;
+    const mediaType = payload.change.after?.mediaType ?? payload.change.before?.mediaType;
+    const textPreviewOmitted = Boolean(payload.beforeTextOmitted || payload.afterTextOmitted);
+    if (source === "pending" && payload.change.operation !== "deleted" && mediaType !== "binary" && !textPreviewOmitted) {
+      void openFile(invocationReviewNavigablePath(payload) ?? path);
       return;
     }
-    await reloadOpenDocumentFromDisk(filePath);
-    keepInvocationDirtyBuffer(invocationId, filePath);
+    const virtualPath = invocationReviewVirtualPath(payload);
+    if (!virtualPath) return;
+    const body = textPreviewOmitted
+      ? "This file is too large for an inline review. Keep or reject it from the review controls.\n"
+      : mediaType === "binary" || payload.change.operation === "deleted"
+      ? ""
+      : payload.afterText ?? "";
+    openVirtualDocument({
+      filePath: virtualPath,
+      title: mediaType === "binary"
+        ? `${fileName(path)} · binary`
+        : payload.change.operation === "deleted"
+          ? `${fileName(path)} · deleted`
+          : `${fileName(path)} · review`,
+      kind: "text",
+      frontmatter: {},
+      body,
+    });
+    activateEditorDocument(virtualPath);
+  }
+
+  async function resolveInvocationReview(action: "keep" | "reject") {
+    if (!activeReviewEntry || !activeReviewChangeId || !activeReviewPayload || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
+    const entry = activeReviewEntry;
+    const changeId = activeReviewChangeId;
+    const payload = activeReviewPayload;
+    const frozenPaths = beginInvocationReviewDecision([payload]);
+    try {
+      await prepareDocumentsForReview(frozenPaths);
+      const record = await window.exo.workspace.reviewInvocationFile({
+        invocationId: entry.invocationId,
+        changeId,
+        action,
+      });
+      setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, record));
+      await reloadTrees();
+      const decision = record.changeset?.files.find((change) => change.id === changeId)?.decision.status;
+      if (decision === "kept" || decision === "rejected") {
+        await refreshReviewAfterResolution(payload, action);
+      }
+    } catch (error) {
+      setInvocationActivity(failInvocationActivity(entry.command, error));
+      const refreshed = await window.exo.workspace.getInvocationFileReview({
+        invocationId: entry.invocationId,
+        changeId,
+      }).catch(() => null);
+      if (refreshed) setInvocationReviewQueue((current) => cacheInvocationFileReview(current, refreshed));
+    } finally {
+      finishInvocationReviewDecision();
+    }
+  }
+
+  async function resolveAllInvocationReviews(action: "keep" | "reject") {
+    if (!activeReviewEntry || activeReviewEntry.source === "history" || invocationReviewDecisionPendingRef.current) return;
+    const entry = activeReviewEntry;
+    beginInvocationReviewDecision([]);
+    try {
+      // Loading every diff is deliberate only for an explicit all-files
+      // action. Opening an invocation otherwise hydrates exactly one file.
+      const payloads = await loadAllInvocationReviewPayloads(entry);
+      const frozenPaths = invocationReviewAffectedOpenPaths(payloads, Object.keys(openDocuments));
+      flushSync(() => setInvocationReviewFrozenPaths(frozenPaths));
+      await prepareDocumentsForReview(frozenPaths);
+      const record = await window.exo.workspace.reviewInvocationAll({ invocationId: entry.invocationId, action });
+      setInvocationReviewQueue((current) => applyInvocationReviewRecord(current, record));
+      await reloadTrees();
+      for (const payload of payloads) {
+        const decision = record.changeset?.files.find((change) => change.id === payload.change.id)?.decision.status;
+        if (decision === "kept" || decision === "rejected") await refreshReviewAfterResolution(payload, action);
+      }
+    } catch (error) {
+      setInvocationActivity(failInvocationActivity(entry.command, error));
+    } finally {
+      finishInvocationReviewDecision();
+    }
+  }
+
+  async function loadAllInvocationReviewPayloads(entry: InvocationReviewQueueEntry): Promise<InvocationFileReviewPayload[]> {
+    const payloads: InvocationFileReviewPayload[] = [];
+    for (const changeId of entry.changeIds) {
+      const cached = entry.payloads[changeId];
+      const payload = cached ?? await window.exo.workspace.getInvocationFileReview({
+        invocationId: entry.invocationId,
+        changeId,
+      });
+      if (!cached) setInvocationReviewQueue((current) => cacheInvocationFileReview(current, payload));
+      payloads.push(payload);
+    }
+    return payloads;
+  }
+
+  function beginInvocationReviewDecision(payloads: readonly InvocationFileReviewPayload[]): string[] {
+    const frozenPaths = invocationReviewAffectedOpenPaths(payloads, Object.keys(openDocuments));
+    invocationReviewDecisionPendingRef.current = true;
+    flushSync(() => {
+      setInvocationReviewDecisionPending(true);
+      setInvocationReviewFrozenPaths(frozenPaths);
+    });
+    return frozenPaths;
+  }
+
+  function finishInvocationReviewDecision() {
+    invocationReviewDecisionPendingRef.current = false;
+    flushSync(() => {
+      setInvocationReviewDecisionPending(false);
+      setInvocationReviewFrozenPaths([]);
+    });
+  }
+
+  async function refreshReviewAfterResolution(
+    payload: import("../../shared/api").InvocationFileReviewPayload | null,
+    action: "keep" | "reject",
+  ) {
+    if (!payload) return;
+    const virtualPath = invocationReviewVirtualPath(payload);
+    if (virtualPath && openDocuments[virtualPath]) {
+      const fallback = collectLeaves(canvasTree)
+        .find((leaf) => leaf.content.kind === "editor" && leaf.content.activePath === virtualPath)
+        ?.content;
+      removeDeletedPathsFromEditor(virtualPath);
+      if (activeDocumentPath === virtualPath) {
+        setActiveDocumentPath(fallback?.kind === "editor"
+          ? fallback.openPaths.filter((path) => path !== virtualPath).at(-1) ?? null
+          : null);
+      }
+    }
+    if (action === "keep") return;
+    const beforePath = payload.change.before?.path;
+    const afterPath = payload.change.after?.path;
+    if (payload.change.operation === "created" && afterPath) {
+      removeDeletedPathsFromEditor(afterPath);
+      return;
+    }
+    if (payload.change.operation === "renamed" && afterPath) removeDeletedPathsFromEditor(afterPath);
+    const restoredPath = beforePath ?? afterPath;
+    if (!restoredPath) return;
+    if (openDocuments[restoredPath]) await discardAndReloadDocument(restoredPath).catch(() => undefined);
+    else await openFile(restoredPath);
+  }
+
+  async function resumeInvocationInTerminal(
+    invocationId: string,
+    command?: Pick<AgentCommand, "handle" | "label">,
+  ) {
+    try {
+      await window.exo.workspace.resumeInvocationInTerminal(invocationId);
+      setInvocationActivity(null);
+      dispatchUtility({ type: "select", destination: "terminal" });
+    } catch (error) {
+      setInvocationActivity((current) => current?.invocationId === invocationId
+        ? failActiveInvocationActivity(current, error)
+        : command
+          ? failInvocationActivity(command, error)
+          : current);
+    }
   }
 
   function focusEditorPane(leafId: PaneNodeId) {
@@ -652,6 +932,28 @@ export function App() {
     }
   }
 
+  function activateEditorDocument(filePath: string, requestedLeafId?: PaneNodeId) {
+    const targetLeafId = requestedLeafId ?? focusedPaneId;
+    const targetLeaf = findNode(canvasTree, (node) => node.id === targetLeafId && node.kind === "leaf") as PaneLeaf | undefined;
+    const targetEditorLeaf = targetLeaf?.content.kind === "editor" ? targetLeaf : undefined;
+    const fallbackLeaf = targetLeaf ?? collectLeaves(canvasTree)[0];
+    const editorLeafId = targetEditorLeaf?.id ?? findEditorLeaf(canvasTree)?.id ?? fallbackLeaf?.id;
+    if (editorLeafId) {
+      canvasActions.updateLeafContent(editorLeafId, (content) => content.kind === "editor"
+        ? {
+            ...content,
+            activePath: filePath,
+            activeFolderPath: null,
+            openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
+          }
+        : { kind: "editor", activePath: filePath, openPaths: [filePath], openFolderPaths: [], activeFolderPath: null });
+      canvasActions.focusLeaf(editorLeafId);
+    }
+    setActiveDocumentPath(filePath);
+    setActiveTag(null);
+    setTagResults([]);
+  }
+
   async function openFile(filePath: string, leafId?: PaneNodeId, options?: { line?: number | null }) {
     const targetLeafId = leafId ?? focusedPaneId;
     // File opens should never be trapped by a focused browser/terminal leaf.
@@ -665,22 +967,7 @@ export function App() {
       editorLeafId ?? targetLeafId,
       () => ensureDocumentLoaded(filePath),
       () => {
-        if (editorLeafId) {
-          canvasActions.updateLeafContent(editorLeafId, (content) => {
-            if (content.kind !== "editor") {
-              return { kind: "editor", activePath: filePath, openPaths: [filePath], openFolderPaths: [], activeFolderPath: null };
-            }
-            return {
-              ...content,
-              activePath: filePath,
-              openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
-            };
-          });
-          canvasActions.focusLeaf(editorLeafId);
-        }
-        setActiveDocumentPath(filePath);
-        setActiveTag(null);
-        setTagResults([]);
+        activateEditorDocument(filePath, editorLeafId);
         if (options?.line && options.line > 0) {
           setEditorRevealLineRequest({ filePath, line: options.line, nonce: Date.now() });
         }
@@ -697,14 +984,20 @@ export function App() {
   }
 
   async function openKnowledgeTarget(target: string) {
-    if (!activeDocumentPath) {
-      return;
-    }
-
     if (/^https?:\/\//.test(target)) {
       await window.exo.shell.openExternal(target);
       return;
     }
+
+    if (/^(?:\/|[A-Za-z]:[\\/])/.test(target)) {
+      // Graph and Connections can own focus while navigating. Route an
+      // absolute Concept path to an editor leaf explicitly instead of treating
+      // the currently focused graph/utility surface as the file destination.
+      await openFile(target, findEditorLeaf(canvasTree)?.id);
+      return;
+    }
+
+    if (!activeDocumentPath) return;
 
     const resolved = target.endsWith(".md") || target.includes("/")
       ? await window.exo.notes.resolveTarget(activeDocumentPath, target)
@@ -716,17 +1009,9 @@ export function App() {
   }
 
   async function openTag(tag: string) {
-    if (activeDocumentPath) {
-      const resolved = await window.exo.notes.resolveTarget(activeDocumentPath, tag);
-      if (resolved) {
-        await openFile(resolved, focusedPaneId);
-        return;
-      }
-    }
-
-    setActiveTag(tag);
-    const results = await window.exo.workspace.searchTag(tag);
-    setTagResults(results);
+    setActiveTag(null);
+    setTagResults([]);
+    await openKnowledgeTarget(tag.replace(/^#/, ""));
   }
 
   async function suggestNoteTargets(query: string) {
@@ -787,8 +1072,31 @@ export function App() {
     selectUtilitySurface("connections");
   }
 
+  function inspectGraphConcept(concept: InspectedConcept) {
+    graphInspection.inspect(concept, "graph");
+    if (concept.filePath && !openDocuments[concept.filePath]) {
+      void ensureDocumentLoaded(concept.filePath);
+    }
+  }
+
+  function focusGraphConcept(concept: InspectedConcept) {
+    graphInspection.focus(concept, "graph");
+    if (concept.filePath && !openDocuments[concept.filePath]) {
+      void ensureDocumentLoaded(concept.filePath);
+    }
+  }
+
+  function restoreEditorInspection(filePath: string) {
+    graphInspection.inspect({ filePath }, "editor");
+  }
+
+  function activateOpenGraphTarget(filePath: string) {
+    const targetLeaf = findEditorLeafByPath(canvasTree, filePath) ?? findEditorLeaf(canvasTree);
+    activateEditorDocument(filePath, targetLeaf?.id);
+  }
+
   function openGraphCanvas(focusPath?: string) {
-    setGraphFocusPath(focusPath ?? null);
+    if (focusPath) graphInspection.focus({ filePath: focusPath }, "editor");
     const existing = collectLeaves(canvasTree).find((leaf) => leaf.content.kind === "graph");
     if (existing) {
       canvasActions.focusLeaf(existing.id);
@@ -1275,6 +1583,7 @@ export function App() {
   const utilityTerminalSessions = terminalSessions.filter((session) => !canvasTerminalIds.has(session.id));
   const utilityPreviewTabs = previewTabs.tabs.filter((tab) => !canvasPreviewIds.has(tab.id));
   const activePreview = utilityPreviewTabs.find((tab) => tab.id === previewTabs.activeId) ?? utilityPreviewTabs[0] ?? null;
+  const activityCanStop = invocationActivity?.kind !== "done" && invocationActivity?.kind !== "failed";
   const utilityContent = utilityState.destination === "preview" && activePreview ? (
     <BrowserPane
       paneId={activePreview.id}
@@ -1363,7 +1672,18 @@ export function App() {
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "graph") {
-          return <GraphPane focusPath={graphFocusPath} activePath={activeDocumentPath} onClose={() => canvasActions.removeLeaf(leaf.id)} onOpenTarget={(target) => void openKnowledgeTarget(target)} />;
+          return <GraphPane
+            inspectedConcept={graphInspection.state.concept}
+            focusRequest={graphInspection.state.focusRequest}
+            activeEditorPath={activeDocumentPath}
+            isTargetOpen={(target) => openEditorPaths.has(target)}
+            onInspectConcept={inspectGraphConcept}
+            onFocusConcept={focusGraphConcept}
+            onRestoreEditorConcept={restoreEditorInspection}
+            onActivateOpenTarget={activateOpenGraphTarget}
+            onClose={() => canvasActions.removeLeaf(leaf.id)}
+            onOpenTarget={(target) => void openKnowledgeTarget(target)}
+          />;
         }
         if (leaf.content.kind === "terminal") {
           const terminalId = leaf.content.terminalId;
@@ -1438,7 +1758,6 @@ export function App() {
               documents={openDocuments}
               graphContextByPath={graphContextByPath}
               saveStatuses={documentSaveStatuses}
-              propertiesCollapsed={propertiesCollapsed}
               isFocused={isFocused}
               onFocusPane={() => {
                 focusEditorPane(leaf.id);
@@ -1448,9 +1767,9 @@ export function App() {
               onActivateFolder={(directoryPath) => openFolderOverview(directoryPath, leaf.id)}
               onCloseFolder={(directoryPath) => closeFolderOverview(leaf.id, directoryPath)}
               onOpenFolder={(directoryPath) => openFolderOverview(directoryPath, leaf.id)}
+              onOpenFile={(filePath) => void openFile(filePath, leaf.id)}
               onClosePane={collectLeaves(canvasTree).length > 1 ? () => canvasActions.removeLeaf(leaf.id) : null}
               dragManager={dragManager}
-              onToggleProperties={() => setPropertiesCollapsed((current) => !current)}
               onOpenGraph={() => openGraphCanvas(pane.activePath ?? undefined)}
               onUpdateFrontmatter={updateFrontmatter}
               onBodyChange={updateBody}
@@ -1462,26 +1781,41 @@ export function App() {
               agentCommands={workspaceSettingsRef.current?.agentCommands ?? []}
               onInvokeAgent={(draft) => void invokeInlineAgent(draft)}
               invocationReview={
-                invocationReview?.record.taggedDocumentPath === pane.activePath
+                activeReviewEntry && activeReviewPayload && pane.activePath && invocationReviewMatchesPath(activeReviewPayload, pane.activePath, activeReviewEntry.source)
                   ? {
-                      ...invocationReview,
-                      hasDirtyConflict: hasInvocationDirtyConflict(
-                        invocationReview.record,
-                        pane.activePath,
-                        pane.activePath ? openDocuments[pane.activePath] : undefined,
-                        keptInvocationConflicts,
-                      ),
-                      onEndObservation: () => void endActiveInvocationObservation(),
-                      onKeepDirtyBuffer: () => pane.activePath ? keepInvocationDirtyBuffer(invocationReview.record.id, pane.activePath) : undefined,
-                      onReloadFromDisk: () => void (pane.activePath ? reloadInvocationDiskVersion(invocationReview.record.id, pane.activePath) : Promise.resolve()),
-                      reviewPayload: invocationReview.payload ?? null,
-                      onKeepReview: () => void keepInvocationReview(),
-                      onRejectReview: () => void rejectInvocationReview(),
-                      onResumeInTerminal: invocationReview.record.providerSessionId ? () => void resumeInvocationInTerminal() : undefined,
-                      onDismiss: () => setInvocationReview(null),
+                      payload: activeReviewPayload,
+                      queue: {
+                        items: invocationReviewProjection(activeReviewEntry),
+                        currentIndex: activeReviewEntry.currentIndex,
+                      },
+                      readOnly: activeReviewEntry.source === "history",
+                      decisionPending: invocationReviewDecisionPending,
+                      onNavigate: (index) => setInvocationReviewQueue((current) => navigateInvocationReview(current, index)),
+                      onKeepCurrent: () => void resolveInvocationReview("keep"),
+                      onRejectCurrent: () => void resolveInvocationReview("reject"),
+                      onKeepAll: () => void resolveAllInvocationReviews("keep"),
+                      onRejectAll: () => void resolveAllInvocationReviews("reject"),
+                      onRefreshConflict: () => {
+                        setInvocationReviewQueue((current) => ({
+                          ...current,
+                          entries: current.entries.map((entry) => entry.invocationId === activeReviewEntry.invocationId
+                            ? { ...entry, payloads: Object.fromEntries(Object.entries(entry.payloads).filter(([id]) => id !== activeReviewChangeId)) }
+                            : entry),
+                        }));
+                      },
+                      onOpenConflict: () => openInvocationReviewDocument(activeReviewPayload, activeReviewEntry.source),
+                      onDismiss: activeReviewEntry.source === "history"
+                        ? () => setInvocationReviewQueue(closeInvocationHistoryReview)
+                        : undefined,
                     }
                   : null
               }
+              editingFrozen={Boolean(pane.activePath && invocationReviewFrozenPaths.includes(pane.activePath))}
+              historyAvailable={invocationHistory.length > 0}
+              onOpenHistory={() => {
+                openConnectionsSurface();
+                setInspectorTabRequest({ tab: "history", nonce: Date.now() });
+              }}
               theme={resolvedTheme}
               fontSize={editorFontSize}
               onZoomEditor={(direction) => updateFocusedSurfaceZoom(direction, "editor")}
@@ -1493,7 +1827,12 @@ export function App() {
           </>
         );
       }}
-      connections={<InspectorDock document={activeDocument} graphContext={activeGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={activeTag} tagResults={tagResults} onToggle={toggleConnectionsSurface} onOpenGraphCanvas={openGraphCanvas} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exo.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
+      connections={<InspectorDock document={inspectedDocument} graphContext={inspectedGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={activeTag} tagResults={tagResults} invocationHistory={invocationHistory} requestedTab={inspectorTabRequest} onOpenInvocationHistory={(item) => {
+        setInvocationReviewQueue((current) => openInvocationHistoryReview(current, item));
+      }} onResumeInvocation={(id) => {
+        const item = invocationHistory.find((candidate) => candidate.invocationId === id);
+        void resumeInvocationInTerminal(id, item?.command);
+      }} onToggle={toggleConnectionsSurface} onOpenGraphCanvas={openGraphCanvas} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exo.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
       onCreateMissingFolderIndexes={() => void createMissingFolderIndexes()}
@@ -1521,6 +1860,19 @@ export function App() {
       onRenamePath={(targetPath) => workspaceMutations.renameWorkspacePath(targetPath)}
       onDeletePath={(targetPath) => workspaceMutations.deleteWorkspacePath(targetPath)}
     />
+
+      {mainWikiMigrationNotice ? (
+        <aside className="workspace-migration-notice" data-testid="main-wiki-migration-notice" role="status">
+          <Folder aria-hidden="true" size={16} strokeWidth={1.8} />
+          <div>
+            <strong>One main wiki</strong>
+            <span>Other folders were left untouched.</span>
+          </div>
+          <button aria-label="Acknowledge main wiki migration" onClick={() => void dismissMainWikiMigrationNotice()} title="Got it" type="button">
+            <Check aria-hidden="true" size={15} strokeWidth={2} />
+          </button>
+        </aside>
+      ) : null}
 
       {workspaceDialog ? (
         <div className="dialog-overlay" data-testid="workspace-dialog-overlay">
@@ -1566,15 +1918,32 @@ export function App() {
       ) : null}
 
       {pendingInvocationAuthorization ? (
-        <InvocationAuthorizationDialog
-          command={pendingInvocationAuthorization.command.command}
-          commandLabel={pendingInvocationAuthorization.command.label}
-          cwd={pendingInvocationAuthorization.cwd || "Workspace root"}
-          documentPath={pendingInvocationAuthorization.document.filePath}
-          fingerprint={pendingInvocationAuthorization.fingerprint}
-          message={pendingInvocationAuthorization.draft.message}
-          onCancel={() => setPendingInvocationAuthorization(null)}
-          onRun={(persistTrust) => void startInlineAgentInvocation(pendingInvocationAuthorization, persistTrust)}
+        <AppInvocationAuthorizationGate
+          pending={pendingInvocationAuthorization}
+          onAuthorize={(authorization) => void startInlineAgentInvocation(
+            pendingInvocationAuthorization,
+            authorization,
+          )}
+          onCancel={cancelPendingInlineAgentInvocation}
+        />
+      ) : null}
+
+      {invocationActivity ? (
+        <InvocationActivitySurface
+          commandHandle={invocationActivity.commandHandle}
+          commandLabel={invocationActivity.commandLabel}
+          kind={invocationActivity.kind}
+          label={invocationActivity.label}
+          errorDetail={invocationActivity.errorDetail}
+          onDismiss={invocationActivity.kind === "done" || invocationActivity.kind === "failed"
+            ? () => setInvocationActivity(null)
+            : undefined}
+          onResume={invocationActivity.providerSessionId && invocationActivity.invocationId
+            ? () => void resumeInvocationInTerminal(invocationActivity.invocationId!)
+            : undefined}
+          onStop={activityCanStop && invocationActivity.invocationId
+            ? () => void stopInlineAgentInvocation(invocationActivity.invocationId!)
+            : undefined}
         />
       ) : null}
 
@@ -1607,31 +1976,6 @@ function joinPath(parentPath: string, name: string): string {
   return `${parentPath.replace(/\/$/, "")}/${name.replace(/^\//, "")}`;
 }
 
-function dirname(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, "/");
-  const index = normalized.lastIndexOf("/");
-  return index > 0 ? normalized.slice(0, index) : ".";
-}
-
-function markdownBodyAsSaved(body: string): string {
-  return body.endsWith("\n") ? body : `${body}\n`;
-}
-
-async function agentCommandExecutableFingerprintForRenderer(command: AgentCommand): Promise<string> {
-  const payload = {
-    command: command.command,
-    cwdPolicy: command.cwdPolicy,
-    fixedCwd: command.fixedCwd ?? null,
-    handle: command.handle,
-    id: command.id,
-    promptDelivery: command.promptDelivery,
-    version: command.version,
-  };
-  const bytes = new TextEncoder().encode(JSON.stringify(payload));
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 function isPathWithin(parentPath: string, targetPath: string): boolean {
   return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
 }
@@ -1649,4 +1993,8 @@ function getEditorScrollerForPath(filePath: string): HTMLElement | null {
     return title.closest(".editor-pane")?.querySelector<HTMLElement>(".editor-surface .cm-scroller") ?? null;
   }
   return null;
+}
+
+function fileName(filePath: string): string {
+  return filePath.split(/[\\/]/u).filter(Boolean).at(-1) ?? "File";
 }

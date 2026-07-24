@@ -1,23 +1,24 @@
+import path from "node:path";
+
 import {
   qmdSearchProvider,
+  assertOntologyReviewGuard,
   WorkspaceIndex,
   WorkspaceGraph,
-  type GraphConceptDetail,
-  type GraphViewBundle,
-  type IndexStatus,
-  type IndexSyncResult,
-  type WorkspaceGraphContext,
   type WorkspaceModel,
-  type WorkspaceIndexSearchResponse,
 } from "@exo/core";
 
 import type {
   DerivedIndexRequest,
+  DerivedIndexResult,
   DerivedIndexResponse,
   DerivedIndexWorkerRequest,
 } from "./derived-index-protocol";
+import {
+  derivedIndexResponseBytes,
+  MAX_DERIVED_RESPONSE_BYTES,
+} from "./derived-index-response";
 
-const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_ERROR_CHARS = 8_192;
 const cancelledRequests = new Set<number>();
 const liveRequests = new Set<number>();
@@ -53,7 +54,7 @@ async function execute(request: DerivedIndexRequest): Promise<void> {
   }
 }
 
-function run(request: DerivedIndexRequest): Promise<IndexStatus | IndexSyncResult | WorkspaceIndexSearchResponse | WorkspaceGraphContext | GraphViewBundle | GraphConceptDetail | null> {
+function run(request: DerivedIndexRequest): Promise<DerivedIndexResult> {
   const { model, runtimeRoot } = request.context;
   const index = new WorkspaceIndex({ context: { model, runtimeRoot } });
   switch (request.operation) {
@@ -68,41 +69,54 @@ function run(request: DerivedIndexRequest): Promise<IndexStatus | IndexSyncResul
     case "sync":
       return index.rebuild();
     case "graph-context":
-      return graphFor(model).contextForNote(request.filePath);
-    case "graph-view":
-      return graphFor(model).graphView(request.profileId);
-    case "graph-concept-detail":
-      return graphFor(model).graphConceptDetail(request.conceptId, request.sourceSnapshotId, request.profileId);
+      return graphFor(model, runtimeRoot).contextForNote(request.filePath);
+    case "graph-topology":
+      return graphFor(model, runtimeRoot).graphTopology(request.profileId);
+    case "graph-concept-summaries":
+      return graphFor(model, runtimeRoot).graphConceptSummaries(request.indexes, request.sourceSnapshotId, request.profileId);
+    case "graph-concept-lookup":
+      return graphFor(model, runtimeRoot).graphConceptLookup(request.reference, request.sourceSnapshotId, request.profileId);
+    case "graph-concept-detail-by-index":
+      return graphFor(model, runtimeRoot).graphConceptDetailByIndex(request.index, request.sourceSnapshotId, request.profileId);
     case "graph-refresh":
-      return graphFor(model).refreshFile(request.filePath).then(() => null);
+      return graphFor(model, runtimeRoot).refreshFile(request.filePath).then(() => null);
     case "graph-invalidate":
-      graphFor(model).invalidate();
+      graphFor(model, runtimeRoot).invalidate();
       return Promise.resolve(null);
+    case "ontology-preview":
+      return graphFor(model, runtimeRoot).previewOntology();
+    case "ontology-keep":
+      return graphFor(model, runtimeRoot).keepOntology(assertOntologyReviewGuard(request.guard));
+    case "ontology-reject":
+      return graphFor(model, runtimeRoot).rejectOntology(assertOntologyReviewGuard(request.guard));
   }
 }
 
-function graphFor(model: WorkspaceModel): WorkspaceGraph {
-  const key = model.noteRoots
+function graphFor(model: WorkspaceModel, runtimeRoot: string): WorkspaceGraph {
+  const key = [path.resolve(model.workspaceRoot), path.resolve(runtimeRoot), ...model.noteRoots
     .map((root) => `${root.id}:${root.path}`)
-    .sort()
+    .sort()]
     .join("\n");
   if (!workspaceGraph || workspaceGraphKey !== key) {
-    workspaceGraph = new WorkspaceGraph(model);
+    workspaceGraph = new WorkspaceGraph(model, { runtimeRoot });
     workspaceGraphKey = key;
   }
   return workspaceGraph;
 }
 
 function postBounded(response: DerivedIndexResponse): void {
-  const size = Buffer.byteLength(JSON.stringify(response), "utf8");
-  if (size > MAX_RESPONSE_BYTES) {
+  const size = derivedIndexResponseBytes(response);
+  if (size > MAX_DERIVED_RESPONSE_BYTES) {
     process.parentPort.postMessage({
       id: response.id,
       ok: false,
-      error: `Derived index response exceeded the ${MAX_RESPONSE_BYTES}-byte limit.`,
+      error: `Derived index response exceeded the ${MAX_DERIVED_RESPONSE_BYTES}-byte limit.`,
     } satisfies DerivedIndexResponse);
     return;
   }
+  // Electron's utility-process ParentPort exposes structured clone but no
+  // transfer-list parameter. Keeping cached buffers attached makes repeated
+  // topology reads safe; the byte gate still measures the compact typed form.
   process.parentPort.postMessage(response);
 }
 
@@ -110,7 +124,7 @@ function isRequest(value: unknown): value is DerivedIndexRequest {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<DerivedIndexRequest>;
   return Number.isSafeInteger(candidate.id)
-    && ["status", "search", "update", "embed", "sync", "graph-context", "graph-view", "graph-concept-detail", "graph-refresh", "graph-invalidate"].includes(String(candidate.operation))
+    && ["status", "search", "update", "embed", "sync", "graph-context", "graph-topology", "graph-concept-summaries", "graph-concept-lookup", "graph-concept-detail-by-index", "graph-refresh", "graph-invalidate", "ontology-preview", "ontology-keep", "ontology-reject"].includes(String(candidate.operation))
     && Boolean(candidate.context?.model)
     && typeof candidate.context?.runtimeRoot === "string";
 }

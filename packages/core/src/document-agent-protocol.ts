@@ -109,6 +109,26 @@ export function findDocumentAgentEnvelopes(text: string): DocumentAgentEnvelope[
   return envelopes;
 }
 
+/**
+ * Derive the clean pre-invocation document from the exact saved launch body.
+ * The invocation envelope replaced the live compose range in one editor
+ * transaction, so deleting this exact source range also deletes the request
+ * text and no unrelated document bytes.
+ */
+export function removeDocumentAgentInvocation(
+  text: string,
+  invocationId: string,
+  expectedAgent?: string,
+): string | null {
+  if (!isDocumentAgentProtocolId(invocationId)) return null;
+  const envelope = findDocumentAgentEnvelopes(text).find((candidate) =>
+    candidate.kind === "invocation" &&
+    candidate.id === invocationId &&
+    (expectedAgent === undefined || candidate.agent === expectedAgent),
+  );
+  return envelope ? `${text.slice(0, envelope.from)}${text.slice(envelope.to)}` : null;
+}
+
 function findMatchingOpening(
   openings: Array<{ tag: typeof EXO_INVOCATION_TAG | typeof EXO_AGENT_RESPONSE_TAG }>,
   closingTag: typeof EXO_INVOCATION_TAG | typeof EXO_AGENT_RESPONSE_TAG,

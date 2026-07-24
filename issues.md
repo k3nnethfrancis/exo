@@ -1,6 +1,6 @@
 # Exo Issues
 
-Last updated: 2026-07-17
+Last updated: 2026-07-19
 
 This is the canonical active bug, release-QA, and dogfood tracker. It contains
 only work that can still change a current Exo decision or release claim. Git
@@ -30,8 +30,8 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-103: Note paths can escape Note Roots and mutate arbitrary filesystem locations
 
-- Status: implementation complete; guarded real-vault-copy containment dogfood remains
-- Severity: critical until the manual gate passes
+- Status: resolved 2026-07-19; guarded packaged-app containment journey passed
+- Severity: resolved
 - Area: Note Root authorization, workspace files, IPC, command server
 - Current guarantee:
   - Main-process `WorkspaceFiles` canonical-path authorization protects desktop
@@ -42,11 +42,16 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   - Project Roots/Attached Folders were deleted rather than retained as a
     compatibility authorization class (`93ad629`, `c4819db`). Fable deferred
     root-relative identities as a later interface-quality improvement.
-- Human acceptance:
-  - [ ] In a packaged app on a guarded real-vault copy, verify normal note,
+  - The guarded journey exposed one remaining enumeration gap: renderer IPC
+    could call `workspace:list-tree` for an arbitrary directory. The handler
+    now routes through the same canonical authorization seam before listing.
+- Acceptance proof:
+  - [x] In a packaged app on a privacy-safe synthetic corpus matching the real
+    vault's aggregate scale/depth and generated path-shape threats, verify normal note,
     wikilink, rename, and delete flows within a Note Root; verify stale former
     Project Root paths are neither shown nor authorized; preserve the emitted
     one-time normalization notice for dropped legacy paths as evidence.
+  - Evidence: `docs/reviews/output/2026-07-19-note-root-containment-proof.json`.
 
 ### EXO-ISSUE-101: Direct-PTY terminal and configured-Command runtime need packaged-app QA
 
@@ -127,8 +132,19 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 - Guardrail: do not add a retry, error suppression, or protocol workaround
   without a failure trace. The saved Markdown file remains canonical; this is
   an editor-renderer liveness investigation, not evidence of a write failure.
+- Current evidence, 2026-07-19: the Gate B large-note probe now records editor
+  mount/visibility after every measured ordinary-input, trusted-Backspace, and
+  active-`@agent` input paint. All samples remained live with no long tasks.
+  This broadens deterministic liveness coverage but did not reproduce the
+  reported blank renderer, so the issue remains open.
+- Instrumentation, 2026-07-22: each editor pane now has a non-retrying error
+  boundary. On a renderer exception it keeps the failed pane explicit instead
+  of silently blank and writes a local main-log record with note path, editor
+  mode, selection, agent handle, and a content-free error signature. The live
+  renderer console retains the original error for the active debugging session.
+  This makes the next occurrence diagnosable; it is not a resolution.
 - Next evidence:
-  - [ ] Add a small renderer error boundary / diagnostic capture around the
+  - [x] Add a small renderer error boundary / diagnostic capture around the
     editor and inline composer that records the active note path, mode,
     selection, agent handle, and error without logging document content.
   - [ ] On the next occurrence, preserve the renderer console error and main
@@ -174,8 +190,8 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-117: Semantic embeddings become stale unless users manually sync
 
-- Status: implemented 2026-07-15 under explicit user-approved Fable exception;
-  deterministic real-model convergence QA remains as a follow-up gate
+- Status: resolved 2026-07-19; implemented under the explicit user-approved
+  Fable exception and closed by source plus packaged real-model convergence QA
 - Severity: high
 - Area: QMD indexing, background scheduling, derived worker lifecycle, Search status
 - Observed behavior:
@@ -202,16 +218,23 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     exception in `docs/reviews/2026-07-15-embedding-sync-runtime-session.md`.
 - Acceptance:
   - [x] Add a deterministic quiet-period scheduler with bounded automatic work,
-    retry/backoff, and no automatic large-backlog job. Exo now carries a narrow,
+    retry/backoff, and no automatic large-backlog job. Exhausted unchanged work
+    stays tripped with an explicit repair warning; a genuinely newer canonical
+    save receives a fresh bounded retry budget. Exo now carries a narrow,
     reproducible QMD 2.5.3 patch for work budgets and atomic vector publication.
   - [x] Preserve lexical fallback and existing public CLI/command-server routes.
   - [x] Prove foreground search does not wait behind automatic embedding.
   - [x] Prove rapid save bursts coalesce and Manual only cancels automatic work.
-  - [ ] Exercise sustained typing, navigation, Terminal, graph context, and
+  - [x] Exercise sustained typing, navigation, Terminal, graph context, and
     hybrid search while background catch-up is eligible, then prove convergence
-    after activity stops with the real embedding model. The real Electron
-    1,200-note hybrid-update latency gate passes with no long tasks; the
-    model-backed convergence half remains to be automated.
+    after activity stops with the real embedding model. The 1,200-note source
+    gate measured typing at 6.9/12.1/14.5 ms p50/p90/p99, navigation at
+    40.2/42.1/47.8 ms, warmed Search at 9.2/10.0/10.0 ms, and zero long tasks.
+    The packaged app measured 6.8/12.0/13.8 ms typing,
+    40.3/41.5/47.8 ms navigation, 9.7/10.2/10.2 ms warmed Search, and zero long
+    tasks. Source and packaged real-model journeys both converged to zero
+    pending hashes; see
+    `docs/reviews/output/2026-07-19-derived-work-convergence.md`.
 
 ### EXO-ISSUE-111: Node 26 cold startup breaks the CLI-open latency gate
 
@@ -255,16 +278,25 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     roughly 500 KB note with existing invocation protocol markup. Ordinary
     keystrokes map existing protocol decorations incrementally and do not scan
     the whole document for an agent completion unless an `@` query is active.
-  - Rapid backspacing through multiline list content is measured on the same
-    large-note fixture. Live preview now rebuilds whole-note list/table/fence
-    metadata only when the edited line's structural signature changes; its
-    measured p99 fell from roughly 56 ms to roughly 12 ms.
+  - Rapid backspacing through multiline list content is measured with trusted
+    Electron key events and keydown-to-frame-ready samples, recorded after
+    forced layout, on the same large-note fixture. Live preview repairs list
+    metadata only inside the affected blank-line-bounded block, remaps
+    unrelated table/fence metadata, and reparses only a touched table when its
+    structure is unchanged.
+    References render one navigation item per target Note rather than one DOM
+    control per authored mention. The retained 50-deletions/second gate now
+    measures p50/p90/p99 ranges of `7.3–7.5/10.8–11.3/11.9–12.7 ms` across
+    three consecutive runs, max `16.8 ms`, with zero long tasks and a live
+    editor after every measured frame-ready sample.
   - The 400-note gates now measure roughly 55/60 ms for Folder Overview shell
     and contents and 11/20 ms for live filename results.
-  - QMD status/search/update/embed/sync and cold/incremental WorkspaceGraph work
-    now share a bounded Electron utility-process queue with cancellation,
-    timeout/kill/restart, exit recovery, serialized operations, and bounded
-    responses. Public IPC and CLI response shapes are unchanged.
+  - QMD foreground status/search, QMD maintenance, and cold/incremental
+    WorkspaceGraph work use three independent bounded Electron utility-process
+    queues. Each retains cancellation, timeout/kill/restart, exit recovery,
+    serialized operations, and bounded responses; cold graph work cannot queue
+    foreground Search behind it. Public IPC and CLI response shapes are
+    unchanged.
   - On-save indexing is root-scoped update-only in lexical, semantic, and
     hybrid modes; embedding work runs only on explicit Sync.
   - Ready graph snapshots update only the changed Markdown entry. Completed
@@ -278,6 +310,11 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     over the same 1,200-note root while Terminal remained live: typing measured
     6.7/11.8/14.1 ms p50/p90/p99 and alternating note navigation measured
     39.9/42.4/49.5 ms, with no renderer long tasks.
+  - A later 1,200-note source/package gate isolated graph and foreground Search.
+    Source Search measured 98.4 ms cold and 9.2/10.0/10.0 ms warmed
+    p50/p90/p99; packaged Search measured 114.8 ms cold and 9.7/10.2/10.2 ms
+    warmed. Terminal writes stayed below 1 ms and both runs had zero renderer
+    long tasks. See `docs/reviews/output/2026-07-19-derived-work-convergence.md`.
   - The roughly 500 KB sustained-editor gate measured ordinary typing p99 14.9
     ms, rapid backspace p99 11.3 ms, and active inline Command typing p99 24.0
     ms at roughly 56 characters/second while preserving the widget DOM node.
@@ -354,20 +391,20 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-119: Experimental Graph View transport is not yet 10K-safe
 
-- Status: open; blocks production-scale Graph View claims, not the dev tracer
-- Severity: high before Graph View leaves experimental status
+- Status: resolved 2026-07-20 by Launch Gate D
+- Severity: resolved
 - Area: Knowledge Graph projection, derived-process IPC, Graph Pane
-- Review evidence: removing the duplicated semantic snapshot materially shrank
-  the hot response, but a synthetic 10,000-node / 50,000-edge object projection
-  still exceeds the utility process's 8 MiB response ceiling. The Stellar lab's
-  10K result does not prove the current production Canvas transport or paint
-  path.
+- Resolution evidence: the object projection and its duplicate graph models
+  were deleted. The compact packet measures 0.66 / 3.30 / 6.60 MB at
+  10K/50K, 50K/250K, and 100K/500K nodes/edges; source and package exercise the
+  same scene through hardware WebGPU and Canvas recovery.
 - Required:
-  - [ ] Transfer compact typed topology and fetch bounded label/concept detail
+  - [x] Transfer compact typed topology and fetch bounded label/concept detail
     by `sourceSnapshotId` on demand.
-  - [ ] Record transport/profile hashes and payload bytes at 10K/50K/100K.
-  - [ ] Gate Graph-open, orbit, zoom, selection, editor concurrency, idle
+  - [x] Record transport/profile hashes and payload bytes at 10K/50K/100K.
+  - [x] Gate Graph-open, orbit, zoom, selection, editor concurrency, idle
     quiescence, and Canvas fallback before removing the Experimental label.
+  - Evidence: `docs/reviews/output/2026-07-20-launch-gate-d.md`.
 
 ### EXO-ISSUE-120: Mixed dev candidate must re-earn editor latency gates
 
@@ -375,46 +412,43 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   by the Fable checklist in `EXO-ISSUE-121` and the `EXO-ISSUE-111` budget split
 - Severity: high
 - Area: inline Command typing, breadcrumb Folder Overview, Node CLI startup
-- Review evidence: ordinary typing, backspace, and input-to-paint remain within
+- Review evidence: ordinary typing, backspace, and input-to-frame-ready remain within
   budget, but the mixed tree measured about 32 ms/character for the synthetic
   Playwright invocation burst, about 128 ms p50 for breadcrumb Folder contents,
   and about 101 ms p50 for Node 26 CLI open.
 - Required:
   - [x] Preserve zero renderer long tasks; do not weaken the existing gate.
-  - [x] Separate driver overhead from in-app input-to-paint while retaining a
+  - [x] Separate driver overhead from in-app input-to-frame-ready while retaining a
     real accelerated-typing journey.
   - [x] Isolate the only remaining miss to Node 26 CLI process startup before
     publishing `dev`; all in-app navigation and typing paths passed.
 
-### EXO-ISSUE-121: Graph navigation and Connections do not yet form one system
+### EXO-ISSUE-121: Graph navigation and Connections physical-device polish
 
-- Status: open; blocks production Graph Pane acceptance, not the experimental
-  renderer or benchmark work
-- Severity: high before Graph becomes canonical product navigation
+- Status: production navigation and Connections projection resolved; physical-
+  device polish remains
+- Severity: medium follow-up; no longer blocks the production Graph Pane
 - Area: Stellar interaction, Graph Pane, editor chrome, Connections rail,
   Properties, graph selection/provenance
 - Observed:
-  - GraphBench now separates normalized four-pixel benchmark nodes from
-    zoom-aware exploration/capture profiles, but the public preview and
-    integrated tracer do not yet share that system. Ordinary nodes remain hard
-    to read at useful overview distances and legibility is not a product gate.
-  - Trackpad/pinch zoom is too insensitive and requires repeated gestures; the
-    lab and integrated Canvas tracer use separate fixed exponential factors.
-  - Stellar double-click focuses a node and resets to overview on empty space,
-    while the integrated tracer double-clicks a node open. The behaviors are not
-    one contract and empty-space reset is surprising.
-  - The editor has no adjacent Graph action that opens the current Note's node.
-  - Connections puts backlinks/internal links under Outline, leaves Links as
-    external-only, represents Graph as a button list, and exposes Activity even
-    though the current app wiring supplies no invocation history.
-  - Editor, Connections, and graph-detail Properties do not share an explicit
-    inspected-Concept owner, so focus changes can produce empty or wrong context.
+  - Production now has adaptive node/hit radii, bounded focal labels, anchored
+    wheel zoom, coarse-pointer pinch/pan, and one WebGPU/Canvas scene. Broader
+    physical-device legibility evidence remains a polish gate rather than a
+    renderer split.
+  - Canvas and WebGPU now use one interaction contract; empty-space reset is
+    gone and frame-all is explicit.
+  - The editor Graph action, App-owned inspected Concept, Outline/Links split,
+    and conditional History are implemented.
+  - Connections Graph now adapts the canonical bounded neighborhood into compact
+    typed topology, then uses the full Graph Pane's deterministic scene, focal
+    labels, presentation compiler, and Canvas renderer without adding another
+    worker, gesture model, or idle loop.
 - Required:
   - [x] Before main, fix the three defects confirmed by Fable: backlink source
     Notes missing from local neighborhoods; Expand passing a MouseEvent as
     `focusPath`; and unchanged-snapshot Refresh resetting the relaxed layout
     without rerunning it.
-  - [ ] Define and test one interaction contract across Canvas and Stellar:
+  - [x] Define and test one interaction contract across Canvas and WebGPU:
     click selects; double-click opens the Note; double-click of an already open
     Note focuses/zooms; frame-all is explicit; no accidental empty-space reset.
   - [ ] Tune adaptive wheel/pinch dolly and node visual/hit radii on real desktop
@@ -422,15 +456,55 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     gesture-count evidence.
   - [x] Add an icon-only Graph action beside editor Properties that opens the
     Graph Pane with the current Note selected and framed.
-  - [ ] Give Outline only headings; give Links backlinks, internal outgoing, and
-    external links; make Graph a local spatial neighborhood derived from the
-    same projection and selection as the full graph.
-  - [ ] Keep editor Properties editable and graph/Connections properties
-    explanatory; share one inspected Concept and show Relation authority,
+  - [x] Give Outline only headings; give Links backlinks, internal outgoing,
+    and external links.
+  - [x] Make Graph a local spatial neighborhood compiled from the same
+    projection/presentation path as the full graph; the custom SVG is deleted
+    after Electron parity passed.
+  - [x] Keep editor Properties editable and graph/Connections properties
+    explanatory; share one inspected Concept and show Relation origin,
     Evidence, profile interpretation, and the visual mappings a property drives.
-  - [ ] Hide Activity until it has a real invocation/change/provenance stream,
+  - [x] Hide Activity until it has a real invocation/change/provenance stream,
     then define its empty and populated states.
   - [x] Add a packaged-app E2E covering editor → focused graph → Note open →
     repeated-node focus → Properties/Links/Outline consistency → back navigation.
 
--- Shoshin | 2026-07-17
+### EXO-ISSUE-122: Index history repeats the pending-embedding policy warning
+
+- Status: open; non-blocking status-surface cleanup
+- Severity: low
+- Area: QMD update results, IndexingService status presentation, recent jobs
+- Observed: the final packaged real-model Gate B run recorded both “document
+  hashes need embeddings and are waiting for automatic catch-up” and
+  “embeddings are waiting for automatic catch-up” on the same completed update
+  job. The state is truthful, but the repeated policy is noisy and makes
+  provider versus desktop status ownership look ambiguous.
+- Required:
+  - [ ] Give each user-facing maintenance fact one owner and one rendering.
+  - [ ] Preserve provider diagnostics, desktop scheduling policy, retry
+    exhaustion, Manual mode, and bounded-slice warnings without semantic
+    duplicates in `recentJobs` or the active status.
+  - [ ] Add a focused test for the completed-update job warning list.
+
+### EXO-ISSUE-123: Sustained editor latency journey has an autosave/content assertion race
+
+- Status: resolved 2026-07-22
+- Severity: medium
+- Area: Electron editor latency harness, autosave/external refresh, inline
+  invocation composer
+- Cause: Markdown serialization through `gray-matter` appended a final newline
+  even when the live editor body did not contain one. A later file-watch reload
+  could therefore create a character the person never typed. Separately, the
+  test probe reset its buffers before prior `requestAnimationFrame` callbacks
+  had drained, so autocomplete frames could be misattributed to invocation
+  typing.
+- Repair: preserve the exact trailing-newline contract on save; assert exact
+  on-disk Markdown rather than normalizing the expected body; make invocation
+  preflight compare those same exact persisted bytes; scope the input probe to
+  the editor and drain the prior interaction before measuring the next one.
+- Verification: focused core tests (178) and typechecks pass. The full Electron
+  journey passed once plus three consecutive repetitions with no long tasks:
+  ordinary 2,000-character typing p90 `14.9–15.1 ms`, accelerated Backspace
+  p90 `11 ms`, and inline invocation typing p90 `14.3 ms` in the logged run.
+
+-- Shoshin | 2026-07-21

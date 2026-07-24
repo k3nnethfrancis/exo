@@ -10,6 +10,13 @@ import { createIndexedRoot, resolveWorkspaceModel } from "../workspace";
 const stores: MockStore[] = [];
 const tempPaths: string[] = [];
 let createStoreError: Error | null = null;
+interface MockQmdStatus {
+  totalDocuments: number;
+  needsEmbedding: number;
+  hasVectorIndex: boolean;
+  collections: Array<{ name: string; documents: number; lastUpdated: string }>;
+}
+let storeStatusOverride: MockQmdStatus | null = null;
 
 vi.mock("@tobilu/qmd", () => ({
   createStore: vi.fn(async () => {
@@ -25,6 +32,7 @@ vi.mock("@tobilu/qmd", () => ({
 afterEach(async () => {
   stores.splice(0);
   createStoreError = null;
+  storeStatusOverride = null;
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
 });
 
@@ -161,12 +169,34 @@ describe("QMD index adapter", () => {
     expect(status.dbPath).toContain(path.join(".exo", "qmd", "index.sqlite"));
     expect(status.documentCount).toBe(1);
     expect(status.pendingEmbeddings).toBe(1);
+    expect(status.warnings.join(" ")).not.toContain("exo index sync");
 
     await qmdSearchProvider.update(model, path.join(root, ".exo"));
     await qmdSearchProvider.embed(model, path.join(root, ".exo"));
 
     expect(stores.some((store) => store.updateCalls === 1)).toBe(true);
     expect(stores.some((store) => store.embedCalls === 1)).toBe(true);
+  });
+
+  it("distinguishes an empty semantic index from a missing non-empty vector index", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "hybrid");
+    storeStatusOverride = {
+      totalDocuments: 0,
+      needsEmbedding: 0,
+      hasVectorIndex: false,
+      collections: [{ name: "notes", documents: 0, lastUpdated: "2026-05-15T00:00:00.000Z" }],
+    };
+    const empty = await qmdSearchProvider.getStatus(model, path.join(root, ".exo"));
+    expect(empty.warnings).not.toContainEqual(expect.stringContaining("Semantic vector index is unavailable"));
+
+    storeStatusOverride = {
+      ...storeStatusOverride,
+      totalDocuments: 1,
+      collections: [{ name: "notes", documents: 1, lastUpdated: "2026-05-15T00:00:00.000Z" }],
+    };
+    const inconsistent = await qmdSearchProvider.getStatus(model, path.join(root, ".exo"));
+    expect(inconsistent.warnings).toContain("Semantic vector index is unavailable even though no embeddings are pending. Build embeddings to repair it.");
   });
 
   it("passes total-work bounds to automatic embedding without changing explicit defaults", async () => {
@@ -318,8 +348,8 @@ class MockStore {
   embedOptions: unknown[] = [];
   getDocumentBodyCalls = 0;
 
-  async getStatus() {
-    return {
+  async getStatus(): Promise<MockQmdStatus> {
+    return storeStatusOverride ?? {
       totalDocuments: 1,
       needsEmbedding: 1,
       hasVectorIndex: false,

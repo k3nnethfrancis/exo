@@ -32,6 +32,17 @@ function assertFile(relativePath) {
   }
 }
 
+function assertMissing(relativePath) {
+  try {
+    lstatSync(path.join(repoRoot, relativePath));
+    fail(`${relativePath} is a retired contract and must stay deleted`);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      fail(`${relativePath} retirement check failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+}
+
 function assertContains(relativePath, expected) {
   const content = read(relativePath);
   if (!content.includes(expected)) {
@@ -107,6 +118,10 @@ function assertRendererHasNoNodeOrElectronImports() {
   const allowed = new Set([
     'apps/desktop/src/renderer/src/App.test.tsx',
     'apps/desktop/src/renderer/src/components/ShellLayout.brand-icon.test.ts',
+    'apps/desktop/src/renderer/src/components/SpatialGraphView.test.ts',
+    'apps/desktop/src/renderer/src/graphCanvasPerformance.test.ts',
+    'apps/desktop/src/renderer/src/graphLayoutSimulation.test.ts',
+    'apps/desktop/src/renderer/src/graphWebGpuRenderer.test.ts',
   ]);
   for (const file of listSourceFiles('apps/desktop/src/renderer/src')) {
     if (allowed.has(file)) {
@@ -120,6 +135,38 @@ function assertRendererHasNoNodeOrElectronImports() {
     if (blocked.length > 0) {
       fail(`${file} must not import Electron or Node built-ins (${[...new Set(blocked)].sort().join(', ')}); use preload APIs backed by main-process services`);
     }
+  }
+}
+
+function assertNoRetiredGraphContracts() {
+  const retiredPatterns = [
+    { pattern: /\bgetGraphView\b/, label: 'object Graph View API' },
+    { pattern: /notes:get-graph-view/, label: 'object Graph View IPC channel' },
+    { pattern: /["']graph-view["']/, label: 'object Graph View utility operation' },
+    { pattern: /\bGraphView(?:Bundle|Projection|Node|Edge)\b/, label: 'object Graph View projection type' },
+    { pattern: /\bcompileGraphView\b/, label: 'object Graph View compiler' },
+    { pattern: /\bgetGraphConceptDetail\b/, label: 'unbounded Concept detail API' },
+    { pattern: /notes:get-graph-concept-detail\b(?!-by-index)/, label: 'unbounded Concept detail IPC channel' },
+    { pattern: /["']graph-concept-detail["']/, label: 'unbounded Concept detail utility operation' },
+    { pattern: /\bgraphConceptDetail\b/, label: 'unbounded Concept detail method' },
+  ];
+  for (const directory of ['apps', 'packages']) {
+    for (const file of listSourceFiles(directory)) {
+      const content = read(file);
+      for (const retired of retiredPatterns) {
+        if (retired.pattern.test(content)) {
+          fail(`${file} restored the retired ${retired.label}; use compact topology plus epoch-qualified lookup/index detail`);
+        }
+      }
+    }
+  }
+  for (const file of [
+    'packages/core/src/graph.ts',
+    'packages/core/src/graph-snapshot.ts',
+    'packages/core/src/graph-query.ts',
+    'apps/desktop/src/renderer/src/graphScene.ts',
+  ]) {
+    assertMissing(file);
   }
 }
 
@@ -472,6 +519,7 @@ assertNoDirectImplementationImports({
 });
 
 assertRendererHasNoNodeOrElectronImports();
+assertNoRetiredGraphContracts();
 assertPublicContractSurfacesHaveReviewNotes();
 
 if (failures.length > 0) {

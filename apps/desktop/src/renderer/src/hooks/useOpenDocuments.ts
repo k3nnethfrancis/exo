@@ -3,10 +3,13 @@ import { noteTitle } from "@exo/core/note-title";
 import type { NoteDocument, WorkspaceGraphContext, WorkspaceModel } from "@exo/core";
 
 import type { FileStatInfo } from "../../../shared/api";
+import { DocumentSaveBarrier } from "./documentSaveBarrier";
 
 export interface OpenEditorDocument extends NoteDocument {
   dirty: boolean;
   diskVersion: FileStatInfo | null;
+  /** Ephemeral review documents are exact snapshots and never save to disk. */
+  readOnly?: boolean;
 }
 
 export type DocumentSaveStatus = "idle" | "saving" | "saved" | "error";
@@ -34,6 +37,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   const pendingContextRefreshesRef = useRef<Map<string, { timeoutId?: number; idleId?: number }>>(new Map());
   const pendingContextCommitsRef = useRef<Map<string, number>>(new Map());
   const pendingAutosavesRef = useRef<Map<string, number>>(new Map());
+  const saveBarrierRef = useRef(new DocumentSaveBarrier());
   const dirtySinceRef = useRef<Map<string, number>>(new Map());
   const lastEditorInputAtRef = useRef(0);
   const scrollRestoreNonceRef = useRef(0);
@@ -86,6 +90,12 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     };
   });
 
+  useEffect(() => window.exo.workspace.onGraphChanged(() => {
+    for (const [filePath, document] of Object.entries(openDocumentsRef.current)) {
+      scheduleMarkdownContextRefresh(document, filePath);
+    }
+  }), []);
+
   function pruneToOpenPaths(openPaths: Set<string>) {
     setOpenDocuments((current) => {
       const next = Object.fromEntries(
@@ -110,6 +120,21 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       },
     }));
     scheduleMarkdownContextRefresh(document, filePath);
+  }
+
+  function openVirtualDocument(document: NoteDocument) {
+    const nextDocuments = {
+      ...openDocumentsRef.current,
+      [document.filePath]: {
+        ...document,
+        dirty: false,
+        diskVersion: null,
+        readOnly: true,
+      },
+    };
+    openDocumentsRef.current = nextDocuments;
+    setOpenDocuments(nextDocuments);
+    setDocumentSaveStatuses((current) => ({ ...current, [document.filePath]: "idle" }));
   }
 
   function scheduleRefresh(filePath: string, diskVersion?: FileStatInfo | null) {
@@ -213,7 +238,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
 
   function updateBody(body: string) {
     const filePath = activeDocumentPathRef.current;
-    if (!filePath || !openDocumentsRef.current[filePath]) {
+    if (!filePath || !openDocumentsRef.current[filePath] || openDocumentsRef.current[filePath]?.readOnly) {
       return;
     }
 
@@ -238,7 +263,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
 
   function updateFrontmatter(key: string, value: unknown) {
     const filePath = activeDocumentPathRef.current;
-    if (!filePath || !openDocumentsRef.current[filePath]) {
+    if (!filePath || !openDocumentsRef.current[filePath] || openDocumentsRef.current[filePath]?.readOnly) {
       return;
     }
 
@@ -262,10 +287,14 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     scheduleAutosave(filePath);
   }
 
-  async function saveDocument(filePath: string) {
+  function saveDocument(filePath: string): Promise<void> {
     cancelPendingAutosave(filePath);
+    return saveBarrierRef.current.run(filePath, () => performSaveDocument(filePath));
+  }
+
+  async function performSaveDocument(filePath: string) {
     const document = openDocumentsRef.current[filePath];
-    if (!document) {
+    if (!document || document.readOnly) {
       return;
     }
 
@@ -303,6 +332,30 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "error" }));
       throw error;
     }
+  }
+
+  /**
+   * Make editor state observable to exact review before main probes the file.
+   * The caller disables editing first, so draining then flushing produces one
+   * stable on-disk version: a human edit becomes a visible review conflict.
+   */
+  async function prepareDocumentsForReview(filePaths: readonly string[]): Promise<void> {
+    const uniquePaths = [...new Set(filePaths)];
+    for (const filePath of uniquePaths) cancelPendingAutosave(filePath);
+    await Promise.all(uniquePaths.map(async (filePath) => {
+      await saveBarrierRef.current.idle(filePath);
+      cancelPendingAutosave(filePath);
+      if (openDocumentsRef.current[filePath]?.dirty) await saveDocument(filePath);
+      await saveBarrierRef.current.idle(filePath);
+    }));
+  }
+
+  /** Discard a settled review proposal only after all prior writes are done. */
+  async function discardAndReloadDocument(filePath: string): Promise<void> {
+    cancelPendingAutosave(filePath);
+    await saveBarrierRef.current.idle(filePath);
+    cancelPendingAutosave(filePath);
+    await reloadFromDisk(filePath);
   }
 
   function deletePathsWithin(targetPath: string) {
@@ -464,11 +517,14 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     setActiveDocumentPath,
     pruneToOpenPaths,
     ensureDocumentLoaded,
+    openVirtualDocument,
     scheduleRefresh,
     reloadFromDisk,
     updateBody,
     updateFrontmatter,
     saveDocument,
+    prepareDocumentsForReview,
+    discardAndReloadDocument,
     deletePathsWithin,
     remapOpenPaths,
   };

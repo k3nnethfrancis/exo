@@ -69,16 +69,16 @@ test("captures the warm light mode shell", async () => {
 
 test("captures nested list geometry", async () => {
   const { page, cleanup } = await launchExoWorkspaceFixture({
+    env: { EXO_FORCE_THEME: "light" },
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
         notePath,
-        `---\ntitle: Focus Note\n---\n\n# Probe\n\n- top item\n  - child item\n    - grandchild item\n  - sibling child\n    continuation line\n`,
+        `---\ntitle: Focus Note\n---\n\n# Probe\n\n1. first ordered item\n   1. nested ordered item\n2. second ordered item\n\n- top item\n  - child item\n    - grandchild item\n  - sibling child\n    continuation line\n`,
       );
     },
   });
 
-  await cycleAppearanceTo(page, "light");
   await settleForScreenshot(page);
   await expect(page.getByTestId("editor-panel")).toHaveScreenshot("workspace-list-geometry.png", screenshotOptions);
   await cleanup();

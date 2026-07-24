@@ -6,7 +6,6 @@ import { EditorState } from "@codemirror/state";
 import { renderToStaticMarkup } from "react-dom/server";
 import type {
   IndexStatus,
-  InvocationRecord,
   NoteDocument,
   WorkspaceGraphContext,
   TreeNode,
@@ -40,7 +39,7 @@ import { isTerminalGeneratedResponse } from "./components/terminalInputFilters";
 import { TerminalOutputChunker, chunkTerminalData } from "./components/terminalOutputChunks";
 import { normalizeTerminalPresentation } from "./components/terminalPresentation";
 import { focusTerminal, registerTerminal, unregisterTerminal, writeTerminalData } from "./components/terminalRegistry";
-import { nextSuggestionIndex, normalizeFrontmatterPropertyKey, shouldUseMarkdownRenderer } from "./components/NoteEditor";
+import { firstChangedOffset, nextSuggestionIndex, normalizeFrontmatterPropertyKey, shouldUseMarkdownRenderer } from "./components/NoteEditor";
 import {
   WorkspaceSettingsDialog,
   indexSettingsStatusCopy,
@@ -50,9 +49,14 @@ import {
 import { summarizeIndexStatus } from "./indexStatusPresentation";
 import {
   clampSelectionToRenderedListText,
+  collectListMetadata,
   listEnterEdit,
   markdownImageTarget,
+  markdownPreviewMetadata,
+  slashDateCommandEdit,
   shouldSuppressGeneratedTitleLine,
+  updateMarkdownPreviewMetadataForChanges,
+  updateListMetadataForChanges,
   visibleLineNumbers,
   wikilinkExitEdit,
 } from "./components/markdownLivePreview";
@@ -76,7 +80,10 @@ import {
   workspaceSettingsStructuralDraftKey,
   workspaceSettingsStructuralKeyFromSettings,
 } from "./workspaceSettingsModel";
-import { isNewTerminalShortcut } from "./hooks/useAppKeybindings";
+import { isNewTerminalShortcut, shellPanelShortcut } from "./hooks/useAppKeybindings";
+import { WorkspaceHelpPanel } from "./components/WorkspaceMenu";
+import { APP_KEYBINDINGS } from "./shellHelpModel";
+import { EXO_CLI_COMMANDS } from "@exo/core/operator-help";
 import {
   buildNoteGraphContext,
   getWikilinkCompletionContext,
@@ -87,8 +94,8 @@ import {
 } from "./graphAffordances";
 import type { WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
 import type { TerminalSessionInfo } from "../../shared/api";
-import { hasInvocationDirtyConflict } from "./invocationReviewState";
-import { presentInvocation } from "./invocationPresentation";
+import { AppInvocationAuthorizationGate, invocationAuthorizationForDecision } from "./appInvocationAuthorization";
+import { OntologyReviewPresentation } from "./components/OntologyReviewRow";
 
 describe("desktop shell", () => {
   it("keeps a renderer test surface in place", () => {
@@ -96,7 +103,40 @@ describe("desktop shell", () => {
   });
 });
 
+describe("invocation review positioning", () => {
+  it("anchors at the first changed character, including append-only changes", () => {
+    expect(firstChangedOffset("alpha beta", "alpha zeta")).toBe(6);
+    expect(firstChangedOffset("alpha", "alpha beta")).toBe(5);
+    expect(firstChangedOffset("former", "")).toBe(0);
+  });
+});
+
 describe("app keybindings", () => {
+  it("maps familiar primary and secondary sidebar shortcuts without accepting noisy variants", () => {
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false })).toBe("explorer");
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false, repeat: false })).toBe("explorer");
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: true, ctrlKey: false, shiftKey: false, altKey: true, repeat: false })).toBe("utility");
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: false, ctrlKey: true, shiftKey: false, altKey: true, repeat: false })).toBe("utility");
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: true, ctrlKey: false, shiftKey: true, altKey: false, repeat: false })).toBeNull();
+    expect(shellPanelShortcut({ code: "KeyB", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: true })).toBeNull();
+    expect(shellPanelShortcut({ code: "KeyN", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false })).toBeNull();
+  });
+
+  it("renders one compact help surface from the current keybinding and CLI catalogs", () => {
+    const html = renderToStaticMarkup(<WorkspaceHelpPanel isMac onBack={() => {}} />);
+
+    expect(html).toContain("Keyboard");
+    expect(html).toContain("CLI");
+    for (const shortcut of APP_KEYBINDINGS) {
+      expect(html).toContain(shortcut.label);
+      expect(html).toContain(shortcut.mac);
+    }
+    for (const command of EXO_CLI_COMMANDS) {
+      expect(html).toContain(command.syntax.replaceAll("<", "&lt;").replaceAll(">", "&gt;"));
+    }
+    expect(html).toContain('aria-label="Back to workspace menu"');
+  });
+
   it("recognizes Mod+T as the new terminal shortcut", () => {
     expect(isNewTerminalShortcut({ key: "t", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false })).toBe(true);
     expect(isNewTerminalShortcut({ key: "T", metaKey: false, ctrlKey: true, shiftKey: false, altKey: false, repeat: false })).toBe(true);
@@ -134,62 +174,158 @@ describe("editor document mode", () => {
 });
 
 describe("agent invocation review", () => {
-  it("flags agent-written disk changes only when the open editor buffer is dirty", () => {
-    const record = invocationRecord({
-      changedFileRefs: [{ path: "/vault/current.md", kind: "modified", attribution: "likely", diffRefId: "diff-1" }],
-    });
+  it("wires an untrusted invocation to the anchored page authorization choices", () => {
+    const html = renderToStaticMarkup(
+      <AppInvocationAuthorizationGate
+        pending={{
+          command: {
+            id: "claude",
+            handle: "claude",
+            label: "Claude",
+            command: "claude -p",
+            adapter: "claude-code",
+            continuityPolicy: "continuous",
+            cwdPolicy: "workspace_root",
+            promptDelivery: "stdin",
+            version: 1,
+            enabled: true,
+          },
+          cwd: "/workspace/notes",
+          draft: {
+            anchor: { left: 96, top: 144, origin: "top left" },
+            message: "Review this note.",
+          } as never,
+          fingerprint: "sha256:test",
+          reason: "This command has not been allowed here yet.",
+        }}
+        onAuthorize={() => {}}
+        onCancel={() => {}}
+      />,
+    );
 
-    expect(hasInvocationDirtyConflict(record, "/vault/current.md", { dirty: true }, new Set())).toBe(true);
-    expect(hasInvocationDirtyConflict(record, "/vault/current.md", { dirty: false }, new Set())).toBe(false);
-    expect(hasInvocationDirtyConflict(record, "/vault/other.md", { dirty: true }, new Set())).toBe(false);
-    expect(hasInvocationDirtyConflict(record, "/vault/current.md", { dirty: true }, new Set(["inv-1:/vault/current.md"]))).toBe(false);
+    expect(html).toContain("--invocation-popover-left:96px");
+    expect(html).toContain("--invocation-popover-top:144px");
+    expect(html).toContain("Run once");
+    expect(html).toContain("Always allow here");
+    expect(invocationAuthorizationForDecision("once")).toEqual({ kind: "run-once" });
+    expect(invocationAuthorizationForDecision("workspace")).toEqual({ kind: "always-allow" });
   });
 
-  it("presents failure recovery as the exact provider resume command", () => {
-    const presentation = presentInvocation(invocationRecord({
-      status: "failed",
-      failureReason: "Claude could not edit the note.",
-      providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
-      command: {
-        ...invocationRecord().command,
-        command: "claude -p --permission-mode acceptEdits --output-format json",
-      },
-    }));
-
-    expect(presentation).toMatchObject({
-      title: "@claude failed",
-      detail: "Claude could not edit the note. · Fresh context",
-      tone: "danger",
-      dismissible: true,
-    });
-    expect(presentation.resumeCommand).toBe("claude --permission-mode acceptEdits --resume 'ce4b9e26-2574-4433-a054-1110cd403792'");
-  });
-
-  it("does not claim a failed resume continued context", () => {
-    expect(presentInvocation(invocationRecord({
-      status: "failed",
-      failureReason: "Authentication failed",
-      continuity: { policy: "continuous", outcome: "resume-failed", resumedFromInvocationId: "inv-0" },
-    })).detail).toBe("Authentication failed · Could not continue context");
-  });
-
-  it("keeps running and pending-review states intentionally persistent", () => {
-    expect(presentInvocation(invocationRecord({ status: "running" }))).toMatchObject({
-      title: "@claude running",
-      dismissible: false,
-      resumeCommand: null,
-    });
-    expect(presentInvocation(invocationRecord({
-      review: { status: "pending", beforeSha256: "before", afterSha256: "after" },
-      changedFileRefs: [{ path: "/vault/current.md", kind: "modified", attribution: "likely" }],
-    }))).toMatchObject({
-      title: "Review @claude changes",
-      dismissible: false,
-    });
-  });
 });
 
 describe("workspace settings footer copy", () => {
+  it("renders Ontology review as one compact path-free decision row", () => {
+    const html = renderToStaticMarkup(
+      <OntologyReviewPresentation
+        busy={null}
+        notice={null}
+        onKeep={() => {}}
+        onReject={() => {}}
+        onReopen={() => {}}
+        reopened={false}
+        review={{
+          active: { state: "generic" },
+          candidate: { state: "valid", id: "research", label: "Research", version: "2", revision: "candidate-secret", pending: true, rejected: false },
+          guard: { candidateRevision: "candidate-secret", activationRevision: null, baseSnapshotId: "snapshot-secret" },
+          effects: {
+            baseSnapshotId: "snapshot-secret",
+            candidateSnapshotId: "candidate-snapshot-secret",
+            affectedConcepts: 3,
+            before: { typedConcepts: 0, ontologyRelations: 0, findings: { info: 0, warning: 0, error: 0 } },
+            after: { typedConcepts: 3, ontologyRelations: 2, findings: { info: 1, warning: 0, error: 0 } },
+          },
+          diagnostics: [],
+          omittedDiagnostics: 0,
+        }}
+      />,
+    );
+
+    expect(html).toContain("Generic");
+    expect(html).toContain("Research · v2");
+    expect(html).toContain("3 typed");
+    expect(html).toContain("+2 relations");
+    expect(html).toContain('aria-label="Keep ontology"');
+    expect(html).toContain('aria-label="Reject ontology"');
+    expect(html).not.toContain("candidate-secret");
+    expect(html).not.toContain("snapshot-secret");
+    expect(html).not.toContain("ontology.yaml");
+  });
+
+  it("keeps rejected and invalid Ontology states deliberate", () => {
+    const rejected = renderToStaticMarkup(
+      <OntologyReviewPresentation
+        busy={null} notice={null} onKeep={() => {}} onReject={() => {}} onReopen={() => {}} reopened={false}
+        review={{
+          active: { state: "active", id: "research", version: "1" },
+          candidate: { state: "absent", revision: null, pending: true, rejected: true },
+          guard: { candidateRevision: null, activationRevision: "active", baseSnapshotId: "base" },
+          diagnostics: [], omittedDiagnostics: 0,
+        }}
+      />,
+    );
+    expect(rejected).toContain("Not applied");
+    expect(rejected.match(/Not applied/g)).toHaveLength(1);
+    expect(rejected).toContain('aria-label="Review ontology again"');
+    expect(rejected).not.toContain('aria-label="Keep ontology"');
+
+    const invalid = renderToStaticMarkup(
+      <OntologyReviewPresentation
+        busy={null} notice={null} onKeep={() => {}} onReject={() => {}} onReopen={() => {}} reopened={true}
+        review={{
+          active: { state: "generic" },
+          candidate: { state: "invalid", revision: "invalid", pending: true, rejected: false },
+          guard: { candidateRevision: "invalid", activationRevision: null, baseSnapshotId: "base" },
+          diagnostics: [{ severity: "error", code: "invalid", message: "Fix one field." }], omittedDiagnostics: 2,
+        }}
+      />,
+    );
+    expect(invalid).toContain("Fix one field.");
+    expect(invalid).toContain("2 more");
+    expect(invalid).toContain('aria-label="Keep ontology"');
+    expect(invalid).toContain("disabled");
+  });
+
+  it("hides Ontology actions for current, preview-error, and invalid Active states", () => {
+    const current = renderToStaticMarkup(
+      <OntologyReviewPresentation
+        busy={null} notice={null} onKeep={() => {}} onReject={() => {}} onReopen={() => {}} reopened={false}
+        review={{
+          active: { state: "active", id: "research", version: "1" },
+          candidate: { state: "valid", id: "research", version: "1", revision: "same", pending: false, rejected: false },
+          guard: { candidateRevision: "same", activationRevision: "active", baseSnapshotId: "base" },
+          diagnostics: [], omittedDiagnostics: 0,
+        }}
+      />,
+    );
+    expect(current).not.toContain('aria-label="Keep ontology"');
+    expect(current).not.toContain('aria-label="Reject ontology"');
+
+    const unavailable = renderToStaticMarkup(
+      <OntologyReviewPresentation
+        busy={null} notice="Preview unavailable" onKeep={() => {}} onReject={() => {}} onReopen={() => {}} reopened={false}
+        review={null}
+      />,
+    );
+    expect(unavailable).toContain("Preview unavailable");
+    expect(unavailable).not.toContain('aria-label="Keep ontology"');
+
+    const invalidActive = renderToStaticMarkup(
+      <OntologyReviewPresentation
+        busy={null} notice="Changed—review again" onKeep={() => {}} onReject={() => {}} onReopen={() => {}} reopened={false}
+        review={{
+          active: { state: "invalid-state" },
+          candidate: { state: "valid", id: "candidate", version: "1", revision: "candidate", pending: true, rejected: false },
+          guard: { candidateRevision: "candidate", activationRevision: null, baseSnapshotId: "base" },
+          diagnostics: [], omittedDiagnostics: 0,
+        }}
+      />,
+    );
+    expect(invalidActive).toContain("Active unavailable");
+    expect(invalidActive).toContain("Changed—review again");
+    expect(invalidActive).not.toContain('aria-label="Keep ontology"');
+    expect(invalidActive).not.toContain('aria-label="Reject ontology"');
+  });
+
   it("only mentions Apply when structural changes are pending", () => {
     expect(workspaceSettingsSavedFooterCopy(true)).toContain("Apply");
     expect(workspaceSettingsSavedFooterCopy(false)).toBe("Settings saved.");
@@ -794,6 +930,136 @@ describe("markdown live preview viewport work", () => {
     expect(visibleLineNumbers(state.doc, [{ from: 0, to: 20 }])).toEqual([1, 2, 3]);
     expect(visibleLineNumbers(state.doc, [{ from: state.doc.length - 20, to: state.doc.length }])).toEqual([4_998, 4_999, 5_000]);
   });
+
+  it("repairs list metadata locally across line joins and line-number shifts", () => {
+    const initial = EditorState.create({
+      doc: [
+        "# Before",
+        "",
+        "- first",
+        "  - nested",
+        "",
+        "Paragraph",
+        "",
+        "- distant",
+      ].join("\n"),
+    });
+    const joinAt = initial.doc.line(3).to;
+    const transaction = initial.update({ changes: { from: joinAt, to: joinAt + 1, insert: " " } });
+
+    const repaired = updateListMetadataForChanges(
+      initial.doc,
+      transaction.newDoc,
+      transaction.changes,
+      collectListMetadata(initial.doc),
+    );
+
+    expect([...repaired].sort(([left], [right]) => left - right)).toEqual([...collectListMetadata(transaction.newDoc)]);
+    expect(repaired.get(7)).toMatchObject({ marker: "-", isListStart: true });
+  });
+
+  it("repairs both list blocks when deleting their blank-line boundary", () => {
+    const initial = EditorState.create({ doc: "- first\n\n  - second\ncontinuation" });
+    const boundary = initial.doc.line(1).to;
+    const transaction = initial.update({ changes: { from: boundary, to: boundary + 1 } });
+
+    const repaired = updateListMetadataForChanges(
+      initial.doc,
+      transaction.newDoc,
+      transaction.changes,
+      collectListMetadata(initial.doc),
+    );
+
+    expect([...repaired].sort(([left], [right]) => left - right)).toEqual([...collectListMetadata(transaction.newDoc)]);
+  });
+
+  it("remaps distant table and fence metadata without changing full-collection results", () => {
+    const initial = EditorState.create({
+      doc: [
+        "# Before",
+        "",
+        "Paragraph above structures.",
+        "",
+        "| Name | Value |",
+        "| --- | ---: |",
+        "| alpha | 1 |",
+        "",
+        "```ts",
+        "const answer = 42;",
+        "```",
+        "",
+        "- item",
+      ].join("\n"),
+    });
+    const transaction = initial.update({ changes: { from: initial.doc.line(2).from, insert: "A new line.\n" } });
+
+    const repaired = updateMarkdownPreviewMetadataForChanges(
+      initial.doc,
+      transaction.newDoc,
+      transaction.changes,
+      markdownPreviewMetadata(initial.doc),
+    );
+
+    expect(repaired).toEqual(markdownPreviewMetadata(transaction.newDoc));
+  });
+
+  it("recollects table and fence metadata when their structure changes", () => {
+    const tableInitial = EditorState.create({
+      doc: "# Tables\n\n| Name | Value |\n| --- | ---: |\n| alpha | 1 |\n",
+    });
+    const separator = tableInitial.doc.line(4);
+    const tableTransaction = tableInitial.update({ changes: { from: separator.from, to: separator.to, insert: "not a table" } });
+    const tableRepaired = updateMarkdownPreviewMetadataForChanges(
+      tableInitial.doc,
+      tableTransaction.newDoc,
+      tableTransaction.changes,
+      markdownPreviewMetadata(tableInitial.doc),
+    );
+    expect(tableRepaired).toEqual(markdownPreviewMetadata(tableTransaction.newDoc));
+
+    const fenceInitial = EditorState.create({ doc: "# Fence\n\n```ts\nconst answer = 42;\n```\n" });
+    const closingFence = fenceInitial.doc.line(5);
+    const fenceTransaction = fenceInitial.update({ changes: { from: closingFence.from, to: closingFence.to, insert: "plain text" } });
+    const fenceRepaired = updateMarkdownPreviewMetadataForChanges(
+      fenceInitial.doc,
+      fenceTransaction.newDoc,
+      fenceTransaction.changes,
+      markdownPreviewMetadata(fenceInitial.doc),
+    );
+    expect(fenceRepaired).toEqual(markdownPreviewMetadata(fenceTransaction.newDoc));
+  });
+
+  it("updates table content and remaps fence content without rescanning unrelated lines", () => {
+    const initial = EditorState.create({
+      doc: [
+        "# Structured edits",
+        "",
+        "| Name | Value |",
+        "| --- | ---: |",
+        "| alpha | 1 |",
+        "",
+        "```ts",
+        "const answer = 42;",
+        "```",
+      ].join("\n"),
+    });
+    const tableCell = initial.doc.line(5);
+    const fenceBody = initial.doc.line(8);
+    const transaction = initial.update({ changes: [
+      { from: tableCell.from + tableCell.text.indexOf("alpha"), to: tableCell.from + tableCell.text.indexOf("alpha") + 5, insert: "beta" },
+      { from: fenceBody.from + fenceBody.text.indexOf("42"), to: fenceBody.from + fenceBody.text.indexOf("42") + 2, insert: "43" },
+    ] });
+
+    const repaired = updateMarkdownPreviewMetadataForChanges(
+      initial.doc,
+      transaction.newDoc,
+      transaction.changes,
+      markdownPreviewMetadata(initial.doc),
+    );
+
+    expect(repaired).toEqual(markdownPreviewMetadata(transaction.newDoc));
+    expect(repaired.tableContexts.get(5)?.rows).toEqual([["beta", "1"]]);
+  });
 });
 
 describe("terminal output chunking", () => {
@@ -955,6 +1221,37 @@ describe("markdown editor list behavior", () => {
   });
 });
 
+describe("markdown editor slash date commands", () => {
+  const now = new Date(2026, 6, 21, 23, 30);
+
+  it("turns /today into a normal date wikilink", () => {
+    const state = EditorState.create({ doc: "Plan /today" });
+
+    expect(slashDateCommandEdit(state, state.doc.length, now)).toEqual({
+      from: "Plan ".length,
+      to: state.doc.length,
+      insert: "[[2026-07-21]]",
+      selection: "Plan [[2026-07-21]]".length,
+    });
+  });
+
+  it("uses calendar-day arithmetic for /tomorrow", () => {
+    const state = EditorState.create({ doc: "/tomorrow" });
+
+    expect(slashDateCommandEdit(state, state.doc.length, now)).toEqual({
+      from: 0,
+      to: state.doc.length,
+      insert: "[[2026-07-22]]",
+      selection: "[[2026-07-22]]".length,
+    });
+  });
+
+  it("does not expand partial commands or commands inside words", () => {
+    expect(slashDateCommandEdit(EditorState.create({ doc: "/tod" }), 4, now)).toBeNull();
+    expect(slashDateCommandEdit(EditorState.create({ doc: "not/today" }), 9, now)).toBeNull();
+  });
+});
+
 describe("markdown editor wikilink behavior", () => {
   it("exits a wikilink without inserting trailing whitespace", () => {
     const state = EditorState.create({ doc: "Discuss [[customer-name]]today" });
@@ -1040,8 +1337,36 @@ describe("markdown editor wikilink behavior", () => {
     expect(references?.backlinks[0]).toEqual({ label: "Source", target: "/vault/source.md" });
   });
 
+  it("renders one graph reference per target rather than one per mention", () => {
+    const base = graphContextFixture();
+    const fixture: WorkspaceGraphContext = {
+      ...base,
+      outgoing: [
+        ...base.outgoing,
+        { source: base.note.id, target: "goals", label: "Goals alias", resolution: "unresolved" },
+        { source: base.note.id, target: "later", label: "Later", resolution: "unresolved" },
+        { source: base.note.id, target: "goals", label: "goals", resolution: "unresolved" },
+      ],
+    };
+
+    expect(graphReferencesForMarkdownMode(true, false, buildNoteGraphContext(fixture))?.references).toEqual([
+      { label: "goals", target: "goals" },
+      { label: "Later", target: "later" },
+    ]);
+  });
+
   it("derives active-note graph context from the bounded renderer snapshot adapter", () => {
-    const graphContext = buildNoteGraphContext(graphContextFixture({ frontmatter: { status: "draft", tags: ["lab"] }, tags: ["lab"] }));
+    const baseFixture = graphContextFixture({ frontmatter: { status: "draft", tags: ["lab"] }, tags: ["lab"] });
+    const ontologyTarget = baseFixture.neighborhood[1]!;
+    const fixture: WorkspaceGraphContext = { ...baseFixture, neighborhoodRelations: [{
+      source: baseFixture.note.id,
+      target: ontologyTarget.id,
+      label: "supports",
+      predicate: "supports",
+      origin: "ontology",
+      evidence: [{ kind: "ontology-rule", detail: "properties.supports" }],
+    }] };
+    const graphContext = buildNoteGraphContext(fixture);
 
     expect(graphContext?.properties).toEqual({ status: "draft", tags: ["lab"] });
     expect(graphContext?.outgoingLinks.map((item) => item.target).sort()).toEqual(["goals", "https://example.com"]);
@@ -1053,6 +1378,15 @@ describe("markdown editor wikilink behavior", () => {
       source: "note:notes:source.md",
       target: "note:notes:current.md",
     }));
+    expect(graphContext?.neighborhood.edges).toContainEqual(expect.objectContaining({
+      source: "note:notes:current.md",
+      target: "note:notes:source.md",
+      kind: "ontology",
+    }));
+    expect(graphReferencesForMarkdownMode(true, false, graphContext)).toEqual({
+      backlinks: [{ label: "Source", target: "/vault/source.md" }],
+      references: [{ label: "goals", target: "goals" }],
+    });
   });
 
   it("returns a lightweight hover preview fallback for empty or missing note bodies", () => {
@@ -1105,41 +1439,7 @@ function graphContextFixture(overrides: Partial<WorkspaceGraphContext["note"]> =
     backlinks: [{ source: source.id, target: source.filePath, label: "Source", resolution: "resolved", note: source }],
     unresolved: [{ source: note.id, target: "goals", label: "goals", resolution: "unresolved" }],
     neighborhood: [note, source],
-  };
-}
-
-function invocationRecord(overrides: Partial<InvocationRecord> = {}): InvocationRecord {
-  return {
-    id: "inv-1",
-    status: "process-exited",
-    context: "note",
-    taggedDocumentPath: "/vault/current.md",
-    originalMentionText: "@claude review this",
-    mentionProvenance: "human-authored",
-    message: "review this",
-    promptDelivery: "terminalInputAfterLaunch",
-    command: {
-      id: "claude",
-      label: "Claude",
-      handle: "claude",
-      command: "claude",
-      adapter: "claude-code",
-      continuityPolicy: "continuous",
-      cwdPolicy: "workspace_root",
-      promptDelivery: "terminalInputAfterLaunch",
-      version: 1,
-      enabled: true,
-      executableFingerprint: "fingerprint",
-    },
-    cwd: "/vault",
-    createdAt: "2026-07-08T00:00:00.000Z",
-    startedAt: "2026-07-08T00:00:01.000Z",
-    endedAt: "2026-07-08T00:00:02.000Z",
-    changedFileRefs: [],
-    diffRefs: [],
-    attribution: { status: "pending" },
-    continuity: { policy: "continuous", outcome: "fresh" },
-    ...overrides,
+    neighborhoodRelations: [],
   };
 }
 

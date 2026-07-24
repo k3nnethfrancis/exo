@@ -7,6 +7,22 @@ export interface InlineAgentDraft {
   handle: string;
   message: string;
   documentBody: string;
+  anchor: InlineAgentViewportAnchor;
+  restoreComposer: () => string | null;
+  focusComposer: () => void;
+}
+
+export interface InlineAgentViewportAnchor {
+  left: number;
+  top: number;
+  origin: "top left" | "bottom left";
+}
+
+export function cancelInlineAgentDraft(draft: InlineAgentDraft, close: () => void): string | null {
+  const restoredBody = draft.restoreComposer();
+  close();
+  draft.focusComposer();
+  return restoredBody;
 }
 
 export interface ComposerState {
@@ -127,13 +143,14 @@ export function openInlineAgentComposer(view: EditorView, input: { from: number;
 export function inlineAgentComposerExtension(options: {
   onSend: (draft: InlineAgentDraft) => void;
   onClose?: (documentBody: string) => void;
+  onRestore?: (documentBody: string) => void;
   renderPersistedInvocations?: boolean;
 }): Extension {
   return [
     composerState,
     composerDecorations,
     ...(options.renderPersistedInvocations === false ? [] : [persistedInvocationDecorations]),
-    composerCallbackFacet.of(options.onSend),
+    composerCallbackFacet.of({ onSend: options.onSend, onRestore: options.onRestore }),
     Prec.highest(keymap.of([
       { key: "Cmd-Enter", run: sendInlineAgentComposer },
       { key: "Ctrl-Enter", run: sendInlineAgentComposer },
@@ -189,8 +206,13 @@ export function isPersistedInvocationPosition(state: EditorState, position: numb
     .some((invocation) => position >= invocation.from && position <= invocation.to);
 }
 
-const composerCallbackFacet = Facet.define<(draft: InlineAgentDraft) => void, (draft: InlineAgentDraft) => void>({
-  combine: (callbacks) => callbacks[0] ?? (() => {}),
+interface ComposerCallbacks {
+  onSend: (draft: InlineAgentDraft) => void;
+  onRestore?: (documentBody: string) => void;
+}
+
+const composerCallbackFacet = Facet.define<ComposerCallbacks, ComposerCallbacks>({
+  combine: (callbacks) => callbacks[0] ?? { onSend: () => {} },
 });
 
 function sendInlineAgentComposer(view: EditorView): boolean {
@@ -200,14 +222,113 @@ function sendInlineAgentComposer(view: EditorView): boolean {
   if (!message) return true;
   const protocolInvocationId = globalThis.crypto.randomUUID();
   const source = view.state.sliceDoc(composer.from, composer.to);
+  const anchor = captureInlineInvocationAnchor(
+    view.coordsAtPos(composer.to),
+    { width: globalThis.innerWidth, height: globalThis.innerHeight },
+  );
   const envelope = formatDocumentAgentInvocation({ id: protocolInvocationId, agent: composer.handle, message: source });
   view.dispatch({
     changes: { from: composer.from, to: composer.to, insert: envelope },
     effects: closeComposer.of(null),
     userEvent: "input.complete",
   });
-  view.state.facet(composerCallbackFacet)({ protocolInvocationId, handle: composer.handle, message, documentBody: view.state.doc.toString() });
+  const callbacks = view.state.facet(composerCallbackFacet);
+  callbacks.onSend({
+    protocolInvocationId,
+    handle: composer.handle,
+    message,
+    documentBody: view.state.doc.toString(),
+    anchor,
+    restoreComposer: () => restoreSentInlineAgentComposer(view, {
+      protocolInvocationId,
+      handle: composer.handle,
+      source,
+      onRestore: callbacks.onRestore,
+    }),
+    focusComposer: () => view.focus(),
+  });
   return true;
+}
+
+interface RestorableInvocation {
+  protocolInvocationId: string;
+  handle: string;
+  source: string;
+}
+
+export function restoreInlineInvocationText(
+  documentBody: string,
+  invocation: RestorableInvocation,
+): { documentBody: string; composer: ComposerState } | null {
+  const envelope = findDocumentAgentEnvelopes(documentBody).find((candidate) =>
+    candidate.kind === "invocation" &&
+    candidate.id === invocation.protocolInvocationId &&
+    candidate.agent === invocation.handle,
+  );
+  if (!envelope) return null;
+
+  const from = envelope.from;
+  const mentionLength = `@${invocation.handle}`.length;
+  return {
+    documentBody: `${documentBody.slice(0, envelope.from)}${invocation.source}${documentBody.slice(envelope.to)}`,
+    composer: {
+      id: nextComposerId++,
+      handle: invocation.handle,
+      from,
+      messageFrom: from + mentionLength,
+      to: from + invocation.source.length,
+    },
+  };
+}
+
+function restoreSentInlineAgentComposer(
+  view: EditorView,
+  invocation: RestorableInvocation & { onRestore?: (documentBody: string) => void },
+): string | null {
+  const restored = restoreInlineInvocationText(view.state.doc.toString(), invocation);
+  if (!restored) {
+    view.focus();
+    return null;
+  }
+  const envelope = findDocumentAgentEnvelopes(view.state.doc.toString()).find((candidate) =>
+    candidate.kind === "invocation" &&
+    candidate.id === invocation.protocolInvocationId &&
+    candidate.agent === invocation.handle,
+  );
+  if (!envelope) return null;
+  view.dispatch({
+    changes: { from: envelope.from, to: envelope.to, insert: invocation.source },
+    effects: openComposer.of(restored.composer),
+    selection: { anchor: restored.composer.to },
+    userEvent: "input.complete",
+  });
+  const documentBody = view.state.doc.toString();
+  invocation.onRestore?.(documentBody);
+  view.focus();
+  return documentBody;
+}
+
+export function captureInlineInvocationAnchor(
+  coords: { left: number; top: number; bottom: number } | null,
+  viewport: { width: number; height: number },
+): InlineAgentViewportAnchor {
+  const margin = 12;
+  const gap = 6;
+  const popoverWidth = 390;
+  const estimatedPopoverHeight = 220;
+  if (!coords) return { left: 24, top: 48, origin: "top left" };
+
+  const maxLeft = Math.max(margin, viewport.width - popoverWidth - margin);
+  const left = Math.min(Math.max(coords.left, margin), maxLeft);
+  const below = coords.bottom + gap;
+  if (below + estimatedPopoverHeight <= viewport.height - margin) {
+    return { left, top: below, origin: "top left" };
+  }
+  return {
+    left,
+    top: Math.max(margin, coords.top - estimatedPopoverHeight - gap),
+    origin: "bottom left",
+  };
 }
 
 function closeInlineAgentComposer(view: EditorView): boolean {

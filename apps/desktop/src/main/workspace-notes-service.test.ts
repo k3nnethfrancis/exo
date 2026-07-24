@@ -8,6 +8,18 @@ import type { WorkspaceModel } from "@exo/core";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 
 describe("WorkspaceNotesService", () => {
+  it("authorizes only existing files inside the active wiki for operator opens", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const notePath = path.join(noteRoot, "opened.md");
+    const outsidePath = path.join(path.dirname(noteRoot), "outside.md");
+    await writeFile(notePath, "# Opened\n", "utf8");
+    await writeFile(outsidePath, "# Outside\n", "utf8");
+
+    await expect(service.authorizeOpenFile(notePath)).resolves.toBe(notePath);
+    await expect(service.authorizeOpenFile(outsidePath)).rejects.toThrow("outside configured note roots");
+    await expect(service.authorizeOpenFile(noteRoot)).rejects.toThrow("only open an existing file");
+  });
+
   it("searches body and frontmatter tags across note roots", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     await writeFile(path.join(noteRoot, "focus.md"), "---\ntags: [research]\n---\n# Focus\n\n#daily\n", "utf8");
@@ -44,6 +56,17 @@ describe("WorkspaceNotesService", () => {
 
     expect(createdPath).toBe(path.join(noteRoot, "folder", "new target.md"));
     await expect(readFile(createdPath, "utf8")).resolves.toMatch(/^---\ndate: \d{4}-\d{2}-\d{2}\ntags: \[\]\n---\n\n# new target\n$/);
+  });
+
+  it("creates ISO daily-note targets at the source Note Root", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const sourcePath = path.join(noteRoot, "folder", "source.md");
+    await writeFile(sourcePath, "# Source\n", "utf8");
+
+    const createdPath = await service.ensureTarget(sourcePath, "2026-07-22");
+
+    expect(createdPath).toBe(path.join(noteRoot, "2026-07-22.md"));
+    await expect(readFile(createdPath, "utf8")).resolves.toContain("# 2026-07-22");
   });
 
   it("rejects wiki targets that traverse outside the source note root", async () => {
@@ -217,6 +240,13 @@ describe("WorkspaceNotesService", () => {
     const unindexed = await service.getFolderOverview(emptyFolder);
     expect(unindexed).toMatchObject({ indexExists: false, title: "empty", children: [] });
     await expect(access(path.join(emptyFolder, "index.md"))).rejects.toThrow();
+
+    await expect(service.ensureFolderIndex(emptyFolder)).resolves.toMatchObject({ created: true });
+    await expect(service.getFolderOverview(emptyFolder)).resolves.toMatchObject({
+      indexExists: true,
+      title: "empty",
+      children: [],
+    });
   });
 
   it("invalidates cached folder and graph data after workspace changes", async () => {
@@ -243,6 +273,38 @@ describe("WorkspaceNotesService", () => {
     expect(refreshedGraph?.backlinks.map((link) => link.target)).toEqual([backlinkPath]);
   });
 
+  it("authorizes and case-preserves graph concept file lookup within note roots", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const folder = path.join(noteRoot, "CasePreserved");
+    await mkdir(folder, { recursive: true });
+    const focusPath = path.join(folder, "Focus.md");
+    await writeFile(focusPath, "# Focus\n", "utf8");
+    const topology = await service.getGraphTopology();
+
+    await expect(service.graphConceptLookup(
+      { filePath: path.join(folder, "..", "CasePreserved", "Focus.md") },
+      topology.sourceSnapshotId,
+    )).resolves.toMatchObject({
+      status: "ok",
+      summary: { label: "Focus", filePath: focusPath },
+    });
+  });
+
+  it("denies invalid and outside-root graph concept file lookup before graph dispatch", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const focusPath = path.join(noteRoot, "focus.md");
+    const outsidePath = path.join(path.dirname(noteRoot), "outside.md");
+    await writeFile(focusPath, "# Focus\n", "utf8");
+    await writeFile(outsidePath, "# Outside\n", "utf8");
+    const topology = await service.getGraphTopology();
+
+    await expect(service.graphConceptLookup({ filePath: outsidePath }, topology.sourceSnapshotId))
+      .rejects.toThrow("outside configured note roots");
+    await expect(service.graphConceptLookup({} as never, topology.sourceSnapshotId)).rejects.toThrow("exactly one");
+    await expect(service.graphConceptLookup({ conceptId: "note:x", filePath: focusPath } as never, topology.sourceSnapshotId))
+      .rejects.toThrow("exactly one");
+  });
+
   it("applies create, change, delete, and rename watcher events to a ready graph", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const focusPath = path.join(noteRoot, "focus.md");
@@ -265,6 +327,39 @@ describe("WorkspaceNotesService", () => {
     await rm(renamedPath);
     await service.handleWorkspaceChange({ rootPath: noteRoot, eventType: "rename", filePath: renamedPath });
     expect((await service.getGraphContext(focusPath))?.backlinks).toEqual([]);
+  });
+
+  it("emits one graph change only after a successful reviewed Ontology Keep", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-notes-ontology-review-"));
+    const noteRoot = path.join(workspaceRoot, "notes");
+    await mkdir(noteRoot, { recursive: true });
+    await writeFile(path.join(noteRoot, "focus.md"), "---\ntype: paper\n---\n# Focus\n");
+    await writeFile(path.join(workspaceRoot, "ontology.yaml"), "ontology_schema: 1\nid: research\nversion: 1\ntypes:\n  paper: {}\n");
+    const model: WorkspaceModel = {
+      workspaceRoot,
+      defaultTerminalCwd: workspaceRoot,
+      noteRoots: [{ id: "notes", label: "Notes", path: noteRoot }],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+    };
+    let graphChanged = 0;
+    const service = new WorkspaceNotesService({
+      getWorkspaceModel: () => model,
+      getRuntimeRoot: () => path.join(workspaceRoot, ".exo-test"),
+      onGraphChanged: () => { graphChanged += 1; },
+    });
+
+    const preview = await service.previewOntology();
+    expect(graphChanged).toBe(0);
+    expect((await service.keepOntology(preview.guard)).status).toBe("applied");
+    expect(graphChanged).toBe(1);
+    expect((await service.keepOntology(preview.guard)).status).toBe("stale");
+    expect(graphChanged).toBe(1);
+    await writeFile(path.join(workspaceRoot, "ontology.yaml"), "ontology_schema: 1\nid: replacement\nversion: 2\n");
+    const rejectedPreview = await service.previewOntology();
+    expect((await service.rejectOntology(rejectedPreview.guard)).status).toBe("rejected");
+    expect(graphChanged).toBe(1);
+    await rm(workspaceRoot, { recursive: true, force: true });
   });
 });
 

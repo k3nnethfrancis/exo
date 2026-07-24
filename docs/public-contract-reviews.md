@@ -49,6 +49,9 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: user-approved-exception: 2026-07-11 User explicitly authorized Codex to settle the refactor contract without Fable; removes stale `/index/update` and `/index/embed` constants after a zero-caller audit. Explicit `index sync` remains the public maintenance action.
 - sha256: `71e90e83a781fa95e9816fd06ae5e8f8a8a95b38a27863ef01681c3832ad496c`
 - review: architect-review: 2026-07-14 `docs/reviews/2026-07-14-cli-contract-and-installation-response.md` approves the compact CLI route contract and removal of zero-caller read/config/preview/terminal/index-root routes. User-approved amendment removes CLI read and standardizes path-first paginated search.
+- sha256: `68cc3397cc032c29b8c2fb3ac4a2614a4e27af49ec8451b12ec6542f4e7604b6`
+- review: user-approved-exception: 2026-07-20 Launch Gate C explicitly replaces guessed single-file attribution with the exact multi-file Changeset model. The authenticated CLI `invoke` response is intentionally narrowed to a version-independent launch summary rather than exporting Exo's internal review record.
+- review: architect-review: 2026-07-20 Gate C final contract review confirmed the bounded response preserves the CLI's actual consumer needs—invocation identity/status plus visible Terminal identity—while preventing future internal Changeset evolution from silently changing this public route.
 
 ### `apps/desktop/src/main/command-server.ts#route-table`
 

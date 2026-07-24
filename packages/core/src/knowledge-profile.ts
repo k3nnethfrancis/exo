@@ -2,6 +2,8 @@ import type { ConceptNode, GraphFinding, KnowledgeProfileStatus } from "./knowle
 
 export interface KnowledgeProfile {
   readonly status: KnowledgeProfileStatus;
+  readonly absoluteMarkdownLinkBase: "source-document" | "note-root";
+  includesConcept(pathOrTarget: string): boolean;
   conceptTypes(properties: Readonly<Record<string, unknown>>): readonly string[];
   validate(concepts: readonly ConceptNode[]): readonly GraphFinding[];
 }
@@ -13,6 +15,10 @@ export const genericMarkdownProfile: KnowledgeProfile = {
     label: "Generic Markdown",
     source: "built-in",
     state: "active",
+  },
+  absoluteMarkdownLinkBase: "source-document",
+  includesConcept() {
+    return true;
   },
   conceptTypes(properties) {
     return openTypes(properties.type);
@@ -29,6 +35,17 @@ export const okf01Profile: KnowledgeProfile = {
     label: "Open Knowledge Format 0.1",
     source: "built-in",
     state: "active",
+  },
+  absoluteMarkdownLinkBase: "note-root",
+  includesConcept(pathOrTarget) {
+    const basename = pathOrTarget
+      .split(/[?#]/u, 1)[0]
+      ?.replaceAll("\\", "/")
+      .split("/")
+      .at(-1)
+      ?.replace(/\.md(?:own)?$/iu, "")
+      .toLowerCase();
+    return basename !== "index" && basename !== "log";
   },
   conceptTypes(properties) {
     return openTypes(properties.type);

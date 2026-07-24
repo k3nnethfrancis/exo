@@ -6,8 +6,23 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Added
 
-- Adds the experimental feature-branch graph-system tracer: an open Knowledge Graph 0.2,
-  Generic Markdown and permissive OKF profiles, evidence-backed utility
+- Adds a reusable, harness-only mini trace assessment that runs a Skill through
+  fresh read-only Claude and Codex sessions and generates a private local
+  comparison dashboard without defining an automated quality gate.
+- Adds `Mod+B` and `Mod+Alt+B` shell shortcuts for Explorer and Utility,
+  plus a compact lower-menu Help surface sourced from Exo's current
+  keybinding and CLI command catalogs.
+- Adds `/today` and `/tomorrow` editor commands that expand to ordinary date
+  wikilinks and open or create the corresponding daily Note through the
+  existing link path.
+- Adds explicit Workspace Ontology review in Settings: bounded graph effects,
+  exact stale-review guards, atomic Keep/Reject, restart-stable activation, and
+  Ontology-origin Connections edges without changing authored Links or Notes.
+- Adds the reviewed Workspace Ontology foundation: an atomic `ontology.yaml`
+  parser/compiler, Candidate/Active revision store, persisted accepted source,
+  exact rule Evidence, and Generic Markdown fallback without modifying Notes.
+- Adds the experimental feature-branch graph-system tracer: an open Knowledge Graph 0.3,
+  Generic Markdown and permissive OKF Formats, evidence-backed utility
   dimensions, dense renderer-neutral projection, and an interactive Canvas
   Graph Pane whose semantic construction and finite layout run outside the
   editor critical path. Canvas projection and painting remain renderer work.
@@ -27,6 +42,20 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Changed
 
+- Draws the Connections neighborhood through the same deterministic scene,
+  focal-label, presentation-compiler, and Canvas contracts as the full Graph
+  Pane instead of maintaining a separate circular SVG renderer.
+- Keeps first-run activation explicit when active Workspace settings are missing
+  or invalid: saved registry entries remain selectable but never reopen on their
+  own.
+- Prevents a packaged app's bundled plugin resources from being mistaken for a
+  source checkout when Exo reports CLI installation status.
+- Restores the local Electron runtime after macOS packaging so development and
+  source E2E launches continue without reinstalling dependencies.
+- Replaces incomplete cached Electron distributions before recovery instead of
+  extracting over a half-consumed app bundle.
+- Removes stale metadata-only plugin manifests and stops copying them into the
+  packaged app; future Plugins remain distribution bundles, not a dormant runtime.
 - Makes the graph interaction contract concrete in the desktop surface: the
   editor Graph action focuses the active Note, note-open double-click zooms
   instead of reopening, empty-space double-click is inert, and Connections now
@@ -48,19 +77,50 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Keeps the Properties surface open or closed independently in each split
+  editor pane instead of mirroring one pane's toggle across the canvas.
+- Makes inline `#tags` visible, highlighted, and clickable like wikilinks, and
+  refines ordered-list numbering, nesting, marker alignment, and continuation.
+- Upgrades pre-Changeset single-note invocation reviews into the exact review
+  model without losing pending, kept, or rejected decisions.
+- Makes the exact multi-file Changeset the sole invocation review model; new
+  records no longer persist guessed likely/ambiguous attribution or a lossy
+  representative-file review alongside it.
+- Keeps invocation recovery fail-closed when a durable record is missing or
+  damaged, preserves same-process invocations across Workspace switches, and
+  refuses to release a Command when its tagged Note changed during capture.
+- Replays interrupted Reject transactions before retry preflight and compacts
+  settled invocation snapshots to the exact Changeset and History payload,
+  preserving recovery bytes while removing unrelated full-Workspace captures.
+- Serializes per-file and bulk invocation review decisions so concurrent Keep
+  and Reject actions cannot lose a decision or overwrite the accepted file state.
+- Makes invocation review drain editor autosaves before an exact decision, so
+  Reject cannot be reapplied by a stale dirty buffer, and shows frontmatter-only
+  and Unix-permission changes in the page-native review surface.
+- Makes Folder Overview open previously unloaded child Notes and newly created
+  Folder Indexes through the canonical file-open transaction, while
+  synchronously refreshing cached index state after explicit creation.
 - Repairs a cached Electron runtime whose host binary exists but whose required
   `path.txt` metadata is missing, and fails setup clearly if upstream install
   still leaves the runtime incomplete.
+- Routes Explorer tree reads through the same canonical Note Root containment
+  seam as document reads and mutations, preventing renderer requests from
+  enumerating retired, outside, or symlink-escaped directories.
 - Keeps backlink-only Notes coherent across Links and the local Graph, opens
   the full Graph at the inspected Note without leaking click events into graph
   state, and preserves settled layout and camera state across unchanged
   refreshes.
 - Keeps search responsive during index maintenance with separate foreground and
-  maintenance workers, truthful Simple-search fallback, bounded retries, and
+  maintenance workers, truthful Simple-search fallback, bounded retries that
+  stay exhausted for unchanged work and re-arm on a genuinely newer save, and
   transactional QMD metadata/vector publication so interrupted writes remain
   pending instead of appearing complete.
+- Keeps cold graph construction from queueing foreground Search by giving
+  WorkspaceGraph its own restartable utility process.
+- Loads sqlite-vec from the unpacked native dependency path in packaged macOS
+  apps so semantic indexing works outside the source checkout.
 - Keeps the editor responsive when indexing and graph enrichment overlap: QMD
-  and WorkspaceGraph derived work now run in a restartable utility process,
+  and WorkspaceGraph derived work now run in restartable utility processes,
   hybrid/semantic saves defer embeddings, graph watcher events update one note,
   and graph results commit only after editor input goes idle.
 - Stops periodic autosave from interrupting sustained typing, keeps the inline
@@ -73,11 +133,13 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Keeps provider identity separate from editable `@` handles, prevents
   continued sessions crossing Workspaces or overlapping in one lane, and
   retries only Claude's proven pre-turn stale-session failure.
-- Keeps fast typing within a one-frame paint budget on large Markdown notes by incrementally mapping persisted invocation decorations and avoiding whole-document protocol scans for ordinary keystrokes; covers both normal editing and active `@agent` composition.
-- Keeps rapid multiline backspacing within one frame by distinguishing list/table/fence structure changes from ordinary text deletion instead of rebuilding whole-note live-preview metadata on every Backspace.
+- Keeps fast typing within a one-frame readiness budget on large Markdown notes by incrementally mapping persisted invocation decorations and avoiding whole-document protocol scans for ordinary keystrokes; covers both normal editing and active `@agent` composition.
+- Keeps rapid multiline backspacing within one frame by repairing list metadata inside the affected block, remapping unrelated table/fence metadata, and rendering repeated authored links as one Reference per target Note instead of thousands of duplicate editor controls; the gate uses trusted key events and keydown-to-frame-ready samples recorded after forced layout.
+- Keeps a tab switch atomic with its CodeMirror document before paint, so the first edit cannot land in the previously active Note while the controlled editor value catches up.
 - Keeps editor navigation independent of derived workspace work: Folder Overview renders immediately and enriches progressively, WorkspaceGraph/folder/filename data are watcher-invalidated caches, graph refresh waits for editor idle time, and live filename results no longer parse every Markdown body per query.
 - Applies the Markdown image radius directly to the rendered asset so all four corners remain symmetrical regardless of widget sizing.
 - Resolves root-relative Markdown images from the nearest matching source ancestor inside the Note Root, so nested site/content wikis render their local assets without weakening path containment.
+- Gives viewBox-only SVG attachments a definite editor width so successfully loaded vectors cannot collapse to an invisible zero-width image.
 - Unifies inline invocation feedback around running, review, completed, and failed states; failed Claude sessions show the exact resume command, successful terminal handoff dismisses the status surface, and the authorization modal no longer survives a settled launch decision.
 - Clarifies onboarding's separate MCP and CLI access paths, shows only the two read-only MCP tools, treats an existing provider registration as installed, gives an actionable missing-provider-CLI error, and keeps configured agent commands on one full-width line.
 - Diagnoses the CLI visible to the desktop app during onboarding—current checkout, legacy Exo shim, missing command, or a command owned by something else—and offers an explicit checkout install/update command without ever changing it from MCP setup.

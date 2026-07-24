@@ -20,12 +20,33 @@ Search helps recover context, but it is not the whole problem. Exo makes relatio
 
 Agents help maintain the exocortex without becoming the product spine. A user explicitly invokes a configured Command inline; Exo shows observed Markdown changes for review. The first editable graph-management Skill is the next vertical slice.
 
+## How the graph begins
+
+An existing Markdown folder works without setup. Each resolved Markdown file is
+one graph Concept; its first H1 can label it, but a heading does not create a
+second node. Wikilinks and Markdown links connect those existing file Concepts,
+and tags create shared tag Concepts in the semantic graph. The spatial map
+intentionally suppresses tag hubs and groups tagged Notes instead, so a common
+tag cannot turn the view into a starburst. Frontmatter remains on its Note: for
+example, `type: project` classifies the Note rather than creating a separate
+`project` node or an edge.
+
+That baseline is **Generic Markdown**, Exo's zero-configuration Note Root
+Format. An optional, user-owned `ontology.yaml` can later interpret selected
+properties—for example, make `supports` into a typed reference relation or
+check that a project has expected fields—without changing the Markdown. It is
+reviewed before activation and stays separate from Graph View presentation.
+See [Note Root Formats](./docs/note-root-formats.md) and
+[Workspace Ontology](./docs/workspace-ontology.md) for the precise boundary.
+
 Folders are meaningful graph structure. Double-click a Folder to open its Overview: optional user-owned `index.md` metadata, direct children, and local graph context. Viewing never creates an index; creation is explicit. The raw `index.md` remains ordinary Markdown and is hidden only as a duplicate Explorer row. Paths provide a primary home while tags and relationships preserve multiple membership.
 
 Exo's accepted graph direction is schema-agnostic. Markdown remains canonical;
-optional user-owned Knowledge Profiles interpret open concept types, properties,
-and relationships; Graph Views remain derived projections. Generic Markdown
-requires no profile, and OKF 0.1 is the first planned interoperability profile.
+an optional user-owned `ontology.yaml` interprets open Concept Types, Property
+shapes, reference Relations, and validation rules without changing Notes.
+Generic Markdown is the default Note Root Format. Permissive OKF 0.1 is an
+explicit interoperability format, not an automatic behavior change. Graph Views
+remain separate derived projections.
 Rendering/layout performance and knowledge utility are evaluated separately.
 
 Plugins are a later distribution concern, not the launch architecture. Skills author behavior, Commands/providers execute capabilities, and a future Plugin may package proven combinations for installation, versioning, updates, and sharing.
@@ -252,11 +273,11 @@ First-run setup requires the user to choose a Workspace and its Note Roots. Exo 
 ### Re-run first-run onboarding
 
 Quit Exo completely first (including its menu-bar process), then clear the
-onboarding **and** Workspace persistence files. Deleting only
-`onboarding-state.json` is not enough: any valid `workspace-settings.json`
-causes Exo to open the existing Workspace instead of onboarding. The registry
-and pending transaction must go too, otherwise a saved registry or interrupted
-write can restore the Workspace settings at the next launch.
+active Workspace settings. Deleting only `onboarding-state.json` is not enough:
+any valid `workspace-settings.json` causes Exo to open the existing Workspace
+instead of onboarding. A surviving registry is shown as explicit Workspace
+choices; it never silently reactivates one. Remove the registry and pending
+transaction too only when you want a completely empty Workspace picker.
 
 For the installed macOS app:
 
@@ -280,7 +301,8 @@ Runtime files live under `.exo/` inside the workspace root:
 
 - `.exo/server.json` - command server discovery
 - `.exo/qmd/index.sqlite` - Exo-managed QMD notes index when indexing is enabled
-- `.exo/invocations/` - note-native agent-command invocation records and diff refs
+- `.exo/invocations/` - invocation records, clean bases, exact Changesets, and
+  compact content-addressed before/after snapshots required for restart-safe review
 - `.exo/artifacts/` - local generated artifacts when needed
 
 `.exo/` is derived local state, never canonical notes. Add `.exo/` to `.gitignore` when the Workspace root is in a Git repository; Exo warns about an unignored runtime directory rather than modifying your repository. Moving or copying a Workspace intentionally requires re-authorizing configured Commands.

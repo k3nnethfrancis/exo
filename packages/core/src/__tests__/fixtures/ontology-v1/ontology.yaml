@@ -1,0 +1,30 @@
+ontology_schema: 1
+id: research
+version: 3
+label: Research
+type_property: kind
+types:
+  paper:
+    label: Paper
+    paths: [papers/**]
+  claim:
+    label: Claim
+properties:
+  title:
+    value: string
+  status:
+    value: string
+    allowed: [draft, published]
+  supports:
+    value: reference[]
+    predicate: supports
+    targets: [claim]
+rules:
+  - id: paper-required
+    type: paper
+    require: [title]
+    recommend: [status]
+future_extension:
+  preserved: true
+visual:
+  color: orange

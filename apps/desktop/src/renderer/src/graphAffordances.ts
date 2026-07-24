@@ -33,7 +33,7 @@ export interface RendererGraphBacklink {
 export interface RendererGraphNeighborhood {
   focusPath: string;
   nodes: Array<{ id: string; label: string; kind: "note" | "external" | "unresolved"; target: string }>;
-  edges: Array<{ id: string; label: string; source: string; target: string; kind: "wikilink" | "markdownLink" }>;
+  edges: Array<{ id: string; label: string; source: string; target: string; kind: "wikilink" | "markdownLink" | "ontology" }>;
 }
 
 export interface RendererNoteGraphContext {
@@ -124,6 +124,13 @@ export function buildNoteGraphContext(
     target: note.id,
     kind: "wikilink" as const,
   }));
+  const ontologyEdges = graph.neighborhoodRelations.map((relation, index) => ({
+    id: `ontology:${index}:${relation.source}:${relation.target}:${relation.predicate}`,
+    label: relation.label,
+    source: relation.source,
+    target: relation.target,
+    kind: "ontology" as const,
+  }));
 
   return {
     note,
@@ -136,7 +143,7 @@ export function buildNoteGraphContext(
     neighborhood: {
       focusPath: note.filePath,
       nodes: neighborhoodNodes,
-      edges: [...outgoingEdges, ...backlinkEdges],
+      edges: [...outgoingEdges, ...backlinkEdges, ...ontologyEdges],
     },
   };
 }
@@ -146,11 +153,25 @@ export function buildGraphReferences(graphContext: RendererNoteGraphContext | nu
     return null;
   }
   return {
-    backlinks: graphContext.backlinks.map((item) => ({ label: item.label, target: item.target })),
-    references: graphContext.outgoingLinks
+    backlinks: uniqueGraphReferenceTargets(graphContext.backlinks),
+    references: uniqueGraphReferenceTargets(graphContext.outgoingLinks
       .filter((item) => item.resolution !== "external")
-      .map((item) => ({ label: item.label, target: item.target })),
+      .map((item) => ({ label: item.label, target: item.target }))),
   };
+}
+
+function uniqueGraphReferenceTargets<T extends { label: string; target: string }>(items: readonly T[]): MarkdownGraphReferences["references"] {
+  // The editor footer is a navigation surface over connected Notes, not an
+  // occurrence list. Preserve authored order and the first label for each
+  // target; repeated mentions remain available in the graph's edge evidence.
+  const seen = new Set<string>();
+  const references: MarkdownGraphReferences["references"] = [];
+  for (const item of items) {
+    if (seen.has(item.target)) continue;
+    seen.add(item.target);
+    references.push({ label: item.label, target: item.target });
+  }
+  return references;
 }
 
 export function graphReferencesForMarkdownMode(

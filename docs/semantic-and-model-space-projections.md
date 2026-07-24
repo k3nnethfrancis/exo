@@ -65,7 +65,7 @@ Visual styling can distinguish those layers. Filters can remove any derived laye
 ## Engineering sequence
 
 1. Finish the current GraphBench suite and settle the open graph metadata,
-   Knowledge Profile, and renderer-neutral projection contracts.
+   Note Root Format, Workspace Ontology, and renderer-neutral projection contracts.
 2. Verify that the configured index exposes vectors or a bounded top-k neighbor
    graph through a supported provider seam. Do not read QMD's private database.
 3. If that seam is straightforward, add the smallest note-level embedding-index

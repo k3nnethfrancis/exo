@@ -10,5 +10,5 @@ At acceptance this was a next-slice decision rather than shipped behavior.
 Folder Overview and explicit index creation subsequently shipped; existing
 folders remain untouched by viewing and `index.md` creation remains an explicit
 authoring action. ADR 0005 extends this decision with optional user-owned
-Knowledge Profiles while retaining the prohibition on an app-owned ontology
-database.
+the optional reviewed Workspace Ontology while retaining the prohibition on an
+app-owned ontology database.

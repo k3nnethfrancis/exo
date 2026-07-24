@@ -16,12 +16,18 @@ export function commandForHeadlessInvocation(
   command: AgentCommand,
   head: InvocationConversationHead | null = null,
 ): string {
+  if (command.adapter === "codex-cli") {
+    if (hasFlag(command.command, "--json")) return command.command;
+    return /\s-\s*$/.test(command.command)
+      ? command.command.replace(/\s-\s*$/, " --json -")
+      : `${command.command} --json`;
+  }
   if (command.adapter !== "claude-code") {
     return command.command;
   }
   const structured = hasFlag(command.command, "--output-format")
     ? command.command
-    : `${command.command} --output-format json`;
+    : `${command.command} --output-format stream-json --verbose`;
   return head ? `${structured} --resume ${shellArgument(head.providerSessionId)}` : structured;
 }
 

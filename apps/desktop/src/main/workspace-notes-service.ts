@@ -6,12 +6,20 @@ import { pathToFileURL } from "node:url";
 import {
   createWorkspaceFile,
   listFiles,
+  ensureFolderIndex,
   listMarkdownFiles,
   readWorkspaceDocument,
   type SearchResult,
   type FolderOverview,
-  type GraphConceptDetail,
-  type GraphViewBundle,
+  type GraphConceptDetailByIndexResult,
+  type GraphConceptLookupReference,
+  type GraphConceptLookupResult,
+  type GraphConceptSummaryResult,
+  type GraphTopology,
+  type OntologyKeepResult,
+  type OntologyRejectResult,
+  type OntologyReviewGuard,
+  type OntologyReviewState,
   type WorkspaceSearchResults,
   WorkspaceFiles,
   WorkspaceGraph,
@@ -25,6 +33,7 @@ export interface WorkspaceNotesServiceOptions {
   getWorkspaceModel: () => WorkspaceModel;
   getRuntimeRoot?: () => string;
   derivedIndex?: DerivedIndexClient;
+  onGraphChanged?: () => void;
 }
 
 export class WorkspaceNotesService {
@@ -72,6 +81,18 @@ export class WorkspaceNotesService {
         await this.graph?.refreshFile(changedPath);
       }
     }
+  }
+
+  /** Validates an operator-requested file before a command-server response can
+   * claim that Exo opened it.  This shares the same root and symlink boundary
+   * as every other workspace read. */
+  async authorizeOpenFile(filePath: string): Promise<string> {
+    const authorizedPath = await this.workspaceFiles().existing(filePath);
+    const fileStat = await stat(authorizedPath);
+    if (!fileStat.isFile()) {
+      throw new Error("Exo can only open an existing file inside the active wiki.");
+    }
+    return authorizedPath;
   }
 
   async searchFilenames(query: string): Promise<WorkspaceSearchResults> {
@@ -188,8 +209,11 @@ export class WorkspaceNotesService {
     const noteRoot = this.options.getWorkspaceModel().noteRoots.find((root) => isPathWithin(root.path, sourceFilePath));
     const normalizedTarget = target.replace(/\.md$/i, "");
     const targetWithExtension = `${normalizedTarget}.md`;
+    const isDailyNoteTarget = /^\d{4}-\d{2}-\d{2}$/.test(normalizedTarget);
     const nextPath = path.isAbsolute(targetWithExtension)
       ? path.resolve(targetWithExtension)
+      : isDailyNoteTarget && noteRoot
+        ? path.join(noteRoot.path, targetWithExtension)
       : normalizedTarget.includes("/")
         ? path.join(noteRoot?.path ?? path.dirname(sourceFilePath), targetWithExtension)
         : path.join(path.dirname(sourceFilePath), targetWithExtension);
@@ -254,28 +278,116 @@ export class WorkspaceNotesService {
     return this.workspaceGraph().contextForNote(authorizedPath);
   }
 
-  async getGraphView(profileId?: string | null): Promise<GraphViewBundle> {
+  async getGraphTopology(profileId?: string | null): Promise<GraphTopology> {
     if (this.options.derivedIndex && this.options.getRuntimeRoot) {
-      return this.options.derivedIndex.graphView(
+      return this.options.derivedIndex.graphTopology(
         this.options.getWorkspaceModel(),
         this.options.getRuntimeRoot(),
         profileId,
       );
     }
-    return this.workspaceGraph().graphView(profileId);
+    return this.workspaceGraph().graphTopology(profileId);
   }
 
-  async getGraphConceptDetail(conceptId: string, sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptDetail | null> {
+  async previewOntology(): Promise<OntologyReviewState> {
     if (this.options.derivedIndex && this.options.getRuntimeRoot) {
-      return this.options.derivedIndex.graphConceptDetail(
+      return this.options.derivedIndex.ontologyPreview(
         this.options.getWorkspaceModel(),
         this.options.getRuntimeRoot(),
-        conceptId,
+      );
+    }
+    return this.workspaceGraph().previewOntology();
+  }
+
+  async keepOntology(guard: OntologyReviewGuard): Promise<OntologyKeepResult> {
+    const result = this.options.derivedIndex && this.options.getRuntimeRoot
+      ? await this.options.derivedIndex.ontologyKeep(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        guard,
+      )
+      : await this.workspaceGraph().keepOntology(guard);
+    if (result.status === "applied") this.options.onGraphChanged?.();
+    return result;
+  }
+
+  async rejectOntology(guard: OntologyReviewGuard): Promise<OntologyRejectResult> {
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.ontologyReject(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        guard,
+      );
+    }
+    return this.workspaceGraph().rejectOntology(guard);
+  }
+
+  async getGraphConceptSummaries(indexes: number[], sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptSummaryResult> {
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.graphConceptSummaries(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        indexes,
         sourceSnapshotId,
         profileId,
       );
     }
-    return this.workspaceGraph().graphConceptDetail(conceptId, sourceSnapshotId, profileId);
+    return this.workspaceGraph().graphConceptSummaries(indexes, sourceSnapshotId, profileId);
+  }
+
+  async graphConceptLookup(
+    reference: GraphConceptLookupReference,
+    sourceSnapshotId: string,
+    profileId?: string | null,
+  ): Promise<GraphConceptLookupResult> {
+    const normalizedReference = await this.authorizeGraphConceptLookupReference(reference);
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.graphConceptLookup(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        normalizedReference,
+        sourceSnapshotId,
+        profileId,
+      );
+    }
+    return this.workspaceGraph().graphConceptLookup(normalizedReference, sourceSnapshotId, profileId);
+  }
+
+  async getGraphConceptDetailByIndex(index: number, sourceSnapshotId: string, profileId?: string | null): Promise<GraphConceptDetailByIndexResult> {
+    if (this.options.derivedIndex && this.options.getRuntimeRoot) {
+      return this.options.derivedIndex.graphConceptDetailByIndex(
+        this.options.getWorkspaceModel(),
+        this.options.getRuntimeRoot(),
+        index,
+        sourceSnapshotId,
+        profileId,
+      );
+    }
+    return this.workspaceGraph().graphConceptDetailByIndex(index, sourceSnapshotId, profileId);
+  }
+
+  private async authorizeGraphConceptLookupReference(reference: GraphConceptLookupReference): Promise<GraphConceptLookupReference> {
+    if (!reference || typeof reference !== "object") {
+      throw new Error("Graph concept lookup requires exactly one of conceptId or filePath.");
+    }
+    const hasConceptId = reference.conceptId !== undefined;
+    const hasFilePath = reference.filePath !== undefined;
+    if (hasConceptId === hasFilePath) {
+      throw new Error("Graph concept lookup requires exactly one of conceptId or filePath.");
+    }
+    if (hasConceptId) {
+      const conceptId = reference.conceptId?.trim();
+      if (!conceptId) throw new Error("Graph concept lookup conceptId must not be empty.");
+      return { conceptId };
+    }
+    const requestedPath = reference.filePath;
+    if (!requestedPath?.trim()) throw new Error("Graph concept lookup filePath must not be empty.");
+    const resolvedPath = await this.workspaceFiles().existing(requestedPath);
+    const model = this.options.getWorkspaceModel();
+    const root = model.noteRoots.find((candidate) => isPathWithin(path.resolve(candidate.path), resolvedPath));
+    if (!root) throw new Error("Refusing to access a path outside configured note roots.");
+    const [canonicalPath, canonicalRoot] = await Promise.all([realpath(resolvedPath), realpath(root.path)]);
+    return { filePath: path.resolve(root.path, path.relative(canonicalRoot, canonicalPath)) };
   }
 
   async getFolderOverview(directoryPath: string): Promise<FolderOverview> {
@@ -310,14 +422,21 @@ export class WorkspaceNotesService {
     return overview;
   }
 
+  async ensureFolderIndex(directoryPath: string) {
+    const authorizedDirectory = await this.workspaceFiles().existing(directoryPath);
+    const result = await ensureFolderIndex(authorizedDirectory);
+    this.invalidateFolderOverviewsForPath(result.indexPath);
+    return result;
+  }
+
   private workspaceGraph(): WorkspaceGraph {
     const model = this.options.getWorkspaceModel();
-    const modelKey = model.noteRoots
+    const modelKey = [path.resolve(model.workspaceRoot), path.resolve(this.options.getRuntimeRoot?.() ?? ""), ...model.noteRoots
       .map((root) => `${root.id}:${path.resolve(root.path)}`)
-      .sort()
+      .sort()]
       .join("\n");
     if (!this.graph || this.graphModelKey !== modelKey) {
-      this.graph = new WorkspaceGraph(model);
+      this.graph = new WorkspaceGraph(model, { runtimeRoot: this.options.getRuntimeRoot?.() });
       this.graphModelKey = modelKey;
       this.folderOverviewCache.clear();
       this.noteFileCache = null;

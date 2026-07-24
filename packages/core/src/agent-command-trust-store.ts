@@ -32,8 +32,7 @@ export class AgentCommandTrustStore {
     private readonly workspaceRoot: string,
   ) {}
 
-  async status(command: AgentCommand): Promise<AgentCommandTrustStatus> {
-    const executableFingerprint = agentCommandExecutableFingerprint(command);
+  async status(command: AgentCommand, executableFingerprint = agentCommandExecutableFingerprint(command)): Promise<AgentCommandTrustStatus> {
     const data = await this.read();
     const trustedCommand = data.trustedCommands.find(
       (entry) =>
@@ -49,8 +48,11 @@ export class AgentCommandTrustStore {
     };
   }
 
-  async trust(command: AgentCommand, trustedAt = new Date().toISOString()): Promise<TrustedAgentCommand> {
-    const executableFingerprint = agentCommandExecutableFingerprint(command);
+  async trust(
+    command: AgentCommand,
+    trustedAt = new Date().toISOString(),
+    executableFingerprint = agentCommandExecutableFingerprint(command),
+  ): Promise<TrustedAgentCommand> {
     const data = await this.read();
     const trustedCommand: TrustedAgentCommand = {
       workspaceRoot: this.workspaceRoot,
@@ -65,6 +67,18 @@ export class AgentCommandTrustStore {
     trustedCommands.push(trustedCommand);
     await this.write({ trustedCommands: trustedCommands.sort(compareTrustedCommands) });
     return trustedCommand;
+  }
+
+  async revoke(command: Pick<AgentCommand, "id" | "handle">): Promise<boolean> {
+    const data = await this.read();
+    const trustedCommands = data.trustedCommands.filter(
+      (entry) => !(entry.workspaceRoot === this.workspaceRoot && entry.commandId === command.id && entry.handle === command.handle),
+    );
+    if (trustedCommands.length === data.trustedCommands.length) {
+      return false;
+    }
+    await this.write({ trustedCommands });
+    return true;
   }
 
   private async read(): Promise<AgentCommandTrustStoreData> {

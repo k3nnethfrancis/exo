@@ -1,4 +1,4 @@
-import { constants } from "node:fs";
+import { constants, existsSync } from "node:fs";
 import { access, lstat, readFile, readlink } from "node:fs/promises";
 import path from "node:path";
 
@@ -10,6 +10,19 @@ const LEGACY_SHIM_MARKER = "packages/cli/dist/index.cjs";
 export interface InspectCliInstallationOptions {
   env?: NodeJS.ProcessEnv;
   sourceProjectRoot?: string;
+}
+
+/**
+ * Return only a real source checkout that can supply the repo-backed CLI.
+ * Packaged Resources is not a source checkout. Require the actual launcher and
+ * installer instead of inferring source identity from an unrelated directory.
+ */
+export function findSourceProjectRoot(candidates: string[]): string | undefined {
+  return candidates.find((candidate) =>
+    existsSync(path.join(candidate, "package.json"))
+    && existsSync(path.join(candidate, "bin", "exo"))
+    && existsSync(path.join(candidate, "scripts", "install-local")),
+  );
 }
 
 /**

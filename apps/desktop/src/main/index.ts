@@ -1,6 +1,5 @@
 import { app, nativeTheme, powerMonitor } from "electron";
 import path from "node:path";
-import { existsSync } from "node:fs";
 import { appendFile, mkdir, stat } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -11,8 +10,8 @@ import {
   deleteWorkspacePath,
   listRootTree,
   emptyOnboardingStateStore,
-  ensureFolderIndex,
   inspectFolderIndexes,
+  isWorkspaceOntologyPath,
   markOnboardingComplete,
   markOnboardingWorkspaceBasicsSaved,
   readOnboardingStateStore,
@@ -32,6 +31,7 @@ import {
 import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import type { WorkspaceSettingsSaveOutcome } from "../shared/api";
 import { InvocationRunner } from "./invocation-runner";
+import { awaitInvocationAwareQuit } from "./invocation-quit";
 import { AppLifecycleController } from "./app-lifecycle";
 import { CommandServer } from "./command-server";
 import { CommandServerLifecycle } from "./command-server-lifecycle";
@@ -42,21 +42,18 @@ import { registerTerminalIpcHandlers } from "./terminal-ipc";
 import { TerminalManager } from "./terminal-manager";
 import { registerWorkspaceIpcHandlers } from "./workspace-ipc";
 import { configureProviderMcp } from "./provider-mcp-setup";
-import { inspectCliInstallation } from "./cli-installation";
+import { findSourceProjectRoot, inspectCliInstallation } from "./cli-installation";
 import { resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace-watchers";
+import { activateWorkspaceAfterRecovery } from "./workspace-activation";
 import { hasOperatorWorkspaceSetup } from "./workspace-setup-gate";
+import { configureGpuStartup } from "./gpu-startup-policy";
+import { runStandaloneGraphGpuProbe } from "./gpu-probe-runner";
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const sourceProjectRoot = resolveSourceProjectRoot();
-
-if (process.env.EXO_ENABLE_GPU !== "1") {
-  app.disableHardwareAcceleration();
-  app.commandLine.appendSwitch("disable-gpu");
-  app.commandLine.appendSwitch("disable-gpu-compositing");
-  app.commandLine.appendSwitch("disable-zero-copy");
-}
+const gpuStartupPolicy = configureGpuStartup(app, process.env);
 
 if (process.env.EXO_USER_DATA_PATH) {
   app.setPath("userData", process.env.EXO_USER_DATA_PATH);
@@ -83,6 +80,7 @@ let onboardingRuntimeRoot: string | null = null;
 let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
 let indexingService: IndexingService;
+let graphDerivedIndex: UtilityDerivedIndexClient;
 let workspaceNotesService: WorkspaceNotesService;
 let invocationRunner: InvocationRunner;
 let quitFlushStarted = false;
@@ -102,8 +100,9 @@ function createCommandServer() {
   return new CommandServer({
     runtimeRoot,
     onShowWindow: () => appLifecycle.showMainWindow(),
-    onOpenFile: (filePath: string) => {
-      sendToRenderer("command:open-file", filePath);
+    onOpenFile: async (filePath: string) => {
+      const authorizedPath = await workspaceNotesService.authorizeOpenFile(filePath);
+      sendToRenderer("command:open-file", authorizedPath);
     },
     onIndexSearch: (query, options) => indexingService.search(query, options),
     onIndexStatus: () => indexingService.getMeasuredStatus(),
@@ -113,9 +112,13 @@ function createCommandServer() {
       terminals: terminalManager.list(),
     }),
     onSpawnAgentCommand: async (input) => {
-      const result = await invocationRunner.authorizeAndStart(await invocationRunner.prepare({
+      const prepared = await invocationRunner.prepare({
         context: "cli", handle: input.handle, task: input.task, message: input.task,
-      }));
+      });
+      const result = await invocationRunner.authorizeAndStart(prepared, {
+        decision: { kind: "trusted" },
+        expectedFingerprint: prepared.pending.command.executableFingerprint,
+      });
       if (!result.terminal) throw new Error("CLI command launches must create a visible terminal.");
       return result;
     },
@@ -167,7 +170,7 @@ function logWorkspaceStartup(model: WorkspaceModel) {
     noteRoots: model.noteRoots.map((root) => root.path),
     userDataPath: app.getPath("userData"),
     settingsPath: path.join(app.getPath("userData"), "workspace-settings.json"),
-    gpuDisabled: process.env.EXO_ENABLE_GPU !== "1",
+    hardwareAcceleration: gpuStartupPolicy,
   };
   console.info("[exo] workspace startup", details);
   logMain("workspace startup", details);
@@ -207,6 +210,10 @@ function broadcastTerminalData() {
 }
 
 function sendToRenderer<C extends DesktopEventChannel>(channel: C, payload: DesktopEventPayloads[C]) {
+  // Recovery can publish invocation updates before the window lifecycle is
+  // constructed. Those records are durable and the renderer hydrates them on
+  // startup, so there is intentionally nothing to send in this phase.
+  if (typeof appLifecycle === "undefined") return;
   const mainWindow = appLifecycle.getMainWindow();
   if (!appLifecycle.isRendererReady() || !mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isDestroyed()) {
     return;
@@ -256,31 +263,48 @@ function registerIpcHandlers() {
     embedIndex: () => indexingService.embed("settings"),
     ensureTarget: (sourceFilePath, target) => workspaceNotesService.ensureTarget(sourceFilePath, target),
     getIndexStatus: () => indexingService.getMeasuredStatus(),
+    previewOntology: () => workspaceNotesService.previewOntology(),
+    keepOntology: (guard) => workspaceNotesService.keepOntology(guard),
+    rejectOntology: (guard) => workspaceNotesService.rejectOntology(guard),
     getFolderIndexStatus: () => inspectFolderIndexes(workspaceModel.noteRoots.map((root) => root.path)),
     getFolderOverview: (directoryPath) => workspaceNotesService.getFolderOverview(directoryPath),
-    ensureFolderIndex,
-    launchAgentInvocation: async (input) => invocationRunner.authorizeAndStart(await invocationRunner.prepare({
-      context: "note", handle: input.handle, documentPath: input.documentPath,
-      mentionText: input.mentionText, message: input.message,
-      protocolInvocationId: input.protocolInvocationId,
-      documentFrontmatter: input.documentFrontmatter, documentBody: input.documentBody,
-      allowUntrustedOneShot: input.allowUntrustedOneShot, persistTrust: input.persistTrust,
-    })),
+    ensureFolderIndex: (directoryPath) => workspaceNotesService.ensureFolderIndex(directoryPath),
+    launchAgentInvocation: async (input) => {
+      const prepared = await invocationRunner.prepare({
+        context: "note", handle: input.handle, documentPath: input.documentPath,
+        mentionText: input.mentionText, message: input.message,
+        protocolInvocationId: input.protocolInvocationId,
+        documentFrontmatter: input.documentFrontmatter, documentBody: input.documentBody,
+      });
+      return invocationRunner.authorizeAndStart(prepared, {
+        decision: input.authorization,
+        expectedFingerprint: input.expectedFingerprint,
+      });
+    },
+    getAgentInvocationAuthorization: (input) => invocationRunner.getInvocationAuthorization(input.handle, input.documentPath),
     getAgentCommandTrust: (handle) => invocationRunner.getCommandTrust(handle),
+    resetAgentCommandTrust: (handle) => invocationRunner.resetCommandTrust(handle),
     getAgentCommandLaunchFacts: (commandId) => invocationRunner.getCommandLaunchFacts(commandId),
     getAgentCommandContinuity: (commandId) => invocationRunner.getCommandContinuityStatus(commandId),
     resetAgentCommandContinuity: (commandId) => invocationRunner.resetCommandContinuity(commandId),
     testAgentCommand: (input) => invocationRunner.testCommand(input.commandId, input.expectedFingerprint),
     configureProviderMcp,
     getCliInstallationStatus: () => inspectCliInstallation({ sourceProjectRoot }),
+    recordRendererDiagnostic: async (diagnostic) => {
+      logMain("renderer editor diagnostic", diagnostic);
+    },
     endAgentInvocation: (invocationId) => invocationRunner.endObservation(invocationId),
-    getInvocationReview: (invocationId) => invocationRunner.getReview(invocationId),
-    keepInvocationReview: (invocationId) => invocationRunner.keepReview(invocationId),
-    rejectInvocationReview: (input) => invocationRunner.rejectReview(input.invocationId, input.expectedAfterSha256),
+    listPendingInvocationReviews: () => invocationRunner.listPendingReviews(),
+    listInvocationHistory: (notePath) => invocationRunner.listHistoryForNote(notePath),
+    getInvocationFileReview: (input) => invocationRunner.getInvocationFileReview(input.invocationId, input.changeId),
+    reviewInvocationFile: (input) => invocationRunner.reviewInvocationFile(input.invocationId, input.changeId, input.action),
+    reviewInvocationAll: (input) => invocationRunner.reviewInvocationAll(input.invocationId, input.action),
     resumeInvocationInTerminal: (invocationId) => invocationRunner.resumeInTerminal(invocationId),
     getGraphContext: (filePath) => workspaceNotesService.getGraphContext(filePath),
-    getGraphView: (profileId) => workspaceNotesService.getGraphView(profileId),
-    getGraphConceptDetail: (conceptId, sourceSnapshotId, profileId) => workspaceNotesService.getGraphConceptDetail(conceptId, sourceSnapshotId, profileId),
+    getGraphTopology: (profileId) => workspaceNotesService.getGraphTopology(profileId),
+    getGraphConceptSummaries: (indexes, sourceSnapshotId, profileId) => workspaceNotesService.getGraphConceptSummaries(indexes, sourceSnapshotId, profileId),
+    graphConceptLookup: (reference, sourceSnapshotId, profileId) => workspaceNotesService.graphConceptLookup(reference, sourceSnapshotId, profileId),
+    getGraphConceptDetailByIndex: (index, sourceSnapshotId, profileId) => workspaceNotesService.getGraphConceptDetailByIndex(index, sourceSnapshotId, profileId),
     getMainWindow: () => appLifecycle.getMainWindow(),
     getModel: () => workspaceModel,
     getSettings: async () => currentSnapshot(),
@@ -342,27 +366,14 @@ async function completeWorkspaceOnboarding(): Promise<OnboardingStateStore> {
   return writeWorkspaceOnboardingState(markOnboardingComplete(base));
 }
 
-function pluginDiscoveryEnv(): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    EXO_PROJECT_ROOT: process.env.EXO_PROJECT_ROOT ?? sourceProjectRoot,
-    EXO_USER_DATA_PATH: app.getPath("userData"),
-  };
-}
-
 function resolveSourceProjectRoot(): string | undefined {
   const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
-  for (const candidate of [
+  return findSourceProjectRoot([
     process.cwd(),
     ...(resourcesPath ? [resourcesPath] : []),
     path.resolve(currentDirectory, "../../.."),
     path.resolve(currentDirectory, "../../../.."),
-  ]) {
-    if (existsSync(path.join(candidate, "plugins"))) {
-      return candidate;
-    }
-  }
-  return undefined;
+  ]);
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {
@@ -405,14 +416,20 @@ async function saveSettings(request: WorkspaceSettingsSaveRequest): Promise<Work
 
 async function switchWorkspace(workspaceId: string, expectedRevision: string | null): Promise<WorkspaceSettingsSaveOutcome> {
   const saved = await workspaceConfig.switchWorkspace(workspaceId, expectedRevision);
-  workspaceSettings = saved.settings;
-  workspaceSettingsRevision = saved.revision;
-  workspaceModel = workspaceModelFromSettings(saved.settings);
-  workspaceNotesService.invalidateDerivedState();
-  workspaceWatcherService.start(workspaceModel);
-  terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
-  indexingService.scheduleReconciliation("workspace-switch", 0);
-  return { ...saved, runtimeApply: { status: "applied" } };
+  return activateWorkspaceAfterRecovery(
+    saved.settings,
+    (destination) => invocationRunner.recoverWorkspace(destination),
+    (destination) => {
+      workspaceSettings = destination;
+      workspaceSettingsRevision = saved.revision;
+      workspaceModel = workspaceModelFromSettings(destination);
+      workspaceNotesService.invalidateDerivedState();
+      workspaceWatcherService.start(workspaceModel);
+      terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
+      indexingService.scheduleReconciliation("workspace-switch", 0);
+      return { ...saved, runtimeApply: { status: "applied" as const } };
+    },
+  );
 }
 
 function applyOnboardingRuntimeEnv() {
@@ -424,11 +441,27 @@ function applyOnboardingRuntimeEnv() {
 }
 
 app.whenReady().then(async () => {
+  if (process.env.EXO_GPU_PROBE_OUTPUT) {
+    await runStandaloneGraphGpuProbe({
+      app,
+      currentDirectory,
+      outputPath: process.env.EXO_GPU_PROBE_OUTPUT,
+      gpuStartupPolicy,
+    });
+    return;
+  }
+
   workspaceConfig = new WorkspaceConfigStore({ userDataPath: app.getPath("userData") });
   workspaceWatcherService = new WorkspaceWatcherService((event) => {
-    // Posting the graph refresh first preserves worker queue ordering, while
-    // canonical filesystem changes reach the renderer without waiting behind
-    // an already-running QMD job.
+    if (event.filePath && isWorkspaceOntologyPath(workspaceModel.workspaceRoot, event.filePath)) {
+      // Candidate Ontology changes are passive review input. They must not
+      // invalidate Note caches, refresh Explorer trees, or publish graph state.
+      sendToRenderer("workspace:ontology-candidate-changed", undefined);
+      return;
+    }
+    // Queue graph refresh before notifying the renderer so a following context
+    // request observes that refresh. Graph owns a separate utility process, so
+    // this ordering never delays foreground Search or QMD maintenance.
     const refresh = Promise.resolve(workspaceNotesService?.handleWorkspaceChange(event));
     sendToRenderer("workspace:changed", event);
     void refresh.catch((error) => {
@@ -472,6 +505,7 @@ app.whenReady().then(async () => {
   );
   const foregroundDerivedIndex = new UtilityDerivedIndexClient();
   const maintenanceDerivedIndex = new UtilityDerivedIndexClient();
+  graphDerivedIndex = new UtilityDerivedIndexClient();
   indexingService = new IndexingService({
     getWorkspaceModel: () => workspaceModel,
     getCurrentSettings: () => currentSettings(),
@@ -501,13 +535,28 @@ app.whenReady().then(async () => {
   invocationRunner.on("updated", (record) => {
     sendToRenderer("workspace:invocation-updated", record);
   });
-  void invocationRunner.markOrphanedRunningInvocations().catch((error) => {
-    console.warn("[exo] failed to mark orphaned invocations", error);
+  invocationRunner.on("activity", (event) => {
+    sendToRenderer("workspace:invocation-activity", event);
   });
+  invocationRunner.on("settlement-error", (event: { invocationId: string; error: unknown }) => {
+    logMain("invocation settlement failed", { invocationId: event.invocationId, error: serializeError(event.error) });
+  });
+  invocationRunner.on("artifact-compaction-error", (event: { invocationId: string; error: unknown }) => {
+    logMain("invocation artifact compaction retained stale snapshots", {
+      invocationId: event.invocationId,
+      error: serializeError(event.error),
+    });
+  });
+  try {
+    await invocationRunner.markOrphanedRunningInvocations();
+  } catch (error) {
+    logMain("invocation recovery failed", serializeError(error));
+  }
   workspaceNotesService = new WorkspaceNotesService({
     getWorkspaceModel: () => workspaceModel,
     getRuntimeRoot: () => resolveRuntimeRoot(),
-    derivedIndex: foregroundDerivedIndex,
+    derivedIndex: graphDerivedIndex,
+    onGraphChanged: () => sendToRenderer("workspace:graph-changed", { source: "ontology" }),
   });
   commandServerLifecycle = new CommandServerLifecycle({
     runtimeRoot: resolveRuntimeRoot(),
@@ -572,19 +621,25 @@ function resolveRuntimeRoot(): string {
 
 app.on("before-quit", (event) => {
   const mainWindow = appLifecycle?.getMainWindow();
-  if (!quitFlushComplete && mainWindow && !mainWindow.isDestroyed() && appLifecycle.isRendererReady()) {
+  if (!quitFlushComplete) {
     event.preventDefault();
     if (quitFlushStarted) return;
     quitFlushStarted = true;
-    void Promise.race([
-      mainWindow.webContents.executeJavaScript("globalThis.__exoFlushDirtyDocuments?.()", true),
-      new Promise((resolve) => setTimeout(resolve, 5_000)),
-    ]).catch((error) => {
-      logMain("renderer document flush failed during quit", serializeError(error));
-    }).finally(() => {
+    void awaitInvocationAwareQuit({
+      flushDirtyDocuments: () => mainWindow && !mainWindow.isDestroyed() && appLifecycle.isRendererReady()
+        ? mainWindow.webContents.executeJavaScript("globalThis.__exoFlushDirtyDocuments?.()", true)
+        : Promise.resolve(),
+      stopInvocations: () => typeof invocationRunner === "undefined" ? Promise.resolve() : invocationRunner.stopAll(),
+      onError: (phase, error) => {
+        logMain(`${phase} failed during quit`, serializeError(error));
+      },
+    }).then(() => {
       quitFlushComplete = true;
-      appLifecycle.prepareToQuit();
+      appLifecycle?.prepareToQuit();
       app.quit();
+    }).catch((error) => {
+      quitFlushStarted = false;
+      logMain("quit remains blocked because durable shutdown did not settle", serializeError(error));
     });
     return;
   }
@@ -592,6 +647,7 @@ app.on("before-quit", (event) => {
   void commandServerLifecycle?.stop();
   workspaceWatcherService?.stop();
   indexingService?.dispose();
+  graphDerivedIndex?.dispose();
 });
 
 app.on("window-all-closed", () => {

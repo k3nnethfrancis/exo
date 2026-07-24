@@ -1,6 +1,6 @@
 # Exo Document-Agent Protocol
 
-**Status:** shipped V1 envelope grammar; response-block dogfood remains open.
+**Status:** V1 envelope grammar and exact Changeset review shipped.
 
 Exo keeps Markdown as the canonical user document. It adds two inert, XML-like
 envelopes so a human request and an agent's durable result can be identified
@@ -46,6 +46,27 @@ The protocol is data, not authority.
   authority for reviewable changes. A response block is useful durable prose,
   not evidence that an edit happened.
 
+The invoked Command is an explicitly authorized native process, not a sandbox.
+It can use the files, credentials, network, and provider tools available to the
+current operating-system user. Note Roots bound what Exo snapshots, reviews,
+and restores; they do not restrict what that process can read or write. Trust is
+Workspace-scoped and bound to the executable fingerprint, so a changed binary
+requires a new decision before its pre-exec gate opens. Exo resolves and hashes
+the canonical executable immediately before release, then launches that exact
+path rather than asking the shell to resolve `PATH` again.
+
+Exo reports exact file state, not guessed authorship. Launch and settled
+manifests produce one Changeset of created, modified, deleted, and conservatively
+proven-renamed files. Every Keep or Reject decision is hash-guarded and
+serialized. Dirty editor buffers drain before a decision; newer bytes become an
+explicit conflict rather than an overwrite. Process Stop and recovery must
+prove the owned process group dead before settlement or root unlock. Filesystem
+mutations revalidate immutable launch roots and reject symlinked ancestors, but
+this defense-in-depth is not a sandbox against a separately authorized
+same-user native process. Node/Electron on macOS does not expose
+directory-handle-relative mutation APIs that could make Exo's path check and
+mutation atomic.
+
 ## Agent instruction contract
 
 For a V1 inline run, Exo sends the saved document snapshot and the exact
@@ -57,21 +78,41 @@ the durable result. Terminal stdout remains only a concise session summary.
 
 ## App lifecycle
 
-The document shows one invocation surface at a time. Authorization is a
-temporary decision modal and closes as soon as the user chooses Run or Cancel;
-it is not a progress surface.
+The document shows one invocation surface at a time. First-run authorization is
+a compact confirmation anchored beside the invocation and closes as soon as the
+user chooses Run or Cancel. It is not a progress surface.
 
 | State | Surface | Exit |
 | --- | --- | --- |
-| Running | Compact status; Exo is watching the note | End observation |
-| Review | Changed-file summary and Keep/Reject | Keep or Reject |
-| Completed | Brief result, dismissible | Dismiss or resume session |
-| Failed | Failure reason, dismissible; exact resume command when available | Dismiss or resume session |
+| Checking | Same-frame cursor-adjacent acknowledgement while Exo verifies executable identity and trust | Run, authorize, or restore the draft |
+| Running | Cursor glyph plus one bounded bottom-left activity state | Stop the full process tree |
+| Review | Inline diff, anchored Keep/Reject, file position, and optional batch actions | Resolve every file or explicitly keep a drifted current file |
+| Completed | Brief result that gets out of the way | Dismiss or resume session |
+| Failed | Compact actionable failure; details only on request | Dismiss or resume session |
 
-Provider resume is an explicit handoff. Exo shows the same command it will run,
-opens it in Terminal, and removes the document status only after Terminal
-accepts the handoff. Invocation history and document envelopes remain durable;
-the transient status surface does not.
+One invocation owns one exact Changeset across all authorized Note Roots.
+Created, modified, deleted, and proven-renamed files are reviewed in a
+deterministic queue. Review decisions and content-addressed snapshots survive a
+restart. Reject is hash-guarded and never overwrites a path that drifted after
+settlement; that file remains an explicit conflict until the user keeps the
+current bytes.
+
+After settlement, Exo compacts invocation artifacts to the clean base and exact
+before/after snapshots referenced by the Changeset. Unrelated whole-Workspace
+capture objects are removed only after every retained object passes integrity
+validation; cleanup failure leaves all review and History bytes intact and is
+reported separately from invocation success.
+
+Provider resume is an explicit handoff. Exo exposes a single outward-arrow
+action, opens the configured resume command in Terminal, and otherwise keeps
+the command and session identifier out of the ordinary surface. Invocation
+history and document envelopes remain durable; the transient activity surface
+does not.
+
+For an inline note invocation, exiting successfully without a linked response
+or any reviewable edit is a protocol failure rather than a silent success. A
+non-note configured Command may complete with no filesystem change and needs no
+review controls.
 
 ## Deliberate limits
 

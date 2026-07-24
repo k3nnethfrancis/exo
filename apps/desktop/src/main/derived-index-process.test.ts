@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { IndexStatus, WorkspaceModel } from "@exo/core";
+import { createGraphTopology, type IndexStatus, type WorkspaceModel } from "@exo/core";
 
 import {
   UtilityDerivedIndexClient,
@@ -75,31 +75,84 @@ describe("UtilityDerivedIndexClient", () => {
     worker.emit("message", { id: 1, ok: true, result: null });
     await expect(context).resolves.toBeNull();
 
-    const view = client.graphView(model(), "/workspace/.exo", "okf");
-    expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-view", profileId: "okf" });
-    worker.emit("message", {
-      id: 2,
-      ok: true,
-      result: {
-        projection: {
-          version: "0.1",
-          layoutVersion: "finite-force-0.1",
-          sourceSnapshotId: "fixture",
-          seed: 1,
-          nodes: [],
-          edges: [],
-          omitted: { tagConcepts: 0, tagRelations: 0 },
-        },
-      },
-    });
-    await expect(view).resolves.toMatchObject({
-      projection: { sourceSnapshotId: "fixture" },
-    });
-
     const refresh = client.graphRefresh(model(), "/workspace/.exo", "/workspace/notes/focus.md");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-refresh", filePath: "/workspace/notes/focus.md" });
-    worker.emit("message", { id: 3, ok: true, result: null });
+    worker.emit("message", { id: 2, ok: true, result: null });
     await expect(refresh).resolves.toBeUndefined();
+  });
+
+  it("serializes Ontology preview, Keep, and Reject through the graph worker", async () => {
+    const worker = new FakeProcess();
+    const client = new UtilityDerivedIndexClient({ spawn: () => worker, workerPath: "/app/derived-index-worker.js" });
+    const guard = { candidateRevision: "candidate", activationRevision: null, baseSnapshotId: "snapshot" };
+    const review = {
+      active: { state: "generic" as const },
+      candidate: { state: "valid" as const, revision: "candidate", pending: true, rejected: false },
+      guard,
+      diagnostics: [],
+      omittedDiagnostics: 0,
+    };
+
+    const preview = client.ontologyPreview(model(), "/workspace/.exo");
+    expect(worker.messages.at(-1)).toMatchObject({ operation: "ontology-preview" });
+    worker.emit("message", { id: 1, ok: true, result: review });
+    await expect(preview).resolves.toEqual(review);
+
+    const keep = client.ontologyKeep(model(), "/workspace/.exo", guard);
+    expect(worker.messages.at(-1)).toMatchObject({ operation: "ontology-keep", guard });
+    worker.emit("message", { id: 2, ok: true, result: { status: "applied", review } });
+    await expect(keep).resolves.toMatchObject({ status: "applied" });
+
+    const reject = client.ontologyReject(model(), "/workspace/.exo", guard);
+    expect(worker.messages.at(-1)).toMatchObject({ operation: "ontology-reject", guard });
+    worker.emit("message", { id: 3, ok: true, result: { status: "rejected", review } });
+    await expect(reject).resolves.toMatchObject({ status: "rejected" });
+  });
+
+  it("routes compact topology and epoch-qualified cold reads without detaching repeated buffers", async () => {
+    const worker = new FakeProcess();
+    const client = new UtilityDerivedIndexClient({ spawn: () => worker, workerPath: "/app/derived-index-worker.js" });
+    const firstResult = topology();
+    const first = client.graphTopology(model(), "/workspace/.exo", "okf");
+    expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-topology", profileId: "okf" });
+    worker.emit("message", { id: 1, ok: true, result: firstResult });
+    const resolvedFirst = await first;
+    expect(resolvedFirst.nodes.identityKeys.byteLength).toBe(16);
+
+    const secondResult = topology();
+    const second = client.graphTopology(model(), "/workspace/.exo", "okf");
+    worker.emit("message", { id: 2, ok: true, result: secondResult });
+    await expect(second).resolves.toMatchObject({ transportHash: firstResult.transportHash });
+    expect(resolvedFirst.nodes.identityKeys.byteLength).toBe(16);
+
+    const summaries = client.graphConceptSummaries(model(), "/workspace/.exo", [0, 1], "snapshot:fixture", "okf");
+    expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-concept-summaries", indexes: [0, 1], sourceSnapshotId: "snapshot:fixture" });
+    worker.emit("message", { id: 3, ok: true, result: { status: "ok", sourceSnapshotId: "snapshot:fixture", summaries: [], payloadBytes: 100 } });
+    await expect(summaries).resolves.toMatchObject({ status: "ok" });
+
+    const lookup = client.graphConceptLookup(
+      model(),
+      "/workspace/.exo",
+      { filePath: "/workspace/notes/focus.md" },
+      "snapshot:fixture",
+      "okf",
+    );
+    expect(worker.messages.at(-1)).toMatchObject({
+      operation: "graph-concept-lookup",
+      reference: { filePath: "/workspace/notes/focus.md" },
+      sourceSnapshotId: "snapshot:fixture",
+    });
+    worker.emit("message", {
+      id: 4,
+      ok: true,
+      result: { status: "ok", sourceSnapshotId: "snapshot:fixture", summary: { index: 1, label: "Focus" }, payloadBytes: 130 },
+    });
+    await expect(lookup).resolves.toMatchObject({ status: "ok", summary: { index: 1 } });
+
+    const detail = client.graphConceptDetailByIndex(model(), "/workspace/.exo", 1, "snapshot:fixture", "okf");
+    expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-concept-detail-by-index", index: 1 });
+    worker.emit("message", { id: 5, ok: true, result: { status: "missing", sourceSnapshotId: "snapshot:fixture", index: 1, payloadBytes: 100 } });
+    await expect(detail).resolves.toMatchObject({ status: "missing" });
   });
 
   it("keeps foreground search responsive while a separate maintenance embed is held", async () => {
@@ -132,6 +185,31 @@ describe("UtilityDerivedIndexClient", () => {
     expect(embedSettled).toBe(false);
     maintenanceWorker.emit("message", { id: 1, ok: true, result: status() });
     await expect(embedding).resolves.toMatchObject({ backend: "qmd" });
+  });
+
+  it("keeps foreground search responsive while a separate graph process is held", async () => {
+    const foregroundWorker = new FakeProcess();
+    const graphWorker = new FakeProcess();
+    const foreground = new UtilityDerivedIndexClient({ spawn: () => foregroundWorker, workerPath: "/app/derived-index-worker.js" });
+    const graph = new UtilityDerivedIndexClient({ spawn: () => graphWorker, workerPath: "/app/derived-index-worker.js" });
+
+    const context = graph.graphContext(model(), "/workspace/.exo", "/workspace/notes/focus.md");
+    expect(graphWorker.messages.at(-1)).toMatchObject({ operation: "graph-context" });
+
+    const searching = foreground.search(model(), "/workspace/.exo", "needle");
+    foregroundWorker.emit("message", {
+      id: 1,
+      ok: true,
+      result: { results: [], query: "needle", mode: "lexical", source: "filesystem", warnings: [] },
+    });
+    await expect(searching).resolves.toMatchObject({ query: "needle", source: "filesystem" });
+
+    let graphSettled = false;
+    void context.finally(() => { graphSettled = true; });
+    await Promise.resolve();
+    expect(graphSettled).toBe(false);
+    graphWorker.emit("message", { id: 1, ok: true, result: null });
+    await expect(context).resolves.toBeNull();
   });
 
   it("rejects requests when the worker exits and starts a fresh worker afterward", async () => {
@@ -208,4 +286,21 @@ function workerAt(workers: FakeProcess[], index: number): FakeProcess {
   const worker = workers[index];
   if (!worker) throw new Error(`Missing fake worker ${index}.`);
   return worker;
+}
+
+function topology() {
+  return createGraphTopology({
+    sourceSnapshotId: "snapshot:fixture",
+    activeProfile: { id: "okf", version: "0.1", label: "OKF", source: "built-in", state: "active" },
+    activeOntology: { state: "generic" },
+    seed: 9,
+    nodes: {
+      identityKeys: new Uint32Array([1, 0, 2, 0]),
+      seeds: new Uint32Array([11, 12]),
+      groups: new Uint32Array([1, 1]),
+      degrees: new Uint32Array([1, 1]),
+      visualClasses: new Uint8Array([0, 0]),
+    },
+    edges: { endpoints: new Uint32Array([0, 1]), visualClasses: new Uint8Array([0]) },
+  });
 }

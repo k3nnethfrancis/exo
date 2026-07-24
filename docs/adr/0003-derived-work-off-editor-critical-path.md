@@ -5,7 +5,7 @@ Date: 2026-07-13
 ## Status
 
 Accepted and implemented. QMD and WorkspaceGraph derived work cross the same
-bounded utility-process boundary; the completed incident is recorded in
+kind of bounded utility-process boundary; the completed incident is recorded in
 `../../issues.md#exo-issue-110-derived-graphsearch-work-can-stall-editor-navigation`.
 
 ## Context
@@ -29,6 +29,11 @@ waits for an already-running foreground operation, but new search requests never
 join the maintenance queue: they use Simple search with an explicit warning
 until the writer finishes. Status uses the last measured snapshot during that
 window rather than opening a competing QMD store.
+
+WorkspaceGraph uses a third utility process. Cold graph construction,
+incremental refresh, and graph-context requests therefore cannot serialize
+foreground Search behind the graph queue. The renderer still treats graph
+context as deferred enrichment and never waits for it to present a Note.
 
 `On save` performs one coalesced document update, then semantic catch-up becomes
 eligible after a 45-second save quiet period and 10 seconds of system idle. Each

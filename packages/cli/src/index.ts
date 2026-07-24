@@ -11,6 +11,7 @@ import {
   type WorkspaceModel,
   type IndexSearchResponse,
 } from "@exo/core";
+import { EXO_CLI_USAGE } from "@exo/core/operator-help";
 import { AppClient, formatAppClientDiscoveryFailure } from "./app-client";
 import { runExoMcpServer } from "./mcp-server";
 import { agentSearchResponse, boundedSearchLimit, parseSearchCursor } from "./search-response";
@@ -208,7 +209,7 @@ function parseOptions(args: string[]): { values: Record<string, string>; positio
 async function print(value: Promise<unknown> | unknown, stdout: { write(text: string): void }): Promise<number> { stdout.write(`${JSON.stringify(await value, null, 2)}\n`); return 0; }
 function help(): string {
   return [
-    "Usage: exo [start] | show | status | search | index [status|sync] | open | invoke | mcp serve",
+    EXO_CLI_USAGE,
     "",
     "App-off: status and search use the configured workspace's filesystem roots.",
     "App-backed: show, index maintenance, open, and invoke require Exo to be running.",

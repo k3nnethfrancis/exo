@@ -27,6 +27,35 @@ describe("agent command trust store", () => {
     });
   });
 
+  it("invalidates every fingerprinted Command field and only those fields", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-agent-command-trust-"));
+    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "exo-agent-command-trust-app-"));
+    const store = new AgentCommandTrustStore(appStateRoot, workspaceRoot);
+    const command = createDefaultClaudeAgentCommand();
+    await store.trust(command);
+
+    const changedCommands = [
+      { ...command, command: "claude -p --model opus" },
+      { ...command, adapter: "generic" as const },
+      { ...command, continuityPolicy: "fresh" as const },
+      { ...command, cwdPolicy: "note_dir" as const },
+      { ...command, handle: "claude-alt" },
+      { ...command, id: "claude-alt" },
+      { ...command, promptDelivery: "argv" as const },
+      { ...command, version: command.version + 1 },
+    ];
+    for (const changed of changedCommands) {
+      await expect(store.status(changed), JSON.stringify(changed)).resolves.toMatchObject({ trusted: false });
+    }
+
+    const fixed = { ...command, cwdPolicy: "fixed" as const, fixedCwd: "/tmp/first" };
+    await store.trust(fixed);
+    await expect(store.status({ ...fixed, fixedCwd: "/tmp/second" })).resolves.toMatchObject({ trusted: false });
+
+    await store.trust(command);
+    await expect(store.status({ ...command, label: "Renamed Claude", enabled: false })).resolves.toMatchObject({ trusted: true });
+  });
+
   it("writes trust records under the app-local state root", async () => {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-agent-command-trust-"));
     const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "exo-agent-command-trust-app-"));
@@ -74,5 +103,21 @@ describe("agent command trust store", () => {
     await expect(new AgentCommandTrustStore(appStateRoot, secondWorkspaceRoot).status(command)).resolves.toMatchObject({
       trusted: false,
     });
+  });
+
+  it("revokes only the selected Command in the selected Workspace", async () => {
+    const firstWorkspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-agent-command-trust-first-"));
+    const secondWorkspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-agent-command-trust-second-"));
+    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "exo-agent-command-trust-app-"));
+    const command = createDefaultClaudeAgentCommand();
+    const first = new AgentCommandTrustStore(appStateRoot, firstWorkspaceRoot);
+    const second = new AgentCommandTrustStore(appStateRoot, secondWorkspaceRoot);
+    await first.trust(command);
+    await second.trust(command);
+
+    await expect(first.revoke(command)).resolves.toBe(true);
+    await expect(first.revoke(command)).resolves.toBe(false);
+    await expect(first.status(command)).resolves.toMatchObject({ trusted: false });
+    await expect(second.status(command)).resolves.toMatchObject({ trusted: true });
   });
 });

@@ -30,8 +30,8 @@ export const smokeScenarios = [
   {
     name: 'command-note-invocation',
     file: 'apps/desktop/tests/e2e/agent-invocation.spec.ts',
-    grep: 'runs a configured note invocation, refreshes the note, and highlights the changed note',
-    timeoutMs: 75_000,
+    grep: 'reviews and keeps one deterministic invocation changeset end to end',
+    timeoutMs: 90_000,
   },
   {
     name: 'shell-boot-tabs',

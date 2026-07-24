@@ -1,6 +1,6 @@
 # Exograph Roadmap
 
-Last updated: 2026-07-10
+Last updated: 2026-07-20
 
 Exograph is Exo's active product frame:
 
@@ -21,9 +21,10 @@ The current objective is no longer to complete the old plugin/routine/harness ro
 1. **Markdown workspace:** trustworthy files, authoring, properties, roots, canvas, and packaging.
 2. **Modular Search:** reliable filesystem and QMD retrieval behind the one earned provider seam.
 3. **Actionable graph:** links, backlinks, tags, properties, neighborhoods,
-   Folder Overview, and Connections today; a consolidated schema-agnostic graph,
-   optional Knowledge Profiles, and the production spatial Graph View are the
-   next graph-system slices.
+   Folder Overview, Connections, and the production spatial Graph View share a
+   consolidated schema-agnostic graph today. The user-owned Ontology
+   parser/compiler and reviewed activation store are implemented; candidate
+   preview, conformance UX, and graph-maintenance Skills are next.
 4. **Inline invocation:** configured Commands run only on explicit invocation; Exo observes and reviews changes. The first user-editable graph-management Skill is next-slice work.
 
 The product test is simple: a person can open an existing Markdown folder, resume thought, find context, understand the connection, explicitly invoke a configured Command, and review observed Markdown changes without surrendering file ownership. A bounded graph-management Skill is the next vertical slice.
@@ -37,8 +38,8 @@ The remaining work is quality rather than a second system: make the inline affor
 Folder ontology is intentionally simple: folders provide a primary structural
 home; tags and typed relationships express additional membership. Folder
 Overview and explicit optional `index.md` authoring are shipped substrate. An
-optional Knowledge Profile may interpret broader types, properties, and
-relationship rules without replacing that user-owned structure.
+optional Workspace Ontology may interpret broader types, Properties, and
+reference rules without replacing that user-owned structure.
 
 ## Active Work Packages
 
@@ -82,19 +83,26 @@ Keep or reuse:
 
 ### WP2: Graph Read Path
 
+Status: production foundation shipped in Launch Gate D; ontology and
+graph-maintenance work continue above it.
+
 - Preserve the shipped link, backlink, tag, property, Folder Overview, and
-  Connections behavior while consolidating `GraphSnapshot` and `WorkspaceGraph`.
-- Introduce graph snapshot 0.2 with open Concept types, lossless Properties,
-  Relation predicates, authority, resolution, and Evidence.
-- Keep Generic Markdown as the zero-requirement interpretation and add Open
-  Knowledge Format 0.1 as the first permissive interoperability profile.
-- Add a small user-owned Knowledge Profile contract only after interoperability
-  fixtures and expected facts are frozen.
-- Keep identity, resolution, Evidence, and profile conformance covered by
+  Connections behavior through the single `WorkspaceGraph` boundary.
+- Maintain knowledge snapshot 0.3 with open Concept types, lossless Properties,
+  Relation predicates, origin, resolution, and Evidence.
+- Keep Generic Markdown as the zero-requirement interpretation and Open
+  Knowledge Format 0.1 as the first permissive interoperability Format.
+- Complete preview and reviewed activation for the small user-owned
+  `ontology.yaml` contract; do not grow it into an editor or executable rule
+  system.
+- Keep identity, resolution, Evidence, and Format/Ontology conformance covered by
   deterministic graph contract tests.
-- Compile renderer-neutral dense topology from the consolidated graph, then
-  integrate Stellar as a Graph Pane without placing semantic logic in WebGPU or
-  Canvas code.
+- Keep the shipped renderer-neutral dense topology, bounded cold metadata
+  reads, deterministic layout, and shared WebGPU/Canvas scene free of semantic
+  ownership.
+- Keep the compact Connections neighborhood on the shared scene,
+  focal-label, presentation-compiler, and Canvas path without adding a second
+  worker, gesture model, or idle loop.
 - Keep all graph/index/layout work off the editor critical path and preserve
   ordinary CLI graph/read/search status where appropriate.
 
@@ -117,13 +125,17 @@ The detailed gates and type direction are canonical in
 - Close the remaining save/trust/dirty-document acceptance evidence.
 - Ship **Find and connect relevant context** as the first provider-neutral, editable skill delivered through a configured Command and reviewed Markdown changes.
 
-### WP5: Direct-Write Review
+### WP5: Exact Changeset Review — implemented in Launch Gate C
 
-- Observe changed files during invocation windows.
-- Attribute changes as `likely` or `ambiguous`, not line-perfect authorship.
-- Refresh open notes safely without overwriting dirty buffers.
-- Reuse or adapt existing changed-file/diff surfaces for invocation review.
-- Show a diff/attribution banner and detail view.
+- Derive one exact multi-file Changeset from immutable launch and settled
+  manifests across the authorized Note Roots.
+- Review created, modified, deleted, and conservatively proven-renamed files
+  with serialized, hash-guarded per-file or batch Keep/Reject decisions.
+- Drain and freeze affected editor buffers during a decision; preserve newer
+  bytes as an explicit conflict rather than inferring authorship or overwriting.
+- Keep pending review, clean base, History, restart recovery, and compact
+  content-addressed snapshots durable under `.exo/invocations/`.
+- Use `docs/document-agent-protocol.md` as the canonical contract.
 
 ## Superseded Or Deletion-Audit Targets
 

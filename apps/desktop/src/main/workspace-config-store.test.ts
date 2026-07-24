@@ -44,6 +44,36 @@ describe("WorkspaceConfigStore", () => {
       info.mockRestore();
     }
   });
+
+  it("requires visible onboarding when direct settings are missing even if the registry survives", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-config-missing-active-"));
+    paths.push(userDataPath);
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    await saveWorkspaceSettings(settings(), env);
+    await rm(resolveWorkspaceSettingsPath(env));
+
+    const store = new WorkspaceConfigStore({ userDataPath, env: {} });
+
+    await expect(store.load()).resolves.toBeNull();
+    await expect(store.listWorkspaces()).resolves.toHaveLength(1);
+    await expect(store.patch(null, { ...settings(), workspaceRoot: "/replacement", noteRoots: ["/replacement"] }))
+      .resolves.toMatchObject({ settings: { workspaceRoot: "/replacement", noteRoots: ["/replacement"] } });
+  });
+
+  it("requires visible onboarding when direct settings are invalid even if the registry survives", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-config-invalid-active-"));
+    paths.push(userDataPath);
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    await saveWorkspaceSettings(settings(), env);
+    await writeFile(resolveWorkspaceSettingsPath(env), "{ invalid", "utf8");
+
+    const store = new WorkspaceConfigStore({ userDataPath, env: {} });
+
+    await expect(store.load()).resolves.toBeNull();
+    await expect(store.listWorkspaces()).resolves.toHaveLength(1);
+    await expect(store.patch(null, { ...settings(), workspaceRoot: "/replacement", noteRoots: ["/replacement"] }))
+      .resolves.toMatchObject({ settings: { workspaceRoot: "/replacement", noteRoots: ["/replacement"] } });
+  });
 });
 
 function settings(): WorkspaceSettings {

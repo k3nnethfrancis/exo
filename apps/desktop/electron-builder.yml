@@ -10,10 +10,6 @@ files:
   - dist/**/*
   - package.json
 
-extraResources:
-  - from: ../../plugins
-    to: plugins
-
 mac:
   category: public.app-category.productivity
   icon: build/icon.icns

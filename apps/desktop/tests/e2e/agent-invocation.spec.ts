@@ -1,381 +1,466 @@
-import { expect, test } from "@playwright/test";
-import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { expect, test, type Locator, type Page } from "@playwright/test";
+import { access, mkdir, readdir, readFile, realpath, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   launchExoWorkspaceFixture,
   relaunchExoWorkspaceFixture,
 } from "../helpers";
 
-test("runs a configured note invocation, refreshes the note, and highlights the changed note", async () => {
-  const fixture = await launchInvocationFixture("append", {
-    scriptBody: `
-import { readFile, writeFile } from "node:fs/promises";
-const notePath = process.argv[2];
-let prompt = "";
-process.stdin.setEncoding("utf8");
-for await (const chunk of process.stdin) prompt += chunk;
-await writeFile(notePath + ".prompt", prompt, "utf8");
-await new Promise((resolve) => setTimeout(resolve, 500));
-const current = await readFile(notePath, "utf8");
-await writeFile(notePath, current.replace("# Agent Invocation", "# Agent Revision") + "\\nagent appended line\\n", "utf8");
-`,
-  });
+const fixtureScript = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../fixtures/invocation-fixture.mjs",
+);
 
+test.describe.configure({ timeout: 90_000 });
+
+test("reviews and keeps one deterministic invocation changeset end to end", async () => {
+  const fixture = await launchInvocationFixture("modify");
   try {
-    await invokeConfiguredAgent(fixture.page, "append");
-
-    await expect(fixture.page.getByTestId("invocation-review-banner")).toContainText("Review @append changes", { timeout: 10_000 });
-    await expect(fixture.page.getByTestId("editor-panel")).toContainText("agent appended line", { timeout: 10_000 });
-    await expect(fixture.page.getByTestId("invocation-review-proposal")).toContainText("Saved to disk.");
-    await expect(fixture.page.getByTestId("invocation-review-proposal")).toContainText("Review changes inline.");
-    await expect(fixture.page.locator(".editor-surface--invocation-review .cm-changedLine").first()).toBeVisible();
-    const deletedText = fixture.page.locator(".editor-surface--invocation-review .cm-deletedText").filter({ visible: true }).first();
-    await expect(deletedText).toContainText("Invocation");
-    await expect(fixture.page.getByTestId("invocation-review-proposal").locator("pre")).toHaveCount(0);
-    await expect(fixture.page.getByTestId("invocation-keep-review")).toBeVisible();
-    await expect(fixture.page.getByTestId("invocation-reject-review")).toBeVisible();
-    await expect(fixture.page.locator('[data-testid^="terminal-tab-"]')).toHaveCount(0);
-
-    await fixture.page.getByTestId("toggle-markdown-mode").click();
-    await expect(fixture.page.locator(".editor-surface--invocation-review")).toHaveCount(0);
-    await expect(fixture.page.locator(".cm-deletedText")).toHaveCount(0);
-    await fixture.page.getByTestId("toggle-markdown-mode").click();
-
-    const record = await latestInvocationRecord(fixture.workspaceRoot);
+    const record = await invokeAndWaitForSettlement(fixture);
     expect(record).toMatchObject({
       status: "process-exited",
-      command: { handle: "append" },
-      changedFileRefs: [expect.objectContaining({ attribution: "likely" })],
+      exitCode: 0,
+      command: { handle: "fixture" },
+      changeset: {
+        status: "pending-review",
+        files: [expect.objectContaining({ operation: "modified", decision: { status: "pending" } })],
+      },
     });
-    expect(record).not.toHaveProperty("terminalSessionId");
-    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Working-note snapshot at invocation:");
-    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Exo document-agent protocol:");
-    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("# Agent Invocation");
-    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain("Review this document.");
-    await expect.poll(() => readFile(`${fixture.notePath}.prompt`, "utf8")).toContain('<exo-invocation id="');
-    await expect(readFile(path.join(fixture.workspaceRoot, ".exo/invocations", record.id, "before.md"), "utf8"))
-      .resolves.toContain('agent="append" status="sent">');
-  } finally {
-    await fixture.cleanup();
-  }
-});
-
-test("keeps an inline agent draft available when focus moves through the editor", async () => {
-  const fixture = await launchInvocationFixture("draft", {
-    scriptBody: "await new Promise((resolve) => setTimeout(resolve, 30_000));",
-  });
-
-  try {
-    await moveEditorCursorToEnd(fixture.page);
-    await fixture.page.keyboard.press("Enter");
-    await fixture.page.keyboard.type("@draft");
-    await expect(fixture.page.getByTestId("agent-suggestion-draft")).toBeVisible();
-    await fixture.page.keyboard.press("Enter");
-    const composer = fixture.page.getByTestId("inline-agent-composer");
-    await expect(composer).toHaveCount(1);
-    await fixture.page.keyboard.type("Keep this draft available.");
-    await fixture.page.keyboard.press("Enter");
-    await expect(fixture.page.locator(".cm-content")).toContainText("Keep this draft available.");
-    await expect(fixture.page.getByTestId("invocation-review-banner")).toHaveCount(0);
-
-    await fixture.page.locator(".cm-content").click();
-    await expect(composer).toHaveCount(1);
-    await expect(fixture.page.locator(".cm-content")).toContainText("Keep this draft available.");
-
-    await fixture.page.keyboard.press("Escape");
-    await expect(composer).toHaveCount(0);
-  } finally {
-    await fixture.cleanup();
-  }
-});
-
-test("renders a sent Claude invocation as highlighted prose without its source envelope", async () => {
-  const fixture = await launchInvocationFixture("claude", {
-    scriptBody: "await new Promise((resolve) => setTimeout(resolve, 30_000));",
-  });
-
-  try {
-    await moveEditorCursorToEnd(fixture.page);
-    await fixture.page.keyboard.press("Enter");
-    await fixture.page.keyboard.type("@claude");
-    await expect(fixture.page.getByTestId("agent-suggestion-claude")).toBeVisible();
-    await fixture.page.keyboard.press("Enter");
-    await expect(fixture.page.getByTestId("inline-agent-composer")).toContainText("⌘ ↵");
-    await fixture.page.keyboard.type("what task should I work on first?");
-    await fixture.page.keyboard.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
-
-    await expect(fixture.page.getByRole("dialog", { name: "Run @claude?" })).toBeVisible();
-    const openingEnvelope = fixture.page.locator(".cm-line").filter({ hasText: '<exo-invocation id="' });
-    const closingEnvelope = fixture.page.locator(".cm-line").filter({ hasText: "</exo-invocation>" });
-    await expect(openingEnvelope).toBeHidden();
-    await expect(closingEnvelope).toBeHidden();
-    const mention = fixture.page.locator(".inline-agent-composer__mention--claude").filter({ hasText: "@claude" }).last();
-    await expect(mention).toBeVisible();
-    await expect(mention).toHaveCSS("color", "rgb(184, 79, 36)");
-
-    await fixture.page.evaluate(() => {
-      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
-      const view = content?.cmView?.view;
-      if (!view) throw new Error("Unable to resolve CodeMirror view");
-      const text = view.state.doc.toString();
-      const invocationOpening = text.match(/<exo-invocation\b[^>]*>/)?.[0];
-      const invocationId = invocationOpening?.match(/\bid="([^"]+)"/)?.[1];
-      if (!invocationId) throw new Error("Missing protocol invocation id");
-      view.dispatch({ changes: {
-        from: text.length,
-        insert: `\n\n<exo-agent-response invocation="${invocationId}" agent="claude">\nDurable Claude result.\n</exo-agent-response>`,
-      } });
+    await assertDurableArtifacts(fixture, record, {
+      launchContains: '<exo-invocation id="',
+      settledContains: "Fixture modified content.",
     });
-    const responseEnvelope = fixture.page.locator(".cm-line").filter({ hasText: '<exo-agent-response invocation="' });
-    await expect(responseEnvelope).toBeHidden();
-    await expect(fixture.page.locator(".inline-agent-response__mark--claude").filter({ hasText: "Durable Claude result." })).toBeVisible();
 
-    await fixture.page.getByRole("button", { name: "Cancel" }).click();
-    await fixture.page.getByTestId("toggle-markdown-mode").click();
-    await expect(openingEnvelope).toBeVisible();
-    await expect(closingEnvelope).toBeVisible();
-    await expect(responseEnvelope).toBeVisible();
-    expect(await fixture.page.locator(".cm-content").evaluate((content) => ({
-      opening: (content.textContent?.match(/<exo-invocation/g) ?? []).length,
-      closing: (content.textContent?.match(/<\/exo-invocation>/g) ?? []).length,
-    }))).toEqual({ opening: 1, closing: 1 });
-    await fixture.page.getByTestId("toggle-markdown-mode").click();
-    await expect(openingEnvelope).toBeHidden();
-    await expect(closingEnvelope).toBeHidden();
-
-    await fixture.page.evaluate(() => {
-      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
-      const view = content?.cmView?.view;
-      if (!view) throw new Error("Unable to resolve CodeMirror view");
-      const text = view.state.doc.toString();
-      const opening = text.match(/<exo-invocation id="[^"]+" agent="claude" status="sent">\n/)?.[0];
-      if (!opening) throw new Error("Missing protocol invocation envelope");
-      const first = text.indexOf(opening);
-      const close = text.indexOf("\n</exo-invocation>", first);
-      view.dispatch({ changes: [
-        { from: first, insert: opening },
-        { from: close + "\n</exo-invocation>".length, insert: "\n</exo-invocation>" },
-      ] });
-    });
-    await expect(openingEnvelope).toHaveCount(2);
-    await expect(closingEnvelope).toHaveCount(2);
-    await expect.poll(async () => openingEnvelope.evaluateAll((lines) => lines.every((line) => getComputedStyle(line).display === "none"))).toBe(true);
-    await expect.poll(async () => closingEnvelope.evaluateAll((lines) => lines.every((line) => getComputedStyle(line).display === "none"))).toBe(true);
-    await expect(fixture.page.locator(".inline-agent-composer__mention--claude").filter({ hasText: "@claude" }).last()).toHaveCSS("color", "rgb(184, 79, 36)");
-  } finally {
-    await fixture.cleanup();
-  }
-});
-
-test("shows a dirty-buffer conflict choice when an invocation changes the open note", async () => {
-  const fixture = await launchInvocationFixture("conflict", {
-    scriptBody: `
-import { appendFile } from "node:fs/promises";
-const notePath = process.argv[2];
-await new Promise((resolve) => setTimeout(resolve, 700));
-await appendFile(notePath, "\\nagent disk line\\n", "utf8");
-`,
-  });
-
-  try {
-    await invokeConfiguredAgent(fixture.page, "conflict");
-    await appendEditorText(fixture.page, "\nlocal unsaved line");
-
-    await expect(fixture.page.getByTestId("invocation-review-banner")).toContainText(
-      "Unsaved editor changes conflict with the agent's version.",
-      { timeout: 10_000 },
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+    await review.getByRole("button", { name: "Keep", exact: true }).click();
+    const kept = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "kept",
     );
-    await expect(fixture.page.getByTestId("invocation-keep-dirty-buffer")).toBeVisible();
-    await expect(fixture.page.getByTestId("invocation-reload-disk")).toBeVisible();
-    await expect(fixture.page.getByTestId("invocation-review-proposal")).toContainText("Showing changes against your current buffer.");
-    await expect(fixture.page.getByTestId("invocation-keep-review")).toBeVisible();
-    await expect(fixture.page.getByTestId("invocation-reject-review")).toBeDisabled();
-    await expect(fixture.page.locator(".cm-content")).toContainText("local unsaved line");
-    await expect(fixture.page.locator(".cm-content")).not.toContainText("agent disk line");
+    expect(kept.changeset.status).toBe("kept");
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toContain("Fixture modified content.");
+    await expect.poll(() => listPendingReviews(fixture.page)).toEqual([]);
 
-    await fixture.page.getByTestId("invocation-keep-dirty-buffer").click();
-    await expect(fixture.page.getByTestId("invocation-review-banner")).not.toContainText("Unsaved editor changes conflict with the agent's version.");
-    await expect(fixture.page.getByTestId("editor-panel")).toContainText("local unsaved line");
+    await expect(fixture.page.getByTestId("open-invocation-history")).toBeVisible();
+    await fixture.page.getByTestId("open-invocation-history").click();
+    await expect(fixture.page.getByTestId("invocation-history-panel")).toBeVisible();
+    await fixture.page.locator(".invocation-history__open").filter({ hasText: "@fixture" }).click();
+    await expect(review).toContainText("Kept");
+    await review.getByRole("button", { name: "Close review" }).click();
+    await expect(review).toHaveCount(0);
   } finally {
     await fixture.cleanup();
   }
 });
 
-test("hands a failed Claude session to Terminal and dismisses its document status", async () => {
-  const sessionId = "ce4b9e26-2574-4433-a054-1110cd403792";
-  const fixture = await launchInvocationFixture("claude", {
-    scriptBody: `
-const sessionId = ${JSON.stringify(sessionId)};
-const resumeIndex = process.argv.indexOf("--resume");
-if (resumeIndex >= 0) {
-  console.log("EXO_RESUME_OK " + process.argv[resumeIndex + 1]);
-  await new Promise((resolve) => setTimeout(resolve, 5_000));
-} else {
-  for await (const _chunk of process.stdin) { /* consume the prompt */ }
-  await new Promise((resolve) => setTimeout(resolve, 500));
-  process.stdout.write(JSON.stringify([{
-    type: "result",
-    subtype: "success",
-    session_id: sessionId,
-    permission_denials: [{ tool_name: "Edit" }],
-  }]));
-}
-`,
-  });
-
+test("rejects one deterministic invocation back to the exact clean base", async () => {
+  const fixture = await launchInvocationFixture("modify");
   try {
-    await invokeConfiguredAgent(fixture.page, "claude", "Update this note.");
+    const record = await invokeAndWaitForSettlement(fixture);
+    const cleanBase = await readCleanBase(fixture, record.id);
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+    await review.getByRole("button", { name: "Reject", exact: true }).click();
+    const rejected = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "rejected",
+    );
 
-    const authorization = fixture.page.getByRole("dialog", { name: "Run @claude?" });
-    const banner = fixture.page.getByTestId("invocation-review-banner");
-    await expect(authorization).toHaveCount(0);
-    await expect(banner).toContainText("@claude failed", { timeout: 10_000 });
-    await expect(banner).toContainText("write permission was denied");
-    const resume = fixture.page.getByTestId("invocation-resume-terminal");
-    await expect(resume).toContainText(`--resume '${sessionId}'`);
-    await expect(fixture.page.locator('[data-testid^="terminal-tab-"]')).toHaveCount(0);
+    expect(rejected.changeset.status).toBe("rejected");
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(cleanBase);
+    expect(await readFile(fixture.paths.tagged, "utf8")).not.toContain("exo-invocation");
+    await expect.poll(() => listPendingReviews(fixture.page)).toEqual([]);
 
-    await resume.click();
+    await expect(fixture.page.getByTestId("open-invocation-history")).toBeVisible();
+    await fixture.page.getByTestId("open-invocation-history").click();
+    await fixture.page.locator(".invocation-history__open").filter({ hasText: "@fixture" }).click();
+    await expect(review).toContainText("Rejected");
+    await expect(fixture.page.locator(".cm-content")).toContainText("Fixture modified content.");
+  } finally {
+    await fixture.cleanup();
+  }
+});
 
-    await expect(banner).toHaveCount(0);
+test("reviews a create, modify, delete, and proven rename per file and in a batch", async () => {
+  const fixture = await launchInvocationFixture("multi");
+  try {
+    let record = await invokeAndWaitForSettlement(fixture);
+    const cleanBase = await readCleanBase(fixture, record.id);
+    expect(operationNames(record)).toEqual(["created", "deleted", "modified", "modified", "renamed"]);
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+    await expect(review).toContainText("created.md");
+    await review.getByRole("button", { name: "Reject", exact: true }).click();
+    record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "partially-resolved",
+    );
+    expect(record.changeset.status).toBe("partially-resolved");
+    await expect(access(fixture.paths.created)).rejects.toMatchObject({ code: "ENOENT" });
+
+    await navigateReviewToFile(review, "second.md");
+    await review.getByRole("button", { name: "Keep", exact: true }).click();
+    record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id &&
+        candidate.changeset?.files.some((change: Record<string, any>) =>
+          (change.before?.path === fixture.paths.second || change.after?.path === fixture.paths.second) &&
+          change.decision.status === "kept"),
+    );
+    expect(record.changeset.status).toBe("partially-resolved");
+    await expect(readFile(fixture.paths.second, "utf8")).resolves.toContain("Fixture updated second note.");
+
+    await review.getByText(/^All \d+ files$/).click();
+    await review.getByRole("button", { name: "Reject all" }).click();
+    record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "resolved",
+    );
+    expect(record.changeset.status).toBe("resolved");
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(cleanBase);
+    await expect(readFile(fixture.paths.deleted, "utf8")).resolves.toBe(fixture.initial.deleted);
+    await expect(readFile(fixture.paths.renameBefore, "utf8")).resolves.toBe(fixture.initial.renameBefore);
+    await expect(access(fixture.paths.renameAfter)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(fixture.paths.second, "utf8")).resolves.toContain("Fixture updated second note.");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("keeps a complete multi-file changeset in one batch", async () => {
+  const fixture = await launchInvocationFixture("multi");
+  try {
+    const record = await invokeAndWaitForSettlement(fixture);
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+    await review.getByText(/^All \d+ files$/).click();
+    await review.getByRole("button", { name: "Keep all" }).click();
+    const kept = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "kept",
+    );
+
+    expect(kept.changeset.status).toBe("kept");
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toContain("Fixture multi-file content.");
+    await expect(readFile(fixture.paths.second, "utf8")).resolves.toContain("Fixture updated second note.");
+    await expect(readFile(fixture.paths.created, "utf8")).resolves.toBe("# Created by invocation fixture\n");
+    await expect(access(fixture.paths.deleted)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(access(fixture.paths.renameBefore)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(fixture.paths.renameAfter, "utf8")).resolves.toBe(fixture.initial.renameBefore);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("freezes every affected open editor while bulk review drains dirty autosaves", async () => {
+  const fixture = await launchInvocationFixture("multi");
+  try {
+    await splitExplorerFileIntoEditor(fixture.page, "second, file");
+    await expect(fixture.page.locator(".workspace-shell__canvas .pane-leaf--editor")).toHaveCount(2);
+
+    await launchInvocation(fixture.page, fixture.paths.tagged);
+    const record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.status !== "pending" && candidate.status !== "running",
+    );
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+
+    await fixture.page.locator(".tab-strip__tab").filter({ hasText: "invocation-fixture" }).click();
+    await appendEditorText(fixture.page, "\nHuman tagged edit.", fixture.paths.tagged);
+    await fixture.page.locator(".tab-strip__tab").filter({ hasText: "second" }).click();
+    await appendEditorText(fixture.page, "\nHuman second edit.", fixture.paths.second);
+    await fixture.page.locator(".tab-strip__tab").filter({ hasText: "created" }).click();
+    await expect(review).toBeVisible();
+    await review.getByText(/^All \d+ files$/).click();
+    await review.getByRole("button", { name: "Reject all" }).click();
+
+    const conflicted = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "conflict",
+    );
+    const modifiedDecisions = conflicted.changeset.files
+      .filter((change: Record<string, any>) => change.operation === "modified")
+      .map((change: Record<string, any>) => change.decision.status);
+    expect(modifiedDecisions).toEqual(["conflict", "conflict"]);
+    await expect.poll(() => readFile(fixture.paths.tagged, "utf8")).toContain("Human tagged edit.");
+    await expect.poll(() => readFile(fixture.paths.second, "utf8")).toContain("Human second edit.");
+    await fixture.page.waitForTimeout(2_200);
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toContain("Human tagged edit.");
+    await expect(readFile(fixture.paths.second, "utf8")).resolves.toContain("Human second edit.");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("preserves newer human work when rejecting a drifted proposal", async () => {
+  const fixture = await launchInvocationFixture("modify");
+  try {
+    let record = await invokeAndWaitForSettlement(fixture);
+    const change = changeFor(record, "modified");
+    const drifted = `${await readFile(fixture.paths.tagged, "utf8")}\nNewer human work.\n`;
+    await writeFile(fixture.paths.tagged, drifted, "utf8");
+
+    const review = fixture.page.locator('section[aria-label="Review invocation changes"]');
+    await expect(review).toBeVisible();
+    await review.getByRole("button", { name: "Reject", exact: true }).click();
+    record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "conflict",
+    );
+    expect(record.changeset.status).toBe("conflict");
+    expect(changeFor(record, "modified").decision).toMatchObject({
+      status: "conflict",
+      reason: "The file changed after this proposal. Exo did not overwrite newer work.",
+    });
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(drifted);
+    await expect.poll(() => listPendingReviews(fixture.page)).toEqual([
+      expect.objectContaining({ invocationId: record.id, pendingFileCount: 1 }),
+    ]);
+
+    await expect(review).toContainText("Review changed");
+    await review.getByRole("button", { name: "Keep current" }).click();
+    record = await waitForInvocation(
+      fixture.workspaceRoot,
+      (candidate) => candidate.id === record.id && candidate.changeset?.status === "kept",
+    );
+    expect(record.changeset.status).toBe("kept");
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(drifted);
+    await expect.poll(() => listPendingReviews(fixture.page)).toEqual([]);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("Stop terminates the complete deterministic process tree", async () => {
+  const fixture = await launchInvocationFixture("stop-tree");
+  try {
+    await launchInvocation(fixture.page);
+    const running = await waitForInvocation(fixture.workspaceRoot, (record) => record.status === "running");
+    const parentPid = await waitForPid(path.join(fixture.controlRoot, "parent.pid"));
+    const childPid = await waitForPid(path.join(fixture.controlRoot, "child.pid"));
+
+    await expect(fixture.page.getByRole("button", { name: "Stop" })).toBeVisible();
+    await fixture.page.getByRole("button", { name: "Stop" }).click();
+    const stopped = await waitForInvocation(
+      fixture.workspaceRoot,
+      (record) => record.id === running.id && record.status === "user-ended",
+    );
+
+    expect(stopped).toMatchObject({ status: "user-ended", changeset: { status: "no-change" } });
+    await expect.poll(() => processExists(parentPid)).toBe(false);
+    await expect.poll(() => processExists(childPid)).toBe(false);
+    await expect(readFile(path.join(fixture.controlRoot, "signal.txt"), "utf8")).resolves.toBe("SIGTERM");
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("keeps failed-process changes reviewable and rejects them exactly", async () => {
+  const fixture = await launchInvocationFixture("partial-failure");
+  try {
+    const record = await invokeAndWaitForSettlement(fixture);
+    const cleanBase = await readCleanBase(fixture, record.id);
+    expect(record).toMatchObject({
+      status: "failed",
+      exitCode: 17,
+      failureReason: "Command exited with code 17.",
+      changeset: { status: "pending-review" },
+    });
+    expect(operationNames(record)).toEqual(["created", "modified"]);
+
+    const rejected = await reviewAll(fixture.page, record.id, "reject");
+    expect(rejected.changeset.status).toBe("rejected");
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(cleanBase);
+    await expect(access(fixture.paths.partial)).rejects.toMatchObject({ code: "ENOENT" });
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("treats a no-response note invocation as a protocol failure without a proposal", async () => {
+  const fixture = await launchInvocationFixture("no-response");
+  try {
+    const record = await invokeAndWaitForSettlement(fixture);
+    expect(record).toMatchObject({
+      status: "failed",
+      failureReason: "@fixture finished without writing its linked response into the note.",
+      changeset: { status: "no-change", files: [] },
+    });
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toContain("<exo-invocation");
+    await expect.poll(() => listPendingReviews(fixture.page)).toEqual([]);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("resumes a failed provider session from the compact activity surface", async () => {
+  const fixture = await launchInvocationFixture("resume-failure", { adapter: "claude-code" });
+  try {
+    const record = await invokeAndWaitForSettlement(fixture);
+    expect(record).toMatchObject({
+      status: "failed",
+      providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
+      failureReason: "Claude could not edit the document because its write permission was denied.",
+    });
+
+    const activity = fixture.page.getByTestId("invocation-activity");
+    await expect(activity).toContainText("Failed");
+    await activity.getByRole("button", { name: "Resume in Terminal" }).click();
+    await expect.poll(() => readFile(path.join(fixture.controlRoot, "resumed-session.txt"), "utf8").catch(() => ""))
+      .toBe(record.providerSessionId);
     await expect(fixture.page.getByTestId("utility-pane-terminal")).toHaveAttribute("aria-pressed", "true");
-    await expect(fixture.page.getByTestId("terminal-tab-shell")).toHaveCount(1);
-    await expect(fixture.page.locator(".xterm-rows")).toContainText(`EXO_RESUME_OK ${sessionId}`, { timeout: 10_000 });
   } finally {
     await fixture.cleanup();
   }
 });
 
-test("marks a running invocation orphaned when the app relaunches", async () => {
-  const fixture = await launchInvocationFixture("orphan", {
-    scriptBody: `
-await new Promise((resolve) => setTimeout(resolve, 30_000));
-`,
-  });
+test("recovers a pending exact review after an ordinary relaunch", async () => {
+  const fixture = await launchInvocationFixture("modify");
   let relaunched: Awaited<ReturnType<typeof relaunchExoWorkspaceFixture>> | null = null;
-
   try {
-    await invokeConfiguredAgent(fixture.page, "orphan");
-    const before = await latestInvocationRecord(fixture.workspaceRoot);
-    expect(before).toMatchObject({ status: "running", command: { handle: "orphan" } });
-
+    const record = await invokeAndWaitForSettlement(fixture);
+    const cleanBase = await readCleanBase(fixture, record.id);
     await fixture.electronApp.close();
     relaunched = await relaunchExoWorkspaceFixture(fixture);
 
-    await expect.poll(async () => latestInvocationRecord(fixture.workspaceRoot)).toMatchObject({
-      id: before.id,
+    await expect.poll(() => listPendingReviews(relaunched!.page)).toEqual([
+      expect.objectContaining({ invocationId: record.id, pendingFileCount: 1 }),
+    ]);
+    const rejected = await reviewAll(relaunched.page, record.id, "reject");
+    expect(rejected.changeset.status).toBe("rejected");
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(cleanBase);
+  } finally {
+    await relaunched?.electronApp.close().catch(() => {});
+    await fixture.cleanup();
+  }
+});
+
+test("recovers exact changes from an invocation orphaned by a host crash", async () => {
+  test.setTimeout(120_000);
+  const fixture = await launchInvocationFixture("crash-recovery");
+  let relaunched: Awaited<ReturnType<typeof relaunchExoWorkspaceFixture>> | null = null;
+  let invocationPid: number | null = null;
+  try {
+    await launchInvocation(fixture.page);
+    const running = await waitForInvocation(fixture.workspaceRoot, (record) => record.status === "running");
+    invocationPid = await waitForPid(path.join(fixture.controlRoot, "parent.pid"));
+    await expect.poll(() => readFile(fixture.paths.tagged, "utf8")).toContain("Fixture crash-recovery content.");
+
+    const electronProcess = fixture.electronApp.process();
+    const electronExited = new Promise<void>((resolve) => electronProcess.once("exit", () => resolve()));
+    electronProcess.kill("SIGKILL");
+    await electronExited;
+    try {
+      relaunched = await relaunchExoWorkspaceFixture(fixture);
+    } catch (error) {
+      const mainLog = await readFile(path.join(path.dirname(fixture.runtimeRoot), "exo-main.log"), "utf8").catch(() => "");
+      throw new Error(`Crash-recovery relaunch failed.\n${mainLog}`, { cause: error });
+    }
+    const recovered = await waitForInvocation(
+      fixture.workspaceRoot,
+      (record) => record.id === running.id && record.status === "orphaned",
+    );
+
+    expect(recovered).toMatchObject({
       status: "orphaned",
-      attribution: {
-        status: "ambiguous",
-        reason: "Attribution incomplete because Exo restarted during this invocation.",
-      },
+      changeset: { status: "pending-review", files: [expect.objectContaining({ operation: "modified" })] },
     });
+    await expect.poll(() => listPendingReviews(relaunched!.page)).toEqual([
+      expect.objectContaining({ invocationId: recovered.id, pendingFileCount: 1 }),
+    ]);
+    const cleanBase = await readCleanBase(fixture, recovered.id);
+    const rejected = await reviewAll(relaunched.page, recovered.id, "reject");
+    expect(rejected.changeset.status).toBe("rejected");
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(cleanBase);
   } finally {
-    if (relaunched) {
-      await relaunched.cleanup();
-      await fixture.cleanup();
-    } else {
-      await fixture.cleanup();
+    if (invocationPid && processExists(invocationPid)) {
+      try { process.kill(invocationPid, "SIGKILL"); } catch { /* Process already exited. */ }
     }
-  }
-});
-
-test("dogfoods ten real pointer-prompt invocations through the note UI", async () => {
-  const fixture = await launchInvocationFixture("dogfood", {
-    scriptBody: `
-import { appendFile, readFile, writeFile } from "node:fs/promises";
-import path from "node:path";
-const notePath = process.argv[2];
-const counterPath = path.join(path.dirname(new URL(import.meta.url).pathname), "dogfood-counter.txt");
-const previous = Number(await readFile(counterPath, "utf8").catch(() => "0"));
-const next = previous + 1;
-await writeFile(counterPath, String(next), "utf8");
-await new Promise((resolve) => setTimeout(resolve, 150));
-await appendFile(notePath, "\\ndogfood pointer prompt run " + next + "\\n", "utf8");
-`,
-  });
-
-  try {
-    for (let index = 1; index <= 10; index += 1) {
-      await invokeConfiguredAgent(fixture.page, "dogfood");
-      await expect(fixture.page.getByTestId("editor-panel")).toContainText(`dogfood pointer prompt run ${index}`, {
-        timeout: 10_000,
-      });
-      await expect.poll(async () => (await invocationRecords(fixture.workspaceRoot)).length).toBeGreaterThanOrEqual(index);
-      await expect.poll(async () => latestInvocationRecord(fixture.workspaceRoot)).toMatchObject({
-        status: "process-exited",
-        command: { handle: "dogfood" },
-      });
-    }
-
-    const records = await invocationRecords(fixture.workspaceRoot);
-    expect(records.filter((record) => record.command?.handle === "dogfood")).toHaveLength(10);
-  } finally {
+    await relaunched?.electronApp.close().catch(() => {});
     await fixture.cleanup();
   }
 });
 
-test("live Claude continues provider context across note invocations", async () => {
-  test.skip(process.env.EXO_LIVE_CLAUDE_E2E !== "1", "Set EXO_LIVE_CLAUDE_E2E=1 to run the live Claude pointer-prompt gate.");
-  const fixture = await launchLiveClaudeInvocationFixture();
-
-  try {
-    await invokeConfiguredAgent(
-      fixture.page,
-      "claude",
-      `Read ${fixture.secretPath}. Remember its exact contents for my next invocation, but do not write or repeat them anywhere yet.`,
-    );
-    await expect.poll(async () => latestInvocationRecord(fixture.workspaceRoot), { timeout: 120_000 }).toMatchObject({
-      status: "process-exited",
-      command: { handle: "claude" },
-      review: { status: "pending" },
-      continuity: { policy: "continuous", outcome: "fresh" },
-    });
-    const first = await latestInvocationRecord(fixture.workspaceRoot);
-    expect(first.providerSessionId).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(await readFile(fixture.notePath, "utf8")).not.toContain(fixture.secret);
-    await fixture.page.getByTestId("invocation-keep-review").click();
-    await rm(fixture.secretPath);
-
-    await invokeConfiguredAgent(
-      fixture.page,
-      "claude",
-      "Append a section named Continuity Verification containing the exact secret you remembered in our previous invocation.",
-    );
-    await expect.poll(async () => latestInvocationRecord(fixture.workspaceRoot), { timeout: 120_000 }).toMatchObject({
-      status: "process-exited",
-      command: { handle: "claude", adapter: "claude-code" },
-      review: { status: "pending" },
-      continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: first.id },
-    });
-    const second = await latestInvocationRecord(fixture.workspaceRoot);
-    expect(second.providerSessionId).toBe(first.providerSessionId);
-    expect(second.changedFileRefs).toEqual([expect.objectContaining({ path: fixture.notePath, kind: "modified" })]);
-    expect(second).not.toHaveProperty("terminalSessionId");
-    await expect.poll(async () => readFile(fixture.notePath, "utf8")).toContain(fixture.secret);
-    await expect(fixture.page.locator('[data-testid^="terminal-tab-"]')).toHaveCount(0);
-  } finally {
-    await fixture.cleanup();
-  }
-});
+interface InvocationFixture {
+  electronApp: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["electronApp"];
+  page: Page;
+  workspaceRoot: string;
+  settingsPath: string;
+  runtimeRoot: string;
+  homeRoot: string;
+  cleanup: () => Promise<void>;
+  noteRoot: string;
+  controlRoot: string;
+  paths: {
+    tagged: string;
+    second: string;
+    created: string;
+    deleted: string;
+    partial: string;
+    renameBefore: string;
+    renameAfter: string;
+  };
+  initial: {
+    tagged: string;
+    second: string;
+    deleted: string;
+    renameBefore: string;
+  };
+}
 
 async function launchInvocationFixture(
-  handle: string,
-  options: { scriptBody: string },
-): Promise<Awaited<ReturnType<typeof launchExoWorkspaceFixture>> & { notePath: string }> {
-  let notePath = "";
-  let scriptPath = "";
+  scenario: string,
+  options: { adapter?: "generic" | "claude-code" } = {},
+): Promise<InvocationFixture> {
+  let noteRoot = "";
+  let command = "";
+  const initial = {
+    tagged: "# Invocation fixture\n\nHuman-authored baseline.\n\n\n",
+    second: "# Second note\n\nUnchanged baseline.\n",
+    deleted: "# Deleted note\n\nRestore this exact content.\n",
+    renameBefore: "# Rename identity\n\nUnique content used to prove a rename.\n",
+  };
+  const paths = {
+    tagged: "",
+    second: "",
+    created: "",
+    deleted: "",
+    partial: "",
+    renameBefore: "",
+    renameAfter: "",
+  };
   const fixture = await launchExoWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
-      const noteRoot = path.join(workspaceRoot, "notes/test-notes");
-      notePath = path.join(noteRoot, "agent-invocation.md");
-      scriptPath = path.join(workspaceRoot, "projects/sample-project", `${handle}-agent.mjs`);
-      await mkdir(path.dirname(scriptPath), { recursive: true });
-      await writeFile(notePath, `# Agent Invocation\n\n@${handle} update this note\n`, "utf8");
-      await writeFile(scriptPath, options.scriptBody.trimStart(), "utf8");
+      noteRoot = path.join(workspaceRoot, "notes/test-notes");
+      Object.assign(paths, {
+        tagged: path.join(noteRoot, "invocation-fixture.md"),
+        second: path.join(noteRoot, "second.md"),
+        created: path.join(noteRoot, "created.md"),
+        deleted: path.join(noteRoot, "deleted.md"),
+        partial: path.join(noteRoot, "partial.md"),
+        renameBefore: path.join(noteRoot, "rename-before.md"),
+        renameAfter: path.join(noteRoot, "rename-after.md"),
+      });
+      await mkdir(noteRoot, { recursive: true });
+      await Promise.all([
+        writeFile(paths.tagged, initial.tagged, "utf8"),
+        writeFile(paths.second, initial.second, "utf8"),
+        writeFile(paths.deleted, initial.deleted, "utf8"),
+        writeFile(paths.renameBefore, initial.renameBefore, "utf8"),
+      ]);
+      command = [
+        shellQuote(process.execPath),
+        shellQuote(fixtureScript),
+        shellQuote(scenario),
+        shellQuote(noteRoot),
+        shellQuote(paths.tagged),
+      ].join(" ");
     },
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       await writeFile(settingsPath, JSON.stringify({
@@ -384,11 +469,12 @@ async function launchInvocationFixture(
         noteRoots: [path.join(workspaceRoot, "notes/test-notes")],
         projectRoots: [path.join(workspaceRoot, "projects/sample-project")],
         agentCommands: [{
-          id: handle,
-          label: `@${handle}`,
-          handle,
-          command: `${shellQuote(process.execPath)} ${shellQuote(scriptPath)} ${shellQuote(notePath)}`,
-          ...(handle === "claude" ? { adapter: "claude-code", continuityPolicy: "continuous" } : {}),
+          id: "fixture",
+          label: "Fixture",
+          handle: "fixture",
+          command,
+          adapter: options.adapter ?? "generic",
+          continuityPolicy: options.adapter === "claude-code" ? "continuous" : "fresh",
           cwdPolicy: "workspace_root",
           promptDelivery: "stdin",
           version: 1,
@@ -406,175 +492,203 @@ async function launchInvocationFixture(
       }, null, 2), "utf8");
     },
   });
-  await fixture.page.getByRole("button", { name: "agent-invocation, file" }).first().click();
-  await expect(fixture.page.getByTestId("editor-title")).toHaveText("agent-invocation");
-  return { ...fixture, notePath };
-}
-
-async function launchCommandInvocationFixture(
-  handle: string,
-  options: { command: string; noteBody: string },
-): Promise<Awaited<ReturnType<typeof launchExoWorkspaceFixture>> & { notePath: string }> {
-  let notePath = "";
-  const fixture = await launchExoWorkspaceFixture({
-    mutable: true,
-    initialNoteLabel: null,
-    prepareWorkspace: async (workspaceRoot) => {
-      const noteRoot = path.join(workspaceRoot, "notes/test-notes");
-      notePath = path.join(noteRoot, "agent-invocation.md");
-      await writeFile(notePath, options.noteBody, "utf8");
-    },
-    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
-      await writeFile(settingsPath, JSON.stringify({
-        workspaceRoot,
-        defaultTerminalCwd: workspaceRoot,
-        noteRoots: [path.join(workspaceRoot, "notes/test-notes")],
-        projectRoots: [path.join(workspaceRoot, "projects/sample-project")],
-        agentCommands: [{
-          id: handle,
-          label: `@${handle}`,
-          handle,
-          command: options.command,
-          cwdPolicy: "workspace_root",
-          promptDelivery: "stdin",
-          version: 1,
-          enabled: true,
-        }],
-        indexedRoots: [],
-        indexing: { enabled: false, mode: "off", backend: "qmd" },
-        appearanceMode: "system",
-        colorThemeId: "exo-neutral",
-        editorFontSize: 15,
-        terminalFontSize: 13,
-        explorerScale: 1,
-        exploreIndexSearchOnEnter: false,
-        indexUpdateStrategy: "on-save",
-      }, null, 2), "utf8");
-    },
+  noteRoot = await realpath(noteRoot);
+  Object.assign(paths, {
+    tagged: path.join(noteRoot, "invocation-fixture.md"),
+    second: path.join(noteRoot, "second.md"),
+    created: path.join(noteRoot, "created.md"),
+    deleted: path.join(noteRoot, "deleted.md"),
+    partial: path.join(noteRoot, "partial.md"),
+    renameBefore: path.join(noteRoot, "rename-before.md"),
+    renameAfter: path.join(noteRoot, "rename-after.md"),
   });
-  await fixture.page.getByRole("button", { name: "agent-invocation, file" }).first().click();
-  await expect(fixture.page.getByTestId("editor-title")).toHaveText("agent-invocation");
-  return { ...fixture, notePath };
+  await fixture.page.getByRole("button", { name: "invocation-fixture, file" }).first().click();
+  await expect(fixture.page.getByTestId("editor-title")).toHaveText("invocation-fixture");
+  return {
+    ...fixture,
+    noteRoot,
+    controlRoot: path.join(path.dirname(noteRoot), ".invocation-fixture"),
+    paths,
+    initial,
+  };
 }
 
-async function launchLiveClaudeInvocationFixture(): Promise<Awaited<ReturnType<typeof launchExoWorkspaceFixture>> & { notePath: string; secretPath: string; secret: string }> {
-  let notePath = "";
-  let secretPath = "";
-  const secret = "EXO_CONTINUITY_7F3A9C";
-  const fixture = await launchExoWorkspaceFixture({
-    mutable: true,
-    initialNoteLabel: null,
-    env: process.env.HOME ? { HOME: process.env.HOME } : {},
-    prepareWorkspace: async (workspaceRoot) => {
-      const noteRoot = path.join(workspaceRoot, "notes/test-notes");
-      notePath = path.join(noteRoot, "agent-invocation.md");
-      secretPath = path.join(workspaceRoot, ".continuity-secret");
-      await writeFile(notePath, "# Live Claude Edit\n\nThis fixture proves Exo can authorize a real headless document edit.\n", "utf8");
-      await writeFile(secretPath, secret, "utf8");
-    },
-    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
-      await writeFile(settingsPath, JSON.stringify({
-        workspaceRoot,
-        defaultTerminalCwd: workspaceRoot,
-        noteRoots: [path.join(workspaceRoot, "notes/test-notes")],
-        projectRoots: [path.join(workspaceRoot, "projects/sample-project")],
-        agentCommands: [{
-          id: "claude",
-          label: "Claude",
-          handle: "claude",
-          command: 'claude -p --permission-mode acceptEdits --allowedTools "Read,Edit,Write,Glob,Grep"',
-          adapter: "claude-code",
-          continuityPolicy: "continuous",
-          cwdPolicy: "workspace_root",
-          promptDelivery: "stdin",
-          version: 1,
-          enabled: true,
-        }],
-        indexedRoots: [],
-        indexing: { enabled: false, mode: "off", backend: "qmd" },
-        appearanceMode: "system",
-        colorThemeId: "exo-neutral",
-        editorFontSize: 15,
-        terminalFontSize: 13,
-        explorerScale: 1,
-        exploreIndexSearchOnEnter: false,
-        indexUpdateStrategy: "on-save",
-      }, null, 2), "utf8");
-    },
-  });
-  await fixture.page.getByRole("button", { name: "agent-invocation, file" }).first().click();
-  await expect(fixture.page.getByTestId("editor-title")).toHaveText("agent-invocation");
-  return { ...fixture, notePath, secretPath, secret };
+async function invokeAndWaitForSettlement(fixture: InvocationFixture): Promise<Record<string, any>> {
+  await launchInvocation(fixture.page);
+  return waitForInvocation(
+    fixture.workspaceRoot,
+    (record) => record.status !== "pending" && record.status !== "running",
+  );
 }
 
-async function invokeConfiguredAgent(
-  page: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["page"],
-  handle: string,
-  message = "Review this document.",
-): Promise<void> {
-  await appendEditorText(page, `\n@${handle}`);
-  await expect(page.getByTestId(`agent-suggestion-${handle}`)).toBeVisible();
+async function launchInvocation(page: Page, documentPath?: string): Promise<void> {
+  // The fixture ends on an empty line. Compose in that existing space so the
+  // protocol envelope can be removed byte-for-byte back to the original note.
+  await appendEditorText(page, "@fixture", documentPath);
+  await expect(page.getByTestId("agent-suggestion-fixture")).toBeVisible();
   await page.keyboard.press("Enter");
-  const composer = page.getByTestId("inline-agent-composer");
-  await expect(composer).toHaveCount(1);
-  await page.keyboard.type(message);
+  await expect(page.getByTestId("inline-agent-composer")).toHaveCount(1);
+  await page.keyboard.type("Exercise the deterministic invocation contract.");
   await page.keyboard.press(process.platform === "darwin" ? "Meta+Enter" : "Control+Enter");
-  const authorization = page.getByRole("dialog", { name: `Run @${handle}?` });
+  const authorization = page.getByRole("dialog", { name: "Run Fixture?" });
   await expect(authorization).toBeVisible();
-  await authorization.getByRole("button", { name: `Run @${handle}` }).click();
+  await authorization.getByRole("button", { name: "Run once" }).click();
   await expect(authorization).toHaveCount(0);
-  await expect(page.getByTestId("invocation-review-banner")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.activeElement?.closest(".cm-editor") !== null)).toBe(true);
 }
 
-async function appendEditorText(page: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["page"], text: string): Promise<void> {
-  await page.locator(".cm-content").click();
-  await page.evaluate((insert) => {
-    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+async function appendEditorText(page: Page, text: string, documentPath?: string): Promise<void> {
+  const titles = page.locator(".editor-panel__title[title]");
+  const titleIndex = documentPath
+    ? await titles.evaluateAll((elements, targetPath) => {
+        const identity = (value: string) => value.replace(/^\/private\/(?=(?:var|tmp)\/)/u, "/");
+        return elements.findIndex((element) => identity((element as HTMLElement).title) === identity(targetPath));
+      }, documentPath)
+    : -1;
+  if (documentPath && titleIndex < 0) throw new Error(`Unable to find open editor for ${documentPath}`);
+  const content = documentPath
+    ? titles.nth(titleIndex).locator("xpath=ancestor::*[@data-testid='editor-panel']").locator(".cm-content")
+    : page.locator(".cm-content").first();
+  await content.click();
+  await page.evaluate(({ insert, documentPath }) => {
+    const identity = (value: string) => value.replace(/^\/private\/(?=(?:var|tmp)\/)/u, "/");
+    const title = documentPath
+      ? [...document.querySelectorAll<HTMLElement>(".editor-panel__title[title]")].find((candidate) => identity(candidate.title) === identity(documentPath))
+      : null;
+    const content = (title?.closest("[data-testid='editor-panel']") ?? document).querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
     const view = content?.cmView?.view;
-    if (!view) {
-      throw new Error("Unable to resolve CodeMirror view");
-    }
+    if (!view) throw new Error("Unable to resolve CodeMirror view");
     const position = view.state.doc.length + insert.length;
-    view.dispatch({
-      changes: {
-        from: view.state.doc.length,
-        insert,
-      },
-      selection: { anchor: position },
-    });
+    view.dispatch({ changes: { from: view.state.doc.length, insert }, selection: { anchor: position } });
     view.focus();
-  }, text);
+  }, { insert: text, documentPath });
 }
 
-async function moveEditorCursorToEnd(page: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["page"]): Promise<void> {
-  await page.locator(".cm-content").click();
-  await page.evaluate(() => {
-    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
-    const view = content?.cmView?.view;
-    if (!view) {
-      throw new Error("Unable to resolve CodeMirror view");
-    }
-    view.dispatch({ selection: { anchor: view.state.doc.length } });
-    view.focus();
-  });
+async function splitExplorerFileIntoEditor(page: Page, accessibleName: string): Promise<void> {
+  const source = await page.getByRole("button", { name: accessibleName }).first().boundingBox();
+  const editor = await page.locator(".workspace-shell__canvas .pane-leaf--editor").first().boundingBox();
+  expect(source).not.toBeNull();
+  expect(editor).not.toBeNull();
+  await page.mouse.move(source!.x + source!.width / 2, source!.y + source!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(editor!.x + editor!.width * 0.88, editor!.y + editor!.height / 2, { steps: 8 });
+  await page.mouse.up();
 }
 
-async function latestInvocationRecord(workspaceRoot: string): Promise<Record<string, any>> {
-  const records = await invocationRecords(workspaceRoot);
-  if (records.length === 0) {
-    throw new Error("No invocation records found");
-  }
-  return records.sort((left, right) => String(left.createdAt).localeCompare(String(right.createdAt))).at(-1)!;
+async function waitForInvocation(
+  workspaceRoot: string,
+  predicate: (record: Record<string, any>) => boolean,
+): Promise<Record<string, any>> {
+  let match: Record<string, any> | undefined;
+  await expect.poll(async () => {
+    match = (await invocationRecords(workspaceRoot)).find(predicate);
+    return Boolean(match);
+  }, { timeout: 20_000 }).toBe(true);
+  return match!;
 }
 
 async function invocationRecords(workspaceRoot: string): Promise<Array<Record<string, any>>> {
-  const invocationsRoot = path.join(workspaceRoot, ".exo/invocations");
-  const entries = await readdir(invocationsRoot, { withFileTypes: true });
-  return Promise.all(
-    entries
-      .filter((entry) => entry.isDirectory())
-      .map(async (entry) => JSON.parse(await readFile(path.join(invocationsRoot, entry.name, "record.json"), "utf8")) as Record<string, any>),
-  );
+  const root = path.join(workspaceRoot, ".exo/invocations");
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
+  const records = await Promise.all(entries.filter((entry) => entry.isDirectory()).map(async (entry) => {
+    try {
+      return JSON.parse(await readFile(path.join(root, entry.name, "record.json"), "utf8")) as Record<string, any>;
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return null;
+      throw error;
+    }
+  }));
+  return records.filter((record): record is Record<string, any> => record !== null);
+}
+
+async function reviewAll(page: Page, invocationId: string, action: "keep" | "reject"): Promise<Record<string, any>> {
+  return page.evaluate(({ invocationId, action }) =>
+    window.exo.workspace.reviewInvocationAll({ invocationId, action }), { invocationId, action });
+}
+
+async function reviewFile(
+  page: Page,
+  invocationId: string,
+  changeId: string,
+  action: "keep" | "reject",
+): Promise<Record<string, any>> {
+  return page.evaluate(({ invocationId, changeId, action }) =>
+    window.exo.workspace.reviewInvocationFile({ invocationId, changeId, action }), { invocationId, changeId, action });
+}
+
+async function listPendingReviews(page: Page): Promise<Array<Record<string, any>>> {
+  return page.evaluate(() => window.exo.workspace.listPendingInvocationReviews());
+}
+
+async function navigateReviewToFile(review: Locator, fileName: string): Promise<void> {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if ((await review.textContent())?.includes(fileName)) return;
+    const next = review.getByRole("button", { name: "Next file" });
+    if (await next.isDisabled()) break;
+    await next.click();
+  }
+  await expect(review).toContainText(fileName);
+}
+
+function operationNames(record: Record<string, any>): string[] {
+  return record.changeset.files.map((change: Record<string, any>) => change.operation).sort();
+}
+
+function changeFor(record: Record<string, any>, operation: string): Record<string, any> {
+  const change = record.changeset.files.find((candidate: Record<string, any>) => candidate.operation === operation);
+  if (!change) throw new Error(`Missing ${operation} invocation change.`);
+  return change;
+}
+
+function changeForPath(record: Record<string, any>, filePath: string): Record<string, any> {
+  const change = record.changeset.files.find((candidate: Record<string, any>) =>
+    candidate.before?.path === filePath || candidate.after?.path === filePath);
+  if (!change) throw new Error(`Missing invocation change for ${filePath}.`);
+  return change;
+}
+
+async function assertDurableArtifacts(
+  fixture: InvocationFixture,
+  record: Record<string, any>,
+  expected: { launchContains: string; settledContains: string },
+): Promise<void> {
+  const invocationDir = path.join(fixture.workspaceRoot, ".exo/invocations", record.id);
+  const cleanBase = JSON.parse(await readFile(path.join(invocationDir, "clean-base.json"), "utf8"));
+  const launch = JSON.parse(await readFile(path.join(invocationDir, "launch-manifest.json"), "utf8"));
+  const settled = JSON.parse(await readFile(path.join(invocationDir, "settled-manifest.json"), "utf8"));
+  const storedRecord = JSON.parse(await readFile(path.join(invocationDir, "record.json"), "utf8"));
+
+  expect(storedRecord.id).toBe(record.id);
+  expect(cleanBase.file.path).toBe(fixture.paths.tagged);
+  expect(await readFile(path.join(invocationDir, cleanBase.file.snapshotRef), "utf8")).not.toContain("exo-invocation");
+  expect(await readFile(path.join(invocationDir, launch.files[fixture.paths.tagged].snapshotRef), "utf8"))
+    .toContain(expected.launchContains);
+  expect(await readFile(path.join(invocationDir, settled.files[fixture.paths.tagged].snapshotRef), "utf8"))
+    .toContain(expected.settledContains);
+}
+
+async function readCleanBase(fixture: InvocationFixture, invocationId: string): Promise<string> {
+  const invocationDir = path.join(fixture.workspaceRoot, ".exo/invocations", invocationId);
+  const cleanBase = JSON.parse(await readFile(path.join(invocationDir, "clean-base.json"), "utf8"));
+  return readFile(path.join(invocationDir, cleanBase.file.snapshotRef), "utf8");
+}
+
+async function waitForPid(pidPath: string): Promise<number> {
+  let pid = 0;
+  await expect.poll(async () => {
+    pid = Number(await readFile(pidPath, "utf8").catch(() => "0"));
+    return Number.isSafeInteger(pid) && pid > 0;
+  }).toBe(true);
+  return pid;
+}
+
+function processExists(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return Boolean(error && typeof error === "object" && "code" in error && error.code !== "ESRCH");
+  }
 }
 
 function shellQuote(value: string): string {

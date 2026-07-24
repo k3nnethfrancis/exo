@@ -12,7 +12,12 @@ import {
   normalizeAgentHandle,
   normalizeInvocationRecord,
 } from "../agent-invocation";
-import { findDocumentAgentEnvelopes, formatDocumentAgentInvocation, formatDocumentAgentResponse } from "../document-agent-protocol";
+import {
+  findDocumentAgentEnvelopes,
+  formatDocumentAgentInvocation,
+  formatDocumentAgentResponse,
+  removeDocumentAgentInvocation,
+} from "../document-agent-protocol";
 
 describe("agent invocation model", () => {
   it("ships a headless Codex command suitable for a workspace invocation", () => {
@@ -360,7 +365,23 @@ describe("agent invocation model", () => {
     ]);
   });
 
-  it("normalizes invocation records with lifecycle and attribution placeholders", () => {
+  it("derives the clean base by removing only the exact invocation envelope", () => {
+    const invocationId = "11111111-1111-4111-8111-111111111111";
+    const before = "# Note\n\nHuman work before\n\n";
+    const after = "\n\nHuman work after\n";
+    const envelope = formatDocumentAgentInvocation({
+      id: invocationId,
+      agent: "claude",
+      message: "@claude inspect this note",
+    });
+    const launch = `${before}${envelope}${after}`;
+
+    expect(removeDocumentAgentInvocation(launch, invocationId, "claude")).toBe(`${before}${after}`);
+    expect(removeDocumentAgentInvocation(launch, invocationId, "codex")).toBeNull();
+    expect(removeDocumentAgentInvocation(launch, "not-an-id", "claude")).toBeNull();
+  });
+
+  it("normalizes exact invocation records and ignores obsolete attribution fields", () => {
     const record = normalizeInvocationRecord({
       id: "inv-1",
       status: "pending",
@@ -372,6 +393,8 @@ describe("agent invocation model", () => {
       promptDelivery: "stdin",
       command: createDefaultClaudeAgentCommand(),
       cwd: "/tmp",
+      workspaceRoot: "/tmp",
+      noteRoots: ["/tmp/notes"],
       createdAt: "2026-07-08T00:00:00.000Z",
       changedFileRefs: [{ path: "/tmp/note.md", kind: "modified", attribution: "ambiguous", diffRefId: "diff-1" }],
       diffRefs: [{ id: "diff-1", path: "/tmp/note.md", format: "unified", ref: ".exo/invocations/inv-1/diff.patch" }],
@@ -379,6 +402,18 @@ describe("agent invocation model", () => {
       providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
       continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: "inv-0" },
       review: { status: "pending", beforeSha256: "a".repeat(64), afterSha256: "b".repeat(64) },
+      changeset: {
+        version: 1,
+        status: "pending-review",
+        settledAt: "2026-07-08T00:01:00.000Z",
+        files: [{
+          id: "modified:/tmp/note.md",
+          operation: "modified",
+          decision: { status: "pending" },
+          before: { path: "/tmp/note.md", sha256: "a".repeat(64), byteLength: 1, snapshotRef: `files/objects/${"a".repeat(64)}`, mediaType: "text" },
+          after: { path: "/tmp/note.md", sha256: "b".repeat(64), byteLength: 1, snapshotRef: `files/objects/${"b".repeat(64)}`, mediaType: "text" },
+        }],
+      },
     });
 
     expect(record).toMatchObject({
@@ -387,12 +422,15 @@ describe("agent invocation model", () => {
       context: "note",
       promptDelivery: "stdin",
       command: { id: "claude", handle: "claude", version: 1, executableFingerprint: expect.any(String) },
-      changedFileRefs: [{ path: "/tmp/note.md", kind: "modified", attribution: "ambiguous", diffRefId: "diff-1" }],
-      attribution: { status: "ambiguous" },
       providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
       continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: "inv-0" },
-      review: { status: "pending" },
+      noteRoots: ["/tmp/notes"],
+      changeset: { status: "pending-review", files: [{ operation: "modified" }] },
     });
+    expect(record).not.toHaveProperty("changedFileRefs");
+    expect(record).not.toHaveProperty("diffRefs");
+    expect(record).not.toHaveProperty("attribution");
+    expect(record).not.toHaveProperty("review");
   });
 
   it("drops malformed persisted review hashes and session provenance", () => {
@@ -402,7 +440,7 @@ describe("agent invocation model", () => {
       providerSessionId: "made-up", review: { status: "pending", beforeSha256: "invalid", afterSha256: "also-invalid" },
     });
     expect(record?.providerSessionId).toBeUndefined();
-    expect(record?.review).toBeUndefined();
+    expect(record).not.toHaveProperty("review");
     expect(record?.continuity).toEqual({ policy: "fresh", outcome: "fresh" });
   });
 

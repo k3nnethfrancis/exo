@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-17
+Last updated: 2026-07-21
 
 This is Exo's active execution ledger. It records only current work. Completed implementation belongs in Git and `ledger.md`; reproducible bugs belong in `issues.md`; architecture rationale belongs in `docs/exograph-simplification-plan.md`.
 
@@ -24,9 +24,39 @@ Exo scopes a workspace to its Note Roots only. It does not import, attach, or ma
 - The UI convergence wave is installed and passing: compact Settings, centered search, breadcrumbs, title/properties chrome, one resizable utility pane, Preview/Terminal/Connections switching, direct terminal creation, and drag-to-split live terminal/preview tabs.
 - Explorer file lists have a scroll-safe lower edge: the floating workspace menu owns a reserved, content-free landing area and rows fade out before reaching it.
 - The direct-PTY terminal and configured Command readiness/Test flow are live.
-- Editor input now has a large-note sustained-typing and rapid multiline-backspace gate for ordinary Markdown and active `@agent` composition; invocation protocol and live-preview structural metadata avoid whole-note reparsing for unrelated edits.
-- `exo start` launches the resident packaged app; app-off `status`, `search`, and `read` remain useful through filesystem roots.
+- Editor input now has a large-note sustained-typing and trusted keydown-to-frame-ready rapid multiline-backspace gate for ordinary Markdown and active `@agent` composition. Samples are recorded after forced layout; list metadata repairs stay within the affected block, table/fence metadata updates incrementally, repeated links produce one navigable Reference per target Note, and every sample asserts editor liveness and exact editor/disk content.
+- `exo start` launches the resident packaged app; app-off `status` and `search`
+  return workspace orientation plus path-first results for native filesystem use.
 - `pnpm check`, `pnpm check:repo`, and `pnpm stable:smoke` are green on the current branch.
+- The launch candidate keeps Properties visibility per editor pane, adds
+  Explorer/Utility shortcuts with one shared operator-help catalog, and ships
+  polished ordered lists, `/today`/`/tomorrow`, and clickable inline tags.
+
+### Ontology trace assessment — implementation complete, review pending
+
+- [x] Build the reusable harness-only runner: fresh Claude/Codex sessions,
+  read-only controls, exact Workspace manifests, full local traces, structured
+  proposals, synchronized lanes, evidence/conflict review, and exploratory
+  agreement statistics without direct provider APIs or an automated gate.
+- [x] Prove the real Codex harness boundary on a checked-in Markdown Workspace;
+  it returned supported `ontology_schema: 1` with relative evidence while the
+  source manifest remained byte-identical.
+- [x] Run the frozen Skill five times per harness against the real vault after
+  Claude subscription authentication. All ten fresh sessions completed, the
+  1,866-file source manifest remained byte-identical, and the private local
+  dashboard was generated at `/tmp/exo-ontology-vault-study-2026-07-21`.
+- [x] Kenneth reviewed the private dashboard and approved moving forward with
+  a review-first ontology-discovery product slice. The study remains
+  exploratory: do not add a corpus, judge, threshold, or synthetic eval before
+  real product traces expose concrete failure modes.
+- [ ] Productize optional ontology discovery after configured Command setup:
+  read-only agent proposal, host-staged candidate YAML, editable review,
+  qualitative before/after graph comparison, and explicit Keep/Reject. Keep
+  the base Markdown graph intact; note migration is a separate reviewed action.
+- [ ] Design a user-owned ontology library with one active interpretation at a
+  time plus Generic Markdown as no-ontology. Do not overload the internal
+  Note Root Format/`KnowledgeProfile` compatibility seam or claim profile
+  switching is already shipped.
 
 ## Loop 01 architectural ruling — 2026-07-12
 
@@ -38,6 +68,67 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 - Keep P3 deliberate: no save-triggered or arbitrary-mention invocation; real-work dogfood closes the loop.
 
 ## Now — Trust Before Features
+
+### Launch Gate B — complete
+
+- [x] Keep Folder Overview, Explorer, Search, backlinks, breadcrumbs, Graph,
+  and CLI opens on one canonical Note transaction, including unloaded children
+  and already-open background tabs.
+- [x] Hold trusted typing, rapid Backspace, active invocation input, navigation,
+  and structured Markdown edits inside their existing frame-ready budgets with
+  exact sample/content/liveness assertions and no renderer long tasks.
+- [x] Isolate QMD foreground work, QMD maintenance, and WorkspaceGraph; prove
+  1,200-Note concurrent responsiveness plus source and packaged real-model
+  convergence.
+- [x] Build the exact unsigned macOS app and dogfood a guarded 1,555-Note copy:
+  Settings preservation, contained images, Properties, direct/Search opens,
+  deliberate save/restart durability, and byte-identical non-control files all
+  passed. Evidence: `docs/reviews/output/2026-07-20-launch-gate-b.md`.
+
+### Launch Gate C — Invocation Changeset — complete
+
+- [x] Audit the current invocation lifecycle, trust boundary, persistence, and
+  review UI against the aligned Gate C product specs.
+- [x] Define the provider-neutral Changeset contract: exact file operations,
+  per-file decisions, aggregate review state, conservative rename proof, and
+  clean-base derivation.
+- [x] Persist clean base, launch and settled manifests, content-addressed file
+  snapshots, and restart-safe review state beneath `.exo/invocations/`.
+- [x] Close authorization fingerprint drift, implement a real process Stop,
+  and add bounded provider-neutral activity events without streaming reasoning.
+- [x] Capture every changed file inside authorized Note Roots and implement
+  hash-guarded per-file and batch Keep/Reject with conflict handling.
+- [x] Replace invocation modals/banners with page-native authorization,
+  activity, inline review controls, a multi-file queue, and conditional History.
+- [x] Prove packaged single/multi-file review, create/delete/rename reversal,
+  drift conflict, restart recovery, and Gate B latency preservation.
+  Evidence: `docs/reviews/output/2026-07-20-launch-gate-c.md`.
+
+### Launch Gate D — Graph as a product surface — complete
+
+- [x] Replace object-heavy Graph View IPC with compact typed topology,
+  version/profile/transport hashes, and bounded node/Relation detail reads;
+  prove payload bounds at 10K/50K/100K.
+- [x] Make editor, Graph Pane, Connections, and explanatory Properties share
+  one inspected Concept; make Canvas and WebGPU share one renderer-neutral
+  selection/path model. The bounded Connections thumbnail now compiles through
+  that same scene, label, palette, and Canvas presentation path.
+- [x] Close one interaction contract across Canvas and WebGPU: click selects,
+  double-click opens, repeated open focuses, frame-all is explicit, and
+  keyboard/reduced-motion behavior is deterministic.
+- [x] Tune legible node/hit radii, focal label budgets, direct orbit/pan/dolly,
+  and adaptive wheel/pinch zoom for desktop trackpads and coarse-pointer
+  gestures; retain broader physical-device tuning as product polish.
+- [x] Keep the finite layout deterministic and continuous across graph updates;
+  prove accurate picking, zero redraw/worker wakeups at rest, bounded labels,
+  Canvas fallback, and WebGPU device-loss recovery.
+- [x] Prove the Graph Pane under concurrent graph/index work without weakening
+  Gate B editor/navigation budgets, then dogfood a guarded private real-vault
+  copy in both renderer paths.
+- [x] Remove the Experimental label only after source and exact packaged-app
+  journeys, hardware-stamped scale evidence, truthful docs, and a clean launch
+  surface ledger all pass. Evidence:
+  `docs/reviews/output/2026-07-20-launch-gate-d.md`.
 
 ### Embedding sync strategy — research complete
 
@@ -51,7 +142,7 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 - [x] Implement the deterministic scheduler, dual-worker runtime boundary, bounded retry/backoff, and truthful pending/paused/failed status behavior.
 - [x] Carry the narrow QMD 2.5.3 patch for bounded embedding calls and atomic metadata/vector publication; align desktop, core, and CLI on the patched package.
 - [x] Run focused and full automated gates plus the real Electron 1,200-note concurrent update/typing/navigation latency scenario.
-- [ ] Add a deterministic packaged-app gate using the real embedding model that proves automatic post-idle convergence while Terminal, graph context, and hybrid search remain usable.
+- [x] Add a deterministic packaged-app gate using the real embedding model that proves automatic post-idle convergence while Terminal, graph context, and hybrid search remain usable. Evidence: `docs/reviews/output/2026-07-19-derived-work-convergence.md`.
 
 ### Latency stabilization — complete
 
@@ -88,12 +179,17 @@ Fable approved the execution order: decide P0, then run Settings preservation an
 - [x] Keep canonical-path authorization behind `WorkspaceFiles`; Fable explicitly deferred root-relative identities as a later interface-quality improvement.
 - [x] Complete escape coverage: traversal, absolute paths, duplicate roots, symlink files/directories, missing ancestors, rename, recursive delete, and former Project Root paths failing closed after removal.
 - [x] Prove desktop IPC and command-server reads share the same containment seam.
-- [ ] Dogfood a guarded copy of the real vault before closing the issue.
+- [x] Exercise a privacy-safe synthetic corpus matching the real vault's
+  aggregate Markdown scale and depth, plus generated spaces/Unicode/
+  punctuation/long-path cases, through both source Electron and the exact
+  unsigned package; close the one tree-list containment gap exposed by that journey. Evidence:
+  `docs/reviews/output/2026-07-19-note-root-containment-proof.json`.
 
 ### 3. Installed core loop — complete
 
 - [x] Rebuilt, installed, and relaunched the packaged app after the renderer-recovery fix and inline invocation work.
-- [x] Verified `exo` exposes resident-app `start` plus app-off `status`, `search`, and `read` modes; focused Electron journey coverage remains green.
+- [x] Verified `exo` exposes resident-app `start` plus app-off `status` and
+  `search`; focused Electron journey coverage remains green.
 - [x] The remaining terminal and first-launch observations are ordinary dogfood follow-ups, not a blocker for the shipped core loop.
 
 ### 4. Finish the editor and invocation loop
@@ -173,55 +269,63 @@ Start only after the trust gates above pass.
 
 - [x] Create `feat/graph-system-foundation` from `main` and write the branch-
   executable plan in `docs/graph-system-implementation-plan.md`. This branch
-  stops at the canonical knowledge model, Generic/OKF profiles, utility tracer,
-  and renderer-neutral projection contract; production Stellar integration is a
-  separate merge decision.
+  stops at the canonical knowledge model, Generic/OKF Formats, utility tracer,
+  and renderer-neutral projection contract; Launch Gate D subsequently earned
+  the production spatial integration.
 - [x] Distill the visualization work, benchmark evidence, quality findings,
   domain model, and production gates in
   `docs/graph-system-report-and-plan.md`.
-- [x] Record the durable schema-agnostic graph / optional Knowledge Profile
+- [x] Record the durable schema-agnostic graph / optional Workspace Ontology
   decision in `docs/adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` and
   align `CONTEXT.md`, architecture, roadmap, insight, and research logs.
 - [x] Add the repo-owned `graph-system-stability` engineering skill and expose it
   to Claude/Codex contributors; formally retire the fixed-taxonomy, scheduled-
-  mutation `graph-evolve` vault skill. Defer `evaluate-exograph`,
-  `find-connect-context`, and `propose-knowledge-profile` until their underlying
-  contracts exist.
-- [ ] Phase 0: pin one public Google OKF bundle and one OpenWiki wiki fixture and
+  mutation `graph-evolve` vault skill. Defer `evaluate-exograph` and
+  `find-connect-context` until their underlying contracts exist. The now-earned
+  `design-workspace-ontology` Skill is the next optional, evaluation-gated slice
+  after the interoperability fixtures.
+- [x] Phase 0: pin one public Google OKF bundle and one OpenWiki wiki fixture and
   define deterministic schema/compatibility cases with expected facts.
-- [ ] Phase 1: consolidate `GraphSnapshot` and `WorkspaceGraph` behind snapshot
-  0.2 with open Concept types, lossless Properties, Relation predicates,
-  authority, resolution, and Evidence; preserve current Connections, Folder
+- [x] Phase 1: consolidate `GraphSnapshot` and `WorkspaceGraph` behind snapshot
+  0.3 with open Concept types, lossless Properties, Relation predicates,
+  origin, resolution, and Evidence; preserve current Connections, Folder
   Overview, and search behavior through compatibility tests.
-  - [x] Land the snapshot 0.2 tracer behind `WorkspaceGraph`: open Concept types,
-    recursive Properties, Relation authority/resolution/Evidence, deterministic
-    identity, and compatibility coverage. Duplicate legacy APIs still need the
-    protected caller/deletion pass.
-- [ ] Phase 2: add Generic Markdown and permissive OKF 0.1 Knowledge Profiles,
-  then earn the smallest user-owned profile contract from the fixtures.
+  - [x] Land snapshot 0.3 behind `WorkspaceGraph`: open Concept types, recursive
+    Properties, Relation origin/resolution/Evidence, deterministic identity,
+    and compatibility coverage; remove the legacy snapshot/query, object Graph
+    View, unbounded detail, and duplicate renderer-scene contracts after audit.
+- [x] Phase 2: add Generic Markdown and permissive OKF 0.1 Formats, then earn
+  the smallest reviewed Workspace Ontology contract from fixtures.
   - [x] Add built-in Generic Markdown and permissive OKF 0.1 interpretation;
-    missing OKF type is a finding and unknown fields survive. User-owned profile
-    configuration remains unearned.
-- [x] Phase 3: cover identity, resolution, Evidence, and profile conformance in
+    missing OKF type is a finding and unknown fields survive. User-owned
+    Candidate parsing/compilation and persisted Active checkpointing are now
+    implemented.
+  - [x] Add bounded Candidate graph-effect preview and explicit Keep/Reject in
+    Workspace Settings with disk-fresh stale guards, atomic activation,
+    restart proof, and graph-only Ontology Relations in Connections. Evidence:
+    `docs/reviews/output/2026-07-20-launch-gate-e.md`.
+- [x] Phase 3: cover identity, resolution, Evidence, and Format/Ontology conformance in
   deterministic graph contract tests. Keep AI-system evaluation outside Exo.
-- [ ] Phase 4: compile renderer-neutral dense topology and stable layout epochs
+- [x] Phase 4: compile renderer-neutral dense topology and stable layout epochs
   from the consolidated graph; keep ontology strings and semantics out of hot
   renderer paths.
   - [x] Add deterministic projection, a finite worker layout, and scene-level
     picking/path/camera tests.
-  - [ ] Replace object IPC with compact typed topology plus epoch-qualified,
-    bounded detail reads before claiming 10K production scale. Stable persisted
-    layout epochs and scale corpus gates remain (`EXO-ISSUE-119`).
-- [ ] Phase 5: integrate Stellar as a normal Graph Pane only after packaged-app
+  - [x] Replace object IPC with compact typed topology plus epoch-qualified,
+    bounded detail reads and deterministic 10K/50K/100K payload gates; preserve
+    stable surviving scene state across graph generations (`EXO-ISSUE-119`).
+- [x] Phase 5: integrate the spatial renderer as a normal Graph Pane after
+  source and packaged-app
   interaction, fallback, accessibility, quiescence, continuity, and editor-
   latency-under-load gates pass on a private real-Workspace copy.
-  - [x] Prove the pane and IPC boundary with a Canvas tracer in Connections and
-    the Workspace Canvas; real development-Electron selection and path dogfood
-    passed. This does not complete the Stellar/WebGPU acceptance gate.
-  - [ ] Close `EXO-ISSUE-121`: tune node legibility and trackpad/pinch zoom;
+  - [x] Prove the pane and IPC boundary through hardware WebGPU and the complete
+    Canvas recovery path; source and exact-package interaction passed.
+  - [x] Close the production portion of `EXO-ISSUE-121`: tune node legibility and trackpad/pinch zoom;
     add an editor Graph action focused on the current Note; unify single-select,
     double-click-open, repeated-node-focus, and explicit frame-all semantics;
-    and rebuild Connections/Properties around one inspected Concept.
+    rebuild Connections/Properties around one inspected Concept, and compile
+    the compact Connections neighborhood through the full presentation path.
+    Broader physical-device polish remains a follow-up.
 - [ ] Phase 6: ship **Find and connect relevant context** through the existing
   configured-Command review loop and measure product behavior before adding
   another Skill.
@@ -256,7 +360,7 @@ Start only after the trust gates above pass.
 - [ ] Publish the reviewed `dev` candidate only after the full stable smoke,
   installed-app durability, and editor latency suite are green. Keep `main`
   unchanged until then (`EXO-ISSUE-120`).
-- [ ] Resolve `EXO-ISSUE-118`: reproduce the breadcrumb Folder-contents and
+- [x] Resolve `EXO-ISSUE-118`: reproduce the breadcrumb Folder-contents and
   active-invocation throughput regressions in a clean worktree before accepting
   the graph foundation; do not weaken the existing latency budgets.
 - [ ] Investigate `EXO-ISSUE-116`: capture and reduce the non-reproducible

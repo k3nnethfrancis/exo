@@ -1,9 +1,11 @@
 import { writeFileSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { GRAPH_CONCEPT_SUMMARY_MAX_BYTES } from "../graph-projection";
 import { WorkspaceGraph, workspaceNoteId } from "../workspace-graph";
+import { WorkspaceOntologyStore } from "../workspace-ontology";
 import type { WorkspaceModel } from "../types";
 
 const roots: string[] = [];
@@ -150,7 +152,7 @@ describe("WorkspaceGraph", () => {
     const second = await graph.knowledgeSnapshot();
     const metric = snapshot.concepts.find((concept) => concept.label === "Activation");
 
-    expect(snapshot.version).toBe("0.2");
+    expect(snapshot.version).toBe("0.3");
     expect(snapshot.snapshotId).toBe(second.snapshotId);
     expect(metric).toMatchObject({
       conceptTypes: ["Metric", "NorthStar"],
@@ -160,11 +162,11 @@ describe("WorkspaceGraph", () => {
     expect(snapshot.relations).toEqual(expect.arrayContaining([
       expect.objectContaining({
         family: "link",
-        authority: "authored",
+        origin: "document",
         resolution: "resolved",
         evidence: [expect.objectContaining({ kind: "source-span", detail: "source" })],
       }),
-      expect.objectContaining({ family: "tag-membership", predicate: "has-tag", authority: "authored" }),
+      expect.objectContaining({ family: "tag-membership", predicate: "has-tag", origin: "document" }),
     ]));
     expect(snapshot.findings).toContainEqual(expect.objectContaining({ code: "relation.unresolved" }));
   });
@@ -182,6 +184,53 @@ describe("WorkspaceGraph", () => {
     expect(snapshot.activeProfile).toMatchObject({ id: "okf", version: "0.1" });
     expect(snapshot.concepts.find((concept) => concept.label === "Typed")?.properties).toMatchObject({ producer_field: "keep" });
     expect(snapshot.findings).toContainEqual(expect.objectContaining({ code: "okf.missing-type", conceptIds: ["note:notes:untyped.md"] }));
+  });
+
+  it("uses only an explicitly kept Ontology and ignores later candidate edits", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-ontology-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    const runtimeRoot = path.join(workspace, ".exo-test");
+    await mkdir(notes);
+    const sourcePath = path.join(notes, "source.md");
+    const sourceBytes = "---\ntype: paper\nsupports: [missing]\n---\n# Source\n";
+    await writeFile(sourcePath, sourceBytes);
+    await writeFile(path.join(workspace, "ontology.yaml"), [
+      "ontology_schema: 1",
+      "id: research",
+      "version: 1",
+      "types:",
+      "  paper: {}",
+      "properties:",
+      "  supports:",
+      "    value: reference[]",
+      "    predicate: supports",
+    ].join("\n"));
+
+    const beforeKeep = await new WorkspaceGraph(model(workspace, notes), { runtimeRoot }).knowledgeSnapshot();
+    expect(beforeKeep.activeOntology).toEqual({ state: "generic" });
+    expect(beforeKeep.relations.some((relation) => relation.origin === "ontology")).toBe(false);
+
+    const store = new WorkspaceOntologyStore({ workspaceRoot: workspace, runtimeRoot });
+    const candidate = await store.inspectCandidate();
+    await store.keepCandidate(candidate.sourceRevision ?? "");
+    const activeGraph = new WorkspaceGraph(model(workspace, notes), { runtimeRoot });
+    const active = await activeGraph.knowledgeSnapshot();
+    const activeTopology = await activeGraph.graphTopology();
+    expect(active.activeOntology).toMatchObject({ state: "active", id: "research" });
+    expect(active.relations).toContainEqual(expect.objectContaining({ origin: "ontology", resolution: "unresolved" }));
+    const ids = new Set(active.concepts.map((concept) => concept.id));
+    expect(active.relations.every((relation) => ids.has(relation.source) && ids.has(relation.target))).toBe(true);
+
+    await writeFile(path.join(workspace, "ontology.yaml"), "ontology_schema: 1\nid: replacement\nversion: 2\n");
+    const candidateGraph = new WorkspaceGraph(model(workspace, notes), { runtimeRoot });
+    const candidateOnly = await candidateGraph.knowledgeSnapshot();
+    const candidateTopology = await candidateGraph.graphTopology();
+    expect(candidateOnly.snapshotId).toBe(active.snapshotId);
+    expect(candidateOnly.activeOntology).toEqual(active.activeOntology);
+    expect(candidateTopology.topologyHash).toBe(activeTopology.topologyHash);
+    expect(candidateTopology.layoutEpochId).toBe(activeTopology.layoutEpochId);
+    expect(await readFile(sourcePath, "utf8")).toBe(sourceBytes);
   });
 
   it("preserves stable relation identity when a different link is inserted earlier", async () => {
@@ -209,7 +258,7 @@ describe("WorkspaceGraph", () => {
     expect(workspaceNoteId("notes", "Folder/Foo.md")).not.toBe(workspaceNoteId("notes", "folder/foo.md"));
   });
 
-  it("rejects concept detail from a stale graph epoch", async () => {
+  it("rejects bounded concept detail from a stale graph epoch", async () => {
     const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
@@ -217,12 +266,279 @@ describe("WorkspaceGraph", () => {
     const notePath = path.join(notes, "focus.md");
     await writeFile(notePath, "# Focus\n");
     const graph = new WorkspaceGraph(model(workspace, notes));
-    const first = await graph.graphView();
-    const conceptId = first.projection.nodes[0]?.id ?? "";
+    const first = await graph.graphTopology();
     await writeFile(notePath, "# Changed\n");
     await graph.refreshFile(notePath);
 
-    await expect(graph.graphConceptDetail(conceptId, first.projection.sourceSnapshotId)).resolves.toBeNull();
+    await expect(graph.graphConceptDetailByIndex(0, first.sourceSnapshotId)).resolves.toMatchObject({
+      status: "stale",
+      index: 0,
+    });
+  });
+
+  it("serves cold summaries and bounded evidenced detail by topology index", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    const properties = Array.from({ length: 70 }, (_, index) => `property_${String(index).padStart(2, "0")}: value-${index}`);
+    const links = [
+      ...Array.from({ length: 140 }, () => "[[target]]"),
+      ...Array.from({ length: 70 }, () => "[[missing]]"),
+    ].join(" ");
+    const focusPath = path.join(notes, "focus.md");
+    await writeFile(focusPath, ["---", "title: Focus", "type: Document", ...properties, "---", links].join("\n"));
+    await writeFile(path.join(notes, "target.md"), "# Target\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+
+    const firstTopology = await graph.graphTopology("okf");
+    const secondTopology = await graph.graphTopology("okf");
+    expect(firstTopology.nodes.identityKeys.byteLength).toBeGreaterThan(0);
+    expect(firstTopology.nodes.identityKeys).toBe(secondTopology.nodes.identityKeys);
+    expect(firstTopology.transportHash).toBe(secondTopology.transportHash);
+    const summaries = await graph.graphConceptSummaries(
+      Array.from({ length: firstTopology.nodeCount }, (_, index) => index),
+      firstTopology.sourceSnapshotId,
+      "okf",
+    );
+    expect(summaries.status).toBe("ok");
+    const focusIndex = summaries.summaries.find((summary) => summary.label === "Focus")?.index;
+    expect(focusIndex).toBeTypeOf("number");
+    const detail = await graph.graphConceptDetailByIndex(focusIndex ?? -1, firstTopology.sourceSnapshotId, "okf");
+
+    expect(detail.status).toBe("ok");
+    expect(detail.payloadBytes).toBeLessThanOrEqual(256 * 1024);
+    expect(detail.detail?.profile).toMatchObject({ id: "okf", version: "0.1" });
+    expect(detail.detail?.properties).toHaveLength(64);
+    expect(detail.detail?.relations).toHaveLength(128);
+    expect(detail.detail?.findings).toHaveLength(64);
+    expect(detail.detail?.omitted).toMatchObject({ properties: 8, relations: 82, findings: 6, evidence: 88 });
+    expect(detail.detail?.relations[0]).toMatchObject({
+      direction: "outgoing",
+      relation: {
+        origin: "document",
+        evidence: [expect.objectContaining({ kind: "source-span", noteId: "note:notes:focus.md" })],
+      },
+    });
+
+    await expect(graph.graphConceptSummaries([999], firstTopology.sourceSnapshotId, "okf")).resolves.toMatchObject({ status: "missing" });
+    await expect(graph.graphConceptSummaries(Array.from({ length: 65 }, (_, index) => index), firstTopology.sourceSnapshotId, "okf"))
+      .rejects.toThrow("limited to 64 nodes");
+
+    await writeFile(focusPath, "# Changed\n");
+    await graph.refreshFile(focusPath);
+    await expect(graph.graphConceptDetailByIndex(focusIndex ?? -1, firstTopology.sourceSnapshotId, "okf"))
+      .resolves.toMatchObject({ status: "stale" });
+    await expect(graph.graphConceptSummaries([focusIndex ?? -1], firstTopology.sourceSnapshotId, "okf"))
+      .resolves.toMatchObject({ status: "stale" });
+  });
+
+  it("reports an oversized cold summary explicitly without leaking it into topology", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    const hugeTitle = `secret-${"x".repeat(70 * 1024)}`;
+    await writeFile(path.join(notes, "huge.md"), `---\ntitle: ${hugeTitle}\n---\n`);
+    const graph = new WorkspaceGraph(model(workspace, notes));
+    const topology = await graph.graphTopology();
+
+    expect(JSON.stringify(topology)).not.toContain("secret-");
+    await expect(graph.graphConceptSummaries([0], topology.sourceSnapshotId)).resolves.toMatchObject({
+      status: "too-large",
+      summaries: [],
+    });
+  });
+
+  it("looks up cold concept identity by id or normalized file path in one cached topology epoch", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    const folder = path.join(notes, "Folder");
+    await mkdir(folder, { recursive: true });
+    const focusPath = path.join(folder, "Focus.md");
+    await writeFile(focusPath, "# Focus\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+    const topology = await graph.graphTopology();
+    const conceptId = workspaceNoteId("notes", "folder/focus.md");
+
+    const byId = await graph.graphConceptLookup({ conceptId }, topology.sourceSnapshotId);
+    const byPath = await graph.graphConceptLookup(
+      { filePath: path.join(folder, "..", "Folder", "Focus.md") },
+      topology.sourceSnapshotId,
+    );
+
+    expect(byId).toMatchObject({ status: "ok", summary: { index: 0, label: "Focus", filePath: focusPath } });
+    expect(byPath).toEqual(byId);
+    expect(byId.payloadBytes).toBe(Buffer.byteLength(JSON.stringify(byId), "utf8"));
+    await expect(graph.graphConceptLookup({ conceptId: "missing" }, topology.sourceSnapshotId))
+      .resolves.toMatchObject({ status: "missing" });
+    await expect(graph.graphConceptLookup({ filePath: path.join(notes, "missing.md") }, topology.sourceSnapshotId))
+      .resolves.toMatchObject({ status: "missing" });
+    await expect(graph.graphConceptLookup({} as never, topology.sourceSnapshotId)).rejects.toThrow("exactly one");
+    await expect(graph.graphConceptLookup({ conceptId, filePath: focusPath } as never, topology.sourceSnapshotId)).rejects.toThrow("exactly one");
+    await expect(graph.graphConceptLookup({ conceptId: "" }, topology.sourceSnapshotId)).rejects.toThrow("must not be empty");
+
+    await writeFile(focusPath, "# Changed\n");
+    await graph.refreshFile(focusPath);
+    await expect(graph.graphConceptLookup({ conceptId }, topology.sourceSnapshotId))
+      .resolves.toMatchObject({ status: "stale" });
+    const refreshedTopology = await graph.graphTopology();
+    await expect(graph.graphConceptLookup({ conceptId }, refreshedTopology.sourceSnapshotId))
+      .resolves.toMatchObject({ status: "ok", summary: { label: "Changed" } });
+  });
+
+  it("enforces the exact cold concept lookup payload byte cap", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    const hugePath = path.join(notes, "huge.md");
+    await writeFile(hugePath, "---\ntitle: x\n---\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+    let topology = await graph.graphTopology();
+    const baseline = await graph.graphConceptLookup({ filePath: hugePath }, topology.sourceSnapshotId);
+    expect(baseline.status).toBe("ok");
+    let titleLength = GRAPH_CONCEPT_SUMMARY_MAX_BYTES;
+    for (let iteration = 0; iteration < 4; iteration += 1) {
+      const candidate = { ...baseline, summary: { ...baseline.summary, label: "x".repeat(titleLength) }, payloadBytes: 0 };
+      let bytes = Buffer.byteLength(JSON.stringify(candidate), "utf8");
+      for (let sizeIteration = 0; sizeIteration < 3; sizeIteration += 1) {
+        candidate.payloadBytes = bytes;
+        bytes = Buffer.byteLength(JSON.stringify(candidate), "utf8");
+      }
+      titleLength -= bytes - GRAPH_CONCEPT_SUMMARY_MAX_BYTES;
+    }
+
+    await writeFile(hugePath, `---\ntitle: ${"x".repeat(titleLength)}\n---\n`);
+    await graph.refreshFile(hugePath);
+    topology = await graph.graphTopology();
+    const atLimit = await graph.graphConceptLookup({ filePath: hugePath }, topology.sourceSnapshotId);
+    expect(atLimit.payloadBytes).toBe(GRAPH_CONCEPT_SUMMARY_MAX_BYTES);
+
+    await writeFile(hugePath, `---\ntitle: ${"x".repeat(titleLength + 1)}\n---\n`);
+    await graph.refreshFile(hugePath);
+    topology = await graph.graphTopology();
+    await expect(graph.graphConceptLookup({ filePath: hugePath }, topology.sourceSnapshotId))
+      .rejects.toThrow("65536-byte limit");
+  });
+
+  it("stages reviewed Ontology effects, rejects stale Keeps, and publishes exactly the staged graph", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-review-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    const runtimeRoot = path.join(workspace, ".exo-test");
+    await mkdir(notes, { recursive: true });
+    const sourcePath = path.join(notes, "source.md");
+    const initialNote = "---\ntype: paper\nsupports: [target]\n---\n# Source\n";
+    await writeFile(sourcePath, initialNote);
+    await writeFile(path.join(notes, "target.md"), "---\ntype: claim\n---\n# Target\n");
+    await writeFile(path.join(workspace, "ontology.yaml"), [
+      "ontology_schema: 1",
+      "id: research",
+      "version: 1",
+      "types:",
+      "  paper: {}",
+      "  claim: {}",
+      "properties:",
+      "  supports:",
+      "    value: reference[]",
+      "    predicate: supports",
+    ].join("\n"));
+    const graph = new WorkspaceGraph(model(workspace, notes), { runtimeRoot });
+    const activeBefore = await graph.knowledgeSnapshot();
+    expect((await graph.contextForNote(sourcePath))?.neighborhoodRelations).toEqual([]);
+    const preview = await graph.previewOntology();
+
+    expect(preview).toMatchObject({
+      active: { state: "generic" },
+      candidate: { state: "valid", id: "research" },
+      effects: { before: { ontologyRelations: 0 }, after: { ontologyRelations: 1 } },
+    });
+    expect((await graph.knowledgeSnapshot()).snapshotId).toBe(activeBefore.snapshotId);
+    expect(await readFile(sourcePath, "utf8")).toBe(initialNote);
+
+    const changedNote = `${initialNote}\nChanged while reviewing.\n`;
+    await writeFile(sourcePath, changedNote);
+    const stale = await graph.keepOntology(preview.guard);
+    expect(stale.status).toBe("stale");
+    expect((await graph.knowledgeSnapshot()).activeOntology.state).toBe("generic");
+
+    const refreshed = stale.review;
+    await graph.refreshFile(sourcePath);
+    const kept = await graph.keepOntology(refreshed.guard);
+    expect(kept.status).toBe("applied");
+    expect((await graph.knowledgeSnapshot()).snapshotId).toBe(refreshed.effects?.candidateSnapshotId);
+    expect((await graph.knowledgeSnapshot()).activeOntology).toMatchObject({ state: "active", id: "research" });
+    expect((await graph.contextForNote(sourcePath))?.outgoing).toEqual([]);
+    expect((await graph.contextForNote(sourcePath))?.backlinks).toEqual([]);
+    expect((await graph.contextForNote(sourcePath))?.neighborhoodRelations).toEqual([
+      expect.objectContaining({
+        origin: "ontology",
+        predicate: "supports",
+        source: "note:notes:source.md",
+        target: "note:notes:target.md",
+      }),
+    ]);
+    expect((await graph.contextForNote(sourcePath))?.neighborhood.map((note) => note.title)).toContain("Target");
+    expect((await graph.contextForNote(path.join(notes, "target.md")))?.neighborhoodRelations).toEqual([
+      expect.objectContaining({
+        origin: "ontology",
+        predicate: "supports",
+        source: "note:notes:source.md",
+        target: "note:notes:target.md",
+      }),
+    ]);
+    expect((await graph.contextForNote(path.join(notes, "target.md")))?.neighborhood.map((note) => note.title)).toContain("Source");
+    expect(await readFile(sourcePath, "utf8")).toBe(changedNote);
+
+    const restarted = new WorkspaceGraph(model(workspace, notes), { runtimeRoot });
+    expect((await restarted.knowledgeSnapshot()).snapshotId).toBe(refreshed.effects?.candidateSnapshotId);
+    const activationPath = new WorkspaceOntologyStore({ workspaceRoot: workspace, runtimeRoot }).activationPath;
+    const checkpoint = await readFile(activationPath, "utf8");
+    await writeFile(activationPath, "{\"broken\":true}\n");
+    expect((await restarted.knowledgeSnapshot()).activeOntology).toMatchObject({ state: "active", id: "research" });
+    expect((await new WorkspaceGraph(model(workspace, notes), { runtimeRoot }).knowledgeSnapshot()).activeOntology.state).toBe("invalid-state");
+    await writeFile(activationPath, checkpoint);
+    await writeFile(path.join(workspace, "ontology.yaml"), "ontology_schema: 1\nid: replacement\nversion: 2\n");
+    const later = await restarted.previewOntology();
+    const activeId = (await restarted.knowledgeSnapshot()).snapshotId;
+    const rejectChangedNote = `${changedNote}\nChanged while deciding to reject.\n`;
+    await writeFile(sourcePath, rejectChangedNote);
+    const staleReject = await restarted.rejectOntology(later.guard);
+    expect(staleReject.status).toBe("stale");
+    expect(staleReject.review.candidate.rejected).toBe(false);
+    expect((await restarted.rejectOntology(staleReject.review.guard)).status).toBe("rejected");
+    expect((await restarted.knowledgeSnapshot()).snapshotId).toBe(activeId);
+
+    await unlink(path.join(workspace, "ontology.yaml"));
+    const deactivate = await restarted.previewOntology();
+    expect(deactivate).toMatchObject({ candidate: { state: "absent" }, effects: { after: { ontologyRelations: 0 } } });
+    expect((await restarted.rejectOntology(deactivate.guard)).status).toBe("rejected");
+    expect((await restarted.knowledgeSnapshot()).activeOntology.state).toBe("active");
+    const reopenedDeactivate = await restarted.previewOntology();
+    expect(reopenedDeactivate.candidate.rejected).toBe(true);
+    expect((await restarted.keepOntology(reopenedDeactivate.guard)).status).toBe("applied");
+    expect((await restarted.knowledgeSnapshot()).activeOntology.state).toBe("generic");
+    expect((await restarted.contextForNote(sourcePath))?.neighborhoodRelations).toEqual([]);
+    expect(await readFile(sourcePath, "utf8")).toBe(rejectChangedNote);
+  });
+
+  it("keeps the common no-candidate Ontology preview off the graph build path", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-quiet-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(notes, { recursive: true });
+    await writeFile(path.join(notes, "note.md"), "# Note\n");
+    const graph = new WorkspaceGraph(model(workspace, notes), { runtimeRoot: path.join(workspace, ".exo-test") });
+
+    expect(await graph.status()).toEqual({ state: "stale", noteCount: 0, edgeCount: 0 });
+    await expect(graph.previewOntology()).resolves.toMatchObject({
+      active: { state: "generic" },
+      candidate: { state: "absent", pending: false },
+      guard: { baseSnapshotId: "not-pending" },
+    });
+    expect(await graph.status()).toEqual({ state: "stale", noteCount: 0, edgeCount: 0 });
   });
 });
 
