@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { findFocusedEditorPath } from "./paneTreeSelectors";
+import { collectLeaves } from "./hooks/usePaneTree";
 import type { PaneNode } from "./hooks/usePaneTree";
 
 describe("focused editor ownership", () => {
@@ -32,5 +33,30 @@ describe("focused editor ownership", () => {
     };
 
     expect(findFocusedEditorPath(tree, "terminal")).toBeNull();
+  });
+
+  it("preserves null ownership when the normalized restored focus is a browser", () => {
+    const tree: PaneNode = {
+      kind: "split",
+      id: "root",
+      direction: "horizontal",
+      ratio: 0.5,
+      children: [
+        { kind: "leaf", id: "browser", content: { kind: "browser", previewId: "preview" } },
+        { kind: "leaf", id: "editor", content: { kind: "editor", openPaths: ["/notes/a.md"], activePath: "/notes/a.md" } },
+      ],
+    };
+
+    expect(findFocusedEditorPath(tree, collectLeaves(tree)[0]!.id)).toBeNull();
+  });
+
+  it("preserves null ownership when the normalized restored editor has no active document", () => {
+    const tree: PaneNode = {
+      kind: "leaf",
+      id: "editor",
+      content: { kind: "editor", openPaths: ["/notes/a.md"], activePath: null },
+    };
+
+    expect(findFocusedEditorPath(tree, collectLeaves(tree)[0]!.id)).toBeNull();
   });
 });

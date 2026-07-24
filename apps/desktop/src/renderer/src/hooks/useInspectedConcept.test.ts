@@ -33,4 +33,23 @@ describe("inspected Concept ownership", () => {
     expect(first.focusRequest?.sequence).toBe(1);
     expect(second.focusRequest?.sequence).toBe(2);
   });
+
+  it("clears only the editor-owned inspection when editor ownership disappears", () => {
+    const editorInspection = reduceInspectedConcept(EMPTY_INSPECTED_CONCEPT_STATE, {
+      type: "inspect",
+      concept: { filePath: "/notes/editor.md" },
+      source: "editor",
+    });
+    const graphInspection = reduceInspectedConcept(EMPTY_INSPECTED_CONCEPT_STATE, {
+      type: "inspect",
+      concept: { filePath: "/notes/graph.md" },
+      source: "graph",
+    });
+
+    expect(reduceInspectedConcept(editorInspection, { type: "sync-editor", filePath: null })).toMatchObject({
+      concept: null,
+      source: "editor",
+    });
+    expect(reduceInspectedConcept(graphInspection, { type: "sync-editor", filePath: null })).toBe(graphInspection);
+  });
 });

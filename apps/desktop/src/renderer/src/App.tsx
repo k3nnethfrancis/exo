@@ -315,10 +315,8 @@ export function App() {
   }, [activeDocumentPath, focusedEditorPath, setActiveDocumentPath]);
 
   useEffect(() => {
-    if (activeDocumentPath) {
-      graphInspection.inspect({ filePath: activeDocumentPath }, "editor");
-    }
-  }, [activeDocumentPath, graphInspection.inspect]);
+    graphInspection.syncEditorDocument(activeDocumentPath);
+  }, [activeDocumentPath, graphInspection.syncEditorDocument]);
 
   useEffect(() => {
     if (!workspaceModel) {
@@ -511,7 +509,7 @@ export function App() {
       // Use the same owner while bootstrap loads documents, before React has
       // published the restored canvas back to this closure.
       const restoredActivePath = findFocusedEditorPath(restoredTree, collectLeaves(restoredTree)[0]?.id ?? "");
-      setActiveDocumentPath(restoredActivePath ?? restoredPaths.values().next().value ?? null);
+      setActiveDocumentPath(restoredActivePath);
     }
   }
 

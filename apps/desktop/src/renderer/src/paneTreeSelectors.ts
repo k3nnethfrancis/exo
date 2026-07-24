@@ -11,11 +11,6 @@ export function collectOpenEditorPaths(tree: PaneNode): Set<string> {
   return paths;
 }
 
-export function findActiveEditorPath(tree: PaneNode | undefined): string | null {
-  const activeLeaf = tree ? collectLeaves(tree).find((leaf) => leaf.content.kind === "editor" && leaf.content.activePath) : undefined;
-  return activeLeaf?.content.kind === "editor" ? activeLeaf.content.activePath : null;
-}
-
 /** The focused canvas leaf is the sole renderer owner of an active document. */
 export function findFocusedEditorPath(tree: PaneNode | undefined, focusedLeafId: PaneNodeId): string | null {
   if (!tree) return null;
