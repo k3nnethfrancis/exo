@@ -60,4 +60,4 @@ The default CI workflow runs on macOS:
 pnpm ci:check
 ```
 
-`pnpm check` remains the typecheck/test/build subset. The package workflow is manual and builds unsigned macOS artifacts.
+`pnpm check` remains the unused-symbol/typecheck/test/build subset. The package workflow is manual and builds unsigned macOS artifacts.

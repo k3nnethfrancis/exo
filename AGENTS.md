@@ -67,6 +67,7 @@ pnpm ci:check
 Focused gates:
 
 ```bash
+pnpm check:unused
 pnpm typecheck
 pnpm test
 pnpm build
@@ -77,7 +78,7 @@ pnpm --filter @exo/core test
 pnpm test:e2e
 ```
 
-CI runs `pnpm ci:check` on macOS. `pnpm check` remains the typecheck/test/build subset.
+CI runs `pnpm ci:check` on macOS. `pnpm check` remains the unused-symbol/typecheck/test/build subset.
 
 ## Dev Loop
 

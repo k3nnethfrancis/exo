@@ -324,6 +324,7 @@ It runs:
 
 ```bash
 pnpm check:repo
+pnpm check:unused
 pnpm typecheck
 pnpm test
 pnpm build
