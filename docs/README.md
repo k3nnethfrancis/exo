@@ -1,61 +1,55 @@
-# Exo Docs
+# Exo documentation map
 
-This directory contains public project context for humans and coding agents.
+This is the public progressive-disclosure index. Start with the **current**
+documents, then follow the source/test owner map. A proposal, dated review, or
+historical packet is evidence—not a current architecture contract.
 
-## Read first
+## Current product and operating contract
 
-1. `../AGENTS.md` — current contributor rules, active Codex execution context, and architecture invariants.
-2. `../CONTEXT.md` — canonical product vocabulary, including Folder, Folder Index, Folder Overview, Primary Home, Ontology, Command, Skill, and Invocation.
-3. `../tasks.md` — active implementation work and ownership-sensitive sequencing.
-4. `../issues.md` — canonical bugs, QA findings, and release blockers.
-5. `../README.md` — current product and setup surface.
-6. `architecture.md` — current package/domain architecture and retained feature/data-model index.
-7. `../roadmap.md` — next-slice and longer-term direction.
-8. `graph-system-report-and-plan.md` — graph-lab results, production knowledge model, quality framework, and gated integration plan.
-9. `note-root-formats.md` — Generic Markdown baseline and OKF 0.1 compatibility boundary.
-10. `workspace-ontology.md` — reviewed `ontology.yaml` contract and supported source shape.
-11. `semantic-and-model-space-projections.md` — renderer-neutral embedding-index and open-model-internals projection contract.
-12. `exograph-simplification-plan.md` — historical refactor/planning corpus; consult only with `tasks.md` for current status.
-13. `extension-architecture.md` — Markdown/config/Command-first extension ladder.
-14. `public-contract-reviews.md` — review ledger for protected CLI, command-server, and shared-protocol contracts.
-15. `usability-readiness.md` — installed-app readiness requirements.
-16. `harness.md` — development and validation workflow.
+1. [`../README.md`](../README.md) — product surface, supported setup, and commands.
+2. [`../AGENTS.md`](../AGENTS.md) — contributor invariants and validation routes.
+3. [`../CONTEXT.md`](../CONTEXT.md) — canonical product vocabulary.
+4. [`architecture.md`](architecture.md) — current conceptual architecture and deep-module boundaries.
+5. [`launch-surface-ledger.md`](launch-surface-ledger.md) — code/test-grounded public surface classification.
+6. [`durable-state.md`](durable-state.md) — persisted artifacts, authority, migration, recovery, and deletion gates.
+7. [`performance-contracts.md`](performance-contracts.md) — latency gates and explicitly unmeasured actions.
+8. [`harness.md`](harness.md) and [`usability-readiness.md`](usability-readiness.md) — validation and installed-app evidence.
 
-## Current product direction
+`../tasks.md`, `../issues.md`, `../roadmap.md`, and `../ledger.md` are the
+canonical tracker/history files; they are not substitutes for the current
+architecture contract.
 
-> **Local Markdown exocortex + modular, tunable search + inline agent invocation + graph management skills.**
+## Source and test owner map
 
-Folders provide the first custom-ontology substrate. A Folder path gives Notes a primary home; optional user-owned `index.md` and Folder Overview are shipped behavior. Tags and typed relationships preserve multiple membership.
+| Concern | Current authority | Focused tests |
+| --- | --- | --- |
+| Workspace scope and filesystem containment | [`WorkspaceFiles`](../packages/core/src/workspace-files.ts) | [`workspace-files.test.ts`](../packages/core/src/__tests__/workspace-files.test.ts) |
+| Settings, registry, and onboarding | [`WorkspaceConfigStore`](../apps/desktop/src/main/workspace-config-store.ts) and [`workspace-settings.ts`](../packages/core/src/workspace-settings.ts) | [`workspace-config-store.test.ts`](../apps/desktop/src/main/workspace-config-store.test.ts), [`onboarding.spec.ts`](../apps/desktop/tests/e2e/onboarding.spec.ts) |
+| Search/index lifecycle | [`WorkspaceIndex`](../packages/core/src/workspace-index.ts), [`IndexingService`](../apps/desktop/src/main/indexing-service.ts) | [`workspace-index.test.ts`](../packages/core/src/__tests__/workspace-index.test.ts), [`derived-work-latency.spec.ts`](../apps/desktop/tests/e2e/derived-work-latency.spec.ts) |
+| Knowledge graph and Ontology review | [`WorkspaceGraph`](../packages/core/src/workspace-graph.ts) | [`workspace-graph.test.ts`](../packages/core/src/__tests__/workspace-graph.test.ts), [`ontology-review.test.ts`](../packages/core/src/__tests__/ontology-review.test.ts) |
+| Invocation and review | [`InvocationRunner`](../apps/desktop/src/main/invocation-runner.ts) | [`invocation-runner.test.ts`](../apps/desktop/src/main/invocation-runner.test.ts), [`invocation-review.test.ts`](../apps/desktop/src/main/invocation-review.test.ts) |
+| Terminal lifecycle | [`TerminalManager`](../apps/desktop/src/main/terminal-manager.ts) | [`shell.spec.ts`](../apps/desktop/tests/e2e/shell.spec.ts) |
+| Command server and CLI | [`CommandServerLifecycle`](../apps/desktop/src/main/command-server-lifecycle.ts), [`packages/cli/src/index.ts`](../packages/cli/src/index.ts) | [`command-server-lifecycle.test.ts`](../apps/desktop/src/main/command-server-lifecycle.test.ts), [`packages/cli/src/index.test.ts`](../packages/cli/src/index.test.ts) |
+| Workspace watcher lifecycle | [`WorkspaceWatcherService`](../apps/desktop/src/main/workspace-watchers.ts) | [`workspace-watchers.test.ts`](../apps/desktop/src/main/workspace-watchers.test.ts) |
 
-The accepted graph direction is schema-agnostic: Markdown stays canonical.
-Generic Markdown supplies the zero-configuration graph; one optional reviewed
-Workspace `ontology.yaml` interprets open types, properties, and reference
-Relations after a Note Root Format has read the files. Graph Views remain
-separate. The built-in OKF 0.1 compatibility path is not a public format
-selector. Graph contract tests and the repo-local rendering/layout performance
-suite remain separate. See `note-root-formats.md`, `workspace-ontology.md`, and
-`graph-system-report-and-plan.md`.
+## Decisions, proposals, and evidence
 
-Codex agents are actively completing trust, containment, editor/invocation, and repository-distillation work. Do not add automatic Folder Index creation or graph-management Skills without `tasks.md` evidence.
-
-First-run can optionally install Exo's bounded, read-only MCP tools into the locally installed Claude and/or Codex CLI. It is not a generic MCP manager; see `provider-mcp-onboarding.md`.
-
-## Durable decisions
-
-- `adr/0001-plugins-and-profiles.md` — superseded historical ADR; never an active implementation guide.
-- `adr/0002-folder-indexes-as-ontology.md` — accepted Folder Index ontology decision.
-- `adr/0003-plugins-are-distribution-bundles.md` — accepted ruling that Plugins are future distribution bundles, not runtime seams.
-- `adr/0004-workspace-is-the-scope-object.md` — accepted ruling that Workspace is the unit of Markdown scope; any future global view is a read-only projection, not a Workspace.
-- `adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` — historical foundation for open graph facts and optional interpretation. ADR 0006 and `workspace-ontology.md` now own the user-facing Ontology contract; the remaining `KnowledgeProfile` name is a bounded internal Format-compatibility seam.
-- `adr/0006-workspace-ontology-is-a-reviewed-passive-interpreter.md` — accepted Candidate/Active, storage, evidence, and separation contract for `ontology.yaml`.
-- `workspace-ontology.md` — supported YAML shape and exact foundation behavior.
-- `terminal-runtime-decision.md` — current direct-PTY decision.
-- `extension-architecture.md` — current core-versus-extension boundary.
-
-## Historical material
-
-The pre-note-native plugin/profile, harness, MCP, tmux, transcript, completion-plan,
-and pivot documents were retired in the P4 stale-document deletion pass. Use Git for
-their exact historical text; use `../ledger.md` and `reviews/` for retained milestones
-and dated review evidence. Do not recreate or refresh a retired plan as current product
-guidance.
+- [`adr/`](adr/) contains durable decisions. ADR identities are unique; ADR 0008
+  is the derived-work performance decision, while ADR 0003 reserves Plugin for
+  future distribution bundles.
+- Current supporting contracts are [`note-root-formats.md`](note-root-formats.md),
+  [`workspace-ontology.md`](workspace-ontology.md),
+  [`terminal-runtime-decision.md`](terminal-runtime-decision.md),
+  [`extension-architecture.md`](extension-architecture.md),
+  [`provider-mcp-onboarding.md`](provider-mcp-onboarding.md), and
+  [`public-contract-reviews.md`](public-contract-reviews.md).
+- `agent-plans/`, `*plan*.md`, `feature-ideas.md`, and the graph/ontology/QMD
+  planning documents are proposals unless their own status says otherwise.
+  Consult their current owner before implementation; they do not override the
+  source map above.
+- [`reviews/`](reviews/) and [`history/`](history/) are dated historical
+  evidence. `public-surface-ledger.md`, `exograph-simplification-plan.md`, and
+  `graph-system-implementation-plan.md` are retained historical records, not
+  current route maps.
+- `benchmarks/graphbench/` and `packages/core/src/__tests__/fixtures/` are
+  supported benchmark/fixture material, not product architecture documents.

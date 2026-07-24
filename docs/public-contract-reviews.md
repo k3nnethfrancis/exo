@@ -70,13 +70,13 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: guard-baseline: 2026-07-04 existing CLI command, usage, and flag parsing surface; guard cleanup does not change behavior.
 - sha256: `481bad75527ab75ff8ab04cc5a4a5f7adabf6939dc81e8a7a4c122720cd58962`
 - review: user-approved-exception: 2026-07-05 Wave 6 recovery/rollback task explicitly allowed CLI/app command surfaces and prohibited Fable/oracle; adds `exo profile-recovery list|show|restore` as a local operator-only recovery surface.
-- review: architect-review: 2026-07-05 fable-exo-wave6-review.md — confirmed CLI recovery surface is acceptably narrow and intentionally operator-only.
+- review: architect-review: 2026-07-05 [`history/coordination/fable-exo-wave6-review.md`](history/coordination/fable-exo-wave6-review.md) — confirmed CLI recovery surface is acceptably narrow and intentionally operator-only.
 - sha256: `2934f84385e13dea7f8f07b5feb2d95a24ef1795219ab733c74531423e016526`
 - review: user-approved-exception: 2026-07-05 Wave 6 trace-retention task explicitly requested a CLI-first operator surface for listing and cleaning semantic traces before broad real-vault plugin dogfooding; post-hoc architect review should confirm the command shape before public stabilization.
-- review: architect-review: 2026-07-05 fable-exo-wave6-review.md — confirmed CLI trace list/cleanup is sufficient for dogfooding and should remain explicit, with no hidden retention cap.
+- review: architect-review: 2026-07-05 [`history/coordination/fable-exo-wave6-review.md`](history/coordination/fable-exo-wave6-review.md) — confirmed CLI trace list/cleanup is sufficient for dogfooding and should remain explicit, with no hidden retention cap.
 - sha256: `7d6378d2b14ae8ceacac28bb8513bcde3ffe9e1d06d30ef6d12c3d474596f9ee`
 - review: user-approved-exception: 2026-07-05 Wave 6 merged CLI operator surface combines `exo profile-recovery list|show|restore` with `exo traces list|cleanup`; this is intentionally CLI-only and requires post-hoc Fable/oracle review before public stabilization.
-- review: architect-review: 2026-07-05 fable-exo-wave6-review.md — confirmed merged Wave 6 CLI operator surface can ship after partial-restore reporting and ledger closure fixes.
+- review: architect-review: 2026-07-05 [`history/coordination/fable-exo-wave6-review.md`](history/coordination/fable-exo-wave6-review.md) — confirmed merged Wave 6 CLI operator surface can ship after partial-restore reporting and ledger closure fixes.
 - sha256: `3a2e29f9613087e887404e24f163e9ffd3e56d4d9abaa023a9a7fe007b4d29de`
 - review: architect-review: 2026-07-08 Fable Exograph completion review approved `exo spawn @handle <task>` for already trusted AgentCommand configs, with no CLI self-trust flag and `note_dir` cwd rejected outside document context.
 - sha256: `64f3436ebb49c0f475d85cc8c91ebbe1e7613679282b010835b78faff107df2e`

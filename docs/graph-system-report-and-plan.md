@@ -472,8 +472,7 @@ only their appropriate slice:
 - `architecture.md` — production boundaries and current/planned ownership.
 - `../roadmap.md` — sequencing and gates.
 - `../tasks.md` — active executable work.
-- `../../../notes/shoshin-codex/projects/exo/insights.md` — evidence-backed
-  product learning.
-- `../../../notes/shoshin-codex/projects/exo/research-log.md` — experiment record.
+- Dated reviews and benchmark reports — historical experiment evidence. They
+  are not required to understand or operate the public architecture contract.
 
 -- Shoshin | 2026-07-17

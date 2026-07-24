@@ -4,7 +4,7 @@
 
 **Exo** is the current working name for an open-source, local-first reference implementation of an **exograph**: a user-owned, human-readable graph of artifacts, relationships, evidence, and history that people and machines can use together. The public project and CLI name remain unresolved; `exo` stays canonical until a replacement is chosen.
 
-The category is broader than this application. The exograph should remain useful through ordinary files, interoperable with other tools, and independent of any model. The genesis essay and concept brief are in `../../notes/shoshin-codex/graphs-in-common.md`.
+The category is broader than this application. The exograph should remain useful through ordinary files, interoperable with other tools, and independent of any model.
 
 The launch product is:
 
@@ -12,7 +12,7 @@ The launch product is:
 
 Notes remain the durable source of truth. `.exo/` stores derived indexes, invocation records, artifacts, and review/provenance state.
 
-The current `refactor/note-native-exo` branch is intentionally cutting the old agent-cockpit direction. Agents become configured commands that the graph can call from Markdown. Exo records what changed.
+The shipped product has replaced the old agent-cockpit direction with configured Commands that users invoke explicitly from Markdown. Exo records observed changes for review.
 
 ## Why Exo Exists
 
@@ -64,7 +64,7 @@ Plugins are a later distribution concern, not the launch architecture. Skills au
 
 ## What Exo Is Not
 
-The active refactor is not building:
+Exo is not building:
 
 - a universal agent cockpit;
 - provider-specific agent management;
@@ -230,7 +230,7 @@ Avoid `NODE_TLS_REJECT_UNAUTHORIZED=0` except as a temporary local diagnostic; i
 
 ## Agent Commands
 
-The active refactor makes agents note-native and command-based. Type `@` in a Markdown editor, select a configured Command such as `@claude`, then write the transient multiline request. Command+Enter sends only after explicit confirmation; Exo launches the Command headlessly and shows observed changes for review. Saving a note never invokes a Command.
+Type `@` in a Markdown editor, select a configured Command such as `@claude`, then write the transient multiline request. Command+Enter sends only after explicit confirmation; Exo launches the Command headlessly and shows observed changes for review. Saving a note never invokes a Command.
 
 CLI is the durable local integration surface.
 
@@ -250,7 +250,7 @@ Standalone workspace/runtime commands:
 ./bin/exo index sync
 ```
 
-The legacy `exo routines` CLI and Routine core/plugin substrate have been removed on this branch. The remaining activity/artifact primitives are provider-neutral helpers used by traces, proposals, and invocation records.
+The legacy `exo routines` CLI and Routine core/plugin substrate have been removed. The remaining activity/artifact primitives are provider-neutral helpers used by traces, proposals, and invocation records.
 
 Commands that drive a running Exo app:
 

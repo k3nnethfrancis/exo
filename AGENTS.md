@@ -2,13 +2,9 @@
 
 Exo is the current working name for the open-source local Markdown exograph implementation. It is infrastructure and a public artifact, not the In Common Labs umbrella or the Guardian research program.
 
-Lab context: `../../notes/shoshin-codex/in-common-labs.md`
-Genesis concept: `../../notes/shoshin-codex/graphs-in-common.md`
-Active execution ledger: `tasks.md`; historical refactor record: `docs/exograph-simplification-plan.md`
-
 Exo owns the workspace, exograph projection, retrieval, mixed-pane canvas, configured Commands, invocation observation, and review. Guardian is a separate research program and may use Exo as an instrument without driving its V1 roadmap.
 
-The `refactor/note-native-exo` branch is intentionally simplifying to Note Roots, Markdown, search, Connections, panes, direct terminals, configured Commands, and review. Do not restore retired architecture without an explicit product decision.
+Exo is built around Note Roots, Markdown, search, Connections, panes, direct terminals, configured Commands, and review. Do not restore retired architecture without an explicit product decision.
 
 The note-native simplification, Folder Overview, inline invocation, derived-work
 isolation, and isolated graph lab are now established substrate. Current graph
@@ -20,21 +16,19 @@ and review.
 
 ## Start Here
 
-1. `../../notes/shoshin-codex/graphs-in-common.md` - exograph concept, public thesis, and Exo/Guardian boundary
-2. `tasks.md` - active execution tracker
-3. `CONTEXT.md` - canonical Exo product glossary
+1. `README.md` - current product surface and commands
+2. `CONTEXT.md` - canonical Exo product glossary
+3. `docs/README.md` - progressive-disclosure map, live source owners, and historical/proposal classification
 4. `docs/architecture.md` - shipped architecture and retained feature/data-model index
-5. `docs/graph-system-report-and-plan.md` - graph evidence, knowledge model, quality framework, and production gates
-6. `issues.md` - canonical bug, QA, and field-issue tracker
-7. `README.md` - current product surface and commands
+5. `docs/launch-surface-ledger.md` - current code/test-grounded public surface
+6. `tasks.md` - active execution tracker
+7. `issues.md` - canonical bug, QA, and field-issue tracker
 8. `roadmap.md` - future work only
 9. `ledger.md` - shipped history and reusable substrate
-10. `../../notes/shoshin-codex/in-common-labs.md` - lab/program/infrastructure map
-11. `skills/terminal-stability/SKILL.md` - current direct-PTY invariants and QA rules
-12. `docs/extension-architecture.md` - concrete-seam extension ladder
-13. `docs/public-contract-reviews.md` - protected command-server, CLI, and shared-protocol review ledger
-14. `docs/usability-readiness.md` - installed-app readiness gate and evidence requirements
-15. `docs/exograph-simplification-plan.md` - historical refactor rationale and prior audits
+10. `skills/terminal-stability/SKILL.md` - current direct-PTY invariants and QA rules
+11. `docs/extension-architecture.md` - concrete-seam extension ladder
+12. `docs/public-contract-reviews.md` - protected command-server, CLI, and shared-protocol review ledger
+13. `docs/usability-readiness.md` - installed-app readiness gate and evidence requirements
 
 Other dated plans are historical inventory until a separate deletion pass removes or distills them. They are not active instructions.
 
@@ -42,7 +36,7 @@ Other dated plans are historical inventory until a separate deletion pass remove
 
 Repo-owned Exo skills live in `skills/`. Treat this as the canonical project skill library. `.claude/skills` exposes the full folder for Claude contributors; `.codex/skills` exposes the active Codex subset so lead-orchestrator-only or intake-only skills do not become default Codex behavior.
 
-Skill rule on `refactor/note-native-exo`: skills must describe the current Exo architecture, not transitional warnings around the old product regime. Do not create or use architecture skills for systems that are being removed or whose replacement architecture has not been designed yet.
+Skills must describe the current Exo architecture, not transitional warnings around the old product regime. Do not create or use architecture skills for systems that are being removed or whose replacement architecture has not been designed yet.
 
 Before contributing, scan `skills/`. For broad Exo development, load the relevant architecture/runtime skills first. For tightly scoped subagent work, load at least the matching skill before editing:
 

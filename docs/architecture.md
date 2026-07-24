@@ -56,11 +56,11 @@ watcher events alone never invalidate the graph. The Ontology never changes
 Markdown or source document Relations. See `workspace-ontology.md` and ADR
 0006.
 
-## Accepted graph direction — feature-branch tracer
+## Accepted graph direction
 
 The isolated graph lab and quality investigation are distilled in
-`graph-system-report-and-plan.md`. The `feat/graph-system-foundation` tracer now
-enforces this separation:
+`graph-system-report-and-plan.md`. The production implementation enforces this
+separation:
 
 ```text
 canonical Markdown

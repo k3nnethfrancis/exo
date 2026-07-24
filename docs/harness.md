@@ -1,6 +1,6 @@
 # Exo Harness
 
-> General validation guidance remains useful, but the product framing in this document predates the Exograph pivot. On `refactor/note-native-exo`, use `tasks.md` for active work sequencing and `docs/reviews/2026-07-12-fable-loop-01-packet.md` for the reviewed deletion boundary.
+> General validation guidance remains useful, but the product framing in this document predates the Exograph pivot. Use `tasks.md` for active work sequencing and dated review evidence only for its recorded decision context.
 
 Last updated: 2026-07-03
 

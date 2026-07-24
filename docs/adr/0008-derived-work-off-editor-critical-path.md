@@ -1,4 +1,4 @@
-# ADR 0003: Derived Work Stays Off the Editor Critical Path
+# ADR 0008: Derived Work Stays Off the Editor Critical Path
 
 Date: 2026-07-13
 
