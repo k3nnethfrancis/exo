@@ -24,6 +24,8 @@ const searchLexResultsByCollection = new Map<string, unknown[]>();
 let searchVectorResultsOverride: unknown[] | null = null;
 let hybridSearchError: Error | null = null;
 let documentPathOverride: string | null = null;
+let existingQmdCollections: Array<{ name: string; pwd: string }> = [];
+let existingQmdDocumentCollections: string[] = [];
 interface MockQmdStatus {
   totalDocuments: number;
   needsEmbedding: number;
@@ -33,11 +35,11 @@ interface MockQmdStatus {
 let storeStatusOverride: MockQmdStatus | null = null;
 
 vi.mock("@tobilu/qmd", () => ({
-  createStore: vi.fn(async () => {
+  createStore: vi.fn(async (options: { config?: { collections?: Record<string, { path: string }> } }) => {
     if (createStoreError) {
       throw createStoreError;
     }
-    const store = new MockStore();
+    const store = new MockStore(options);
     stores.push(store);
     return store;
   }),
@@ -52,6 +54,8 @@ afterEach(async () => {
   searchVectorResultsOverride = null;
   hybridSearchError = null;
   documentPathOverride = null;
+  existingQmdCollections = [];
+  existingQmdDocumentCollections = [];
   readFileMock.mockClear();
   storeStatusOverride = null;
   await Promise.all(tempPaths.splice(0).map((target) => rm(target, { recursive: true, force: true })));
@@ -181,6 +185,93 @@ describe("QMD index adapter", () => {
     expect(result.source).toBe("qmd");
     expect(stores[0].searchLexCalls).toEqual([{ query: "focus", collection: "notes", limit: 12 }]);
     expect(result.results[0]).toMatchObject({ title: "Focus", source: "qmd" });
+  });
+
+  it("keeps colliding root IDs independently configured, searchable, updatable, and resolvable", async () => {
+    const root = await fixtureRoot();
+    const firstPath = path.join(root, "first");
+    const secondPath = path.join(root, "second");
+    const punctuationPath = path.join(root, "punctuation");
+    const lowerCasePunctuationPath = path.join(root, "punctuation-lower");
+    await Promise.all([mkdir(firstPath), mkdir(secondPath), mkdir(punctuationPath), mkdir(lowerCasePunctuationPath)]);
+    await Promise.all([
+      writeFile(path.join(firstPath, "focus.md"), "# First\n", "utf8"),
+      writeFile(path.join(secondPath, "focus.md"), "# Second\n", "utf8"),
+      writeFile(path.join(punctuationPath, "focus.md"), "# Punctuation\n", "utf8"),
+      writeFile(path.join(lowerCasePunctuationPath, "focus.md"), "# Lower punctuation\n", "utf8"),
+    ]);
+    const first = createIndexedRoot(firstPath, { id: "x", label: "first", kind: "notes" });
+    const second = createIndexedRoot(secondPath, { id: "index-x", label: "second", kind: "docs" });
+    const punctuation = createIndexedRoot(punctuationPath, { id: "Case /!?é", label: "punctuation", kind: "mixed" });
+    const lowerCasePunctuation = createIndexedRoot(lowerCasePunctuationPath, { id: "case /!?é", label: "punctuation lower", kind: "mixed" });
+    const model = {
+      ...resolveWorkspaceModel({
+        EXO_WORKSPACE_ROOT: root,
+        EXO_NOTE_ROOTS: path.join(root, "notes"),
+        EXO_PROJECT_ROOTS: "",
+      }),
+      indexedRoots: [first, second, punctuation, lowerCasePunctuation],
+      indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
+    };
+
+    const firstResult = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", { rootIds: [first.id] });
+    const firstSearchStore = stores.find((store) => Object.keys(store.config.collections).length > 0)!;
+    const firstConfig = firstSearchStore.config.collections;
+    const [firstCollection, secondCollection, punctuationCollection, lowerCasePunctuationCollection] = [first, second, punctuation, lowerCasePunctuation].map((indexedRoot) =>
+      Object.entries(firstConfig).find(([, config]) => config.path === indexedRoot.path)?.[0],
+    );
+
+    expect(firstCollection).toBeTruthy();
+    expect(secondCollection).toBeTruthy();
+    expect(punctuationCollection).toBeTruthy();
+    expect(lowerCasePunctuationCollection).toBeTruthy();
+    expect(new Set([firstCollection, secondCollection, punctuationCollection, lowerCasePunctuationCollection]).size).toBe(4);
+    expect(Object.keys(firstConfig)).toHaveLength(4);
+    expect(firstCollection).toMatch(/^exo-root-[0-9a-f]+$/);
+    expect(secondCollection).toMatch(/^exo-root-[0-9a-f]+$/);
+    expect(punctuationCollection).toMatch(/^exo-root-[0-9a-f]+$/);
+    expect(lowerCasePunctuationCollection).toMatch(/^exo-root-[0-9a-f]+$/);
+    expect(punctuationCollection).not.toBe(lowerCasePunctuationCollection);
+    expect(firstResult.results.map((entry) => entry.filePath)).toEqual([path.join(firstPath, "focus.md")]);
+    expect(firstSearchStore.searchLexCalls.map((call) => call.collection)).toEqual([firstCollection]);
+
+    const secondResult = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", { rootIds: [second.id] });
+    expect(secondResult.results.map((entry) => entry.filePath)).toEqual([path.join(secondPath, "focus.md")]);
+    expect(stores.filter((store) => Object.keys(store.config.collections).length > 0).at(-1)?.searchLexCalls.map((call) => call.collection)).toEqual([secondCollection]);
+
+    await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds: [first.id] });
+    await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds: [second.id] });
+    const updatedCollections = stores
+      .flatMap((store) => store.updateOptions)
+      .flatMap((options) => (options as { collections?: string[] }).collections ?? []);
+    expect(updatedCollections).toEqual(expect.arrayContaining([firstCollection, secondCollection]));
+  });
+
+  it("reconfigures a legacy collision once before serving newly distinct roots", async () => {
+    const root = await fixtureRoot();
+    const firstPath = path.join(root, "first");
+    const secondPath = path.join(root, "second");
+    await Promise.all([mkdir(firstPath), mkdir(secondPath)]);
+    const first = createIndexedRoot(firstPath, { id: "x", label: "first", kind: "notes" });
+    const second = createIndexedRoot(secondPath, { id: "index-x", label: "second", kind: "docs" });
+    existingQmdCollections = [{ name: "x", pwd: secondPath }];
+    existingQmdDocumentCollections = ["x"];
+    const model = {
+      ...indexedModel(root, "lexical"),
+      indexedRoots: [first, second],
+    };
+
+    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+
+    const configuredStore = stores[1];
+    expect(configuredStore.updateOptions).toEqual([{ collections: Object.keys(configuredStore.config.collections) }]);
+    expect(configuredStore.visibleDocumentCollectionsBeforeUpdates).toEqual([[]]);
+    expect(existingQmdCollections.map((collection) => collection.name)).toEqual(Object.keys(configuredStore.config.collections));
+
+    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+
+    const secondConfiguredStore = stores[3];
+    expect(secondConfiguredStore.updateOptions).toEqual([]);
   });
 
   it("orders score ties by canonical identity beyond the first provider prefix", async () => {
@@ -930,6 +1021,7 @@ function indexedModel(root: string, mode: "lexical" | "semantic" | "hybrid") {
 }
 
 class MockStore {
+  readonly config: { collections: Record<string, { path: string }> };
   searchLexCalls: Array<{ query: string; collection?: string; limit?: number }> = [];
   searchVectorCalls: Array<{ query: string; collection?: string; limit?: number }> = [];
   searchCalls: Array<{ query?: string; collections?: string[]; limit?: number }> = [];
@@ -938,6 +1030,18 @@ class MockStore {
   embedCalls = 0;
   embedOptions: unknown[] = [];
   getDocumentBodyCalls = 0;
+  visibleDocumentCollectionsBeforeUpdates: string[][] = [];
+
+  constructor(options: { config?: { collections?: Record<string, { path: string }> } }) {
+    this.config = { collections: options.config?.collections ?? {} };
+    if (options.config) {
+      existingQmdCollections = Object.entries(this.config.collections).map(([name, collection]) => ({ name, pwd: collection.path }));
+    }
+  }
+
+  async listCollections() {
+    return existingQmdCollections;
+  }
 
   async getStatus(): Promise<MockQmdStatus> {
     return storeStatusOverride ?? {
@@ -993,6 +1097,10 @@ class MockStore {
   async update(options?: unknown) {
     this.updateCalls += 1;
     this.updateOptions.push(options);
+    const collections = (options as { collections?: string[] } | undefined)?.collections ?? [];
+    this.visibleDocumentCollectionsBeforeUpdates.push(
+      existingQmdDocumentCollections.filter((collection) => collections.includes(collection)),
+    );
   }
 
   async embed(options?: unknown) {

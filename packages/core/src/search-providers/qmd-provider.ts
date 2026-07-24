@@ -218,7 +218,8 @@ async function updateIndex(model: WorkspaceModel, runtimeRoot: string, options: 
   let store: QmdStore | null = null;
   try {
     store = await openQmdStore(model, runtimeRoot);
-    await store.update({ collections: selectedRoots.map(collectionName) });
+    const collections = qmdCollectionIdentity(model.indexedRoots);
+    await store.update({ collections: selectedRoots.map((root) => collections.nameFor(root)) });
   } finally {
     await store?.close();
   }
@@ -313,7 +314,8 @@ async function searchIndex(
   try {
     const qmdStore = await openQmdStore(model, runtimeRoot);
     store = qmdStore;
-    const collections = selectedRoots.map(collectionName);
+    const qmdCollections = qmdCollectionIdentity(model.indexedRoots);
+    const collections = selectedRoots.map((root) => qmdCollections.nameFor(root));
     const indexedRootFiles = new WorkspaceFiles(selectedRoots.map((root) => root.path));
     const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
     const offset = Math.max(0, options.offset ?? 0);
@@ -354,7 +356,7 @@ async function searchIndex(
       filteredResults = await refillQmdStreams(
         lexicalStreams(),
         targetResultCount,
-        selectedRoots,
+        qmdCollections,
         indexedRootFiles,
         options,
       );
@@ -375,7 +377,7 @@ async function searchIndex(
             ),
           ],
           targetResultCount,
-          selectedRoots,
+          qmdCollections,
           indexedRootFiles,
           options,
         );
@@ -389,7 +391,7 @@ async function searchIndex(
         filteredResults = await refillQmdStreams(
           lexicalStreams(),
           targetResultCount,
-          selectedRoots,
+          qmdCollections,
           indexedRootFiles,
           options,
         );
@@ -411,7 +413,7 @@ async function searchIndex(
             }),
           ),
           targetResultCount,
-          selectedRoots,
+          qmdCollections,
           indexedRootFiles,
           options,
         );
@@ -425,7 +427,7 @@ async function searchIndex(
         filteredResults = await refillQmdStreams(
           lexicalStreams(),
           targetResultCount,
-          selectedRoots,
+          qmdCollections,
           indexedRootFiles,
           options,
         );
@@ -465,7 +467,7 @@ async function searchIndex(
 async function refillQmdStreams(
   streams: readonly QmdStream[],
   targetResultCount: number,
-  roots: IndexedRoot[],
+  collections: QmdCollectionIdentity,
   indexedRootFiles: WorkspaceFiles,
   options: IndexSearchOptions,
 ): Promise<FilteredQmdResults> {
@@ -515,7 +517,7 @@ async function refillQmdStreams(
 
     const filteredResults = await Promise.all(
       activeStates.map((state) =>
-        filterQmdStreamResults(state.rawResults, roots, indexedRootFiles, options)),
+        filterQmdStreamResults(state.rawResults, collections, indexedRootFiles, options)),
     );
     let reachedIncompleteCap = false;
     for (let index = 0; index < activeStates.length; index += 1) {
@@ -556,12 +558,12 @@ function safeAdd(left: number, right: number): number {
 
 async function filterQmdStreamResults(
   rawResults: unknown[],
-  roots: IndexedRoot[],
+  collections: QmdCollectionIdentity,
   indexedRootFiles: WorkspaceFiles,
   options: IndexSearchOptions,
 ): Promise<FilteredQmdResults> {
   const mappedResults = rawResults
-    .map((result) => mapQmdResult(result, roots))
+    .map((result) => mapQmdResult(result, collections))
     .filter((result): result is IndexSearchResult => result !== null);
   const authorizedResults = await Promise.all(
     mappedResults.map(async (result) => {
@@ -616,7 +618,7 @@ async function readIndexDocument(
       if ("error" in doc) {
         throw new Error(`Document not found: ${target}`);
       }
-      const filePath = resolveQmdPath(doc.filepath, model.indexedRoots);
+      const filePath = resolveQmdPath(doc.filepath, qmdCollectionIdentity(model.indexedRoots));
       if (!filePath || !(await isAuthorizedIndexedRootPath(indexedRootFiles, filePath))) {
         throw new Error("Refusing to read a QMD document outside configured indexed roots.");
       }
@@ -648,13 +650,15 @@ async function readIndexDocument(
 async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise<QmdStore> {
   await mkdir(getQmdRuntimePath(runtimeRoot), { recursive: true });
   const qmd = await import("@tobilu/qmd");
-  return qmd.createStore({
+  const collections = qmdCollectionIdentity(model.indexedRoots);
+  const requiresLegacyCollisionReindex = await hasLegacyQmdCollections(qmd, runtimeRoot, collections);
+  const store = await qmd.createStore({
     dbPath: getQmdDbPath(runtimeRoot),
     config: {
       global_context: "Exo-managed QMD search provider. Indexed roots are explicitly selected by the user.",
       collections: Object.fromEntries(
         model.indexedRoots.map((root) => [
-          collectionName(root),
+          collections.nameFor(root),
           {
             path: root.path,
             pattern: root.pattern,
@@ -667,6 +671,13 @@ async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise
       ),
     },
   });
+  if (requiresLegacyCollisionReindex) {
+    // QMD 2.5.3 syncs inline collection configuration but does not transfer
+    // document collection names. Reindex every newly distinct root after the
+    // configuration change so no selected root depends on a legacy collision.
+    await store.update({ collections: collections.changedRoots.map((root) => collections.nameFor(root)) });
+  }
+  return store;
 }
 
 function baseStatus(model: WorkspaceModel, runtimeRoot: string): IndexStatus {
@@ -723,17 +734,101 @@ function scopedFilesystemFallbackModel(
   };
 }
 
-function collectionName(root: IndexedRoot): string {
-  return root.id.replace(/^index-/, "") || root.label;
+interface QmdCollectionIdentity {
+  changedRoots: IndexedRoot[];
+  nameFor(root: IndexedRoot): string;
+  rootFor(name: string): IndexedRoot | null;
 }
 
-function mapQmdResult(rawResult: unknown, roots: IndexedRoot[]): IndexSearchResult | null {
+const SAFE_QMD_COLLECTION_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+/**
+ * Owns every conversion between an Indexed Root ID and QMD's collection
+ * namespace. Legacy names remain for ordinary roots when they are already a
+ * safe URI segment and unique in this Workspace. Every ambiguous or unsafe
+ * ID is encoded from its UTF-16 code units, so it is injective even for
+ * punctuation, case distinctions, and malformed Unicode input.
+ */
+function qmdCollectionIdentity(roots: IndexedRoot[]): QmdCollectionIdentity {
+  const names = new Map<IndexedRoot, string>();
+  for (const root of roots) {
+    names.set(root, legacyQmdCollectionName(root));
+  }
+
+  while (true) {
+    const groupedRoots = new Map<string, IndexedRoot[]>();
+    for (const root of roots) {
+      const name = names.get(root)!;
+      const group = groupedRoots.get(name) ?? [];
+      group.push(root);
+      groupedRoots.set(name, group);
+    }
+    const rootsToEncode = new Set<IndexedRoot>();
+    for (const [name, group] of groupedRoots) {
+      if (!SAFE_QMD_COLLECTION_NAME.test(name) || group.length > 1) {
+        group.forEach((root) => rootsToEncode.add(root));
+      }
+    }
+    if (rootsToEncode.size === 0) {
+      break;
+    }
+    let changed = false;
+    for (const root of rootsToEncode) {
+      const encoded = encodeQmdCollectionId(root.id);
+      if (names.get(root) !== encoded) {
+        names.set(root, encoded);
+        changed = true;
+      }
+    }
+    if (!changed) {
+      break;
+    }
+  }
+
+  return {
+    changedRoots: roots.filter((root) => names.get(root) !== legacyQmdCollectionName(root)),
+    nameFor: (root) => names.get(root) ?? encodeQmdCollectionId(root.id),
+    rootFor: (name) => roots.find((root) => names.get(root) === name) ?? null,
+  };
+}
+
+function legacyQmdCollectionName(root: IndexedRoot): string {
+  return root.id.replace(/^index-/, "");
+}
+
+function encodeQmdCollectionId(id: string): string {
+  return `exo-root-${Array.from({ length: id.length }, (_, index) => id.charCodeAt(index).toString(16).padStart(4, "0")).join("")}`;
+}
+
+async function hasLegacyQmdCollections(
+  qmd: QmdModule,
+  runtimeRoot: string,
+  collections: QmdCollectionIdentity,
+): Promise<boolean> {
+  if (collections.changedRoots.length === 0) {
+    return false;
+  }
+  let store: QmdStore | null = null;
+  try {
+    store = await qmd.createStore({ dbPath: getQmdDbPath(runtimeRoot) });
+    const existing = await store.listCollections();
+    const legacyNames = new Set(collections.changedRoots.map(legacyQmdCollectionName));
+    if (!existing.some((collection) => legacyNames.has(collection.name))) {
+      return false;
+    }
+    return true;
+  } finally {
+    await store?.close();
+  }
+}
+
+function mapQmdResult(rawResult: unknown, collections: QmdCollectionIdentity): IndexSearchResult | null {
   if (!rawResult || typeof rawResult !== "object") {
     return null;
   }
   const result = rawResult as Record<string, unknown>;
   const displayPath = stringValue(result.displayPath) ?? stringValue(result.file) ?? stringValue(result.filepath);
-  const filePath = resolveQmdPath(displayPath, roots) ?? stringValue(result.filepath);
+  const filePath = resolveQmdPath(displayPath, collections) ?? stringValue(result.filepath);
   if (!filePath) {
     return null;
   }
@@ -779,7 +874,7 @@ function compareText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-function resolveQmdPath(displayPath: string | null, roots: IndexedRoot[]): string | null {
+function resolveQmdPath(displayPath: string | null, collections: QmdCollectionIdentity): string | null {
   if (!displayPath) {
     return null;
   }
@@ -791,7 +886,7 @@ function resolveQmdPath(displayPath: string | null, roots: IndexedRoot[]): strin
   if (segments.includes("..")) {
     return null;
   }
-  const root = roots.find((candidate) => collectionName(candidate) === collection || candidate.label === collection);
+  const root = collections.rootFor(collection);
   return root ? path.join(root.path, ...segments) : null;
 }
 
