@@ -7,7 +7,7 @@ import type {
 
 import type { WorkspaceSettingsSaveOutcome } from "../../../shared/api";
 import { defaultIndexedRoot } from "../workspaceSettingsDialogTypes";
-import type { WorkspaceSettingsDialogState } from "../workspaceSettingsDialogTypes";
+import { workspaceSettingsDialogFixture } from "../workspaceSettingsTestFixtures";
 import {
   indexBusyStateForEvent,
   useWorkspaceSettingsController,
@@ -163,7 +163,7 @@ describe("workspace settings patch persistence", () => {
     const revisionRef = { current: "revision-0" };
     vi.stubGlobal("window", workspaceWindow(settingsRef.current, revisionRef.current, saveSettings));
     const controller = renderController(settingsRef, revisionRef);
-    const autosaveDraft = workspaceSettingsDialog({
+    const autosaveDraft = workspaceSettingsDialogFixture({
       settingsRevision: "revision-0",
       terminalFontSize: "14",
     });
@@ -202,7 +202,7 @@ describe("workspace settings patch persistence", () => {
     const controller = renderController(settingsRef, revisionRef);
 
     const apply = controller.saveDialog(
-      workspaceSettingsDialog({ settingsRevision: "revision-0", workspaceRoot: "/workspace " }),
+      workspaceSettingsDialogFixture({ settingsRevision: "revision-0", workspaceRoot: "/workspace " }),
       { includeStructural: true },
     );
     const patch = controller.saveSettingsPatch({ terminalFontSize: 16 });
@@ -267,7 +267,7 @@ describe("workspace settings structural persistence", () => {
     } as WorkspaceSettings;
 
     const next = workspaceSettingsFromDialog(
-      workspaceSettingsDialog({ indexedRoots: [root] }),
+      workspaceSettingsDialogFixture({ indexedRoots: [root] }),
       { includeStructural: true },
       current,
     );
@@ -300,7 +300,7 @@ describe("workspace settings structural persistence", () => {
     } as WorkspaceSettings;
 
     const next = workspaceSettingsFromDialog(
-      workspaceSettingsDialog({ indexedRoots: [retained, defaultIndexedRoot("/workspace/notes/new", 1)] }),
+      workspaceSettingsDialogFixture({ indexedRoots: [retained, defaultIndexedRoot("/workspace/notes/new", 1)] }),
       { includeStructural: true },
       current,
     );
@@ -391,33 +391,6 @@ function workspaceSettings(): WorkspaceSettings {
     explorerScale: 1,
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",
-  };
-}
-
-function workspaceSettingsDialog(overrides: Partial<WorkspaceSettingsDialogState> = {}): WorkspaceSettingsDialogState {
-  return {
-    section: "workspace",
-    settingsRevision: null,
-    workspaceRoot: "/workspace",
-    defaultTerminalCwd: "/workspace",
-    noteRoots: ["/workspace/notes"],
-    indexedRoots: [],
-    indexMode: "off",
-    searchEngine: "filesystem",
-    appearanceMode: "system",
-    colorThemeId: "exo-neutral",
-    editorFontSize: "15",
-    terminalFontSize: "13",
-    explorerScale: "1",
-    exploreIndexSearchOnEnter: false,
-    indexUpdateStrategy: "on-save",
-    agentCommands: [],
-    saveStatus: "idle",
-    errorMessage: null,
-    appliedWorkspaceKey: "",
-    applyStatus: "idle",
-    applyErrorMessage: null,
-    ...overrides,
   };
 }
 
