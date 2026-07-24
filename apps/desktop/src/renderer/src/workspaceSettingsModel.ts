@@ -31,7 +31,7 @@ export function workspaceSettingsStructuralDraftKey(settings: WorkspaceSettingsD
     workspaceRoot: settings.workspaceRoot,
     defaultTerminalCwd: settings.defaultTerminalCwd,
     noteRoots: settings.noteRoots,
-    indexedRoots: settings.indexedRoots,
+    indexedRoots: settings.indexedRoots.map((root) => root.path),
     indexMode: settings.indexMode,
     searchEngine: settings.searchEngine,
   });

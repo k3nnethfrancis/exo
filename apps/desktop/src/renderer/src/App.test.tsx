@@ -479,11 +479,11 @@ describe("workspace settings footer copy", () => {
         onSave={() => {}}
         settings={workspaceSettingsDialogFixture({
           section: "index",
-          indexedRoots: ["/workspace/notes"],
+          indexedRoots: [{ id: "index-root-1", label: "notes", path: "/workspace/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" }],
           indexMode: "hybrid",
           searchEngine: "qmd",
           appliedWorkspaceKey: workspaceSettingsStructuralDraftKey(workspaceSettingsDialogFixture({
-            indexedRoots: ["/workspace/notes"],
+            indexedRoots: [{ id: "index-root-1", label: "notes", path: "/workspace/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" }],
             indexMode: "hybrid",
             searchEngine: "qmd",
           })),
@@ -729,7 +729,7 @@ describe("workspace settings renderer model", () => {
       workspaceRoot: "/workspace",
       defaultTerminalCwd: "/workspace/project",
       noteRoots: ["/workspace/notes"],
-      indexedRoots: ["/workspace/notes"],
+      indexedRoots: [{ id: "index-notes", label: "notes", path: "/workspace/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" }],
       indexMode: "lexical",
       searchEngine: "qmd",
       appearanceMode: "system",

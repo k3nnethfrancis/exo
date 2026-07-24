@@ -6,7 +6,13 @@ import type {
 } from "@exo/core";
 
 import type { WorkspaceSettingsSaveOutcome } from "../../../shared/api";
-import { indexBusyStateForEvent, useWorkspaceSettingsController } from "./useWorkspaceSettingsController";
+import { defaultIndexedRoot } from "../workspaceSettingsDialogTypes";
+import type { WorkspaceSettingsDialogState } from "../workspaceSettingsDialogTypes";
+import {
+  indexBusyStateForEvent,
+  useWorkspaceSettingsController,
+  workspaceSettingsFromDialog,
+} from "./useWorkspaceSettingsController";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -157,6 +163,79 @@ describe("index activity presentation", () => {
   });
 });
 
+describe("workspace settings structural persistence", () => {
+  it("retains complete existing indexed roots while applying structural settings", () => {
+    const root = {
+      id: "research-docs",
+      label: "Research documents",
+      path: "/workspace/notes/research",
+      kind: "docs" as const,
+      pattern: "**/*.{md,mdx}",
+      ignore: ["private/**", "archive/**"],
+      backend: "filesystem" as const,
+      futureRootOption: { source: "newer-exo" },
+    };
+    const current = {
+      ...workspaceSettings(),
+      indexedRoots: [root],
+      indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
+      searchEngine: "qmd" as const,
+    } as WorkspaceSettings;
+
+    const next = workspaceSettingsFromDialog(
+      workspaceSettingsDialog({ indexedRoots: [root] }),
+      { includeStructural: true },
+      current,
+    );
+
+    expect(next.indexedRoots).toEqual([root]);
+  });
+
+  it("removes omitted roots and applies defaults only to new paths", () => {
+    const retained = {
+      id: "research-docs",
+      label: "Research documents",
+      path: "/workspace/notes/research",
+      kind: "docs" as const,
+      pattern: "**/*.mdx",
+      ignore: ["private/**"],
+      backend: "qmd" as const,
+    };
+    const removed = {
+      id: "archive",
+      label: "Archive",
+      path: "/workspace/notes/archive",
+      kind: "notes" as const,
+      pattern: "**/*.md",
+      ignore: [],
+      backend: "qmd" as const,
+    };
+    const current = {
+      ...workspaceSettings(),
+      indexedRoots: [retained, removed],
+    } as WorkspaceSettings;
+
+    const next = workspaceSettingsFromDialog(
+      workspaceSettingsDialog({ indexedRoots: [retained, defaultIndexedRoot("/workspace/notes/new", 1)] }),
+      { includeStructural: true },
+      current,
+    );
+
+    expect(next.indexedRoots).toEqual([
+      retained,
+      {
+        id: "index-root-2",
+        label: "new",
+        path: "/workspace/notes/new",
+        kind: "mixed",
+        pattern: "**/*.md",
+        ignore: [],
+        backend: "qmd",
+      },
+    ]);
+  });
+});
+
 interface WorkspaceSettingsControllerHarnessProps {
   controllerRef: { current: ReturnType<typeof useWorkspaceSettingsController> | null };
   options: Parameters<typeof useWorkspaceSettingsController>[0];
@@ -182,6 +261,33 @@ function workspaceSettings(): WorkspaceSettings {
     explorerScale: 1,
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",
+  };
+}
+
+function workspaceSettingsDialog(overrides: Partial<WorkspaceSettingsDialogState> = {}): WorkspaceSettingsDialogState {
+  return {
+    section: "workspace",
+    settingsRevision: null,
+    workspaceRoot: "/workspace",
+    defaultTerminalCwd: "/workspace",
+    noteRoots: ["/workspace/notes"],
+    indexedRoots: [],
+    indexMode: "off",
+    searchEngine: "filesystem",
+    appearanceMode: "system",
+    colorThemeId: "exo-neutral",
+    editorFontSize: "15",
+    terminalFontSize: "13",
+    explorerScale: "1",
+    exploreIndexSearchOnEnter: false,
+    indexUpdateStrategy: "on-save",
+    agentCommands: [],
+    saveStatus: "idle",
+    errorMessage: null,
+    appliedWorkspaceKey: "",
+    applyStatus: "idle",
+    applyErrorMessage: null,
+    ...overrides,
   };
 }
 

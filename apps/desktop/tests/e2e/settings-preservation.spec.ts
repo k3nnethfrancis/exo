@@ -99,6 +99,61 @@ test("every non-structural Settings round trip preserves commands, layout, and o
   }
 });
 
+test("structural Settings Apply preserves retained Indexed Root policy", async () => {
+  const fixture = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
+      const notesPath = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(settingsPath, JSON.stringify({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [notesPath],
+        indexedRoots: [{
+          id: "research-docs",
+          label: "Research documents",
+          path: notesPath,
+          kind: "docs",
+          pattern: "**/*.{md,mdx}",
+          ignore: ["private/**", "archive/**"],
+          backend: "qmd",
+        }],
+        indexing: { enabled: true, mode: "lexical", backend: "qmd" },
+        searchEngine: "qmd",
+        appearanceMode: "system",
+        colorThemeId: "exo-neutral",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+      }, null, 2), "utf8");
+    },
+  });
+
+  try {
+    const expectedRoot = {
+      id: "research-docs",
+      label: "Research documents",
+      path: path.join(fixture.workspaceRoot, "notes/test-notes"),
+      kind: "docs",
+      pattern: "**/*.{md,mdx}",
+      ignore: ["private/**", "archive/**"],
+      backend: "qmd",
+    };
+    await fixture.page.getByTestId("workspace-menu-toggle").click();
+    await fixture.page.getByTestId("workspace-menu-settings").click();
+    await expect(fixture.page.getByTestId("workspace-settings-dialog")).toBeVisible();
+
+    const workspaceRoot = fixture.page.getByTestId("workspace-settings-workspace-root");
+    await workspaceRoot.fill(`${fixture.workspaceRoot} `);
+    await fixture.page.getByTestId("workspace-settings-apply").click();
+    await expect(fixture.page.getByTestId("workspace-settings-apply-status")).toHaveText("Changes applied.");
+    await expect.poll(() => persistedSettings(fixture.settingsPath)).toMatchObject({ indexedRoots: [expectedRoot] });
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 async function editSettingsAndClose(page: Page, section: "appearance" | "index" | "terminal", edit: (page: Page) => Promise<void>): Promise<void> {
   await page.getByTestId("workspace-menu-toggle").click();
   await page.getByTestId("workspace-menu-settings").click();

@@ -20,7 +20,6 @@ import type {
   WorkspaceSettingsDialogState,
   WorkspaceSettingsSection,
 } from "../workspaceSettingsDialogTypes";
-import { pathLabel } from "../workspaceTree";
 
 interface UseWorkspaceSettingsControllerOptions {
   workspaceSettingsRef: MutableRefObject<WorkspaceSettings | null>;
@@ -119,7 +118,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       workspaceRoot: settings.workspaceRoot,
       defaultTerminalCwd: settings.defaultTerminalCwd,
       noteRoots: settings.noteRoots,
-      indexedRoots: settings.indexedRoots.map((root) => root.path),
+      indexedRoots: settings.indexedRoots,
       indexMode: settings.indexing.mode,
       searchEngine: settings.searchEngine ?? (settings.indexing.enabled && settings.indexing.mode !== "off" && settings.indexedRoots.length > 0 ? "qmd" : "filesystem"),
       appearanceMode: settings.appearanceMode as AppearanceMode,
@@ -367,24 +366,15 @@ export function workspaceSettingsFromDialog(
     throw new Error("Workspace settings are unavailable. Close Settings and try again.");
   }
 
-  const fallbackStructural = {
+  const structuralSettings = {
     workspaceRoot: settingsDialog.workspaceRoot.trim(),
     defaultTerminalCwd: settingsDialog.defaultTerminalCwd.trim(),
     noteRoots: settingsDialog.noteRoots
       .map((entry) => entry.trim())
       .filter(Boolean),
     indexedRoots: settingsDialog.indexedRoots
-      .map((entry, index) => ({ entry, index }))
-      .filter(({ entry }) => entry.trim())
-      .map(({ entry, index }) => ({
-        id: `index-root-${index + 1}`,
-        label: pathLabel(entry.trim()),
-        path: entry.trim(),
-        kind: "mixed" as const,
-        pattern: "**/*.md",
-        ignore: [],
-        backend: "qmd" as const,
-      })),
+      .filter((root) => Boolean(root.path.trim()))
+      .map((root) => ({ ...root, path: root.path.trim(), ignore: [...root.ignore] })),
     indexing: {
       enabled: settingsDialog.indexMode !== "off",
       mode: settingsDialog.indexMode,
@@ -394,20 +384,20 @@ export function workspaceSettingsFromDialog(
   };
   return {
     ...currentSettings,
-    workspaceRoot: options.includeStructural ? fallbackStructural.workspaceRoot : currentSettings?.workspaceRoot ?? fallbackStructural.workspaceRoot,
-    defaultTerminalCwd: options.includeStructural ? fallbackStructural.defaultTerminalCwd : currentSettings?.defaultTerminalCwd ?? fallbackStructural.defaultTerminalCwd,
+    workspaceRoot: options.includeStructural ? structuralSettings.workspaceRoot : currentSettings.workspaceRoot,
+    defaultTerminalCwd: options.includeStructural ? structuralSettings.defaultTerminalCwd : currentSettings.defaultTerminalCwd,
     noteRoots: options.includeStructural
-      ? fallbackStructural.noteRoots
-      : currentSettings?.noteRoots ?? fallbackStructural.noteRoots,
+      ? structuralSettings.noteRoots
+      : currentSettings.noteRoots,
     indexedRoots: options.includeStructural
-      ? fallbackStructural.indexedRoots
-      : currentSettings?.indexedRoots ?? fallbackStructural.indexedRoots,
+      ? structuralSettings.indexedRoots
+      : currentSettings.indexedRoots,
     indexing: options.includeStructural
-      ? fallbackStructural.indexing
-      : currentSettings?.indexing ?? fallbackStructural.indexing,
+      ? structuralSettings.indexing
+      : currentSettings.indexing,
     searchEngine: options.includeStructural
-      ? fallbackStructural.searchEngine
-      : currentSettings.searchEngine ?? fallbackStructural.searchEngine,
+      ? structuralSettings.searchEngine
+      : currentSettings.searchEngine,
     appearanceMode: settingsDialog.appearanceMode,
     colorThemeId: normalizeColorThemeId(settingsDialog.colorThemeId),
     editorFontSize: clampNumber(Number(settingsDialog.editorFontSize), 11, 24),

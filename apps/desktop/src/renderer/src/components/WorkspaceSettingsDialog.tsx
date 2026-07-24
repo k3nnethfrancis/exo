@@ -5,7 +5,7 @@ import type { AgentCommand, IndexStatus, WorkspaceSettings } from "@exo/core";
 import type { AppearanceMode } from "../appearance";
 import { THEME_FAMILIES, normalizeColorThemeId } from "../theme/registry";
 import type { ColorThemeId } from "../theme/types";
-import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "../workspaceSettingsDialogTypes";
+import { defaultIndexedRoot, type IndexBusyState, type WorkspaceSettingsDialogState, type WorkspaceSettingsSection } from "../workspaceSettingsDialogTypes";
 import { HelpTooltip } from "./HelpTooltip";
 import { PathList } from "./PathList";
 import { AgentInvocationPromptEditor } from "./AgentInvocationPromptEditor";
@@ -261,7 +261,7 @@ function IndexSection({
         ...(qmdNeedsSetup
           ? {
               indexMode: "lexical",
-              indexedRoots: current.noteRoots,
+              indexedRoots: current.noteRoots.map(defaultIndexedRoot),
             }
           : {}),
         applyStatus: "idle",

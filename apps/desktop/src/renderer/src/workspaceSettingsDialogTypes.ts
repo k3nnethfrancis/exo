@@ -1,4 +1,4 @@
-import type { AgentCommand, SearchEngine, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
+import type { AgentCommand, IndexedRoot, SearchEngine, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
 
 import type { AppearanceMode } from "./appearance";
 import type { ColorThemeId } from "./theme/types";
@@ -8,13 +8,26 @@ export type { WorkspaceSettingsSection };
 
 export type IndexBusyState = "syncing" | "updating" | "embedding" | null;
 
+export function defaultIndexedRoot(path: string, index: number): IndexedRoot {
+  const trimmedPath = path.trim();
+  return {
+    id: `index-root-${index + 1}`,
+    label: trimmedPath.split(/[\\/]/).filter(Boolean).at(-1) ?? "root",
+    path: trimmedPath,
+    kind: "mixed",
+    pattern: "**/*.md",
+    ignore: [],
+    backend: "qmd",
+  };
+}
+
 export interface WorkspaceSettingsDialogState {
   section: WorkspaceSettingsSection;
   settingsRevision: WorkspaceSettingsRevision;
   workspaceRoot: string;
   defaultTerminalCwd: string;
   noteRoots: string[];
-  indexedRoots: string[];
+  indexedRoots: IndexedRoot[];
   indexMode: WorkspaceSettings["indexing"]["mode"];
   searchEngine: SearchEngine;
   appearanceMode: AppearanceMode;
