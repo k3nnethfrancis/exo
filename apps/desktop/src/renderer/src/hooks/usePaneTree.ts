@@ -28,6 +28,8 @@ export interface EditorPaneContent {
   activePath: string | null;
   openFolderPaths?: string[];
   activeFolderPath?: string | null;
+  /** Exact Note to restore when the currently active Folder Overview closes. */
+  activeFolderReturnPath?: string | null;
 }
 
 /** A live terminal is referenced by id; its PTY and xterm screen stay owned elsewhere. */
@@ -142,6 +144,99 @@ export function findEditorLeafByPath(tree: PaneNode, filePath: string): PaneLeaf
   ) as PaneLeaf | undefined;
 }
 
+export function activateFolderOverviewContent(
+  content: EditorPaneContent,
+  directoryPath: string,
+): EditorPaneContent {
+  const activePath = content.activePath && content.openPaths.includes(content.activePath)
+    ? content.activePath
+    : null;
+  const returnPath = activePath
+    ?? (content.activeFolderPath ? resolveFolderOverviewReturnPath(content) : null);
+  return {
+    ...content,
+    activePath: null,
+    activeFolderPath: directoryPath,
+    activeFolderReturnPath: returnPath,
+    openFolderPaths: (content.openFolderPaths ?? []).includes(directoryPath)
+      ? content.openFolderPaths
+      : [...(content.openFolderPaths ?? []), directoryPath],
+  };
+}
+
+export interface CloseFolderOverviewResult {
+  content: EditorPaneContent;
+  closedActiveOverview: boolean;
+  restoredPath: string | null;
+}
+
+export interface CloseFolderOverviewInTreeResult {
+  tree: PaneNode;
+  /** Undefined means that a different focused pane still owns the document. */
+  activeDocumentPath: string | null | undefined;
+}
+
+export function closeFolderOverviewContent(
+  content: EditorPaneContent,
+  directoryPath: string,
+): CloseFolderOverviewResult {
+  const openFolderPaths = (content.openFolderPaths ?? []).filter((path) => path !== directoryPath);
+  if (content.activeFolderPath !== directoryPath) {
+    return {
+      content: { ...content, openFolderPaths },
+      closedActiveOverview: false,
+      restoredPath: content.activePath,
+    };
+  }
+  const restoredPath = resolveFolderOverviewReturnPath(content);
+  return {
+    content: {
+      ...content,
+      openFolderPaths,
+      activeFolderPath: null,
+      activeFolderReturnPath: null,
+      activePath: restoredPath,
+    },
+    closedActiveOverview: true,
+    restoredPath,
+  };
+}
+
+export function resolveFolderOverviewReturnPath(content: EditorPaneContent): string | null {
+  if (
+    content.activeFolderReturnPath
+    && content.openPaths.includes(content.activeFolderReturnPath)
+  ) {
+    return content.activeFolderReturnPath;
+  }
+  return content.openPaths.at(-1) ?? null;
+}
+
+export function closeFolderOverviewInTree(
+  tree: PaneNode,
+  leafId: PaneNodeId,
+  directoryPath: string,
+  focusedLeafId: PaneNodeId,
+): CloseFolderOverviewInTreeResult {
+  const leaf = findNode(tree, (node) => node.id === leafId);
+  if (leaf?.kind !== "leaf" || leaf.content.kind !== "editor") {
+    return { tree, activeDocumentPath: undefined };
+  }
+  const transition = closeFolderOverviewContent(leaf.content, directoryPath);
+  const nextTree = updateNode(tree, leafId, (node) => {
+    if (node.kind !== "leaf") {
+      return node;
+    }
+    return { ...node, content: transition.content };
+  });
+  return {
+    tree: nextTree,
+    activeDocumentPath: transition?.closedActiveOverview && leafId === focusedLeafId
+      ? transition.restoredPath
+      : undefined,
+  };
+}
+
 /** Map over all leaves, returning a new tree. */
 export function mapLeaves(tree: PaneNode, fn: (leaf: PaneLeaf) => PaneLeaf): PaneNode {
   if (tree.kind === "leaf") return fn(tree);
@@ -198,6 +293,9 @@ export function decodeCanvas(candidate: unknown): PaneNode | null {
           ? { openFolderPaths: content.openFolderPaths.filter((path): path is string => typeof path === "string") }
           : {}),
         ...(typeof content.activeFolderPath === "string" ? { activeFolderPath: content.activeFolderPath } : {}),
+        ...(typeof content.activeFolderReturnPath === "string" || content.activeFolderReturnPath === null
+          ? { activeFolderReturnPath: content.activeFolderReturnPath }
+          : {}),
       },
     };
   }

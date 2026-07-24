@@ -46,7 +46,20 @@ import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import { applyTheme } from "./theme/applyTheme";
 import { DEFAULT_COLOR_THEME_ID, resolveTheme } from "./theme/registry";
 import type { ColorThemeId } from "./theme/types";
-import { collectLeaves, findEditorLeaf, findEditorLeafByPath, findNode, mapLeaves, paneId, pruneEmptyLeaves, removeNode, type PaneLeaf, type PaneNodeId } from "./hooks/usePaneTree";
+import {
+  activateFolderOverviewContent,
+  closeFolderOverviewInTree,
+  collectLeaves,
+  findEditorLeaf,
+  findEditorLeafByPath,
+  findNode,
+  mapLeaves,
+  paneId,
+  pruneEmptyLeaves,
+  removeNode,
+  type PaneLeaf,
+  type PaneNodeId,
+} from "./hooks/usePaneTree";
 import { collectOpenEditorPaths, findActiveEditorPath } from "./paneTreeSelectors";
 import {
   clampNumber,
@@ -868,6 +881,7 @@ export function App() {
         ...content,
         activePath: filePath,
         activeFolderPath: null,
+        activeFolderReturnPath: null,
         openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
       };
     });
@@ -878,12 +892,8 @@ export function App() {
   }
 
   function openFolderOverview(directoryPath: string, leafId = focusedPaneId) {
-    canvasActions.updateLeafContent(leafId, (content) => content.kind !== "editor" ? content : {
-      ...content,
-      activePath: null,
-      activeFolderPath: directoryPath,
-      openFolderPaths: (content.openFolderPaths ?? []).includes(directoryPath) ? content.openFolderPaths : [...(content.openFolderPaths ?? []), directoryPath],
-    });
+    canvasActions.updateLeafContent(leafId, (content) =>
+      content.kind !== "editor" ? content : activateFolderOverviewContent(content, directoryPath));
     canvasActions.focusLeaf(leafId);
     setActiveDocumentPath(null);
     setActiveTag(null);
@@ -891,21 +901,10 @@ export function App() {
   }
 
   function closeFolderOverview(leafId: PaneNodeId, directoryPath: string) {
-    const leaf = findNode(canvasTree, (node) => node.id === leafId) as PaneLeaf | undefined;
-    const editorContent = leaf?.content.kind === "editor" ? leaf.content : null;
-    const closesActiveOverview = editorContent?.activeFolderPath === directoryPath;
-    const nextActivePath = editorContent?.activeFolderPath === directoryPath
-      ? editorContent.openPaths.at(-1) ?? null
-      : null;
-    canvasActions.updateLeafContent(leafId, (content) => content.kind !== "editor" ? content : {
-      ...content,
-      openFolderPaths: (content.openFolderPaths ?? []).filter((path) => path !== directoryPath),
-      activeFolderPath: content.activeFolderPath === directoryPath ? null : content.activeFolderPath,
-      activePath: content.activeFolderPath === directoryPath ? content.openPaths.at(-1) ?? null : content.activePath,
-    });
-    if (closesActiveOverview) {
-      canvasActions.focusLeaf(leafId);
-      setActiveDocumentPath(nextActivePath);
+    const transition = closeFolderOverviewInTree(canvasTree, leafId, directoryPath, focusedPaneId);
+    canvasActions.setTree(transition.tree);
+    if (transition.activeDocumentPath !== undefined) {
+      setActiveDocumentPath(transition.activeDocumentPath);
       setActiveTag(null);
       setTagResults([]);
     }
@@ -920,7 +919,18 @@ export function App() {
         const nextActivePath = leaf.content.activePath === filePath
           ? (nextOpenPaths[Math.max(0, closedIndex - 1)] ?? nextOpenPaths[0] ?? null)
           : leaf.content.activePath;
-        return { ...leaf, content: { ...leaf.content, openPaths: nextOpenPaths, activePath: nextActivePath } };
+        const activeFolderReturnPath = leaf.content.activeFolderReturnPath === filePath
+          ? null
+          : leaf.content.activeFolderReturnPath;
+        return {
+          ...leaf,
+          content: {
+            ...leaf.content,
+            openPaths: nextOpenPaths,
+            activePath: nextActivePath,
+            activeFolderReturnPath,
+          },
+        };
       }),
       (leaf) => leaf.content.kind === "editor" && leaf.content.openPaths.length === 0,
     );
@@ -956,9 +966,17 @@ export function App() {
             ...content,
             activePath: filePath,
             activeFolderPath: null,
+            activeFolderReturnPath: null,
             openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
           }
-        : { kind: "editor", activePath: filePath, openPaths: [filePath], openFolderPaths: [], activeFolderPath: null });
+        : {
+            kind: "editor",
+            activePath: filePath,
+            openPaths: [filePath],
+            openFolderPaths: [],
+            activeFolderPath: null,
+            activeFolderReturnPath: null,
+          });
       canvasActions.focusLeaf(editorLeafId);
     }
     setActiveDocumentPath(filePath);
@@ -1217,6 +1235,9 @@ export function App() {
           activeFolderPath: leaf.content.activeFolderPath && isPathWithin(sourcePath, leaf.content.activeFolderPath)
             ? leaf.content.activeFolderPath.replace(sourcePath, nextPath)
             : leaf.content.activeFolderPath,
+          activeFolderReturnPath: leaf.content.activeFolderReturnPath && isPathWithin(sourcePath, leaf.content.activeFolderReturnPath)
+            ? leaf.content.activeFolderReturnPath.replace(sourcePath, nextPath)
+            : leaf.content.activeFolderReturnPath,
         },
       };
     }));
@@ -1242,6 +1263,9 @@ export function App() {
             : nextOpenPaths.at(-1) ?? null,
           activeFolderPath: leaf.content.activeFolderPath && !isPathWithin(targetPath, leaf.content.activeFolderPath)
             ? leaf.content.activeFolderPath
+            : null,
+          activeFolderReturnPath: leaf.content.activeFolderReturnPath && !isPathWithin(targetPath, leaf.content.activeFolderReturnPath)
+            ? leaf.content.activeFolderReturnPath
             : null,
         },
       };

@@ -66,6 +66,7 @@ describe("WorkspaceCanvas persistence", () => {
         activePath: null,
         openFolderPaths: ["/notes/projects"],
         activeFolderPath: "/notes/projects",
+        activeFolderReturnPath: "/notes/projects/plan.md",
       },
     };
 
