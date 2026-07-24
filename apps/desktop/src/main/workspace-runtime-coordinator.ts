@@ -22,10 +22,7 @@ export type WorkspaceActivationPhase =
   | "recovery"
   | "note-roots"
   | "command-server"
-  | "derived-state"
-  | "watcher"
-  | "terminal"
-  | "index";
+  | "watcher";
 
 export type WorkspaceActivationOutcome =
   | { status: "applied"; active: ActiveWorkspaceRuntime }
@@ -85,7 +82,6 @@ export interface WorkspaceRuntimeCoordinatorOptions {
 export class WorkspaceRuntimeCoordinator {
   private active: ActiveWorkspaceRuntime | null = null;
   private activationGeneration = 0;
-  private activeGeneration: number | null = null;
   private lastFailure: { phase: WorkspaceActivationPhase; errorMessage: string } | null = null;
 
   constructor(private readonly options: WorkspaceRuntimeCoordinatorOptions) {}
@@ -127,12 +123,16 @@ export class WorkspaceRuntimeCoordinator {
       const watcher = stagedWatcher;
 
       this.runSynchronousPhase("command-server", () => commandServer.commit());
-      const active: ActiveWorkspaceRuntime = candidate;
+      const active: ActiveWorkspaceRuntime = {
+        settings: candidate.settings,
+        revision: candidate.revision,
+        model: candidate.model,
+        runtimeRoot: candidate.runtimeRoot,
+      };
       // This is the sole active-scope commit. The composition-root callback is
       // intentionally a synchronous assignment, so `current()` and the main
       // process fields change as one final observable transition.
       this.active = active;
-      this.activeGeneration = candidate.generation;
       this.lastFailure = null;
       this.options.publishActive(active);
       watcher.commit();

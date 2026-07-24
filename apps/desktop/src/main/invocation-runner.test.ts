@@ -102,6 +102,7 @@ describe("InvocationRunner readiness parity", () => {
       workspaceRoot: rootA,
       runtimeRoot: path.join(rootA, ".exo"),
     });
+    expect(runner.workspaceRootForInvocation(prepared.id)).toBe(rootA);
     await expect(runner.authorizeAndStart(prepared, {
       decision: { kind: "trusted" },
       expectedFingerprint: prepared.pending.command.executableFingerprint,

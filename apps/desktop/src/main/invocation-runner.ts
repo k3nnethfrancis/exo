@@ -674,6 +674,11 @@ export class InvocationRunner extends EventEmitter {
     return new InvocationStore(this.scopeForInvocation(id).workspaceRoot).readRecord(id);
   }
 
+  /** Origin lookup for renderer routing; never falls back to ambient Workspace state. */
+  workspaceRootForInvocation(id: string): string | null {
+    return this.invocationScopes.get(id)?.workspaceRoot ?? this.active.get(id)?.workspaceRoot ?? null;
+  }
+
   async getInvocationFileReview(id: string, changeId: string): Promise<InvocationFileReviewPayload> {
     const scope = this.scopeForInvocation(id);
     const record = await requiredInvocation(new InvocationStore(scope.workspaceRoot), id);

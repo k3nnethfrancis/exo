@@ -46,7 +46,7 @@ import { findSourceProjectRoot, inspectCliInstallation } from "./cli-installatio
 import { resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace-watchers";
-import { activateWorkspaceAfterRecovery } from "./workspace-activation";
+import { WorkspaceRuntimeCoordinator } from "./workspace-runtime-coordinator";
 import { hasOperatorWorkspaceSetup } from "./workspace-setup-gate";
 import { configureGpuStartup } from "./gpu-startup-policy";
 import { runStandaloneGraphGpuProbe } from "./gpu-probe-runner";
@@ -83,6 +83,7 @@ let indexingService: IndexingService;
 let graphDerivedIndex: UtilityDerivedIndexClient;
 let workspaceNotesService: WorkspaceNotesService;
 let invocationRunner: InvocationRunner;
+let workspaceRuntimeCoordinator: WorkspaceRuntimeCoordinator;
 let quitFlushStarted = false;
 let quitFlushComplete = false;
 
@@ -95,8 +96,7 @@ if (!singleInstanceLock) {
   app.quit();
 }
 
-function createCommandServer() {
-  const runtimeRoot = resolveRuntimeRoot();
+function createCommandServer(runtimeRoot = resolveRuntimeRoot()) {
   return new CommandServer({
     runtimeRoot,
     onShowWindow: () => appLifecycle.showMainWindow(),
@@ -393,43 +393,44 @@ function currentSnapshot() {
 async function saveSettings(request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> {
   const previous = currentSettings();
   const saved = await workspaceConfig.patch(request.expectedRevision, { ...previous, ...request.settings });
-  workspaceSettings = saved.settings;
-  workspaceSettingsRevision = saved.revision;
-  workspaceSetupComplete = true;
-  try {
-    applyWorkspaceSettings(saved.settings);
-    workspaceModel = workspaceModelFromSettings(saved.settings);
-    await ensureNoteRoots(workspaceModel);
-    workspaceNotesService.invalidateDerivedState();
-    workspaceWatcherService.start(workspaceModel);
-    terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
-    if (indexingService.shouldReconcileAfterSettingsApply(previous, saved.settings)) {
-      indexingService.scheduleReconciliation("settings-apply", 0);
-    } else {
-      indexingService.applyCurrentAutomaticPolicy();
-    }
-    return { ...saved, runtimeApply: { status: "applied" } };
-  } catch (error) {
-    return { ...saved, runtimeApply: { status: "failed", errorMessage: error instanceof Error ? error.message : String(error) } };
-  }
+  const activation = await workspaceRuntimeCoordinator.activate({
+    previousSettings: previous,
+    settings: saved.settings,
+    revision: saved.revision,
+    reason: "settings-apply",
+  });
+  return activation.status === "applied"
+    ? { ...saved, runtimeApply: { status: "applied" } }
+    : {
+      ...saved,
+      runtimeApply: {
+        status: "failed",
+        errorMessage: activation.status === "failed"
+          ? activation.errorMessage
+          : "A newer Workspace request superseded this activation.",
+      },
+    };
 }
 
 async function switchWorkspace(workspaceId: string, expectedRevision: string | null): Promise<WorkspaceSettingsSaveOutcome> {
   const saved = await workspaceConfig.switchWorkspace(workspaceId, expectedRevision);
-  return activateWorkspaceAfterRecovery(
-    saved.settings,
-    (destination) => invocationRunner.recoverWorkspace(destination),
-    (destination) => {
-      workspaceSettings = destination;
-      workspaceSettingsRevision = saved.revision;
-      workspaceModel = workspaceModelFromSettings(destination);
-      workspaceNotesService.invalidateDerivedState();
-      workspaceWatcherService.start(workspaceModel);
-      terminalManager.setDefaultCwd(workspaceModel.defaultTerminalCwd);
-      indexingService.scheduleReconciliation("workspace-switch", 0);
-      return { ...saved, runtimeApply: { status: "applied" as const } };
-    },
-  );
+  const activation = await workspaceRuntimeCoordinator.activate({
+    previousSettings: currentSettings(),
+    settings: saved.settings,
+    revision: saved.revision,
+    reason: "workspace-switch",
+  });
+  return activation.status === "applied"
+    ? { ...saved, runtimeApply: { status: "applied" } }
+    : {
+      ...saved,
+      runtimeApply: {
+        status: "failed",
+        errorMessage: activation.status === "failed"
+          ? activation.errorMessage
+          : "A newer Workspace request superseded this activation.",
+      },
+    };
 }
 
 function applyOnboardingRuntimeEnv() {
@@ -494,7 +495,6 @@ app.whenReady().then(async () => {
     nativeTheme.themeSource = workspaceSettings.appearanceMode;
   }
   if (workspaceSetupComplete) {
-    await ensureNoteRoots(workspaceModel);
     const savedWorkspaceSettings = await workspaceConfig.patch(loadedWorkspaceSettings?.revision ?? null, workspaceSettings ?? workspaceSettingsFromModel(workspaceModel));
     workspaceSettings = savedWorkspaceSettings.settings;
     workspaceSettingsRevision = savedWorkspaceSettings.revision;
@@ -533,9 +533,11 @@ app.whenReady().then(async () => {
     getWorkspaceSettings: () => currentSettings(),
   });
   invocationRunner.on("updated", (record) => {
+    if (invocationRunner.workspaceRootForInvocation(record.id) !== workspaceModel.workspaceRoot) return;
     sendToRenderer("workspace:invocation-updated", record);
   });
   invocationRunner.on("activity", (event) => {
+    if (invocationRunner.workspaceRootForInvocation(event.invocationId) !== workspaceModel.workspaceRoot) return;
     sendToRenderer("workspace:invocation-activity", event);
   });
   invocationRunner.on("settlement-error", (event: { invocationId: string; error: unknown }) => {
@@ -547,11 +549,6 @@ app.whenReady().then(async () => {
       error: serializeError(event.error),
     });
   });
-  try {
-    await invocationRunner.markOrphanedRunningInvocations();
-  } catch (error) {
-    logMain("invocation recovery failed", serializeError(error));
-  }
   workspaceNotesService = new WorkspaceNotesService({
     getWorkspaceModel: () => workspaceModel,
     getRuntimeRoot: () => resolveRuntimeRoot(),
@@ -573,16 +570,92 @@ app.whenReady().then(async () => {
     restartCommandServer: () => void commandServerLifecycle.restart(),
     logMain,
   });
+  workspaceRuntimeCoordinator = new WorkspaceRuntimeCoordinator({
+    runtimeRootFor: (settings) => process.env.EXO_RUNTIME_ROOT ?? path.join(settings.workspaceRoot, ".exo"),
+    recoverInvocations: (candidate) => invocationRunner.recoverWorkspace(candidate.settings),
+    modelFromSettings: workspaceModelFromSettings,
+    prepareNoteRoots: (candidate) => ensureNoteRoots(candidate.model),
+    stageCommandServer: async (candidate) => {
+      const previousLifecycle = commandServerLifecycle;
+      const destinationLifecycle = new CommandServerLifecycle({
+        runtimeRoot: candidate.runtimeRoot,
+        createServer: () => createCommandServer(candidate.runtimeRoot),
+        log: logMain,
+      });
+      await destinationLifecycle.start({ publishDiscovery: false });
+      const discovery = destinationLifecycle.prepareDiscovery();
+      return {
+        commit: () => {
+          discovery.commit();
+          commandServerLifecycle = destinationLifecycle;
+          void previousLifecycle.stop().catch((error) => {
+            logMain("previous command server stop failed after Workspace commit", serializeError(error));
+          });
+        },
+        abort: async () => {
+          discovery.abort();
+          await destinationLifecycle.stop();
+        },
+      };
+    },
+    stageWatcher: async (candidate) => workspaceWatcherService.stage(candidate.model),
+    publishActive: (active) => {
+      workspaceSettings = active.settings;
+      workspaceSettingsRevision = active.revision;
+      workspaceModel = active.model;
+      workspaceSetupComplete = true;
+      applyWorkspaceSettings(active.settings);
+    },
+    invalidateDerivedState: (candidate) => {
+      workspaceNotesService.activateWorkspace({
+        model: candidate.model,
+        runtimeRoot: candidate.runtimeRoot,
+        generation: candidate.generation,
+      });
+      workspaceNotesService.invalidateDerivedState();
+    },
+    setTerminalDefaultCwd: (candidate) => terminalManager.setDefaultCwd(candidate.model.defaultTerminalCwd),
+    reconcileIndex: (previous, candidate, reason) => {
+      indexingService.activateWorkspace({
+        model: candidate.model,
+        settings: candidate.settings,
+        runtimeRoot: candidate.runtimeRoot,
+      });
+      if (reason === "startup" || indexingService.shouldReconcileAfterSettingsApply(previous, candidate.settings)) {
+        indexingService.scheduleReconciliation(reason, 0);
+      } else {
+        indexingService.applyCurrentAutomaticPolicy();
+      }
+    },
+  });
   registerIpcHandlers();
   broadcastTerminalData();
-  workspaceWatcherService.start(workspaceModel);
-  indexingService.scheduleReconciliation("startup", 0);
+  if (workspaceSetupComplete) {
+    const startupSettings = currentSettings();
+    const activation = await workspaceRuntimeCoordinator.activate({
+      previousSettings: startupSettings,
+      settings: startupSettings,
+      revision: workspaceSettingsRevision,
+      reason: "startup",
+    });
+    if (activation.status !== "applied") {
+      logMain("workspace runtime startup activation failed", activation);
+    }
+  } else {
+    // Onboarding has no persisted Workspace yet. It intentionally keeps the
+    // small bootstrap runtime until the first settings save enters the same
+    // coordinator path used by every later Workspace transition.
+    workspaceWatcherService.start(workspaceModel);
+    void commandServerLifecycle.start().catch((error) => {
+      console.error("Failed to start onboarding command server:", error);
+      logMain("onboarding command server start failed", serializeError(error));
+    });
+  }
+  // A configured Workspace becomes renderer-visible only after recovery and
+  // every critical runtime rebind have committed. Onboarding has deliberately
+  // chosen the bootstrap path above, so it may expose its empty workspace now.
   appLifecycle.createWindow();
   appLifecycle.setupTray();
-  void commandServerLifecycle.start().catch((error) => {
-    console.error("Failed to start command server:", error);
-    logMain("command server start failed", serializeError(error));
-  });
 
   nativeTheme.on("updated", () => {
     appLifecycle.updateBackgroundForTheme();

@@ -23,6 +23,10 @@ describe("WorkspaceRuntimeCoordinator", () => {
     await Promise.resolve();
     expect(events).toEqual(["recover:/destination"]);
     expect(coordinator.current()).toBeNull();
+    // The desktop composition root creates the renderer only after this
+    // activation resolves; publishing is therefore the test seam for visible
+    // startup state.
+    expect(events.some((event) => event.startsWith("publish:"))).toBe(false);
 
     finishRecovery();
     await expect(activating).resolves.toMatchObject({
@@ -65,6 +69,18 @@ describe("WorkspaceRuntimeCoordinator", () => {
 
     expect(events.filter((event) => event.startsWith("publish:"))).toEqual(["publish:/destination:destination-revision"]);
     expect(coordinator.current()).toMatchObject({ model: { workspaceRoot: "/destination" } });
+  });
+
+  it("preserves a null operator-startup revision for the first settings save", async () => {
+    const events: string[] = [];
+    const coordinator = coordinatorFor(events);
+
+    await expect(coordinator.activate({
+      ...request(settings("/operator"), "startup"),
+      revision: null,
+    })).resolves.toMatchObject({ status: "applied", active: { revision: null } });
+    expect(coordinator.current()?.revision).toBeNull();
+    expect(events).toContain("publish:/operator:null");
   });
 
   it("keeps A's runtime intact when B watcher preparation fails", async () => {
