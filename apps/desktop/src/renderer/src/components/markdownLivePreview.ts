@@ -6,7 +6,7 @@ import { LIST_GEOMETRY, listGeometryStyleVariables } from "./listGeometry";
 const toggleFoldEffect = StateEffect.define<number>();
 const allowListPrefixRawSelection = Annotation.define<boolean>();
 
-const foldedLinesField = StateField.define<Set<number>>({
+const foldedListParentAnchorsField = StateField.define<Set<number>>({
   create() {
     return new Set();
   },
@@ -23,11 +23,12 @@ const foldedLinesField = StateField.define<Set<number>>({
       }
     }
     if (tr.docChanged) {
-      // Remap folded line numbers after edits
+      // A fold follows its parent line-start anchor, never a raw line number.
       const remapped = new Set<number>();
-      for (const lineNumber of next) {
-        if (lineNumber >= 1 && lineNumber <= tr.state.doc.lines) {
-          remapped.add(lineNumber);
+      for (const anchor of next) {
+        const mappedAnchor = remapFoldParentAnchor(anchor, tr);
+        if (mappedAnchor !== null) {
+          remapped.add(mappedAnchor);
         }
       }
       return remapped;
@@ -35,6 +36,32 @@ const foldedLinesField = StateField.define<Set<number>>({
     return next;
   },
 });
+
+function remapFoldParentAnchor(anchor: number, tr: Transaction): number | null {
+  let parentDeleted = false;
+  let insertedLineBeforeParent = false;
+  const parentLineEnd = tr.startState.doc.lineAt(anchor).to;
+  tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+    if (fromA <= anchor && toA >= parentLineEnd) {
+      parentDeleted = true;
+    }
+    if (fromA === anchor && toA === anchor && inserted.toString().includes("\n")) {
+      insertedLineBeforeParent = true;
+    }
+  }, true);
+  if (parentDeleted) {
+    return null;
+  }
+
+  const mappedAnchor = tr.changes.mapPos(anchor, insertedLineBeforeParent ? 1 : -1);
+  return isListParentAnchor(tr.state.doc, mappedAnchor) ? mappedAnchor : null;
+}
+
+function isListParentAnchor(doc: Text, anchor: number): boolean {
+  if (anchor < 0 || anchor > doc.length) return false;
+  const line = doc.lineAt(anchor);
+  return line.from === anchor && listPrefixPattern.test(line.text);
+}
 
 const concealDecoration = Decoration.mark({ class: "exo-md-syntax-hidden" });
 const boldDecoration = Decoration.mark({ class: "exo-md-strong" });
@@ -102,7 +129,7 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
   );
 
   return [
-    foldedLinesField,
+    foldedListParentAnchorsField,
     listPrefixAtomicRanges,
     listPrefixSelectionFilter,
     plugin,
@@ -124,7 +151,7 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
         }
 
         const interactivePreviewControl = event.target.closest<HTMLElement>(
-          "[data-exo-fold-line], [data-exo-checkbox-pos], [data-exo-link-target], [data-exo-tag]",
+          "[data-exo-fold-anchor], [data-exo-checkbox-pos], [data-exo-link-target], [data-exo-tag]",
         );
         if (!interactivePreviewControl) {
           return false;
@@ -144,11 +171,11 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
         }
 
         // List fold toggle
-        const foldToggle = event.target.closest<HTMLElement>("[data-exo-fold-line]");
+        const foldToggle = event.target.closest<HTMLElement>("[data-exo-fold-anchor]");
         if (foldToggle) {
-          const lineNum = Number(foldToggle.dataset.exoFoldLine);
-          if (!Number.isNaN(lineNum)) {
-            view.dispatch({ effects: toggleFoldEffect.of(lineNum) });
+          const anchor = Number(foldToggle.dataset.exoFoldAnchor);
+          if (Number.isInteger(anchor) && anchor >= 0 && anchor <= view.state.doc.length) {
+            view.dispatch({ effects: toggleFoldEffect.of(anchor) });
             event.preventDefault();
             return true;
           }
@@ -757,11 +784,23 @@ export function visibleLineNumbers(
   return [...visible].sort((left, right) => left - right);
 }
 
+function foldedListLineNumbers(doc: Text, listContexts: Map<number, ListContext>, anchors: ReadonlySet<number>) {
+  const lines = new Set<number>();
+  for (const anchor of anchors) {
+    const line = doc.lineAt(anchor);
+    if (line.from === anchor && listContexts.get(line.number)?.isListStart) {
+      lines.add(line.number);
+    }
+  }
+  return lines;
+}
+
 function buildDecorations(view: EditorView, options: MarkdownLivePreviewOptions, metadata: MarkdownPreviewMetadata): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const currentLine = view.state.doc.lineAt(view.state.selection.main.head).number;
   const { listContexts, tableContexts, codeFenceContexts } = metadata;
-  const foldedLines = view.state.field(foldedLinesField);
+  const foldedParentAnchors = view.state.field(foldedListParentAnchorsField);
+  const foldedLines = foldedListLineNumbers(view.state.doc, listContexts, foldedParentAnchors);
 
   // Determine which list lines have children (next line has greater depth)
   const linesWithChildren = new Set<number>();
@@ -1084,7 +1123,7 @@ function decorateLine(
         out.push({
           from: lineFrom,
           to: lineFrom,
-          decoration: Decoration.widget({ widget: new ListFoldToggleWidget(listContext.depth, isFolded, lineNumber), side: -1 }),
+          decoration: Decoration.widget({ widget: new ListFoldToggleWidget(listContext.depth, isFolded, lineFrom), side: -1 }),
         });
       }
       if (!cursorInPrefix) {
@@ -1433,7 +1472,7 @@ class ListFoldToggleWidget extends WidgetType {
   constructor(
     private readonly depth: number,
     private readonly isFolded: boolean,
-    private readonly lineNumber: number,
+    private readonly parentAnchor: number,
   ) {
     super();
   }
@@ -1447,13 +1486,13 @@ class ListFoldToggleWidget extends WidgetType {
 
     const fold = document.createElement("span");
     fold.className = `exo-md-fold-toggle ${this.isFolded ? "exo-md-fold-toggle--folded" : ""}`;
-    fold.dataset.exoFoldLine = String(this.lineNumber);
+    fold.dataset.exoFoldAnchor = String(this.parentAnchor);
     span.appendChild(fold);
     return span;
   }
 
   eq(other: ListFoldToggleWidget) {
-    return other.depth === this.depth && other.isFolded === this.isFolded && other.lineNumber === this.lineNumber;
+    return other.depth === this.depth && other.isFolded === this.isFolded && other.parentAnchor === this.parentAnchor;
   }
 
   ignoreEvent(event: Event) {
