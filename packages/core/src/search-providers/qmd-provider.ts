@@ -1,8 +1,9 @@
-import { access, mkdir, readFile, realpath } from "node:fs/promises";
+import { access, mkdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { IndexReadOptions, IndexSearchOptions, IndexUpdateOptions, SearchProvider, SearchProviderMetadata } from "../search-provider";
 import { readFilesystemDocument, searchFilesystem } from "./filesystem-provider";
+import { WorkspaceFiles } from "../workspace-files";
 import type {
   IndexedRoot,
   IndexReadResponse,
@@ -264,6 +265,7 @@ async function searchIndex(
   try {
     store = await openQmdStore(model, runtimeRoot);
     const collections = selectedCollectionNames(model.indexedRoots, options.rootIds);
+    const indexedRootFiles = new WorkspaceFiles(model.indexedRoots.map((root) => root.path));
     const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
     const offset = Math.max(0, options.offset ?? 0);
     const providerLimit = offset + limit + 1;
@@ -330,7 +332,7 @@ async function searchIndex(
       .map((result) => mapQmdResult(result, model.indexedRoots))
       .filter((result): result is IndexSearchResult => result !== null);
     const authorizedResults = await Promise.all(
-      mappedResults.map(async (result) => (await isAuthorizedIndexedRootPath(result.filePath, model.indexedRoots)) ? result : null),
+      mappedResults.map(async (result) => (await isAuthorizedIndexedRootPath(indexedRootFiles, result.filePath)) ? result : null),
     );
     let rejectedResultCount = rawResults.length - mappedResults.length + authorizedResults.filter((result) => result === null).length;
     const candidates = authorizedResults
@@ -342,7 +344,7 @@ async function searchIndex(
       const hydratedResults = await Promise.all(
         results.map(async (result) => ({
           result,
-          content: await readAuthorizedBoundedContent(result.filePath, model.indexedRoots, options.maxLinesPerResult ?? DEFAULT_CONTENT_LINES),
+          content: await readAuthorizedBoundedContent(result.filePath, indexedRootFiles, options.maxLinesPerResult ?? DEFAULT_CONTENT_LINES),
         })),
       );
       rejectedResultCount += hydratedResults.filter(({ content }) => content === null).length;
@@ -383,16 +385,17 @@ async function readIndexDocument(
     let store: QmdStore | null = null;
     try {
       store = await openQmdStore(model, runtimeRoot);
+      const indexedRootFiles = new WorkspaceFiles(model.indexedRoots.map((root) => root.path));
       const doc = await store.get(target, { includeBody: false });
       if ("error" in doc) {
         throw new Error(`Document not found: ${target}`);
       }
       const filePath = resolveQmdPath(doc.filepath, model.indexedRoots);
-      if (!filePath || !(await isAuthorizedIndexedRootPath(filePath, model.indexedRoots))) {
+      if (!filePath || !(await isAuthorizedIndexedRootPath(indexedRootFiles, filePath))) {
         throw new Error("Refusing to read a QMD document outside configured indexed roots.");
       }
       await authorizeResolvedPath?.(filePath);
-      if (!(await isAuthorizedIndexedRootPath(filePath, model.indexedRoots))) {
+      if (!(await isAuthorizedIndexedRootPath(indexedRootFiles, filePath))) {
         throw new Error("Refusing to read a QMD document outside configured indexed roots.");
       }
       const body = await store.getDocumentBody(target, {
@@ -523,43 +526,22 @@ function latestCollectionUpdate(collections: Array<{ lastUpdated?: unknown; last
   return values.at(-1) ?? null;
 }
 
-async function isAuthorizedIndexedRootPath(targetPath: string, roots: readonly IndexedRoot[]): Promise<boolean> {
-  const resolvedPath = path.resolve(targetPath);
-  const candidateRoots = roots.filter((root) => isWithin(root.path, resolvedPath));
-  if (candidateRoots.length === 0) {
-    return false;
-  }
-
-  let canonicalPath: string;
+async function isAuthorizedIndexedRootPath(indexedRootFiles: WorkspaceFiles, targetPath: string): Promise<boolean> {
   try {
-    canonicalPath = await realpath(resolvedPath);
+    await indexedRootFiles.existing(targetPath);
+    return true;
   } catch {
+    // A stale, unreadable, or escaping QMD path is not an authorized result.
     return false;
   }
-
-  for (const root of candidateRoots) {
-    try {
-      if (isWithin(await realpath(root.path), canonicalPath)) {
-        return true;
-      }
-    } catch {
-      // A missing or unreadable Indexed Root cannot authorize a result.
-    }
-  }
-  return false;
-}
-
-function isWithin(root: string, targetPath: string): boolean {
-  const relative = path.relative(path.resolve(root), path.resolve(targetPath));
-  return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
 }
 
 function isDocid(value: string): boolean {
   return /^#[a-zA-Z0-9]+$/.test(value.trim());
 }
 
-async function readAuthorizedBoundedContent(filePath: string, roots: readonly IndexedRoot[], maxLines: number): Promise<string | null> {
-  if (!(await isAuthorizedIndexedRootPath(filePath, roots))) {
+async function readAuthorizedBoundedContent(filePath: string, indexedRootFiles: WorkspaceFiles, maxLines: number): Promise<string | null> {
+  if (!(await isAuthorizedIndexedRootPath(indexedRootFiles, filePath))) {
     return null;
   }
   return sliceLines(await readFile(filePath, "utf8"), undefined, maxLines);
