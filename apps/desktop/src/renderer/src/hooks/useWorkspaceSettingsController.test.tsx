@@ -221,6 +221,36 @@ describe("workspace settings patch persistence", () => {
     expect(settingsRef.current.terminalFontSize).toBe(16);
   });
 
+  it("publishes the returned settings after a non-structural dialog save", async () => {
+    const settingsRef = { current: workspaceSettings() };
+    const revisionRef = { current: "revision-0" };
+    const returnedSettings = { ...settingsRef.current, terminalFontSize: 16 };
+    const saveSettings = vi.fn(async () => saveOutcome(returnedSettings, "revision-1"));
+    const applyWorkspaceSettings = vi.fn();
+    const refreshWorkspaceModel = vi.fn(async () => undefined);
+    vi.stubGlobal("window", workspaceWindow(settingsRef.current, revisionRef.current, saveSettings));
+    const controllerRef: { current: ReturnType<typeof useWorkspaceSettingsController> | null } = { current: null };
+    renderToStaticMarkup(
+      <WorkspaceSettingsControllerHarness
+        controllerRef={controllerRef}
+        options={{
+          workspaceSettingsRef: settingsRef,
+          workspaceSettingsRevisionRef: revisionRef,
+          applyWorkspaceSettings,
+          refreshWorkspaceModel,
+          setIndexStatus: vi.fn(),
+        }}
+      />,
+    );
+    const controller = controllerRef.current;
+    if (!controller) throw new Error("Workspace Settings controller did not render.");
+
+    await controller.saveDialog(workspaceSettingsDialogFixture({ terminalFontSize: "14" }));
+
+    expect(applyWorkspaceSettings).toHaveBeenCalledWith(returnedSettings);
+    expect(refreshWorkspaceModel).not.toHaveBeenCalled();
+  });
+
   it("publishes each structural Apply model and index status before the next Apply starts", async () => {
     const firstSave = deferred<WorkspaceSettingsSaveOutcome>();
     const secondSave = deferred<WorkspaceSettingsSaveOutcome>();

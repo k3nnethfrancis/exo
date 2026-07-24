@@ -254,21 +254,19 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     try {
       const saved = await enqueueSettingsSave(
         (baseSettings) => workspaceSettingsFromDialog(settingsDialog, saveOptions, baseSettings),
-        saveOptions.includeStructural
-          ? async (savedSettings) => {
-              optionsRef.current.applyWorkspaceSettings(savedSettings.settings);
-              if (savedSettings.runtimeApply.status === "failed") {
-                return;
-              }
-              await optionsRef.current.refreshWorkspaceModel();
-              try {
-                optionsRef.current.setIndexStatus(await window.exo.workspace.getIndexStatus());
-              } catch (error) {
-                console.warn("[exo] failed to refresh search status", error);
-                optionsRef.current.setIndexStatus(null);
-              }
-            }
-          : undefined,
+        async (savedSettings) => {
+          optionsRef.current.applyWorkspaceSettings(savedSettings.settings);
+          if (!saveOptions.includeStructural || savedSettings.runtimeApply.status === "failed") {
+            return;
+          }
+          await optionsRef.current.refreshWorkspaceModel();
+          try {
+            optionsRef.current.setIndexStatus(await window.exo.workspace.getIndexStatus());
+          } catch (error) {
+            console.warn("[exo] failed to refresh search status", error);
+            optionsRef.current.setIndexStatus(null);
+          }
+        },
       );
       if (saved.runtimeApply.status === "failed") {
         const runtimeApplyErrorMessage = saved.runtimeApply.errorMessage;
