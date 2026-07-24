@@ -264,8 +264,12 @@ async function searchIndex(
   let store: QmdStore | null = null;
   try {
     store = await openQmdStore(model, runtimeRoot);
-    const collections = selectedCollectionNames(model.indexedRoots, options.rootIds);
-    const indexedRootFiles = new WorkspaceFiles(model.indexedRoots.map((root) => root.path));
+    const requestedRootIds = options.rootIds;
+    const selectedRoots = requestedRootIds === undefined
+      ? model.indexedRoots
+      : model.indexedRoots.filter((root) => requestedRootIds.includes(root.id));
+    const collections = selectedRoots.map(collectionName);
+    const indexedRootFiles = new WorkspaceFiles(selectedRoots.map((root) => root.path));
     const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
     const offset = Math.max(0, options.offset ?? 0);
     const providerLimit = offset + limit + 1;
@@ -329,7 +333,7 @@ async function searchIndex(
     }
 
     const mappedResults = rawResults
-      .map((result) => mapQmdResult(result, model.indexedRoots))
+      .map((result) => mapQmdResult(result, selectedRoots))
       .filter((result): result is IndexSearchResult => result !== null);
     const authorizedResults = await Promise.all(
       mappedResults.map(async (result) => (await isAuthorizedIndexedRootPath(indexedRootFiles, result.filePath)) ? result : null),
@@ -337,21 +341,25 @@ async function searchIndex(
     let rejectedResultCount = rawResults.length - mappedResults.length + authorizedResults.filter((result) => result === null).length;
     const candidates = authorizedResults
       .filter((result): result is IndexSearchResult => result !== null)
-      .sort((left, right) => right.score - left.score)
-    let results = candidates.slice(offset, offset + limit);
+      .sort((left, right) => right.score - left.score);
+    let pageableResults: IndexSearchResult[] = candidates;
 
     if (options.includeContent) {
+      // QMD bounds this candidate set by providerLimit. Finish authorization and
+      // hydration filtering inside that bound before applying the page offset.
       const hydratedResults = await Promise.all(
-        results.map(async (result) => ({
+        candidates.map(async (result) => ({
           result,
           content: await readAuthorizedBoundedContent(result.filePath, indexedRootFiles, options.maxLinesPerResult ?? DEFAULT_CONTENT_LINES),
         })),
       );
       rejectedResultCount += hydratedResults.filter(({ content }) => content === null).length;
-      results = hydratedResults
+      pageableResults = hydratedResults
         .filter((entry): entry is { result: IndexSearchResult; content: string } => entry.content !== null)
         .map(({ result, content }) => ({ ...result, content }));
     }
+
+    const results = pageableResults.slice(offset, offset + limit);
 
     if (rejectedResultCount > 0) {
       warnings.push(droppedQmdResultWarning(rejectedResultCount));
@@ -363,7 +371,7 @@ async function searchIndex(
       source: "qmd",
       warnings,
       results,
-      hasMore: candidates.length > offset + results.length,
+      hasMore: pageableResults.length > offset + results.length,
     };
   } catch (error) {
     // If QMD cannot open at all, keep basic workspace search usable. This fallback is intentionally

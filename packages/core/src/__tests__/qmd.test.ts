@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { qmdSearchProvider } from "../search-providers/qmd-provider";
 import { createIndexedRoot, resolveWorkspaceModel } from "../workspace";
+import { WorkspaceFiles } from "../workspace-files";
 
 const { readFileMock } = vi.hoisted(() => ({ readFileMock: vi.fn() }));
 
@@ -41,6 +42,7 @@ vi.mock("@tobilu/qmd", () => ({
 }));
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   stores.splice(0);
   createStoreError = null;
   searchLexResultsOverride = null;
@@ -116,6 +118,80 @@ describe("QMD index adapter", () => {
     expect(result.mode).toBe("lexical");
     expect(result.warnings.some((warning) => warning.includes(`${mode[0].toUpperCase()}${mode.slice(1)} search is not ready`))).toBe(true);
     expect(stores[0].searchLexCalls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it.each(["lexical", "hybrid"] as const)("enforces selected-root authority during %s search", async (mode) => {
+    const root = await fixtureRoot();
+    const docsPath = path.join(root, "docs");
+    const secretPath = path.join(docsPath, "secret.md");
+    await mkdir(docsPath);
+    await writeFile(secretPath, "# Secret\n", "utf8");
+    const model = {
+      ...indexedModel(root, mode),
+      indexedRoots: [
+        createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
+        createIndexedRoot(docsPath, { id: "index-docs", label: "docs", kind: "docs" }),
+      ],
+    };
+    hybridSearchError = mode === "hybrid" ? new Error("no vectors") : null;
+    searchLexResultsOverride = [
+      qmdResult("qmd://notes/focus.md", 0.9),
+      qmdResult("qmd://docs/secret.md", 0.8),
+      qmdResult(secretPath, 0.7),
+    ];
+
+    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", {
+      rootIds: ["index-notes"],
+      includeContent: true,
+    });
+
+    expect(result.results.map((entry) => entry.filePath)).toEqual([path.join(root, "notes", "focus.md")]);
+    expect(result.warnings).toContain("Dropped 2 invalid or stale QMD results.");
+    expect(stores[0].searchLexCalls.every((call) => call.collection === "notes")).toBe(true);
+    if (mode === "hybrid") {
+      expect(stores[0].searchCalls).toEqual([expect.objectContaining({ collections: ["notes"] })]);
+    }
+    expect(readFileMock).toHaveBeenCalledTimes(1);
+    expect(readFileMock).not.toHaveBeenCalledWith(secretPath, "utf8");
+  });
+
+  it("paginates over the post-hydration result set without duplicates or skipped rows", async () => {
+    const root = await fixtureRoot();
+    const notePaths = ["a.md", "b.md", "c.md", "d.md", "e.md"].map((name) => path.join(root, "notes", name));
+    await Promise.all(notePaths.map((filePath, index) => writeFile(filePath, `# Result ${index + 1}\n`, "utf8")));
+    searchLexResultsOverride = notePaths.map((filePath, index) => qmdResult(filePath, 1 - index / 10));
+
+    const originalExisting = WorkspaceFiles.prototype.existing;
+    const authorityCalls = new Map<string, number>();
+    vi.spyOn(WorkspaceFiles.prototype, "existing").mockImplementation(async function (this: WorkspaceFiles, targetPath: string) {
+      const callCount = (authorityCalls.get(targetPath) ?? 0) + 1;
+      authorityCalls.set(targetPath, callCount);
+      if (targetPath === notePaths[1] && callCount === 2) {
+        throw new Error("simulated path change before hydration");
+      }
+      return originalExisting.call(this, targetPath);
+    });
+
+    const firstPage = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", {
+      includeContent: true,
+      limit: 2,
+      offset: 0,
+    });
+    authorityCalls.clear();
+    const secondPage = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", {
+      includeContent: true,
+      limit: 2,
+      offset: firstPage.results.length,
+    });
+
+    expect(firstPage.results.map((entry) => entry.filePath)).toEqual([notePaths[0], notePaths[2]]);
+    expect(firstPage.hasMore).toBe(true);
+    expect(secondPage.results.map((entry) => entry.filePath)).toEqual([notePaths[3], notePaths[4]]);
+    expect(secondPage.hasMore).toBe(false);
+    expect(new Set([...firstPage.results, ...secondPage.results].map((entry) => entry.filePath)).size).toBe(4);
+    expect(firstPage.warnings.filter((warning) => warning.includes("invalid or stale QMD"))).toEqual(["Dropped 1 invalid or stale QMD result."]);
+    expect(secondPage.warnings.filter((warning) => warning.includes("invalid or stale QMD"))).toEqual(["Dropped 1 invalid or stale QMD result."]);
+    expect(readFileMock).not.toHaveBeenCalledWith(notePaths[1], "utf8");
   });
 
   it("drops an absolute QMD path outside configured indexed roots", async () => {
@@ -505,12 +581,12 @@ class MockStore {
   async close() {}
 }
 
-function qmdResult(file: string) {
+function qmdResult(file: string, score = 0.8) {
   return {
     file,
     title: "Focus",
     snippet: "alpha",
-    score: 0.8,
+    score,
     docid: "abc123",
   };
 }
