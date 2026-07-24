@@ -29,9 +29,12 @@ test("replaces every Markdown editor match through the native find panel", async
       const view = (content as HTMLElement & { cmView?: { view?: { state: { readOnly: boolean } } } }).cmView?.view;
       return view?.state.readOnly;
     })).resolves.toBe(false);
-    await panel.locator('input[name="search"]').fill("wording");
-    await panel.locator('input[name="replace"]').fill("language");
-    await panel.locator('button[name="replaceAll"]').click();
+    await panel.locator('input[name="search"]').pressSequentially("wording");
+    await panel.locator('input[name="replace"]').pressSequentially("language");
+    await expect(fixture.page.locator(".cm-searchMatch")).toHaveCount(2);
+    const replaceAll = panel.locator('button[name="replaceAll"]');
+    await replaceAll.focus();
+    await replaceAll.press("Enter");
 
     await expect.poll(() => editorText(fixture.page)).toBe("# Find and replace\n\nOld language appears twice: old language.\n");
     await expect.poll(() => readFile(notePath, "utf8")).toBe("# Find and replace\n\nOld language appears twice: old language.\n");

@@ -17,7 +17,9 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       const mod = event.metaKey || event.ctrlKey;
-      const panelShortcut = shellPanelShortcut(event);
+      // ⌘B is a standard Markdown editor command. Let CodeMirror receive it
+      // when an editor owns focus; elsewhere it remains the Explorer shortcut.
+      const panelShortcut = isCodeMirrorEvent(event) ? null : shellPanelShortcut(event);
       if (panelShortcut) {
         event.preventDefault();
         event.stopPropagation();
@@ -68,6 +70,10 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
     options.toggleUtilityPanel,
     options.updateFocusedSurfaceZoom,
   ]);
+}
+
+function isCodeMirrorEvent(event: KeyboardEvent): boolean {
+  return event.composedPath().some((entry) => entry instanceof Element && entry.closest(".cm-editor"));
 }
 
 type ShortcutEvent = Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey" | "repeat">;
