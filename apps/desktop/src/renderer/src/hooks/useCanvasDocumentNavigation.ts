@@ -122,7 +122,12 @@ export function useCanvasDocumentNavigation(options: UseCanvasDocumentNavigation
     );
   }
 
-  function focusEditorPane(leafId: PaneNodeId) {
+  function focusPane(leafId: PaneNodeId) {
+    for (const leaf of collectLeaves(options.canvasTree)) {
+      if (leaf.id !== leafId) {
+        latestNavigationRef.current.invalidatePane(leaf.id);
+      }
+    }
     options.canvasActions.focusLeaf(leafId);
     const leaf = findNode(options.canvasTree, (node) => node.id === leafId) as PaneLeaf | undefined;
     if (leaf?.content.kind === "editor" && leaf.content.activePath) setGraphReturnPath(leaf.content.activePath);
@@ -251,7 +256,7 @@ export function useCanvasDocumentNavigation(options: UseCanvasDocumentNavigation
     graphReturnPath,
     activateEditorDocument,
     openFile,
-    focusEditorPane,
+    focusPane,
     setPaneActivePath,
     openFolderOverview,
     closeFolderOverview,

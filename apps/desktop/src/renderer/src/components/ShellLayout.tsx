@@ -34,6 +34,7 @@ interface ShellLayoutProps {
   canvas: PaneNode;
   focusedPaneId: PaneNodeId;
   canvasActions: PaneTreeActions;
+  onFocusCanvasPane: (leafId: PaneNodeId) => void;
   renderLeaf: (leaf: import("../hooks/usePaneTree").PaneLeaf, focused: boolean) => ReactNode;
   dragManager: DragManager;
   utilityContent: ReactNode;
@@ -143,7 +144,7 @@ export function ShellLayout(props: ShellLayoutProps) {
       </aside>
       {!props.sidebarCollapsed ? <div className="pane-split-resizer pane-split-resizer--vertical" onMouseDown={props.onResizeSidebar} /> : null}
       <main className="workspace-shell__canvas">
-        <PaneTree node={props.canvas} actions={props.canvasActions} focusedLeafId={props.focusedPaneId} renderLeaf={props.renderLeaf} hoverEdge={props.dragManager.hoverEdge} />
+        <PaneTree node={props.canvas} actions={props.canvasActions} focusedLeafId={props.focusedPaneId} onFocusLeaf={props.onFocusCanvasPane} renderLeaf={props.renderLeaf} hoverEdge={props.dragManager.hoverEdge} />
       </main>
       {props.utilityOpen ? (
         <div

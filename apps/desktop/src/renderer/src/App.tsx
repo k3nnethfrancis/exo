@@ -267,6 +267,7 @@ export function App() {
   const dragManager = usePaneDropOrchestration({
     canvasTree,
     canvasActions,
+    focusPane: canvasNavigation.focusPane,
     ensureDocumentLoaded,
     moveWorkspacePathIntoDirectory: workspaceMutations.moveWorkspacePathIntoDirectory,
     returnSurfaceToUtility,
@@ -966,14 +967,14 @@ export function App() {
     canvasNavigation.rememberGraphReturnPath(focusPath ?? focusedEditorPath);
     const existing = collectLeaves(canvasTree).find((leaf) => leaf.content.kind === "graph");
     if (existing) {
-      canvasActions.focusLeaf(existing.id);
+      canvasNavigation.focusPane(existing.id);
       return;
     }
     const target = findNode(canvasTree, (node) => node.kind === "leaf" && node.id === focusedPaneId) as PaneLeaf | undefined
       ?? collectLeaves(canvasTree)[0];
     if (!target) return;
     const graphLeaf = canvasActions.splitLeaf(target.id, "horizontal", { kind: "graph" }, "after");
-    canvasActions.focusLeaf(graphLeaf.id);
+    canvasNavigation.focusPane(graphLeaf.id);
   }
 
   function focusBrowserPane() {
@@ -1470,6 +1471,7 @@ export function App() {
       canvas={canvasTree}
       focusedPaneId={focusedPaneId}
       canvasActions={canvasActions}
+      onFocusCanvasPane={canvasNavigation.focusPane}
       utilitySurface={utilityState.destination}
       utilityContent={utilityContent}
       utilityOpen={utilityState.open}
@@ -1489,7 +1491,7 @@ export function App() {
             onRestoreEditorConcept={restoreEditorInspection}
             onActivateOpenTarget={activateOpenGraphTarget}
             onClose={() => canvasActions.removeLeaf(leaf.id)}
-            onFocus={() => canvasActions.focusLeaf(leaf.id)}
+            onFocus={() => canvasNavigation.focusPane(leaf.id)}
             onOpenTarget={(target) => void openKnowledgeTarget(target)}
           />;
         }
@@ -1514,7 +1516,7 @@ export function App() {
               theme={resolvedTheme}
               fontSize={terminalFontSize}
               scrollbackLines={terminalRuntimeScrollbackLines}
-              onFocus={() => canvasActions.focusLeaf(leaf.id)}
+              onFocus={() => canvasNavigation.focusPane(leaf.id)}
               onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
               onHydrated={(id) => terminalState.markTerminalHydrated(id)}
               onSetActiveTerminal={(id) => void terminalState.activateTerminal(id)}
@@ -1538,7 +1540,7 @@ export function App() {
               paneId={leaf.id}
               url={tab.url}
               compact={false}
-              onFocus={() => canvasActions.focusLeaf(leaf.id)}
+              onFocus={() => canvasNavigation.focusPane(leaf.id)}
               onNavigate={async (target) => {
                 const result = await window.exo.workspace.resolvePreviewTarget(target);
                 setPreviewTabs((current) => updatePreviewTabUrl(current, tab.id, result.url));
@@ -1568,7 +1570,7 @@ export function App() {
               saveStatuses={documentSaveStatuses}
               isFocused={isFocused}
               onFocusPane={() => {
-                canvasNavigation.focusEditorPane(leaf.id);
+                canvasNavigation.focusPane(leaf.id);
               }}
               onActivateTab={(filePath) => canvasNavigation.setPaneActivePath(leaf.id, filePath)}
               onCloseTab={(filePath) => canvasNavigation.closeDocumentInPane(leaf.id, filePath)}

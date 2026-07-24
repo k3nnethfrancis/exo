@@ -53,6 +53,68 @@ describe("canvas document navigation reconciliation", () => {
     });
   });
 
+  it.each([
+    {
+      label: "Terminal",
+      leafId: "terminal",
+      content: { kind: "terminal", terminalId: "shell" } satisfies PaneContent,
+    },
+    {
+      label: "Graph",
+      leafId: "graph",
+      content: { kind: "graph" } satisfies PaneContent,
+    },
+    {
+      label: "Preview",
+      leafId: "browser",
+      content: { kind: "browser", previewId: "preview" } satisfies PaneContent,
+    },
+  ])("keeps a delayed editor open from reclaiming focus after the user focuses a $label Pane", async ({ leafId, content }) => {
+    const load = deferred<void>();
+    const updateLeafContent = vi.fn();
+    const focusLeaf = vi.fn();
+    let controller: ReturnType<typeof useCanvasDocumentNavigation> | null = null;
+    const tree: PaneNode = {
+      kind: "split",
+      id: "split",
+      direction: "horizontal",
+      ratio: 0.5,
+      children: [
+        editorTree("/notes", "/notes/current.md"),
+        { kind: "leaf", id: leafId, content },
+      ],
+    };
+
+    function Harness() {
+      controller = useCanvasDocumentNavigation({
+        canvasTree: tree,
+        focusedPaneId: "editor",
+        canvasActions: {
+          splitLeaf: vi.fn(),
+          updateLeafContent,
+          focusLeaf,
+          setTree: vi.fn(),
+        },
+        workspaceKey: "/workspace",
+        ensureDocumentLoaded: () => load.promise,
+        remapDocumentPaths: vi.fn(),
+        deleteDocumentPaths: vi.fn(),
+        onLastEditorClosed: vi.fn(),
+      });
+      return null;
+    }
+    renderToStaticMarkup(createElement(Harness));
+
+    const pendingOpen = controller!.openFile("/notes/delayed.md", "editor");
+    controller!.focusPane(leafId);
+    load.resolve();
+
+    await expect(pendingOpen).resolves.toBeUndefined();
+    expect(updateLeafContent).not.toHaveBeenCalled();
+    expect(focusLeaf).toHaveBeenCalledOnce();
+    expect(focusLeaf).toHaveBeenCalledWith(leafId);
+  });
+
   it("keeps the last-editor recovery condition true after the last editor leaf is pruned", () => {
     const tree: PaneNode = {
       kind: "split",

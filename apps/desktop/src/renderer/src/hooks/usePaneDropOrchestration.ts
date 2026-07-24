@@ -18,6 +18,7 @@ import { directoryOf } from "../workspaceTree";
 interface UsePaneDropOrchestrationOptions {
   canvasTree: PaneNode;
   canvasActions: PaneTreeActions;
+  focusPane: (leafId: PaneNodeId) => void;
   ensureDocumentLoaded: (filePath: string) => Promise<void>;
   moveWorkspacePathIntoDirectory: (sourcePath: string, targetDirectoryPath: string) => Promise<void>;
   returnSurfaceToUtility: (surface: "terminal" | "preview", id: string, sourcePaneId?: string) => void;
@@ -84,7 +85,7 @@ function handleSurfaceDrop(
     if (sourceLeafId && sourceLeafId !== leafId) tree = removeNode(tree, sourceLeafId) ?? tree;
     return tree;
   });
-  options.canvasActions.focusLeaf(newLeafId);
+  options.focusPane(newLeafId);
 }
 
 function handleDocumentDrop(
@@ -117,7 +118,7 @@ function handleDocumentDrop(
       });
       return pruneEmptyLeaves(tree, isEmptyEditor);
     });
-    options.canvasActions.focusLeaf(leafId);
+    options.focusPane(leafId);
     return;
   }
 
@@ -148,5 +149,5 @@ function handleDocumentDrop(
     }
     return pruneEmptyLeaves(tree, isEmptyEditor);
   });
-  options.canvasActions.focusLeaf(newLeafId);
+  options.focusPane(newLeafId);
 }

@@ -12,6 +12,7 @@ export interface PaneTreeProps {
   node: PaneNode;
   actions: PaneTreeActions;
   focusedLeafId: PaneNodeId;
+  onFocusLeaf: (leafId: PaneNodeId) => void;
   renderLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
   /** Which leaf+edge is currently hovered during a drag (from DragManager) */
   hoverEdge?: DragDropTarget | null;
@@ -21,13 +22,13 @@ export interface PaneTreeProps {
 // PaneTree — recursive renderer
 // ---------------------------------------------------------------------------
 
-export function PaneTree({ node, actions, focusedLeafId, renderLeaf, hoverEdge }: PaneTreeProps) {
+export function PaneTree({ node, actions, focusedLeafId, onFocusLeaf, renderLeaf, hoverEdge }: PaneTreeProps) {
   if (node.kind === "leaf") {
     return (
       <PaneLeafContainer
         leaf={node}
         isFocused={node.id === focusedLeafId}
-        onFocus={() => actions.focusLeaf(node.id)}
+        onFocus={() => onFocusLeaf(node.id)}
         renderLeaf={renderLeaf}
         hoverEdge={hoverEdge?.kind === "pane" && hoverEdge.leafId === node.id ? hoverEdge.edge : null}
       />
@@ -39,6 +40,7 @@ export function PaneTree({ node, actions, focusedLeafId, renderLeaf, hoverEdge }
       node={node}
       actions={actions}
       focusedLeafId={focusedLeafId}
+      onFocusLeaf={onFocusLeaf}
       renderLeaf={renderLeaf}
       hoverEdge={hoverEdge}
     />
@@ -55,12 +57,14 @@ function PaneSplitContainer({
   node,
   actions,
   focusedLeafId,
+  onFocusLeaf,
   renderLeaf,
   hoverEdge,
 }: {
   node: PaneNode & { kind: "split" };
   actions: PaneTreeActions;
   focusedLeafId: PaneNodeId;
+  onFocusLeaf: (leafId: PaneNodeId) => void;
   renderLeaf: (leaf: PaneLeaf, isFocused: boolean) => ReactNode;
   hoverEdge?: DragDropTarget | null;
 }) {
@@ -87,6 +91,7 @@ function PaneSplitContainer({
         node={node.children[0]}
         actions={actions}
         focusedLeafId={focusedLeafId}
+        onFocusLeaf={onFocusLeaf}
         renderLeaf={renderLeaf}
         hoverEdge={hoverEdge}
       />
@@ -110,6 +115,7 @@ function PaneSplitContainer({
         node={node.children[1]}
         actions={actions}
         focusedLeafId={focusedLeafId}
+        onFocusLeaf={onFocusLeaf}
         renderLeaf={renderLeaf}
         hoverEdge={hoverEdge}
       />
