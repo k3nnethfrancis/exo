@@ -23,6 +23,10 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
   exact rule Evidence, and Generic Markdown fallback without modifying Notes.
 - Adds the experimental feature-branch graph-system tracer: an open Knowledge Graph 0.3,
   Generic Markdown and permissive OKF Formats, evidence-backed utility
+- Adds Markdown-native `⌘B` and `⌘I` formatting: selections are wrapped in
+  bold or italic markers and an empty selection leaves the caret between them.
+- Renders Obsidian-style `![[image.png]]` embeds from contained files in the
+  current Note Root, including the common `|width` suffix.
   dimensions, dense renderer-neutral projection, and an interactive Canvas
   Graph Pane whose semantic construction and finite layout run outside the
   editor critical path. Canvas projection and painting remain renderer work.
@@ -100,6 +104,13 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Makes Folder Overview open previously unloaded child Notes and newly created
   Folder Indexes through the canonical file-open transaction, while
   synchronously refreshing cached index state after explicit creation.
+- Makes ordered Markdown list markers match the surrounding text size and
+  weight, with a stable gap before the list content.
+- Enables native spell checking in Markdown editors and renders Markdown images
+  referenced by `http:` or `https:` URLs directly, while keeping local image
+  paths behind Note Root containment checks.
+- Prevents viewBox-only SVGs, including the Self-Improving Business Systems
+  diagrams, from collapsing to zero width in the live editor.
 - Repairs a cached Electron runtime whose host binary exists but whose required
   `path.txt` metadata is missing, and fails setup clearly if upstream install
   still leaves the runtime incomplete.

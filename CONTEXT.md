@@ -1,29 +1,29 @@
 # Exo Domain Context
 
-Exo's shared north star with Guardian and Ash is `../../notes/shoshin-codex/ashby.md`.
+Lab vocabulary lives in `../../notes/shoshin-codex/CONTEXT.md`. The open concept and public narrative live in `../../notes/shoshin-codex/graphs-in-common.md`.
 
 This file is the canonical Exo glossary. It defines product meaning, not implementation.
 
 ## Language
 
 **Exo**
-The local application for building and using a user-owned Markdown exocortex. Exo helps a person capture, connect, find, invoke, and review work without owning the person's durable knowledge.
-_Avoid_: agent cockpit, harness manager, Exograph as the app name
-
-**Ashby**
-The shared vision joining Exo's exocortex, Guardian's principled execution, and Ash's evaluated artificial-colleague role while keeping their implementations separate.
-_Avoid_: monorepo, umbrella runtime
+The current working name for the open-source local application and reference implementation for building and using a Markdown exograph. The public project and CLI name remain unresolved.
+_Avoid_: lab name, Guardian runtime, the category name itself
 
 **Exograph**
-The user-owned graph formed by Markdown files, frontmatter, links, paths, tags, properties, attachments, and accepted durable knowledge. Exo operates over an exograph; it does not own it.
-_Avoid_: proprietary database, second brain
+A user-owned, durable graph of artifacts, relationships, evidence, and history that people and machines can read and maintain in common. In Exo it is formed from Markdown files, frontmatter, links, paths, tags, properties, attachments, and accepted durable knowledge; Exo operates over it but does not own it.
+_Avoid_: proprietary database, app-specific knowledge base, model memory
+
+**Guardian**
+In Common Labs' separate research program for principal-centered symbiotic agency. Guardian may use an exograph as evidence and continuity, but is not an Exo feature, required runtime, or product umbrella.
+_Avoid_: Exo's built-in agent, launch dependency
 
 **Workspace**
 A named Markdown scope: it owns its writable Note Roots, read-only Indexed Roots, index configuration and derived state, configured Commands, and Command trust decisions. A project wiki is a Workspace whose Note Root is that project's wiki/docs folder; a Workspace never contains other Workspaces.
 _Avoid_: vault, project
 
 **Note Root**
-A user-authorized folder whose Markdown Notes Exo may create and edit.
+A user-authorized folder whose Markdown Notes Exo may create and edit. Each Note Root has one Format.
 _Avoid_: arbitrary filesystem root
 
 **Note**
@@ -87,12 +87,16 @@ _Avoid_: decorated property name, semantic alias
 A directed connection between Concepts with a family, optional user-defined predicate, origin, resolution, and Evidence. Origin is `document`, `ontology`, or `inferred`; those states are never interchangeable.
 _Avoid_: unexplained edge, visual line as truth
 
+**Origin**
+How Exo obtained a Relation: `document` when Markdown states it directly, `ontology` when the active Ontology interprets Markdown data, or `inferred` when a versioned machine process proposes it. Origin explains derivation, not authorship or truth.
+_Avoid_: authority, author, confidence class
+
 **Evidence**
 The inspectable source of a graph fact: a Markdown span, Property, path, Ontology rule, or versioned model observation.
 _Avoid_: opaque confidence score
 
 **Graph View**
-A derived projection that maps selected Concepts, Relations, Properties, and Derived Signals into layout weights, visual encodings, labels, and interaction. It changes presentation, not knowledge.
+A derived projection that maps selected Concepts, Relations, Properties, Ontology meaning, and Derived Signals into layout weights, visual encodings, labels, and interaction. It changes presentation, not knowledge.
 _Avoid_: canonical graph, ontology
 
 **Derived Signal**
@@ -139,18 +143,10 @@ _Avoid_: session, trace
 Human authorization for a specific executable fingerprint in a specific Workspace.
 _Avoid_: global approval, provider trust
 
-**Activity**
-Reviewed Invocation history relevant to a Note. Activity is earned by actual use and absent when there is nothing meaningful to show.
-_Avoid_: feed, trace stream
+**Invocation History**
+Reviewed Invocation records relevant to a Note. History is earned by actual use and absent when there is nothing meaningful to show.
+_Avoid_: Activity, feed, trace stream
 
 **Derived State**
 Rebuildable indexes, graph caches, layout projections, and machine observations. Derived State is not accepted durable knowledge.
 _Avoid_: source of truth
-
-**Guardian**
-The separate Pi-compatible harness used to develop principled execution. Exo may invoke Guardian through a normal Command but does not interpret Guardian's Principal or internal agent loop.
-_Avoid_: built-in Exo harness
-
-**Ash**
-The first evaluated artificial-colleague role in the Ashby vision. Ash is a behavior contract, not an Exo Pane, provider, or runtime.
-_Avoid_: generic assistant, Exo agent type

@@ -1,6 +1,6 @@
 # Exo Issues
 
-Last updated: 2026-07-19
+Last updated: 2026-07-23
 
 This is the canonical active bug, release-QA, and dogfood tracker. It contains
 only work that can still change a current Exo decision or release claim. Git
@@ -93,6 +93,48 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
     invocation boundary speculatively.
 
 ## Monitoring
+
+### EXO-ISSUE-126: Ordered Markdown list markers were undersized and crowded text
+
+- Status: resolved on 2026-07-23; packaged-app QA pending
+- Severity: low
+- Area: Markdown live editor, list rendering
+- Reproduction: In the live Markdown editor, ordered list markers rendered at
+  76% of the body text size and used a content-box marker lane. The result was
+  visually undersized numbers that crowded the first word of each item.
+- Resolution: Ordered markers now inherit the body text size, use normal
+  visual weight, and reserve a five-pixel gap within a border-box marker lane.
+- Automated proof: Electron coverage asserts the marker text, size, weight,
+  vertical placement, and spacing geometry.
+
+### EXO-ISSUE-125: Markdown editor omitted spelling feedback and image embeds
+
+- Status: resolved on 2026-07-23; packaged-app QA pending
+- Severity: medium
+- Area: Markdown live editor, image preview
+- Reproduction: Markdown notes containing normal misspellings had no native
+  spelling feedback because CodeMirror disables it by default. Markdown image
+  links using `http:` or `https:` rendered the unavailable fallback because the
+  local-file resolver rejected every URL scheme. Obsidian-style image embeds
+  such as `![[quartz transform pipeline.png]]` were treated as ordinary
+  wikilinks, so they never rendered an image. ViewBox-only SVGs loaded but
+  their inline widget collapsed to zero width because its percentage-constrained
+  child did not provide a definite inline size.
+- Resolution: Markdown editor content explicitly enables Chromium spell
+  checking. HTTP(S) image URLs now load directly from the renderer; local paths
+  still go through the existing main-process Note Root containment resolver.
+  Obsidian embeds request a contained filename lookup only after same-directory
+  resolution fails, preserving strict standard Markdown path behavior. Image
+  widgets now occupy a block-level, definite-width layout so viewBox-only SVGs
+  render correctly. Other schemes—including `file:`, `data:`, and
+  `javascript:`—remain blocked.
+- Automated proof: source-built Electron coverage loads contained relative,
+  Note-Root-relative, nested-site-relative, Obsidian filename, intercepted
+  HTTP(S), and every Self-Improving Business Systems SVG image; it also asserts
+  the Markdown CodeMirror content enables spell checking.
+- Human acceptance:
+  - [ ] In the packaged app, open a Markdown note with a misspelling and an
+    HTTPS image; verify the spelling underline and image load.
 
 ### EXO-ISSUE-118: Folder breadcrumb and invocation throughput gates regressed
 

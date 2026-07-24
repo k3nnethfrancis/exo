@@ -1,12 +1,14 @@
-# Exo / Exograph
+# Exo — open-source exograph (working name)
 
-**Build your local exocortex from Markdown.**
+**Build a graph you and your tools can hold in common.**
 
-Exograph is Exo's active product frame: an open-source, local-first Markdown exocortex.
+**Exo** is the current working name for an open-source, local-first reference implementation of an **exograph**: a user-owned, human-readable graph of artifacts, relationships, evidence, and history that people and machines can use together. The public project and CLI name remain unresolved; `exo` stays canonical until a replacement is chosen.
+
+The category is broader than this application. The exograph should remain useful through ordinary files, interoperable with other tools, and independent of any model. The genesis essay and concept brief are in `../../notes/shoshin-codex/graphs-in-common.md`.
 
 The launch product is:
 
-> **Local Markdown exocortex + modular, tunable search + inline agent invocation + graph management skills.**
+> **Open-source Markdown exograph + modular search + explicit command invocation + reviewable graph management.**
 
 Notes remain the durable source of truth. `.exo/` stores derived indexes, invocation records, artifacts, and review/provenance state.
 
@@ -14,11 +16,11 @@ The current `refactor/note-native-exo` branch is intentionally cutting the old a
 
 ## Why Exo Exists
 
-Your thinking, knowledge, projects, and context exceed what you can actively hold. Exo provides a durable external mind for capturing and resuming thought without handing the graph to a hosted service.
+Your thinking, knowledge, projects, and context exceed what you can actively hold. Exo provides durable cognitive ground for capturing and resuming thought without handing the graph to a hosted service.
 
 Search helps recover context, but it is not the whole problem. Exo makes relationships among notes visible and useful through links, backlinks, tags, properties, relevant-context discovery, and a focused graph.
 
-Agents help maintain the exocortex without becoming the product spine. A user explicitly invokes a configured Command inline; Exo shows observed Markdown changes for review. The first editable graph-management Skill is the next vertical slice.
+Agents help maintain the exograph without becoming the product spine. A user explicitly invokes a configured Command inline; Exo shows observed Markdown changes for review. The first editable graph-management Skill is the next vertical slice.
 
 ## How the graph begins
 
@@ -69,7 +71,8 @@ The active refactor is not building:
 - a Routine platform as the default product spine;
 - a general integration runtime;
 - a plugin marketplace as the near-term setup path;
-- a native Feed, trainer, model manager, or Ashby Gym in the launch product;
+- a native Feed, trainer, model manager, or Guardian research environment in the launch product;
+- the Guardian research runtime or In Common Labs program;
 - automatic graph writing or automatic agent chaining;
 - line-perfect authorship.
 
@@ -410,7 +413,7 @@ ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
 4. `issues.md` - bugs, QA findings, and release blockers
 5. `docs/graph-system-report-and-plan.md` - graph evidence, knowledge model, quality framework, and integration gates
 6. `README.md` - product overview and onboarding
-7. `roadmap.md` - short-term direction and long-term Ashby ladder
+7. `roadmap.md` - short-term direction and long-term research ladder
 8. `docs/architecture.md` - current architecture and retained data-model boundaries
 9. `docs/extension-architecture.md` - current extension ladder
 10. `docs/README.md` - current/historical documentation map

@@ -1,6 +1,6 @@
 # Exograph Roadmap
 
-Last updated: 2026-07-20
+Last updated: 2026-07-22
 
 Exograph is Exo's active product frame:
 
@@ -162,19 +162,28 @@ Exograph should be the local workspace where a person builds and maintains a Mar
 - explicitly invoke a configured Command and review its observed changes;
 - add a bounded, editable graph-management Skill only after the next-slice gate.
 
-## Long-Term Ashby Ladder
+## Long-Term Research Ladder
 
 The launch primitives are also the substrate for later research, but later systems must not delay or distort V1:
 
 1. **More graph-management Skills:** connection proposals, property extraction, consolidation, inbox organization, and neighborhood audits, each evaluated and reviewable after the first Skill earns the pattern.
    Skills receive the nearest Folder Index chain as editable user-owned organization context; they do not depend on an Exo-owned ontology registry.
-2. **Ashby Gym:** frozen tasks, contexts, candidates, rubrics, rollouts, and comparison artifacts. The Gym evaluates prompting, Principal, retrieval, skills, SFT, preference learning, RL, and Search candidates without assuming weights must change.
+2. **Guardian research environments:** frozen tasks, contexts, candidates, rubrics, rollouts, and comparison artifacts developed outside Exo core. They may evaluate prompting, Principal, retrieval, skills, SFT, preference learning, RL, and Search candidates without assuming weights must change.
 3. **Learning recipes:** separate SFT, preference, RL, embedding, and reranker workflows that consume approved evidence and emit lineage-bearing candidates.
 4. **Executors:** local and cloud compute targets remain independent from learning methods; Prime RL, Tinker, Hugging Face Jobs, MLX, or later backends start as Commands/packages.
 5. **External Markdown sources:** Discord, RSS, social, or messenger material may eventually be materialized into scoped source-faithful Markdown inside an explicit Note Root. A native Feed is deferred.
 6. **Additional index providers:** local or cloud indexing is allowed only after a second concrete implementation, explicit upload/privacy/deletion semantics, and measurable retrieval value earn the seam.
 7. **Learning Factory:** only after real recipes and executors expose stable shared behavior. It remains outside Exo core and cannot activate a candidate or expand authority.
 8. **Plugin packaging:** only after a proven combination of Skills, ontology templates, Commands, evals, or external integrations needs repeatable installation, versioning, updates, and sharing. Plugin is the distribution bundle, not a new internal architecture.
+9. **Deferred UI component pass:** once the launch surface and interaction
+   contracts are stable, evaluate selectively adopting components or patterns
+   from Jakub Antalik's free, open-source libraries—[Orbs](https://orbs.jakubantalik.com),
+   [Beam](https://beam.jakubantalik.com), and [Metal](https://metal.jakubantalik.com).
+   Treat these as a visual/interaction reference and implementation source, not
+   a redesign mandate: first audit licenses, framework/runtime fit,
+   accessibility, motion and performance cost, and coherence with Exo's
+   established UI. Do not add a library or begin a broad UI rewrite until that
+   later pass is explicitly selected.
 
 This is loose modularity through Markdown, config, Commands, packages, and artifacts—not a reason to restore a general plugin platform. Method, executor, evaluator, index provider, and artifact adapter are independent dimensions; do not create a Cartesian collection of “local-SFT,” “cloud-SFT,” “local-RL,” and “cloud-RL” plugins. Package stable combinations only when distribution becomes the problem.
 

@@ -6,18 +6,50 @@ This is Exo's active execution ledger. It records only current work. Completed i
 
 ## Product Frame
 
-> **Exo is a local Markdown exocortex with modular search, inline configured-Command invocation, and graph-management skills.**
+> **Exo is a local-first Markdown workspace that turns your files into an explorable graph and lets you safely collaborate with any coding agent through reviewable changes.**
 
-Launch requires four things:
+Launch requires six things:
 
 1. A trustworthy, user-owned Markdown workspace.
 2. Filesystem and QMD search as the two concrete implementations.
 3. Actionable Connections and graph context.
 4. Explicit configured-Command invocation of editable skills, followed by reviewable Markdown changes.
+5. A user-owned Ontology foundation with zero-config Generic Markdown.
+6. Truthful CLI/MCP, clean installation, and exact packaged-app release proof.
 
 Folder paths are primary structural homes. A writable Note Root may contain a user-owned `index.md` Folder Index; tags, links, and properties preserve multiple membership. Existing imported folders are never mutated merely by viewing them.
 
 Exo scopes a workspace to its Note Roots only. It does not import, attach, or manage projects as a second class of filesystem context.
+
+## Launch sequence — aligned 2026-07-19
+
+This is the ordering index. Existing checklists below own the individual work;
+`notes/shoshin-codex/projects/exo/specs/13-sequencing-and-launch.md` owns the
+launch boundary and evidence contract.
+
+- [ ] **A — Truth baseline:** exact-tree CI/E2E, clean first run, packaged app,
+  Workspace/settings/root authority, CLI/MCP state, and shipped/experimental/
+  planned/migration-only/stale classification.
+- [ ] **B — Markdown critical path:** close real-vault containment dogfood and
+  preserve existing navigation, typing, backspace, invocation-composition, and
+  concurrent-derived-work latency budgets.
+- [ ] **C — Invocation Changeset:** compact lifecycle and authorization,
+  Exo-owned snapshots, single- and multi-file Keep/Reject, create/delete/rename,
+  conflicts, restart, cancellation, failure, and session recovery.
+- [ ] **D — Production Graph Pane:** compact topology, one inspected Concept
+  across editor/Connections/Properties/Graph, finished interactions, Evidence on
+  demand, fallback/accessibility, 10K scale, and editor-under-graph-load proof.
+- [ ] **E — Ontology foundation:** user-owned `ontology.yaml`, Generic Markdown,
+  safe compilation/activation, lossless unknown data, candidate preview, and
+  deterministic fixtures. OKF and discovery retain independent gates.
+- [ ] **F — Release candidate:** brand-neutral deletion/docs cleanup, clean-
+  machine packaged journey, truthful CLI/MCP/onboarding, checksum and go/no-go
+  ledger, then the separately approved public-name/namespace migration.
+
+`main` remains releasable. Promote a vertical slice only after its focused and
+shared gates pass on the exact tree and its documentation describes shipped
+behavior. Do not expand Terminal, Preview, plugins, training, or ontology
+onboarding while these gates remain open.
 
 ## Current Baseline
 
