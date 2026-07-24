@@ -480,6 +480,50 @@ describe("workspace settings patch persistence", () => {
     expect(refreshWorkspaceModel).toHaveBeenCalledTimes(2);
   });
 
+  it("does not let an older retry publication failure overwrite a newer healthy save", async () => {
+    const settingsRef = { current: workspaceSettings() };
+    const revisionRef = { current: "revision-0" };
+    let saveCount = 0;
+    const saveSettings = vi.fn(async (request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> => {
+      saveCount += 1;
+      return {
+        settings: request.settings,
+        revision: `revision-${saveCount}`,
+        runtimeApply: saveCount === 1
+          ? { status: "degraded", errorMessage: "Command discovery needs recovery." }
+          : { status: "applied" },
+      };
+    });
+    const retryPublication = deferred<void>();
+    vi.stubGlobal("window", workspaceWindow(settingsRef.current, revisionRef.current, saveSettings));
+    const controllerRef: { current: ReturnType<typeof useWorkspaceSettingsController> | null } = { current: null };
+    renderToStaticMarkup(
+      <WorkspaceSettingsControllerHarness
+        controllerRef={controllerRef}
+        options={{
+          workspaceSettingsRef: settingsRef,
+          workspaceSettingsRevisionRef: revisionRef,
+          applyWorkspaceSettings: vi.fn(),
+          refreshWorkspaceModel: vi.fn(() => retryPublication.promise),
+          setIndexStatus: vi.fn(),
+        }}
+      />,
+    );
+
+    await controllerRef.current!.saveSettingsPatch({ terminalFontSize: 14 });
+    const retry = controllerRef.current!.retryRuntimeApply();
+    await waitForSaveCount(saveSettings, 2);
+    const newerPatch = controllerRef.current!.saveSettingsPatch({ terminalFontSize: 15 });
+    retryPublication.reject(new Error("Old renderer publication failed."));
+
+    await expect(retry).rejects.toThrow("Old renderer publication failed.");
+    await expect(newerPatch).resolves.toBeUndefined();
+    await expect(controllerRef.current!.retryRuntimeApply()).resolves.toBeUndefined();
+
+    expect(saveSettings).toHaveBeenCalledTimes(3);
+    expect(settingsRef.current.terminalFontSize).toBe(15);
+  });
+
   it("publishes the returned settings after a non-structural dialog save", async () => {
     const settingsRef = { current: workspaceSettings() };
     const revisionRef = { current: "revision-0" };
