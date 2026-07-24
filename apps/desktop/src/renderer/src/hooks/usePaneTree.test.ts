@@ -5,10 +5,38 @@ import {
   closeFolderOverviewContent,
   closeFolderOverviewInTree,
   decodeCanvas,
+  normalizeFocusedLeafId,
+  removeNode,
   resolveFolderOverviewEditorLeaf,
   type EditorPaneContent,
   type PaneNode,
 } from "./usePaneTree";
+
+describe("Pane focus normalization", () => {
+  it("moves focus to a surviving leaf when the focused leaf is removed", () => {
+    const tree = splitEditors(
+      content({ openPaths: ["/notes/a.md"], activePath: "/notes/a.md" }),
+      content({ openPaths: ["/notes/b.md"], activePath: "/notes/b.md" }),
+    );
+
+    const afterClose = removeNode(tree, "left");
+
+    expect(afterClose).not.toBeNull();
+    expect(normalizeFocusedLeafId(afterClose!, "left")).toBe("right");
+    expect(normalizeFocusedLeafId(tree, "right")).toBe("right");
+  });
+
+  it("normalizes stale persisted focus after a restored canvas replaces the tree", () => {
+    const restored = decodeCanvas({
+      kind: "leaf",
+      id: "restored-editor",
+      content: { kind: "editor", openPaths: ["/notes/restored.md"], activePath: "/notes/restored.md" },
+    });
+
+    expect(restored).not.toBeNull();
+    expect(normalizeFocusedLeafId(restored!, "closed-pane")).toBe("restored-editor");
+  });
+});
 
 describe("Folder Overview editor ownership", () => {
   it("restores the exact reactivated Note instead of the last-opened Note", () => {

@@ -335,10 +335,10 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     })).toMatchObject({ moving: false, pendingFrame: false });
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
       return (canvas as HTMLCanvasElement & {
-        __exoGraphSnapshot?: () => { activeEditorPath: string | null; inspectedFilePath: string | null };
+        __exoGraphSnapshot?: () => { graphReturnPath: string | null; inspectedFilePath: string | null };
       }).__exoGraphSnapshot?.();
     })).toMatchObject({
-      activeEditorPath: path.join(workspaceRoot, "notes/test-notes/graph-source.md"),
+      graphReturnPath: path.join(workspaceRoot, "notes/test-notes/graph-source.md"),
       inspectedFilePath: path.join(workspaceRoot, "notes/test-notes/graph-target.md"),
     });
     await graphCanvas.focus();
@@ -461,6 +461,33 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     await graphPane.getByRole("button", { name: "Close graph" }).click();
     await expect(graphPane).toHaveCount(0);
     await expect(page.getByTestId("editor-title")).toHaveText("graph-target");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("preserves Graph Target detail when Connections opens the full Graph", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture({
+    mutable: true,
+    initialNoteLabel: "graph-target",
+    prepareWorkspace: async (workspaceRoot) => {
+      const notes = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(path.join(notes, "graph-target.md"), "# Graph Target\n\nA backlink-only target.\n", "utf8");
+      await writeFile(path.join(notes, "graph-source.md"), "# Graph Source\n\n[[graph-target]]\n", "utf8");
+    },
+  });
+
+  try {
+    await page.getByTestId("utility-pane-toggle").click();
+    await page.getByTestId("utility-pane-connections").click();
+    await page.getByTestId("connections-tab-graph").click();
+    const localGraph = page.getByTestId("connections-panel-graph");
+    await expect(localGraph.getByTestId("graph-neighborhood-panel")).toBeVisible();
+    await localGraph.getByRole("button", { name: "Open full graph" }).click();
+
+    const graphPane = page.getByTestId("graph-pane");
+    await expect(graphPane).toBeVisible();
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
   } finally {
     await cleanup();
   }
@@ -655,6 +682,48 @@ test("handles global save and daily-note keybindings", async () => {
   await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes", `${dailyName}.md`), "utf8")).toMatch(initialMarkdownNotePattern);
 
   await cleanup();
+});
+
+test("reopens today's Note beside a terminal after closing the sole editor", async () => {
+  const { page, workspaceRoot, cleanup } = await launchExoTerminalFixture({ mutable: true });
+  const now = new Date();
+  const dailyName = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  const dailyPath = path.join(workspaceRoot, "notes/test-notes", `${dailyName}.md`);
+
+  try {
+    const terminalTab = await page.getByTestId("terminal-tab-shell").boundingBox();
+    const editor = await page.locator(".workspace-shell__canvas .pane-leaf--editor").boundingBox();
+    expect(terminalTab).not.toBeNull();
+    expect(editor).not.toBeNull();
+
+    await page.mouse.move(terminalTab!.x + terminalTab!.width / 2, terminalTab!.y + terminalTab!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(editor!.x + editor!.width / 2, editor!.y + editor!.height * 0.12, { steps: 8 });
+    await page.mouse.up();
+
+    await expect(page.locator(".workspace-shell__canvas .pane-leaf--terminal")).toHaveCount(1);
+    await expect(page.locator(".workspace-shell__canvas .pane-leaf--editor")).toHaveCount(1);
+    const editorLeaf = page.locator(".workspace-shell__canvas .pane-leaf--editor");
+    await expect(editorLeaf).toBeVisible();
+    await editorLeaf.dispatchEvent("mousedown");
+    await expect(editorLeaf).toHaveClass(/pane-leaf--focused/);
+    const closeFocusNote = editorLeaf.locator('.chrome-tab__close[aria-label="Close focus-note"]');
+    await closeFocusNote.evaluate((element) => {
+      const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps"));
+      const props = propsKey ? (element as unknown as Record<string, unknown>)[propsKey] as Record<string, unknown> : null;
+      const onClick = props?.onClick;
+      if (typeof onClick !== "function") throw new Error("Unable to resolve close-tab handler");
+      onClick({ stopPropagation() {} });
+    });
+
+    await expect(closeFocusNote).toHaveCount(0);
+    await expect(page.locator(".workspace-shell__canvas .pane-leaf--terminal")).toHaveCount(1);
+    await expect(page.locator(".workspace-shell__canvas .pane-leaf--editor")).toHaveCount(1);
+    await expect(page.getByTestId("editor-title")).toHaveText(dailyName);
+    await expect.poll(() => access(dailyPath).then(() => true, () => false)).toBe(true);
+  } finally {
+    await cleanup();
+  }
 });
 
 test("suppresses generated daily-note titles but preserves explicit H1s", async () => {

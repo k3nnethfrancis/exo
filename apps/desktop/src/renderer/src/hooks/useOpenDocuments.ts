@@ -18,8 +18,58 @@ const AUTOSAVE_IDLE_DELAY_MS = 2_000;
 const AUTOSAVE_MAX_DELAY_MS = 5_000;
 const CONTEXT_COMMIT_IDLE_DELAY_MS = 500;
 
+export function selectActiveDocument(
+  documents: Record<string, OpenEditorDocument>,
+  activeDocumentPath: string | null,
+): OpenEditorDocument | null {
+  return activeDocumentPath ? documents[activeDocumentPath] ?? null : null;
+}
+
+/**
+ * Editor panes emit their own document path. Mutations must never infer that
+ * target from ambient focus because another split may have gained focus before
+ * React processes the event.
+ */
+export function applyDocumentBodyEdit(
+  documents: Record<string, OpenEditorDocument>,
+  filePath: string,
+  body: string,
+): Record<string, OpenEditorDocument> | null {
+  const currentDocument = documents[filePath];
+  if (!currentDocument || currentDocument.readOnly) return null;
+  const title = currentDocument.kind === "markdown" && noteTitleSource(currentDocument.body) !== noteTitleSource(body)
+    ? noteTitle(filePath, currentDocument.frontmatter, body)
+    : currentDocument.title;
+  return {
+    ...documents,
+    [filePath]: { ...currentDocument, body, title, dirty: true },
+  };
+}
+
+export function applyDocumentFrontmatterEdit(
+  documents: Record<string, OpenEditorDocument>,
+  filePath: string,
+  key: string,
+  value: unknown,
+): Record<string, OpenEditorDocument> | null {
+  const currentDocument = documents[filePath];
+  if (!currentDocument || currentDocument.readOnly) return null;
+  const frontmatter = { ...currentDocument.frontmatter, [key]: value };
+  return {
+    ...documents,
+    [filePath]: {
+      ...currentDocument,
+      frontmatter,
+      title: currentDocument.kind === "markdown" ? noteTitle(filePath, frontmatter, currentDocument.body) : currentDocument.title,
+      dirty: true,
+    },
+  };
+}
+
 export interface UseOpenDocumentsOptions {
   workspaceModel: WorkspaceModel | null;
+  /** Derived from the focused editor leaf; this hook does not own selection. */
+  activeDocumentPath: string | null;
   getOpenEditorPaths: () => Set<string>;
   getEditorScrollTopForPath: (filePath: string) => number | null;
 }
@@ -28,10 +78,8 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   const [openDocuments, setOpenDocuments] = useState<Record<string, OpenEditorDocument>>({});
   const [documentSaveStatuses, setDocumentSaveStatuses] = useState<Record<string, DocumentSaveStatus>>({});
   const [graphContextByPath, setGraphContextByPath] = useState<Record<string, WorkspaceGraphContext>>({});
-  const [activeDocumentPath, setActiveDocumentPath] = useState<string | null>(null);
   const [scrollRestoreRequest, setScrollRestoreRequest] = useState<{ filePath: string; scrollTop: number; nonce: number } | null>(null);
   const openDocumentsRef = useRef(openDocuments);
-  const activeDocumentPathRef = useRef(activeDocumentPath);
   const optionsRef = useRef(options);
   const pendingRefreshesRef = useRef<Map<string, { timeoutId: number; diskVersion: FileStatInfo | null }>>(new Map());
   const pendingContextRefreshesRef = useRef<Map<string, { timeoutId?: number; idleId?: number }>>(new Map());
@@ -42,16 +90,12 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   const lastEditorInputAtRef = useRef(0);
   const scrollRestoreNonceRef = useRef(0);
 
-  const activeDocument = activeDocumentPath ? openDocuments[activeDocumentPath] ?? null : null;
-  const activeGraphContext = activeDocumentPath ? graphContextByPath[activeDocumentPath] ?? null : null;
+  const activeDocument = selectActiveDocument(openDocuments, options.activeDocumentPath);
+  const activeGraphContext = options.activeDocumentPath ? graphContextByPath[options.activeDocumentPath] ?? null : null;
 
   useEffect(() => {
     openDocumentsRef.current = openDocuments;
   }, [openDocuments]);
-
-  useEffect(() => {
-    activeDocumentPathRef.current = activeDocumentPath;
-  }, [activeDocumentPath]);
 
   useEffect(() => {
     optionsRef.current = options;
@@ -161,7 +205,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       return;
     }
 
-    const scrollTop = filePath === activeDocumentPathRef.current ? optionsRef.current.getEditorScrollTopForPath(filePath) : null;
+    const scrollTop = filePath === optionsRef.current.activeDocumentPath ? optionsRef.current.getEditorScrollTopForPath(filePath) : null;
     const [document, diskVersion] = await Promise.all([
       window.exo.notes.read(filePath),
       knownVersion === undefined ? window.exo.notes.stat(filePath) : Promise.resolve(knownVersion),
@@ -208,7 +252,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       return;
     }
 
-    const scrollTop = filePath === activeDocumentPathRef.current ? optionsRef.current.getEditorScrollTopForPath(filePath) : null;
+    const scrollTop = filePath === optionsRef.current.activeDocumentPath ? optionsRef.current.getEditorScrollTopForPath(filePath) : null;
     const [document, diskVersion] = await Promise.all([
       window.exo.notes.read(filePath),
       window.exo.notes.stat(filePath),
@@ -236,51 +280,18 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     }
   }
 
-  function updateBody(body: string) {
-    const filePath = activeDocumentPathRef.current;
-    if (!filePath || !openDocumentsRef.current[filePath] || openDocumentsRef.current[filePath]?.readOnly) {
-      return;
-    }
-
-    const currentDocument = openDocumentsRef.current[filePath];
-    const title = currentDocument.kind === "markdown" && noteTitleSource(currentDocument.body) !== noteTitleSource(body)
-      ? noteTitle(filePath, currentDocument.frontmatter, body)
-      : currentDocument.title;
-    const nextDocuments = {
-      ...openDocumentsRef.current,
-      [filePath]: {
-        ...currentDocument,
-        body,
-        title,
-        dirty: true,
-      },
-    };
+  function updateBody(filePath: string, body: string) {
+    const nextDocuments = applyDocumentBodyEdit(openDocumentsRef.current, filePath, body);
+    if (!nextDocuments) return;
     openDocumentsRef.current = nextDocuments;
     setOpenDocuments(nextDocuments);
     setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
     scheduleAutosave(filePath);
   }
 
-  function updateFrontmatter(key: string, value: unknown) {
-    const filePath = activeDocumentPathRef.current;
-    if (!filePath || !openDocumentsRef.current[filePath] || openDocumentsRef.current[filePath]?.readOnly) {
-      return;
-    }
-
-    const currentDocument = openDocumentsRef.current[filePath];
-    const frontmatter = {
-      ...currentDocument.frontmatter,
-      [key]: value,
-    };
-    const nextDocuments = {
-      ...openDocumentsRef.current,
-      [filePath]: {
-        ...currentDocument,
-        frontmatter,
-        title: currentDocument.kind === "markdown" ? noteTitle(filePath, frontmatter, currentDocument.body) : currentDocument.title,
-        dirty: true,
-      },
-    };
+  function updateFrontmatter(filePath: string, key: string, value: unknown) {
+    const nextDocuments = applyDocumentFrontmatterEdit(openDocumentsRef.current, filePath, key, value);
+    if (!nextDocuments) return;
     openDocumentsRef.current = nextDocuments;
     setOpenDocuments(nextDocuments);
     setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "idle" }));
@@ -409,9 +420,6 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
       ),
     );
     setGraphContextByPath((current) => remapRecord(current));
-    if (activeDocumentPath && isPathWithin(sourcePath, activeDocumentPath)) {
-      setActiveDocumentPath(activeDocumentPath.replace(sourcePath, nextPath));
-    }
     for (const filePath of autosavesToRemap) scheduleAutosave(filePath);
   }
 
@@ -510,11 +518,10 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
     openDocuments,
     graphContextByPath,
     documentSaveStatuses,
-    activeDocumentPath,
+    activeDocumentPath: options.activeDocumentPath,
     activeDocument,
     activeGraphContext,
     scrollRestoreRequest,
-    setActiveDocumentPath,
     pruneToOpenPaths,
     ensureDocumentLoaded,
     openVirtualDocument,

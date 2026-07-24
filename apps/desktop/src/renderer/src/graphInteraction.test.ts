@@ -19,9 +19,9 @@ describe("Graph interaction contract", () => {
     expect(graphNodeDoubleClickDecision(null, false)).toBe("none");
   });
 
-  it("peels a route before restoring inspection to the active editor", () => {
-    expect(graphEscapeDecision(true, "/notes/editor.md", "/notes/graph.md")).toBe("clear-route");
-    expect(graphEscapeDecision(false, "/notes/editor.md", "/notes/graph.md")).toBe("restore-editor");
-    expect(graphEscapeDecision(false, "/notes/editor.md", "/notes/editor.md")).toBe("none");
+  it("peels a route before restoring inspection to Graph's historical return Note", () => {
+    expect(graphEscapeDecision(true, "/notes/source.md", "/notes/target.md")).toBe("clear-route");
+    expect(graphEscapeDecision(false, "/notes/source.md", "/notes/target.md")).toBe("restore-editor");
+    expect(graphEscapeDecision(false, "/notes/source.md", "/notes/source.md")).toBe("none");
   });
 });

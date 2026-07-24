@@ -47,6 +47,32 @@ describe("latest pane navigation", () => {
 
     await expect(firstRequest).resolves.toBe(false);
   });
+
+  it("does not commit a load after its editor pane is removed or replaced", async () => {
+    const navigation = new LatestPaneNavigation();
+    const load = deferred<void>();
+    const committed: string[] = [];
+
+    const request = navigation.commitLatest("editor", () => load.promise, () => committed.push("editor"));
+    navigation.invalidateUnavailablePanes(new Set());
+    load.resolve();
+
+    await expect(request).resolves.toBe(false);
+    expect(committed).toEqual([]);
+  });
+
+  it("does not commit a delayed load after the same pane makes a direct ownership choice", async () => {
+    const navigation = new LatestPaneNavigation();
+    const load = deferred<void>();
+    const committed: string[] = [];
+
+    const request = navigation.commitLatest("editor", () => load.promise, () => committed.push("delayed-open"));
+    navigation.invalidatePane("editor");
+    load.resolve();
+
+    await expect(request).resolves.toBe(false);
+    expect(committed).toEqual([]);
+  });
 });
 
 function deferred<Value>() {

@@ -48,8 +48,6 @@ interface UseWorkspaceMutationsOptions {
   openFile: (filePath: string, leafId?: PaneNodeId) => Promise<void>;
   remapOpenPaths: (sourcePath: string, nextPath: string) => void;
   removeDeletedPaths: (targetPath: string) => void;
-  setActiveDocumentPath: (filePath: string | null) => void;
-  resolveActiveEditorPathAfterDelete: () => string | null;
   revealExplorerPath: (path: string) => void;
 }
 
@@ -177,9 +175,6 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
   async function commitDeleteWorkspacePath(targetPath: string) {
     await window.exo.workspace.deletePath(targetPath);
     options.removeDeletedPaths(targetPath);
-    if (options.activeDocumentPath && isPathWithin(targetPath, options.activeDocumentPath)) {
-      options.setActiveDocumentPath(options.resolveActiveEditorPathAfterDelete());
-    }
     await options.reloadTrees();
   }
 

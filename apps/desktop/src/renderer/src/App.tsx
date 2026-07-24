@@ -5,7 +5,6 @@ import type {
   AgentCommand,
   FolderIndexStatus,
   IndexStatus,
-  SearchResult,
   WorkspaceModel,
   WorkspaceSettings,
 } from "@exo/core";
@@ -44,25 +43,12 @@ import { useWorkspaceMutations } from "./hooks/useWorkspaceMutations";
 import { useWorkspaceSettingsController } from "./hooks/useWorkspaceSettingsController";
 import { useWorkspaceTrees } from "./hooks/useWorkspaceTrees";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
+import { useCanvasDocumentNavigation } from "./hooks/useCanvasDocumentNavigation";
 import { applyTheme } from "./theme/applyTheme";
 import { DEFAULT_COLOR_THEME_ID, resolveTheme } from "./theme/registry";
 import type { ColorThemeId } from "./theme/types";
-import {
-  activateFolderOverviewContent,
-  closeFolderOverviewInTree,
-  collectLeaves,
-  findEditorLeaf,
-  findEditorLeafByPath,
-  findNode,
-  mapLeaves,
-  paneId,
-  pruneEmptyLeaves,
-  removeNode,
-  resolveFolderOverviewEditorLeaf,
-  type PaneLeaf,
-  type PaneNodeId,
-} from "./hooks/usePaneTree";
-import { collectOpenEditorPaths, findActiveEditorPath } from "./paneTreeSelectors";
+import { collectLeaves, findEditorLeaf, findEditorLeafByPath, findNode, paneId, removeNode, type PaneLeaf } from "./hooks/usePaneTree";
+import { collectOpenEditorPaths, findFocusedEditorPath } from "./paneTreeSelectors";
 import {
   clampNumber,
   DEFAULT_EDITOR_FONT_SIZE,
@@ -78,7 +64,6 @@ import { getPreviewTitle, markdownPreviewExcerpt, suggestWikilinkTargetsFromTree
 import { workspaceBreadcrumb, type WorkspaceBreadcrumbSegment } from "./workspaceBreadcrumb";
 import { DEFAULT_UTILITY_SURFACE_STATE, isUtilityDestinationActive, reduceUtilitySurface } from "./utilitySurfaceModel";
 import { addPreviewTab, closePreviewTab, EMPTY_PREVIEW_TABS, selectPreviewTab, updatePreviewTabUrl } from "./previewTabsModel";
-import { LatestPaneNavigation } from "./latestPaneNavigation";
 import {
   applyInvocationActivityEvent,
   applyInvocationRecord,
@@ -141,10 +126,7 @@ export function App() {
   });
   const [cliInstallation, setCliInstallation] = useState<CliInstallationStatus | null>(null);
   const [mainWikiMigrationNotice, setMainWikiMigrationNotice] = useState<{ retiredNoteRoots: string[] } | null>(null);
-  const [tagResults, setTagResults] = useState<SearchResult[]>([]);
-  const [activeTag, setActiveTag] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
-  const [editorRevealLineRequest, setEditorRevealLineRequest] = useState<{ filePath: string; line: number; nonce: number } | null>(null);
   const [invocationReviewQueue, setInvocationReviewQueue] = useState<InvocationReviewQueueState>(EMPTY_INVOCATION_REVIEW_QUEUE);
   const [invocationReviewDecisionPending, setInvocationReviewDecisionPending] = useState(false);
   const [invocationReviewFrozenPaths, setInvocationReviewFrozenPaths] = useState<string[]>([]);
@@ -169,9 +151,12 @@ export function App() {
   const terminalRuntimeScrollbackLinesRef = useRef(DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES);
   const invocationHistoryRequestRef = useRef(0);
   const invocationActivityEarlyEventsRef = useRef(new Map<string, InvocationActivityEvent[]>());
-  const latestPaneNavigationRef = useRef(new LatestPaneNavigation());
   const shellLayout = useShellLayout();
   const { tree: canvasTree, focusedLeafId: focusedPaneId, actions: canvasActions } = shellLayout.canvasPaneTree;
+  const focusedEditorPath = useMemo(
+    () => findFocusedEditorPath(canvasTree, focusedPaneId),
+    [canvasTree, focusedPaneId],
+  );
   const [utilityState, dispatchUtility] = useReducer(reduceUtilitySurface, DEFAULT_UTILITY_SURFACE_STATE);
   const [previewTabs, setPreviewTabs] = useState(EMPTY_PREVIEW_TABS);
   const terminalState = useTerminalSessions({
@@ -235,6 +220,7 @@ export function App() {
   }, [workspaceModel, workspaceSettingsRef]);
   const openDocumentsState = useOpenDocuments({
     workspaceModel,
+    activeDocumentPath: focusedEditorPath,
     getOpenEditorPaths: () => collectOpenEditorPaths(shellLayout.canvasPaneTree.tree),
     getEditorScrollTopForPath,
   });
@@ -245,7 +231,6 @@ export function App() {
     activeDocumentPath,
     activeDocument,
     scrollRestoreRequest: editorScrollRestoreRequest,
-    setActiveDocumentPath,
     ensureDocumentLoaded,
     openVirtualDocument,
     scheduleRefresh: scheduleOpenDocumentRefresh,
@@ -255,6 +240,16 @@ export function App() {
     prepareDocumentsForReview,
     discardAndReloadDocument,
   } = openDocumentsState;
+  const canvasNavigation = useCanvasDocumentNavigation({
+    canvasTree,
+    focusedPaneId,
+    canvasActions,
+    workspaceKey: workspaceModel?.workspaceRoot ?? null,
+    ensureDocumentLoaded,
+    remapDocumentPaths: openDocumentsState.remapOpenPaths,
+    deleteDocumentPaths: openDocumentsState.deletePathsWithin,
+    onLastEditorClosed: (openRecoveredFile) => void openOrCreateDailyNote(openRecoveredFile),
+  });
   const openEditorPaths = useMemo(() => collectOpenEditorPaths(canvasTree), [canvasTree]);
   const inspectedPath = graphInspection.state.concept
     ? graphInspection.state.concept.filePath ?? null
@@ -266,18 +261,16 @@ export function App() {
     activeDocumentPath,
     editorFocusedLeafId: focusedPaneId,
     reloadTrees,
-    openFile,
-    remapOpenPaths: remapOpenPathsInEditor,
-    removeDeletedPaths: removeDeletedPathsFromEditor,
-    setActiveDocumentPath,
-    resolveActiveEditorPathAfterDelete,
+    openFile: canvasNavigation.openFile,
+    remapOpenPaths: canvasNavigation.remapOpenPaths,
+    removeDeletedPaths: canvasNavigation.removeDeletedPaths,
     revealExplorerPath: (path) => setRevealExplorerPathRequest({ path, nonce: Date.now() }),
   });
   const { dialog: workspaceDialog, setDialog: setWorkspaceDialog } = workspaceMutations;
   const dragManager = usePaneDropOrchestration({
     canvasTree,
     canvasActions,
-    setActiveDocumentPath,
+    focusPane: canvasNavigation.focusPane,
     ensureDocumentLoaded,
     moveWorkspacePathIntoDirectory: workspaceMutations.moveWorkspacePathIntoDirectory,
     returnSurfaceToUtility,
@@ -440,7 +433,7 @@ export function App() {
 
   useWorkspaceCommandHandlers({
     workspaceModel,
-    openFile,
+    openFile: canvasNavigation.openFile,
     openSettings: workspaceSettingsController.openDialog,
     reloadTrees,
     scheduleOpenDocumentRefresh,
@@ -510,8 +503,6 @@ export function App() {
           }),
         ),
       );
-      const restoredActivePath = findActiveEditorPath(restoredTree);
-      setActiveDocumentPath(restoredActivePath ?? restoredPaths.values().next().value ?? null);
     }
   }
 
@@ -601,8 +592,8 @@ export function App() {
     return status;
   }
 
-  async function invokeInlineAgent(draft: InlineAgentDraft) {
-    const document = activeDocument;
+  async function invokeInlineAgent(draft: InlineAgentDraft, documentPath: string) {
+    const document = openDocuments[documentPath] ?? null;
     if (!document) {
       return;
     }
@@ -617,7 +608,7 @@ export function App() {
     // React propagation is deliberately deprioritized for typing latency, so
     // publish this exact snapshot to the synchronous document ref before any
     // trust/fingerprint await can race the invocation save.
-    flushSync(() => updateBody(draft.documentBody));
+    flushSync(() => updateBody(document.filePath, draft.documentBody));
     let authorization;
     try {
       authorization = await window.exo.workspace.getAgentInvocationAuthorization({
@@ -720,7 +711,7 @@ export function App() {
     const mediaType = payload.change.after?.mediaType ?? payload.change.before?.mediaType;
     const textPreviewOmitted = Boolean(payload.beforeTextOmitted || payload.afterTextOmitted);
     if (source === "pending" && payload.change.operation !== "deleted" && mediaType !== "binary" && !textPreviewOmitted) {
-      void openFile(invocationReviewNavigablePath(payload) ?? path);
+      void canvasNavigation.openFile(invocationReviewNavigablePath(payload) ?? path);
       return;
     }
     const virtualPath = invocationReviewVirtualPath(payload);
@@ -741,7 +732,7 @@ export function App() {
       frontmatter: {},
       body,
     });
-    activateEditorDocument(virtualPath);
+    canvasNavigation.activateEditorDocument(virtualPath);
   }
 
   async function resolveInvocationReview(action: "keep" | "reject") {
@@ -839,28 +830,20 @@ export function App() {
     if (!payload) return;
     const virtualPath = invocationReviewVirtualPath(payload);
     if (virtualPath && openDocuments[virtualPath]) {
-      const fallback = collectLeaves(canvasTree)
-        .find((leaf) => leaf.content.kind === "editor" && leaf.content.activePath === virtualPath)
-        ?.content;
-      removeDeletedPathsFromEditor(virtualPath);
-      if (activeDocumentPath === virtualPath) {
-        setActiveDocumentPath(fallback?.kind === "editor"
-          ? fallback.openPaths.filter((path) => path !== virtualPath).at(-1) ?? null
-          : null);
-      }
+      canvasNavigation.removeDeletedPaths(virtualPath);
     }
     if (action === "keep") return;
     const beforePath = payload.change.before?.path;
     const afterPath = payload.change.after?.path;
     if (payload.change.operation === "created" && afterPath) {
-      removeDeletedPathsFromEditor(afterPath);
+      canvasNavigation.removeDeletedPaths(afterPath);
       return;
     }
-    if (payload.change.operation === "renamed" && afterPath) removeDeletedPathsFromEditor(afterPath);
+    if (payload.change.operation === "renamed" && afterPath) canvasNavigation.removeDeletedPaths(afterPath);
     const restoredPath = beforePath ?? afterPath;
     if (!restoredPath) return;
     if (openDocuments[restoredPath]) await discardAndReloadDocument(restoredPath).catch(() => undefined);
-    else await openFile(restoredPath);
+    else await canvasNavigation.openFile(restoredPath);
   }
 
   async function resumeInvocationInTerminal(
@@ -880,158 +863,12 @@ export function App() {
     }
   }
 
-  function focusEditorPane(leafId: PaneNodeId) {
-    canvasActions.focusLeaf(leafId);
-    const leaf = findNode(canvasTree, (n) => n.id === leafId) as PaneLeaf | undefined;
-    const nextActivePath = leaf?.content.kind === "editor" ? leaf.content.activePath : null;
-    setActiveDocumentPath(nextActivePath);
-    setActiveTag(null);
-    if (!nextActivePath) {
-      setTagResults([]);
-    }
-  }
-
-  function setPaneActivePath(leafId: PaneNodeId, filePath: string) {
-    canvasActions.updateLeafContent(leafId, (content) => {
-      if (content.kind !== "editor") return content;
-      return {
-        ...content,
-        activePath: filePath,
-        activeFolderPath: null,
-        activeFolderReturnPath: null,
-        openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
-      };
-    });
-    canvasActions.focusLeaf(leafId);
-    setActiveDocumentPath(filePath);
-    setActiveTag(null);
-    setTagResults([]);
-  }
-
-  function openFolderOverview(directoryPath: string, leafId = focusedPaneId) {
-    const editorLeaf = resolveFolderOverviewEditorLeaf(canvasTree, focusedPaneId, leafId);
-    if (!editorLeaf) {
-      return;
-    }
-    canvasActions.updateLeafContent(editorLeaf.id, (content) =>
-      content.kind !== "editor" ? content : activateFolderOverviewContent(content, directoryPath));
-    canvasActions.focusLeaf(editorLeaf.id);
-    setActiveDocumentPath(null);
-    setActiveTag(null);
-    setTagResults([]);
-  }
-
-  function closeFolderOverview(leafId: PaneNodeId, directoryPath: string) {
-    const transition = closeFolderOverviewInTree(canvasTree, leafId, directoryPath, focusedPaneId);
-    canvasActions.setTree(transition.tree);
-    if (transition.activeDocumentPath !== undefined) {
-      setActiveDocumentPath(transition.activeDocumentPath);
-      setActiveTag(null);
-      setTagResults([]);
-    }
-  }
-
-  function closeDocumentInPane(leafId: PaneNodeId, filePath: string) {
-    const nextTree = pruneEmptyLeaves(
-      mapLeaves(canvasTree, (leaf) => {
-        if (leaf.id !== leafId || leaf.content.kind !== "editor") return leaf;
-        const nextOpenPaths = leaf.content.openPaths.filter((p) => p !== filePath);
-        const closedIndex = leaf.content.openPaths.indexOf(filePath);
-        const nextActivePath = leaf.content.activePath === filePath
-          ? (nextOpenPaths[Math.max(0, closedIndex - 1)] ?? nextOpenPaths[0] ?? null)
-          : leaf.content.activePath;
-        const activeFolderReturnPath = leaf.content.activeFolderReturnPath === filePath
-          ? null
-          : leaf.content.activeFolderReturnPath;
-        return {
-          ...leaf,
-          content: {
-            ...leaf.content,
-            openPaths: nextOpenPaths,
-            activePath: nextActivePath,
-            activeFolderReturnPath,
-          },
-        };
-      }),
-      (leaf) => leaf.content.kind === "editor" && leaf.content.openPaths.length === 0,
-    );
-    canvasActions.setTree(nextTree);
-
-    const focused = findNode(nextTree, (n) => n.id === focusedPaneId) as PaneLeaf | undefined;
-    const fallback = findEditorLeaf(nextTree);
-    const nextLeaf = focused?.content.kind === "editor" ? focused : fallback;
-    const nextPath = nextLeaf?.content.kind === "editor" ? nextLeaf.content.activePath : null;
-    setActiveDocumentPath(nextPath);
-    if (!nextPath) {
-      setActiveTag(null);
-      setTagResults([]);
-      const editorLeavesNow = collectLeaves(nextTree).filter((leaf) => leaf.content.kind === "editor");
-      const allEmpty = editorLeavesNow.every(
-        (leaf) => leaf.content.kind === "editor" && leaf.content.openPaths.length === 0,
-      );
-      if (allEmpty) {
-        void openOrCreateDailyNote();
-      }
-    }
-  }
-
-  function activateEditorDocument(filePath: string, requestedLeafId?: PaneNodeId) {
-    const targetLeafId = requestedLeafId ?? focusedPaneId;
-    const targetLeaf = findNode(canvasTree, (node) => node.id === targetLeafId && node.kind === "leaf") as PaneLeaf | undefined;
-    const targetEditorLeaf = targetLeaf?.content.kind === "editor" ? targetLeaf : undefined;
-    const fallbackLeaf = targetLeaf ?? collectLeaves(canvasTree)[0];
-    const editorLeafId = targetEditorLeaf?.id ?? findEditorLeaf(canvasTree)?.id ?? fallbackLeaf?.id;
-    if (editorLeafId) {
-      canvasActions.updateLeafContent(editorLeafId, (content) => content.kind === "editor"
-        ? {
-            ...content,
-            activePath: filePath,
-            activeFolderPath: null,
-            activeFolderReturnPath: null,
-            openPaths: content.openPaths.includes(filePath) ? content.openPaths : [...content.openPaths, filePath],
-          }
-        : {
-            kind: "editor",
-            activePath: filePath,
-            openPaths: [filePath],
-            openFolderPaths: [],
-            activeFolderPath: null,
-            activeFolderReturnPath: null,
-          });
-      canvasActions.focusLeaf(editorLeafId);
-    }
-    setActiveDocumentPath(filePath);
-    setActiveTag(null);
-    setTagResults([]);
-  }
-
-  async function openFile(filePath: string, leafId?: PaneNodeId, options?: { line?: number | null }) {
-    const targetLeafId = leafId ?? focusedPaneId;
-    // File opens should never be trapped by a focused browser/terminal leaf.
-    // Prefer the requested editor leaf, then any editor leaf, then recover by
-    // converting the focused/first leaf back into an editor leaf.
-    const targetLeaf = findNode(canvasTree, (n) => n.id === targetLeafId && n.kind === "leaf") as PaneLeaf | undefined;
-    const targetEditorLeaf = targetLeaf?.content.kind === "editor" ? targetLeaf : undefined;
-    const fallbackLeaf = targetLeaf ?? collectLeaves(canvasTree)[0];
-    const editorLeafId = targetEditorLeaf?.id ?? findEditorLeaf(canvasTree)?.id ?? fallbackLeaf?.id;
-    await latestPaneNavigationRef.current.commitLatest(
-      editorLeafId ?? targetLeafId,
-      () => ensureDocumentLoaded(filePath),
-      () => {
-        activateEditorDocument(filePath, editorLeafId);
-        if (options?.line && options.line > 0) {
-          setEditorRevealLineRequest({ filePath, line: options.line, nonce: Date.now() });
-        }
-      },
-    );
-  }
-
   async function openTitleSegment(segment: WorkspaceBreadcrumbSegment) {
     if (segment.kind === "file") {
-      await openFile(segment.path);
+      await canvasNavigation.openFile(segment.path);
       return;
     }
-    openFolderOverview(segment.path);
+    canvasNavigation.openFolderOverview(segment.path);
   }
 
   async function openKnowledgeTarget(target: string) {
@@ -1044,7 +881,7 @@ export function App() {
       // Graph and Connections can own focus while navigating. Route an
       // absolute Concept path to an editor leaf explicitly instead of treating
       // the currently focused graph/utility surface as the file destination.
-      await openFile(target, findEditorLeaf(canvasTree)?.id);
+      await canvasNavigation.openFile(target, findEditorLeaf(canvasTree)?.id);
       return;
     }
 
@@ -1056,12 +893,10 @@ export function App() {
 
     const ensured = resolved ?? await window.exo.notes.ensureTarget(activeDocumentPath, target);
     await reloadTrees();
-    await openFile(ensured, focusedPaneId);
+    await canvasNavigation.openFile(ensured, focusedPaneId);
   }
 
   async function openTag(tag: string) {
-    setActiveTag(null);
-    setTagResults([]);
     await openKnowledgeTarget(tag.replace(/^#/, ""));
   }
 
@@ -1143,21 +978,22 @@ export function App() {
 
   function activateOpenGraphTarget(filePath: string) {
     const targetLeaf = findEditorLeafByPath(canvasTree, filePath) ?? findEditorLeaf(canvasTree);
-    activateEditorDocument(filePath, targetLeaf?.id);
+    canvasNavigation.activateEditorDocument(filePath, targetLeaf?.id);
   }
 
   function openGraphCanvas(focusPath?: string) {
     if (focusPath) graphInspection.focus({ filePath: focusPath }, "editor");
+    canvasNavigation.rememberGraphReturnPath(focusPath ?? focusedEditorPath);
     const existing = collectLeaves(canvasTree).find((leaf) => leaf.content.kind === "graph");
     if (existing) {
-      canvasActions.focusLeaf(existing.id);
+      canvasNavigation.focusPane(existing.id);
       return;
     }
     const target = findNode(canvasTree, (node) => node.kind === "leaf" && node.id === focusedPaneId) as PaneLeaf | undefined
       ?? collectLeaves(canvasTree)[0];
     if (!target) return;
     const graphLeaf = canvasActions.splitLeaf(target.id, "horizontal", { kind: "graph" }, "after");
-    canvasActions.focusLeaf(graphLeaf.id);
+    canvasNavigation.focusPane(graphLeaf.id);
   }
 
   function focusBrowserPane() {
@@ -1215,7 +1051,9 @@ export function App() {
     }
   }
 
-  async function openOrCreateDailyNote() {
+  async function openOrCreateDailyNote(
+    openDailyFile: (filePath: string) => Promise<void> = canvasNavigation.openFile,
+  ) {
     if (!workspaceModel || workspaceModel.noteRoots.length === 0) {
       return;
     }
@@ -1233,69 +1071,7 @@ export function App() {
       await reloadTrees();
     }
 
-    await openFile(dailyPath, focusedPaneId);
-  }
-
-  function remapOpenPathsInEditor(sourcePath: string, nextPath: string) {
-    openDocumentsState.remapOpenPaths(sourcePath, nextPath);
-    canvasActions.setTree(mapLeaves(canvasTree, (leaf) => {
-      if (leaf.content.kind !== "editor") return leaf;
-      return {
-        ...leaf,
-        content: {
-          ...leaf.content,
-          openPaths: leaf.content.openPaths.map((fp) =>
-            isPathWithin(sourcePath, fp) ? fp.replace(sourcePath, nextPath) : fp,
-          ),
-          openFolderPaths: (leaf.content.openFolderPaths ?? []).map((folderPath) =>
-            isPathWithin(sourcePath, folderPath) ? folderPath.replace(sourcePath, nextPath) : folderPath,
-          ),
-          activePath: leaf.content.activePath && isPathWithin(sourcePath, leaf.content.activePath)
-            ? leaf.content.activePath.replace(sourcePath, nextPath)
-            : leaf.content.activePath,
-          activeFolderPath: leaf.content.activeFolderPath && isPathWithin(sourcePath, leaf.content.activeFolderPath)
-            ? leaf.content.activeFolderPath.replace(sourcePath, nextPath)
-            : leaf.content.activeFolderPath,
-          activeFolderReturnPath: leaf.content.activeFolderReturnPath && isPathWithin(sourcePath, leaf.content.activeFolderReturnPath)
-            ? leaf.content.activeFolderReturnPath.replace(sourcePath, nextPath)
-            : leaf.content.activeFolderReturnPath,
-        },
-      };
-    }));
-    if (activeDocumentPath && isPathWithin(sourcePath, activeDocumentPath)) {
-      setActiveDocumentPath(activeDocumentPath.replace(sourcePath, nextPath));
-    }
-  }
-
-  function removeDeletedPathsFromEditor(targetPath: string) {
-    openDocumentsState.deletePathsWithin(targetPath);
-    canvasActions.setTree(mapLeaves(canvasTree, (leaf) => {
-      if (leaf.content.kind !== "editor") return leaf;
-      const nextOpenPaths = leaf.content.openPaths.filter((fp) => !isPathWithin(targetPath, fp));
-      const nextOpenFolderPaths = (leaf.content.openFolderPaths ?? []).filter((folderPath) => !isPathWithin(targetPath, folderPath));
-      return {
-        ...leaf,
-        content: {
-          ...leaf.content,
-          openPaths: nextOpenPaths,
-          openFolderPaths: nextOpenFolderPaths,
-          activePath: leaf.content.activePath && !isPathWithin(targetPath, leaf.content.activePath)
-            ? leaf.content.activePath
-            : nextOpenPaths.at(-1) ?? null,
-          activeFolderPath: leaf.content.activeFolderPath && !isPathWithin(targetPath, leaf.content.activeFolderPath)
-            ? leaf.content.activeFolderPath
-            : null,
-          activeFolderReturnPath: leaf.content.activeFolderReturnPath && !isPathWithin(targetPath, leaf.content.activeFolderReturnPath)
-            ? leaf.content.activeFolderReturnPath
-            : null,
-        },
-      };
-    }));
-  }
-
-  function resolveActiveEditorPathAfterDelete(): string | null {
-    const focused = findNode(canvasTree, (n) => n.id === focusedPaneId) as PaneLeaf | undefined;
-    return focused?.content.kind === "editor" ? focused.content.activePath : null;
+    await openDailyFile(dailyPath);
   }
 
   if (!workspaceModel) {
@@ -1694,7 +1470,7 @@ export function App() {
       <ShellLayout
       titleSegments={titleSegments}
       onOpenTitleSegment={(segment) => void openTitleSegment(segment)}
-      onOpenFolder={(directoryPath) => openFolderOverview(directoryPath)}
+      onOpenFolder={(directoryPath) => canvasNavigation.openFolderOverview(directoryPath)}
       workspaceLabel={workspaceLabel}
       missingFolderIndexCount={folderIndexStatus?.missingIndexPaths.length ?? 0}
       noteSections={noteSections}
@@ -1714,6 +1490,7 @@ export function App() {
       canvas={canvasTree}
       focusedPaneId={focusedPaneId}
       canvasActions={canvasActions}
+      onFocusCanvasPane={canvasNavigation.focusPane}
       utilitySurface={utilityState.destination}
       utilityContent={utilityContent}
       utilityOpen={utilityState.open}
@@ -1726,13 +1503,14 @@ export function App() {
           return <GraphPane
             inspectedConcept={graphInspection.state.concept}
             focusRequest={graphInspection.state.focusRequest}
-            activeEditorPath={activeDocumentPath}
+            graphReturnPath={canvasNavigation.graphReturnPath}
             isTargetOpen={(target) => openEditorPaths.has(target)}
             onInspectConcept={inspectGraphConcept}
             onFocusConcept={focusGraphConcept}
             onRestoreEditorConcept={restoreEditorInspection}
             onActivateOpenTarget={activateOpenGraphTarget}
             onClose={() => canvasActions.removeLeaf(leaf.id)}
+            onFocus={() => canvasNavigation.focusPane(leaf.id)}
             onOpenTarget={(target) => void openKnowledgeTarget(target)}
           />;
         }
@@ -1757,7 +1535,7 @@ export function App() {
               theme={resolvedTheme}
               fontSize={terminalFontSize}
               scrollbackLines={terminalRuntimeScrollbackLines}
-              onFocus={() => canvasActions.focusLeaf(leaf.id)}
+              onFocus={() => canvasNavigation.focusPane(leaf.id)}
               onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
               onHydrated={(id) => terminalState.markTerminalHydrated(id)}
               onSetActiveTerminal={(id) => void terminalState.activateTerminal(id)}
@@ -1781,7 +1559,7 @@ export function App() {
               paneId={leaf.id}
               url={tab.url}
               compact={false}
-              onFocus={() => canvasActions.focusLeaf(leaf.id)}
+              onFocus={() => canvasNavigation.focusPane(leaf.id)}
               onNavigate={async (target) => {
                 const result = await window.exo.workspace.resolvePreviewTarget(target);
                 setPreviewTabs((current) => updatePreviewTabUrl(current, tab.id, result.url));
@@ -1811,28 +1589,38 @@ export function App() {
               saveStatuses={documentSaveStatuses}
               isFocused={isFocused}
               onFocusPane={() => {
-                focusEditorPane(leaf.id);
+                canvasNavigation.focusPane(leaf.id);
               }}
-              onActivateTab={(filePath) => setPaneActivePath(leaf.id, filePath)}
-              onCloseTab={(filePath) => closeDocumentInPane(leaf.id, filePath)}
-              onActivateFolder={(directoryPath) => openFolderOverview(directoryPath, leaf.id)}
-              onCloseFolder={(directoryPath) => closeFolderOverview(leaf.id, directoryPath)}
-              onOpenFolder={(directoryPath) => openFolderOverview(directoryPath, leaf.id)}
-              onOpenFile={(filePath) => void openFile(filePath, leaf.id)}
+              onActivateTab={(filePath) => canvasNavigation.setPaneActivePath(leaf.id, filePath)}
+              onCloseTab={(filePath) => canvasNavigation.closeDocumentInPane(leaf.id, filePath)}
+              onActivateFolder={(directoryPath) => canvasNavigation.openFolderOverview(directoryPath, leaf.id)}
+              onCloseFolder={(directoryPath) => canvasNavigation.closeFolderOverview(leaf.id, directoryPath)}
+              onOpenFolder={(directoryPath) => canvasNavigation.openFolderOverview(directoryPath, leaf.id)}
+              onOpenFile={(filePath) => void canvasNavigation.openFile(filePath, leaf.id)}
               onClosePane={collectLeaves(canvasTree).length > 1 ? () => canvasActions.removeLeaf(leaf.id) : null}
               dragManager={dragManager}
               onOpenGraph={() => openGraphCanvas(pane.activePath ?? undefined)}
-              onUpdateFrontmatter={updateFrontmatter}
-              onBodyChange={updateBody}
+              onUpdateFrontmatter={(key, value) => {
+                if (leaf.content.kind === "editor" && leaf.content.activePath) {
+                  updateFrontmatter(leaf.content.activePath, key, value);
+                }
+              }}
+              onBodyChange={(body) => {
+                if (leaf.content.kind === "editor" && leaf.content.activePath) {
+                  updateBody(leaf.content.activePath, body);
+                }
+              }}
               onSave={() => void (leaf.content.kind === "editor" && leaf.content.activePath ? saveDocument(leaf.content.activePath) : Promise.resolve())}
               onOpenTag={(tag) => void openTag(tag)}
               onOpenTarget={(target) => void openKnowledgeTarget(target)}
               onSuggestTargets={(query) => suggestNoteTargets(query)}
               onPreviewTarget={(target) => previewKnowledgeTarget(target)}
               agentCommands={workspaceSettingsRef.current?.agentCommands ?? []}
-              onInvokeAgent={(draft) => void invokeInlineAgent(draft)}
+              onInvokeAgent={(draft) => {
+                if (pane.activePath) void invokeInlineAgent(draft, pane.activePath);
+              }}
               invocationReview={
-                activeReviewEntry && activeReviewPayload && pane.activePath && invocationReviewMatchesPath(activeReviewPayload, pane.activePath, activeReviewEntry.source)
+                isFocused && activeReviewEntry && activeReviewPayload && pane.activePath && invocationReviewMatchesPath(activeReviewPayload, pane.activePath, activeReviewEntry.source)
                   ? {
                       payload: activeReviewPayload,
                       queue: {
@@ -1871,14 +1659,14 @@ export function App() {
               fontSize={editorFontSize}
               onZoomEditor={(direction) => updateFocusedSurfaceZoom(direction, "editor")}
               compact={compactEditorChrome}
-              revealLineRequest={editorRevealLineRequest}
+              revealLineRequest={canvasNavigation.editorRevealLineRequest}
               scrollRestoreRequest={editorScrollRestoreRequest}
               isNoteDocument={(filePath) => workspaceModel ? workspaceModel.noteRoots.some((root) => isPathWithin(root.path, filePath)) : true}
             />
           </>
         );
       }}
-      connections={<InspectorDock document={inspectedDocument} graphContext={inspectedGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={activeTag} tagResults={tagResults} invocationHistory={invocationHistory} requestedTab={inspectorTabRequest} onOpenInvocationHistory={(item) => {
+      connections={<InspectorDock document={inspectedDocument} graphContext={inspectedGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={null} tagResults={[]} invocationHistory={invocationHistory} requestedTab={inspectorTabRequest} onOpenInvocationHistory={(item) => {
         setInvocationReviewQueue((current) => openInvocationHistoryReview(current, item));
       }} onResumeInvocation={(id) => {
         const item = invocationHistory.find((candidate) => candidate.invocationId === id);
@@ -1898,7 +1686,7 @@ export function App() {
         workspaceSearch.setQuery("");
         workspaceSearch.setSubmittedQuery("");
       }}
-      onOpenFile={(filePath, line) => void openFile(filePath, undefined, { line })}
+      onOpenFile={(filePath, line) => void canvasNavigation.openFile(filePath, undefined, { line })}
       onOpenTerminalSession={(sessionId) => void showUtilityTerminal(sessionId)}
       onOpenTag={(tag) => void openTag(tag)}
       onExpandDirectory={(directoryPath) => void workspaceTrees.expandTreeDirectory(directoryPath)}

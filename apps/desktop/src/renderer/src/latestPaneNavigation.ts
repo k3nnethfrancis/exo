@@ -23,4 +23,20 @@ export class LatestPaneNavigation {
     commit();
     return true;
   }
+
+  /**
+   * A load may outlive the leaf it targeted. The loader itself is not assumed
+   * cancellable, but its completion loses authority as soon as the target is
+   * no longer an editor leaf.
+   */
+  invalidateUnavailablePanes(availablePaneIds: ReadonlySet<string>): void {
+    for (const paneId of this.latestRequestByPane.keys()) {
+      if (!availablePaneIds.has(paneId)) this.latestRequestByPane.delete(paneId);
+    }
+  }
+
+  /** A synchronous choice in this pane supersedes any outstanding load. */
+  invalidatePane(paneId: string): void {
+    this.latestRequestByPane.delete(paneId);
+  }
 }

@@ -132,6 +132,18 @@ export function collectLeaves(tree: PaneNode): PaneLeaf[] {
   return [...collectLeaves(tree.children[0]), ...collectLeaves(tree.children[1])];
 }
 
+/**
+ * Focus is always a live leaf id. Tree transitions may remove or replace the
+ * focused leaf (including restored layouts), so ownership cannot be retained
+ * as an ambient id that callers remember to repair.
+ */
+export function normalizeFocusedLeafId(tree: PaneNode, focusedLeafId: PaneNodeId): PaneNodeId {
+  const leaves = collectLeaves(tree);
+  return leaves.some((leaf) => leaf.id === focusedLeafId)
+    ? focusedLeafId
+    : leaves[0]?.id ?? "";
+}
+
 /** Find the first editor leaf. */
 export function findEditorLeaf(tree: PaneNode): PaneLeaf | undefined {
   return findNode(tree, (n) => n.kind === "leaf" && n.content.kind === "editor") as PaneLeaf | undefined;
@@ -372,10 +384,11 @@ export interface PaneTreeActions {
 }
 
 export function usePaneTree(initialTree: PaneNode) {
-  const [tree, setTree] = useState<PaneNode>(initialTree);
-  const [focusedLeafId, setFocusedLeafId] = useState<PaneNodeId>(
-    () => collectLeaves(initialTree)[0]?.id ?? "",
-  );
+  const [state, setState] = useState(() => ({
+    tree: initialTree,
+    focusedLeafId: normalizeFocusedLeafId(initialTree, ""),
+  }));
+  const { tree, focusedLeafId } = state;
 
   const resizeRef = useRef<ResizeState | null>(null);
   const treeRef = useRef(tree);
@@ -383,7 +396,12 @@ export function usePaneTree(initialTree: PaneNode) {
 
   // Resize effect — window-level listeners during active resize
   const setTreeForResize = useCallback((updater: (prev: PaneNode) => PaneNode) => {
-    setTree(updater);
+    setState((previous) => {
+      const tree = updater(previous.tree);
+      return tree === previous.tree
+        ? previous
+        : { tree, focusedLeafId: normalizeFocusedLeafId(tree, previous.focusedLeafId) };
+    });
   }, []);
 
   useEffect(() => {
@@ -419,7 +437,7 @@ export function usePaneTree(initialTree: PaneNode) {
   const actions: PaneTreeActions = {
     splitLeaf(leafId, direction, newContent, position) {
       const newLeafId = paneId();
-      setTree((prev) => {
+      setTreeForResize((prev) => {
         const newLeaf: PaneLeaf = { kind: "leaf", id: newLeafId, content: newContent };
         return updateNode(prev, leafId, (node) => {
           const split: PaneSplit = {
@@ -436,21 +454,14 @@ export function usePaneTree(initialTree: PaneNode) {
     },
 
     removeLeaf(leafId) {
-      setTree((prev) => {
+      setTreeForResize((prev) => {
         const result = removeNode(prev, leafId);
         return result ?? prev;
-      });
-      setFocusedLeafId((prev) => {
-        if (prev === leafId) {
-          const leaves = collectLeaves(treeRef.current).filter((l) => l.id !== leafId);
-          return leaves[0]?.id ?? prev;
-        }
-        return prev;
       });
     },
 
     updateLeafContent(leafId, updater) {
-      setTree((prev) =>
+      setTreeForResize((prev) =>
         updateNode(prev, leafId, (node) => {
           if (node.kind !== "leaf") return node;
           return { ...node, content: updater(node.content) };
@@ -472,10 +483,17 @@ export function usePaneTree(initialTree: PaneNode) {
     },
 
     focusLeaf(leafId) {
-      setFocusedLeafId(leafId);
+      setState((previous) => {
+        const focusedLeafId = normalizeFocusedLeafId(previous.tree, leafId);
+        return focusedLeafId === previous.focusedLeafId ? previous : { ...previous, focusedLeafId };
+      });
     },
 
-    setTree,
+    setTree(treeOrUpdater) {
+      setTreeForResize((previous) => typeof treeOrUpdater === "function"
+        ? treeOrUpdater(previous)
+        : treeOrUpdater);
+    },
   };
 
   return { tree, focusedLeafId, actions };
