@@ -73,7 +73,10 @@ export async function loadWorkspaceSettings(env: NodeJS.ProcessEnv = process.env
   const retiredNoteRoots = await legacyAdditionalNoteRootsInPersistence(env);
   const droppedProjectRoots = await legacyProjectRootsInPersistence(env);
   const droppedTerminalSettings = await retiredTerminalSettingsInPersistence(env);
-  if (settings && (retiredNoteRoots.length > 0 || droppedProjectRoots.length > 0 || droppedTerminalSettings.length > 0)) {
+  const requiresIdentityMigration = settings
+    ? await workspaceRegistryRequiresIdentityMigration(env, notesFolderFromSettings(settings))
+    : false;
+  if (settings && (requiresIdentityMigration || retiredNoteRoots.length > 0 || droppedProjectRoots.length > 0 || droppedTerminalSettings.length > 0)) {
     // Reuse the existing two-file transaction so primary settings and registry
     // snapshots lose the retired authorization atomically.
     await saveWorkspaceSettings(settings, env);
@@ -106,7 +109,7 @@ export async function saveWorkspaceSettings(settings: WorkspaceSettings, env: No
   if (!normalized) {
     throw new Error("Workspace settings are incomplete.");
   }
-  const registry = await loadWorkspaceRegistryFile(env);
+  const registry = await loadWorkspaceRegistryFile(env, notesFolderFromSettings(normalized));
   const transaction: WorkspaceSettingsTransaction = {
     version: 1,
     settings: normalized,
@@ -129,7 +132,16 @@ export async function saveWorkspaceSettings(settings: WorkspaceSettings, env: No
 
 export async function loadWorkspaceRegistry(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceRegistry> {
   await recoverWorkspaceSettingsTransaction(env);
-  const registry = await loadWorkspaceRegistryFile(env);
+  const settings = await loadWorkspaceSettingsFile(env);
+  const activeNotesFolder = settings ? notesFolderFromSettings(settings) : undefined;
+  const registry = await loadWorkspaceRegistryFile(env, activeNotesFolder);
+  if (await workspaceRegistryRequiresIdentityMigration(env, activeNotesFolder)) {
+    const activeSettings = settings ?? registry.workspaces.find((entry) => entry.id === registry.activeWorkspaceId)?.settings;
+    if (activeSettings) {
+      await saveWorkspaceSettings(activeSettings, env);
+      return loadWorkspaceRegistryFile(env, notesFolderFromSettings(activeSettings));
+    }
+  }
   if (
     (await legacyAdditionalNoteRootsInPersistence(env)).length > 0 ||
     (await legacyProjectRootsInPersistence(env)).length > 0 ||
@@ -140,10 +152,10 @@ export async function loadWorkspaceRegistry(env: NodeJS.ProcessEnv = process.env
   return registry;
 }
 
-async function loadWorkspaceRegistryFile(env: NodeJS.ProcessEnv): Promise<WorkspaceRegistry> {
+async function loadWorkspaceRegistryFile(env: NodeJS.ProcessEnv, activeNotesFolder?: string): Promise<WorkspaceRegistry> {
   try {
     const raw = await readFile(resolveWorkspaceRegistryPath(env), "utf8");
-    return normalizeWorkspaceRegistry(JSON.parse(raw));
+    return normalizeWorkspaceRegistry(JSON.parse(raw), activeNotesFolder);
   } catch {
     return { activeWorkspaceId: null, workspaces: [] };
   }
@@ -184,32 +196,81 @@ function registryWithActiveWorkspace(registry: WorkspaceRegistry, settings: Work
   const entry = workspaceEntryFromSettings(settings);
   return {
     activeWorkspaceId: entry.id,
-    workspaces: [entry, ...registry.workspaces.filter((workspace) => workspace.id !== entry.id)],
+    workspaces: [entry, ...registry.workspaces.filter((workspace) => workspace.notesFolder !== entry.notesFolder)],
   };
 }
 
-function normalizeWorkspaceRegistry(value: unknown): WorkspaceRegistry {
+function normalizeWorkspaceRegistry(value: unknown, activeNotesFolder?: string): WorkspaceRegistry {
   const parsed = value && typeof value === "object" ? value as Partial<WorkspaceRegistry> : {};
-  const workspaces = Array.isArray(parsed.workspaces)
-    ? parsed.workspaces.reduce<WorkspaceRegistryEntry[]>((entries, entry) => {
-        const normalized = normalizeRegistryEntry(entry);
-        if (normalized) {
-          entries.push(normalized);
+  const candidates = Array.isArray(parsed.workspaces)
+    ? parsed.workspaces.reduce<Array<{ entry: WorkspaceRegistryEntry; persistedId: string | null }>>((entries, value) => {
+        const entry = normalizeRegistryEntry(value);
+        if (entry) {
+          const persistedId = value && typeof value === "object" && typeof (value as Partial<WorkspaceRegistryEntry>).id === "string"
+            ? (value as Partial<WorkspaceRegistryEntry>).id!.trim() || null
+            : null;
+          entries.push({ entry, persistedId });
         }
         return entries;
       }, [])
     : [];
+  const workspaces = candidates.reduce<WorkspaceRegistryEntry[]>((entries, candidate) => {
+    if (!entries.some((entry) => entry.notesFolder === candidate.entry.notesFolder)) {
+      entries.push(candidate.entry);
+    }
+    return entries;
+  }, []);
+  const canonicalActiveNotesFolder = activeNotesFolder ? canonicalNotesFolder(activeNotesFolder) : null;
+  const activeWorkspace = canonicalActiveNotesFolder
+    ? workspaces.find((entry) => entry.notesFolder === canonicalActiveNotesFolder)
+    : candidates.find((candidate) => candidate.persistedId === parsed.activeWorkspaceId)?.entry
+      ?? workspaces.find((entry) => entry.id === parsed.activeWorkspaceId)
+      ?? workspaces[0];
   return {
-    activeWorkspaceId: typeof parsed.activeWorkspaceId === "string" ? parsed.activeWorkspaceId : workspaces[0]?.id ?? null,
+    activeWorkspaceId: activeWorkspace?.id ?? null,
     workspaces,
   };
+}
+
+async function workspaceRegistryRequiresIdentityMigration(env: NodeJS.ProcessEnv, activeNotesFolder?: string): Promise<boolean> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8"));
+  } catch {
+    return false;
+  }
+  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as Partial<WorkspaceRegistry>).workspaces)) {
+    return false;
+  }
+  const rawRegistry = parsed as Partial<WorkspaceRegistry>;
+  const rawWorkspaces = rawRegistry.workspaces;
+  if (!rawWorkspaces) {
+    return false;
+  }
+  const normalized = normalizeWorkspaceRegistry(parsed, activeNotesFolder);
+  const seenNotesFolders = new Set<string>();
+  for (const value of rawWorkspaces) {
+    const entry = normalizeRegistryEntry(value);
+    if (!entry) {
+      continue;
+    }
+    const rawEntry = value as Partial<WorkspaceRegistryEntry>;
+    if (rawEntry.id?.trim() !== entry.id || rawEntry.notesFolder?.trim() !== entry.notesFolder || seenNotesFolders.has(entry.notesFolder)) {
+      return true;
+    }
+    seenNotesFolders.add(entry.notesFolder);
+  }
+  return rawRegistry.activeWorkspaceId !== normalized.activeWorkspaceId;
 }
 
 function parseWorkspaceSettingsTransaction(raw: string): WorkspaceSettingsTransaction {
   const parsed = JSON.parse(raw) as Partial<WorkspaceSettingsTransaction>;
   const settings = normalizeWorkspaceSettings(parsed.settings);
-  const registry = normalizeWorkspaceRegistry(parsed.registry);
-  if (parsed.version !== 1 || !settings || registry.workspaces.length === 0) {
+  if (parsed.version !== 1 || !settings) {
+    throw new Error("Workspace settings transaction is invalid.");
+  }
+  const registry = normalizeWorkspaceRegistry(parsed.registry, notesFolderFromSettings(settings));
+  if (registry.workspaces.length === 0) {
     throw new Error("Workspace settings transaction is invalid.");
   }
   return { version: 1, settings, registry };
@@ -319,7 +380,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
   const workspaceRoot = typeof input.workspaceRoot === "string" ? input.workspaceRoot.trim() : "";
   const defaultTerminalCwd = typeof input.defaultTerminalCwd === "string" ? input.defaultTerminalCwd.trim() : "";
   const configuredNoteRoots = Array.isArray(input.noteRoots)
-    ? input.noteRoots.map((entry) => (typeof entry === "string" ? entry.trim() : "")).filter(Boolean)
+    ? input.noteRoots.map((entry) => (typeof entry === "string" && entry.trim() ? canonicalNotesFolder(entry) : "")).filter(Boolean)
     : [];
   // A Workspace has one authoritative wiki in this release.  Older builds
   // could persist multiple note roots; retain the explicitly selected first
@@ -544,7 +605,7 @@ function normalizeColorThemeId(value: unknown): WorkspaceSettings["colorThemeId"
 }
 
 export function workspaceEntryFromSettings(settings: WorkspaceSettings): WorkspaceRegistryEntry {
-  const notesFolder = settings.noteRoots[0] || settings.workspaceRoot;
+  const notesFolder = notesFolderFromSettings(settings);
   return {
     id: workspaceIdForNotesFolder(notesFolder),
     label: path.basename(notesFolder) || notesFolder,
@@ -563,11 +624,9 @@ function normalizeRegistryEntry(value: unknown): WorkspaceRegistryEntry | null {
   if (!settings) {
     return null;
   }
-  const notesFolder = typeof candidate.notesFolder === "string" && candidate.notesFolder.trim()
-    ? candidate.notesFolder.trim()
-    : settings.noteRoots[0] || settings.workspaceRoot;
+  const notesFolder = notesFolderFromSettings(settings);
   return {
-    id: typeof candidate.id === "string" && candidate.id.trim() ? candidate.id : workspaceIdForNotesFolder(notesFolder),
+    id: workspaceIdForNotesFolder(notesFolder),
     label: typeof candidate.label === "string" && candidate.label.trim() ? candidate.label.trim() : path.basename(notesFolder) || notesFolder,
     notesFolder,
     settings,
@@ -590,11 +649,15 @@ function resolveDesktopUserDataPath(env: NodeJS.ProcessEnv): string {
 }
 
 function workspaceIdForNotesFolder(notesFolder: string): string {
-  let hash = 0;
-  for (const char of path.resolve(notesFolder)) {
-    hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
-  }
-  return `workspace-${hash.toString(36)}`;
+  return `workspace-v1-${createHash("sha256").update(canonicalNotesFolder(notesFolder)).digest("hex")}`;
+}
+
+function notesFolderFromSettings(settings: WorkspaceSettings): string {
+  return canonicalNotesFolder(settings.noteRoots[0] || settings.workspaceRoot);
+}
+
+function canonicalNotesFolder(notesFolder: string): string {
+  return path.resolve(notesFolder.trim());
 }
 
 function clampSettingsNumber(value: unknown, fallback: number, min: number, max: number): number {

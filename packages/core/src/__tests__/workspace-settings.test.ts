@@ -687,6 +687,97 @@ describe("workspace settings registry", () => {
     }
   });
 
+  it("retains colliding legacy workspace roots and reloads the intended active workspace", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-collision-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+
+    try {
+      await saveWorkspaceSettings(workspaceSettingsFor("/tmp/Aa"), env);
+      await saveWorkspaceSettings(workspaceSettingsFor("/tmp/BB"), env);
+
+      const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
+      expect(registry.workspaces).toHaveLength(2);
+      expect(registry.workspaces.map((workspace) => workspace.notesFolder)).toEqual(["/tmp/BB", "/tmp/Aa"]);
+      expect(new Set(registry.workspaces.map((workspace) => workspace.id)).size).toBe(2);
+      expect(registry.workspaces.every((workspace) => workspace.id.startsWith("workspace-v1-"))).toBe(true);
+      expect(registry.activeWorkspaceId).toBe(registry.workspaces[0]?.id);
+      await expect(loadActiveWorkspaceSettings(env)).resolves.toMatchObject({ noteRoots: ["/tmp/BB"] });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("deduplicates duplicate canonical Notes Folder spellings", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-canonical-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+
+    try {
+      await saveWorkspaceSettings(workspaceSettingsFor("/tmp/exo-canonical/notes"), env);
+      await saveWorkspaceSettings(workspaceSettingsFor("/tmp/exo-canonical/./notes"), env);
+
+      const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
+      expect(registry.workspaces).toHaveLength(1);
+      expect(registry.workspaces[0]?.notesFolder).toBe("/tmp/exo-canonical/notes");
+      expect(registry.workspaces[0]?.settings.noteRoots).toEqual(["/tmp/exo-canonical/notes"]);
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("migrates old colliding IDs atomically and preserves the active Notes Folder", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-migration-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const aa = workspaceSettingsFor("/tmp/Aa");
+    const bb = workspaceSettingsFor("/tmp/BB");
+    const legacyRegistry = legacyCollisionRegistry(aa, bb);
+
+    try {
+      await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify(bb), { mode: 0o600 });
+      await writeFile(resolveWorkspaceRegistryPath(env), JSON.stringify(legacyRegistry), { mode: 0o600 });
+
+      await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({ noteRoots: ["/tmp/BB"] });
+
+      const persisted = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
+      expect(persisted.workspaces).toHaveLength(2);
+      expect(persisted.workspaces.map((workspace) => workspace.notesFolder)).toEqual(["/tmp/BB", "/tmp/Aa"]);
+      expect(new Set(persisted.workspaces.map((workspace) => workspace.id)).size).toBe(2);
+      expect(persisted.workspaces.every((workspace) => workspace.id.startsWith("workspace-v1-"))).toBe(true);
+      expect(persisted.activeWorkspaceId).toBe(persisted.workspaces[0]?.id);
+      await expect(loadActiveWorkspaceSettings(env)).resolves.toMatchObject({ noteRoots: ["/tmp/BB"] });
+      await expect(access(resolveWorkspaceSettingsTransactionPath(env))).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("recovers an interrupted old-ID migration without dropping either Workspace", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-recovery-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const aa = workspaceSettingsFor("/tmp/Aa");
+    const bb = workspaceSettingsFor("/tmp/BB");
+
+    try {
+      await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify(aa), { mode: 0o600 });
+      await writeFile(resolveWorkspaceSettingsTransactionPath(env), JSON.stringify({
+        version: 1,
+        settings: bb,
+        registry: legacyCollisionRegistry(aa, bb),
+      }), { mode: 0o600 });
+
+      await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({ noteRoots: ["/tmp/BB"] });
+
+      const persisted = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
+      expect(persisted.workspaces).toHaveLength(2);
+      expect(new Set(persisted.workspaces.map((workspace) => workspace.id)).size).toBe(2);
+      expect(persisted.workspaces.every((workspace) => workspace.id.startsWith("workspace-v1-"))).toBe(true);
+      expect(persisted.activeWorkspaceId).toBe(persisted.workspaces.find((workspace) => workspace.notesFolder === "/tmp/BB")?.id);
+      await expect(loadActiveWorkspaceSettings(env)).resolves.toMatchObject({ noteRoots: ["/tmp/BB"] });
+      await expect(access(resolveWorkspaceSettingsTransactionPath(env))).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
   it("treats explicit workspace env as an override", () => {
     expect(workspaceEnvOverrides({ EXO_WORKSPACE_ROOT: "/tmp/manual" })).toBe(true);
     expect(workspaceEnvOverrides({})).toBe(false);
@@ -695,6 +786,35 @@ describe("workspace settings registry", () => {
 
 interface WorkspaceRegistryAppearance {
   workspaces: Array<{ settings: { appearanceMode: string } }>;
+}
+
+interface WorkspaceRegistrySnapshot {
+  activeWorkspaceId: string | null;
+  workspaces: Array<{ id: string; notesFolder: string; settings: { noteRoots: string[] } }>;
+}
+
+function workspaceSettingsFor(notesFolder: string) {
+  const settings = normalizeWorkspaceSettings({
+    workspaceRoot: path.dirname(notesFolder),
+    defaultTerminalCwd: path.dirname(notesFolder),
+    noteRoots: [notesFolder],
+    indexedRoots: [],
+    indexing: { enabled: false, mode: "off", backend: "qmd" },
+  });
+  if (!settings) {
+    throw new Error("Expected fixture settings to normalize.");
+  }
+  return settings;
+}
+
+function legacyCollisionRegistry(aa: ReturnType<typeof workspaceSettingsFor>, bb: ReturnType<typeof workspaceSettingsFor>) {
+  return {
+    activeWorkspaceId: "workspace-106p25j",
+    workspaces: [
+      { id: "workspace-106p25j", label: "BB", notesFolder: "/tmp/BB", settings: bb, updatedAt: "2026-07-24T00:00:00.000Z" },
+      { id: "workspace-106p25j", label: "Aa", notesFolder: "/tmp/Aa", settings: aa, updatedAt: "2026-07-23T00:00:00.000Z" },
+    ],
+  };
 }
 
 interface WorkspaceSettingsTransaction {
