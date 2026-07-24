@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { applyDocumentBodyEdit, applyDocumentFrontmatterEdit, type OpenEditorDocument } from "./useOpenDocuments";
+import {
+  applyDocumentBodyEdit,
+  applyDocumentFrontmatterEdit,
+  selectActiveDocument,
+  type OpenEditorDocument,
+} from "./useOpenDocuments";
 
 function document(filePath: string): OpenEditorDocument {
   return {
@@ -15,6 +20,16 @@ function document(filePath: string): OpenEditorDocument {
 }
 
 describe("path-explicit document writes", () => {
+  it("consumes focused pane ownership without retaining another active path", () => {
+    const documents = {
+      "/notes/left.md": document("/notes/left.md"),
+      "/notes/right.md": document("/notes/right.md"),
+    };
+
+    expect(selectActiveDocument(documents, "/notes/right.md")?.filePath).toBe("/notes/right.md");
+    expect(selectActiveDocument(documents, null)).toBeNull();
+  });
+
   it("edits the editor path that emitted the change even when another document owns focus", () => {
     const documents = {
       "/notes/left.md": document("/notes/left.md"),

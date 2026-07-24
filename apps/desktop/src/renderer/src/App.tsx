@@ -171,6 +171,10 @@ export function App() {
   const latestPaneNavigationRef = useRef(new LatestPaneNavigation());
   const shellLayout = useShellLayout();
   const { tree: canvasTree, focusedLeafId: focusedPaneId, actions: canvasActions } = shellLayout.canvasPaneTree;
+  const focusedEditorPath = useMemo(
+    () => findFocusedEditorPath(canvasTree, focusedPaneId),
+    [canvasTree, focusedPaneId],
+  );
   const [utilityState, dispatchUtility] = useReducer(reduceUtilitySurface, DEFAULT_UTILITY_SURFACE_STATE);
   const [previewTabs, setPreviewTabs] = useState(EMPTY_PREVIEW_TABS);
   const terminalState = useTerminalSessions({
@@ -232,6 +236,7 @@ export function App() {
   }, [workspaceModel, workspaceSettingsRef]);
   const openDocumentsState = useOpenDocuments({
     workspaceModel,
+    activeDocumentPath: focusedEditorPath,
     getOpenEditorPaths: () => collectOpenEditorPaths(shellLayout.canvasPaneTree.tree),
     getEditorScrollTopForPath,
   });
@@ -242,7 +247,6 @@ export function App() {
     activeDocumentPath,
     activeDocument,
     scrollRestoreRequest: editorScrollRestoreRequest,
-    setActiveDocumentPath,
     ensureDocumentLoaded,
     openVirtualDocument,
     scheduleRefresh: scheduleOpenDocumentRefresh,
@@ -253,10 +257,6 @@ export function App() {
     discardAndReloadDocument,
   } = openDocumentsState;
   const openEditorPaths = useMemo(() => collectOpenEditorPaths(canvasTree), [canvasTree]);
-  const focusedEditorPath = useMemo(
-    () => findFocusedEditorPath(canvasTree, focusedPaneId),
-    [canvasTree, focusedPaneId],
-  );
   const inspectedPath = graphInspection.state.concept
     ? graphInspection.state.concept.filePath ?? null
     : activeDocumentPath;
@@ -270,15 +270,12 @@ export function App() {
     openFile,
     remapOpenPaths: remapOpenPathsInEditor,
     removeDeletedPaths: removeDeletedPathsFromEditor,
-    setActiveDocumentPath,
-    resolveActiveEditorPathAfterDelete,
     revealExplorerPath: (path) => setRevealExplorerPathRequest({ path, nonce: Date.now() }),
   });
   const { dialog: workspaceDialog, setDialog: setWorkspaceDialog } = workspaceMutations;
   const dragManager = usePaneDropOrchestration({
     canvasTree,
     canvasActions,
-    setActiveDocumentPath,
     ensureDocumentLoaded,
     moveWorkspacePathIntoDirectory: workspaceMutations.moveWorkspacePathIntoDirectory,
     returnSurfaceToUtility,
@@ -309,10 +306,6 @@ export function App() {
         .map((leaf) => leaf.id),
     ));
   }, [canvasTree]);
-
-  useEffect(() => {
-    if (activeDocumentPath !== focusedEditorPath) setActiveDocumentPath(focusedEditorPath);
-  }, [activeDocumentPath, focusedEditorPath, setActiveDocumentPath]);
 
   useEffect(() => {
     if (activeDocumentPath) {
@@ -507,11 +500,6 @@ export function App() {
           }),
         ),
       );
-      // `usePaneTree` normalizes restored focus to the first surviving leaf.
-      // Use the same owner while bootstrap loads documents, before React has
-      // published the restored canvas back to this closure.
-      const restoredActivePath = findFocusedEditorPath(restoredTree, collectLeaves(restoredTree)[0]?.id ?? "");
-      setActiveDocumentPath(restoredActivePath);
     }
   }
 
@@ -839,15 +827,7 @@ export function App() {
     if (!payload) return;
     const virtualPath = invocationReviewVirtualPath(payload);
     if (virtualPath && openDocuments[virtualPath]) {
-      const fallback = collectLeaves(canvasTree)
-        .find((leaf) => leaf.content.kind === "editor" && leaf.content.activePath === virtualPath)
-        ?.content;
       removeDeletedPathsFromEditor(virtualPath);
-      if (activeDocumentPath === virtualPath) {
-        setActiveDocumentPath(fallback?.kind === "editor"
-          ? fallback.openPaths.filter((path) => path !== virtualPath).at(-1) ?? null
-          : null);
-      }
     }
     if (action === "keep") return;
     const beforePath = payload.change.before?.path;
@@ -884,7 +864,6 @@ export function App() {
     canvasActions.focusLeaf(leafId);
     const leaf = findNode(canvasTree, (n) => n.id === leafId) as PaneLeaf | undefined;
     const nextActivePath = leaf?.content.kind === "editor" ? leaf.content.activePath : null;
-    setActiveDocumentPath(nextActivePath);
     setActiveTag(null);
     if (!nextActivePath) {
       setTagResults([]);
@@ -903,7 +882,6 @@ export function App() {
       };
     });
     canvasActions.focusLeaf(leafId);
-    setActiveDocumentPath(filePath);
     setActiveTag(null);
     setTagResults([]);
   }
@@ -916,7 +894,6 @@ export function App() {
     canvasActions.updateLeafContent(editorLeaf.id, (content) =>
       content.kind !== "editor" ? content : activateFolderOverviewContent(content, directoryPath));
     canvasActions.focusLeaf(editorLeaf.id);
-    setActiveDocumentPath(null);
     setActiveTag(null);
     setTagResults([]);
   }
@@ -925,7 +902,6 @@ export function App() {
     const transition = closeFolderOverviewInTree(canvasTree, leafId, directoryPath, focusedPaneId);
     canvasActions.setTree(transition.tree);
     if (transition.activeDocumentPath !== undefined) {
-      setActiveDocumentPath(transition.activeDocumentPath);
       setActiveTag(null);
       setTagResults([]);
     }
@@ -961,7 +937,6 @@ export function App() {
     const fallback = findEditorLeaf(nextTree);
     const nextLeaf = focused?.content.kind === "editor" ? focused : fallback;
     const nextPath = nextLeaf?.content.kind === "editor" ? nextLeaf.content.activePath : null;
-    setActiveDocumentPath(nextPath);
     if (!nextPath) {
       setActiveTag(null);
       setTagResults([]);
@@ -1000,7 +975,6 @@ export function App() {
           });
       canvasActions.focusLeaf(editorLeafId);
     }
-    setActiveDocumentPath(filePath);
     setActiveTag(null);
     setTagResults([]);
   }
@@ -1262,9 +1236,6 @@ export function App() {
         },
       };
     }));
-    if (activeDocumentPath && isPathWithin(sourcePath, activeDocumentPath)) {
-      setActiveDocumentPath(activeDocumentPath.replace(sourcePath, nextPath));
-    }
   }
 
   function removeDeletedPathsFromEditor(targetPath: string) {
@@ -1291,11 +1262,6 @@ export function App() {
         },
       };
     }));
-  }
-
-  function resolveActiveEditorPathAfterDelete(): string | null {
-    const focused = findNode(canvasTree, (n) => n.id === focusedPaneId) as PaneLeaf | undefined;
-    return focused?.content.kind === "editor" ? focused.content.activePath : null;
   }
 
   if (!workspaceModel) {
