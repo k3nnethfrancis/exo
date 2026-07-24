@@ -19,7 +19,7 @@ describe("graph integrity tracer", () => {
         { id: "broken", source: "a", target: "missing", family: "link", origin: "document", resolution: "unresolved", directed: true, evidence: [] },
       ],
       findings: [],
-      activeProfile: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
+      activeFormat: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
       activeOntology: { state: "generic" },
     };
 
@@ -30,7 +30,7 @@ describe("graph integrity tracer", () => {
       "identity",
       "resolution",
       "evidence",
-      "profile-conformance",
+      "format-conformance",
     ]);
     expect(report.dimensions.find((dimension) => dimension.id === "resolution")).toMatchObject({ measured: 1, total: 2, ratio: 0.5 });
     expect(report.dimensions.find((dimension) => dimension.id === "evidence")).toMatchObject({ measured: 1, total: 2, ratio: 0.5 });

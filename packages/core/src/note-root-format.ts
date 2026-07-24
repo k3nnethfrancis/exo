@@ -1,14 +1,14 @@
-import type { ConceptNode, GraphFinding, KnowledgeProfileStatus } from "./knowledge-graph";
+import type { ConceptNode, GraphFinding, NoteRootFormatStatus } from "./knowledge-graph";
 
-export interface KnowledgeProfile {
-  readonly status: KnowledgeProfileStatus;
+export interface NoteRootFormat {
+  readonly status: NoteRootFormatStatus;
   readonly absoluteMarkdownLinkBase: "source-document" | "note-root";
   includesConcept(pathOrTarget: string): boolean;
   conceptTypes(properties: Readonly<Record<string, unknown>>): readonly string[];
   validate(concepts: readonly ConceptNode[]): readonly GraphFinding[];
 }
 
-export const genericMarkdownProfile: KnowledgeProfile = {
+export const genericMarkdownFormat: NoteRootFormat = {
   status: {
     id: "generic-markdown",
     version: "1",
@@ -28,7 +28,7 @@ export const genericMarkdownProfile: KnowledgeProfile = {
   },
 };
 
-export const okf01Profile: KnowledgeProfile = {
+export const okf01Format: NoteRootFormat = {
   status: {
     id: "okf",
     version: "0.1",
@@ -65,13 +65,10 @@ export const okf01Profile: KnowledgeProfile = {
   },
 };
 
-export function knowledgeProfile(id?: string | null): KnowledgeProfile {
-  if (!id || id === "generic-markdown") return genericMarkdownProfile;
-  if (id === "okf" || id === "okf-0.1") return okf01Profile;
-  return {
-    ...genericMarkdownProfile,
-    status: { ...genericMarkdownProfile.status, state: "fallback" },
-  };
+export function noteRootFormat(id: string): NoteRootFormat {
+  if (id === "generic-markdown") return genericMarkdownFormat;
+  if (id === "okf" || id === "okf-0.1") return okf01Format;
+  throw new Error(`Unknown Note Root Format: ${id}`);
 }
 
 function openTypes(value: unknown): string[] {

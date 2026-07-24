@@ -57,7 +57,7 @@ describe("graph projection", () => {
     const second = compileGraphTopology(after).topology;
 
     expect(second.sourceSnapshotId).not.toBe(first.sourceSnapshotId);
-    expect(second.profileHash).toBe(first.profileHash);
+    expect(second.formatHash).toBe(first.formatHash);
     expect(second.topologyHash).toBe(first.topologyHash);
     expect(second.layoutEpochId).toBe(first.layoutEpochId);
     expect(second.transportHash).not.toBe(first.transportHash);
@@ -65,9 +65,9 @@ describe("graph projection", () => {
 
   it("holds deterministic packed payload gates at launch scales", () => {
     const scales = [
-      { nodes: 10_000, edges: 50_000, payloadBytes: 660_560, topologyHash: "graph-topology:0.1:599afafa480128d3", transportHash: "graph-transport:0.1:708924b3f018349a", layoutEpochId: "graph-layout:0.1:f4fafcabaa19931e" },
-      { nodes: 50_000, edges: 250_000, payloadBytes: 3_300_562, topologyHash: "graph-topology:0.1:801a42fd8e58207c", transportHash: "graph-transport:0.1:9ea10f9283a5264d", layoutEpochId: "graph-layout:0.1:53ababff705e1c05" },
-      { nodes: 100_000, edges: 500_000, payloadBytes: 6_600_563, topologyHash: "graph-topology:0.1:e6987d1b64ee0d43", transportHash: "graph-transport:0.1:3241a4ccbe7c39b0", layoutEpochId: "graph-layout:0.1:06c3522ae8893f17" },
+      { nodes: 10_000, edges: 50_000, payloadBytes: 660_558, topologyHash: "graph-topology:0.1:ae743ac09ecb1682", transportHash: "graph-transport:0.1:1be5645921b95bf4", layoutEpochId: "graph-layout:0.1:e2728f97a9f7aab9" },
+      { nodes: 50_000, edges: 250_000, payloadBytes: 3_300_560, topologyHash: "graph-topology:0.1:0f1f69d37a918327", transportHash: "graph-transport:0.1:acfd2868ce1e485e", layoutEpochId: "graph-layout:0.1:303c7f3d4fdd505e" },
+      { nodes: 100_000, edges: 500_000, payloadBytes: 6_600_561, topologyHash: "graph-topology:0.1:f16b3739301a64ea", transportHash: "graph-transport:0.1:210c4fce152b987f", layoutEpochId: "graph-layout:0.1:6b79876517a3460c" },
     ];
 
     for (const scale of scales) {
@@ -110,7 +110,7 @@ function fixtureSnapshot(): KnowledgeGraphSnapshot {
     ],
     relations: [{ id: "relation:private", source: "note:private:a.md", target: "note:private:b.md", family: "link", origin: "document", resolution: "resolved", directed: true, evidence: [] }],
     findings: [],
-    activeProfile: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
+    activeFormat: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
     activeOntology: { state: "generic" },
   };
 }
@@ -138,7 +138,7 @@ function topologyInput(nodeCount: number, edgeCount: number) {
   }
   return {
     sourceSnapshotId: "snapshot:scale",
-    activeProfile: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" } as const,
+    activeFormat: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" } as const,
     activeOntology: { state: "generic" } as const,
     seed: 0x12345678,
     nodes: { identityKeys, seeds, groups, degrees, visualClasses },

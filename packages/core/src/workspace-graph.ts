@@ -13,7 +13,7 @@ import {
   type RelationEvidence,
   type RelationEdge,
 } from "./knowledge-graph";
-import { knowledgeProfile, type KnowledgeProfile } from "./knowledge-profile";
+import { genericMarkdownFormat, type NoteRootFormat } from "./note-root-format";
 import {
   WorkspaceOntologyStore,
   absentWorkspaceOntologyCandidateRevision,
@@ -57,7 +57,13 @@ import { listMarkdownFiles, WorkspaceFiles } from "./workspace";
 
 export type NoteId = `note:${string}`;
 export type GraphResolution = "resolved" | "unresolved" | "ambiguous" | "external";
-type AbsoluteMarkdownLinkBase = KnowledgeProfile["absoluteMarkdownLinkBase"];
+type AbsoluteMarkdownLinkBase = NoteRootFormat["absoluteMarkdownLinkBase"];
+
+export interface WorkspaceGraphOptions {
+  runtimeRoot?: string;
+  /** Explicit construction seam for interoperability fixtures. Production uses Generic Markdown. */
+  noteRootFormat?: NoteRootFormat;
+}
 
 export interface WorkspaceGraphNote {
   id: NoteId;
@@ -148,8 +154,10 @@ export class WorkspaceGraph {
   private activeOntology: WorkspaceOntologyActive | null = null;
   private activeOntologyInFlight: Promise<WorkspaceOntologyActive> | null = null;
   private stagedOntologyReview: StagedOntologyReview | null = null;
+  private readonly format: NoteRootFormat;
 
-  constructor(private readonly model: WorkspaceModel, options: { runtimeRoot?: string } = {}) {
+  constructor(private readonly model: WorkspaceModel, options: WorkspaceGraphOptions = {}) {
+    this.format = options.noteRootFormat ?? genericMarkdownFormat;
     this.ontologyStore = options.runtimeRoot
       ? new WorkspaceOntologyStore({ workspaceRoot: model.workspaceRoot, runtimeRoot: options.runtimeRoot })
       : null;
@@ -217,17 +225,16 @@ export class WorkspaceGraph {
   }
 
   /**
-   * Builds the renderer- and profile-neutral semantic contract from the same
+   * Builds the renderer- and Format-neutral semantic contract from the same
    * entries that power Connections. Markdown remains canonical; callers receive
    * a deterministic derived snapshot and never a mutable graph database.
    */
-  async knowledgeSnapshot(profileId?: string | null): Promise<KnowledgeGraphSnapshot> {
-    return this.buildKnowledgeSnapshot(await this.loadActiveOntology(), profileId, true);
+  async knowledgeSnapshot(): Promise<KnowledgeGraphSnapshot> {
+    return this.buildKnowledgeSnapshot(await this.loadActiveOntology(), true);
   }
 
   private async buildKnowledgeSnapshot(
     ontologyActive: WorkspaceOntologyActive,
-    profileId?: string | null,
     cache = false,
   ): Promise<KnowledgeGraphSnapshot> {
     const activeOntology = {
@@ -238,12 +245,12 @@ export class WorkspaceGraph {
         revision: ontologyActive.ontology.revision,
       } : {}),
     };
-    const cacheKey = ontologySnapshotCacheKey(profileId, activeOntology);
+    const cacheKey = ontologySnapshotCacheKey(this.format, activeOntology);
     const cached = cache ? this.knowledgeSnapshotCache.get(cacheKey) : undefined;
     if (cached) return cached;
     const graph = await this.build();
-    const profile = knowledgeProfile(profileId);
-    const noteRootAbsoluteLinks = profile.absoluteMarkdownLinkBase === "note-root";
+    const format = this.format;
+    const noteRootAbsoluteLinks = format.absoluteMarkdownLinkBase === "note-root";
     const epoch = noteRootAbsoluteLinks ? null : this.resolveEpoch(graph);
     const formatResolutionIndex = noteRootAbsoluteLinks ? resolutionIndex(graph) : null;
     const concepts = new Map<string, ConceptNode>();
@@ -252,8 +259,8 @@ export class WorkspaceGraph {
     const formatConcepts: ConceptNode[] = [];
 
     for (const entry of [...graph.values()].sort((left, right) => byPath(left.note, right.note))) {
-      if (!profile.includesConcept(entry.note.relativePath)) continue;
-      const formatTypes = profile.conceptTypes(entry.document.frontmatter);
+      if (!format.includesConcept(entry.note.relativePath)) continue;
+      const formatTypes = format.conceptTypes(entry.document.frontmatter);
       const concept: ConceptNode = {
         id: entry.note.id,
         noteId: entry.note.id,
@@ -276,12 +283,12 @@ export class WorkspaceGraph {
 
       const relationCounts = new Map<string, number>();
       const outgoing = noteRootAbsoluteLinks
-        ? this.linksFromGraph(graph, entry, formatResolutionIndex ?? undefined, profile.absoluteMarkdownLinkBase)
+        ? this.linksFromGraph(graph, entry, formatResolutionIndex ?? undefined, format.absoluteMarkdownLinkBase)
         : epoch?.outgoingByConcept.get(entry.note.id) ?? [];
       outgoing.forEach((link) => {
         // Format-excluded documents may organize a Note Root but cannot become
         // Concept endpoints, whether or not the target currently exists.
-        if (link.resolution !== "external" && !profile.includesConcept(link.note?.relativePath ?? link.target)) return;
+        if (link.resolution !== "external" && !format.includesConcept(link.note?.relativePath ?? link.target)) return;
         const targetId = link.note?.id ?? conceptIdForLink(entry.note.id, link.target, link.resolution);
         if (!link.note) {
           concepts.set(targetId, {
@@ -358,7 +365,7 @@ export class WorkspaceGraph {
       [...concepts.values()],
       (source, reference) => {
         const sourceEntry = source.filePath ? graph.get(path.resolve(source.filePath)) : undefined;
-        const resolved = this.resolveTarget(graph, sourceEntry?.note, reference, undefined, profile.absoluteMarkdownLinkBase);
+        const resolved = this.resolveTarget(graph, sourceEntry?.note, reference, undefined, format.absoluteMarkdownLinkBase);
         return {
           targetId: resolved.note?.id ?? conceptIdForLink(source.id, reference, resolved.status),
           resolution: resolved.status,
@@ -368,7 +375,7 @@ export class WorkspaceGraph {
     const ontologyRelations = ontologyInterpretation.relations
       .filter((relation) => relation.resolution === "external"
         || !relation.label
-        || profile.includesConcept(relation.label));
+        || format.includesConcept(relation.label));
     const ontologyRelationIds = new Set(ontologyRelations.map((relation) => relation.id));
     const ontologyEndpointIds = new Set(ontologyRelations.flatMap((relation) => [relation.source, relation.target]));
     for (const concept of ontologyInterpretation.concepts) {
@@ -383,10 +390,10 @@ export class WorkspaceGraph {
       noteRootIds: this.roots().map((root) => root.id).sort(),
       paths: [...graph.keys()].sort(),
     };
-    const activeProfile = profile.status;
+    const activeFormat = format.status;
     const allFindings = [
       ...findings,
-      ...profile.validate(formatConcepts.sort(byId)),
+      ...format.validate(formatConcepts.sort(byId)),
       ...ontologyActiveDiagnostics(ontologyActive),
       ...ontologyInterpretation.findings.filter((finding) => finding.relationIds.length === 0
         || finding.relationIds.some((relationId) => ontologyRelationIds.has(relationId))),
@@ -396,7 +403,7 @@ export class WorkspaceGraph {
       sortedConcepts,
       sortedRelations,
       allFindings,
-      activeProfile,
+      activeFormat,
       activeOntology,
     );
     const snapshot: KnowledgeGraphSnapshot = {
@@ -407,7 +414,7 @@ export class WorkspaceGraph {
       concepts: sortedConcepts,
       relations: sortedRelations,
       findings: allFindings,
-      activeProfile,
+      activeFormat,
       activeOntology,
     };
     if (cache) this.knowledgeSnapshotCache.set(cacheKey, snapshot);
@@ -521,7 +528,7 @@ export class WorkspaceGraph {
     this.knowledgeSnapshotCache.clear();
     this.topologyCache.clear();
     this.knowledgeDetailIndexes.clear();
-    const cacheKey = ontologySnapshotCacheKey(undefined, staged.snapshot.activeOntology);
+    const cacheKey = ontologySnapshotCacheKey(this.format, staged.snapshot.activeOntology);
     this.knowledgeSnapshotCache.set(cacheKey, staged.snapshot);
     this.stagedOntologyReview = null;
     return { status: "applied", review: await this.previewOntology() };
@@ -560,15 +567,14 @@ export class WorkspaceGraph {
     return { status: "rejected", review: await this.previewOntology() };
   }
 
-  async graphTopology(profileId?: string | null): Promise<GraphTopology> {
-    const snapshot = await this.knowledgeSnapshot(profileId);
-    return this.topologyForSnapshot(snapshot, profileId).topology;
+  async graphTopology(): Promise<GraphTopology> {
+    const snapshot = await this.knowledgeSnapshot();
+    return this.topologyForSnapshot(snapshot).topology;
   }
 
   async graphConceptSummaries(
     indexes: readonly number[],
     sourceSnapshotId: string,
-    profileId?: string | null,
   ): Promise<GraphConceptSummaryResult> {
     if (indexes.length > GRAPH_CONCEPT_SUMMARY_MAX_ITEMS) {
       throw new Error(`Graph concept summary requests are limited to ${GRAPH_CONCEPT_SUMMARY_MAX_ITEMS} nodes.`);
@@ -577,11 +583,11 @@ export class WorkspaceGraph {
     if (normalizedIndexes.some((index) => !Number.isSafeInteger(index) || index < 0)) {
       throw new Error("Graph concept summary indices must be non-negative safe integers.");
     }
-    const snapshot = await this.knowledgeSnapshot(profileId);
+    const snapshot = await this.knowledgeSnapshot();
     if (snapshot.snapshotId !== sourceSnapshotId) {
       return boundedSummaryResult({ status: "stale", sourceSnapshotId: snapshot.snapshotId, summaries: [] });
     }
-    const conceptIds = this.conceptIdsForSnapshot(snapshot, profileId);
+    const conceptIds = this.conceptIdsForSnapshot(snapshot);
     if (normalizedIndexes.some((index) => index >= conceptIds.length)) {
       return boundedSummaryResult({ status: "missing", sourceSnapshotId: snapshot.snapshotId, summaries: [] });
     }
@@ -605,14 +611,13 @@ export class WorkspaceGraph {
   async graphConceptLookup(
     reference: GraphConceptLookupReference,
     sourceSnapshotId: string,
-    profileId?: string | null,
   ): Promise<GraphConceptLookupResult> {
     const normalizedReference = validateGraphConceptLookupReference(reference);
-    const snapshot = await this.knowledgeSnapshot(profileId);
+    const snapshot = await this.knowledgeSnapshot();
     if (snapshot.snapshotId !== sourceSnapshotId) {
       return boundedLookupResult({ status: "stale", sourceSnapshotId: snapshot.snapshotId });
     }
-    const compilation = this.topologyForSnapshot(snapshot, profileId);
+    const compilation = this.topologyForSnapshot(snapshot);
     const index = normalizedReference.kind === "concept-id"
       ? compilation.conceptIndexById.get(normalizedReference.value)
       : compilation.conceptIndexByFilePath.get(normalizedReference.value);
@@ -638,14 +643,13 @@ export class WorkspaceGraph {
   async graphConceptDetailByIndex(
     index: number,
     sourceSnapshotId: string,
-    profileId?: string | null,
   ): Promise<GraphConceptDetailByIndexResult> {
     if (!Number.isSafeInteger(index) || index < 0) throw new Error("Graph concept detail index must be a non-negative safe integer.");
-    const snapshot = await this.knowledgeSnapshot(profileId);
+    const snapshot = await this.knowledgeSnapshot();
     if (snapshot.snapshotId !== sourceSnapshotId) {
       return boundedDetailResult({ status: "stale", sourceSnapshotId: snapshot.snapshotId, index });
     }
-    const conceptIds = this.conceptIdsForSnapshot(snapshot, profileId);
+    const conceptIds = this.conceptIdsForSnapshot(snapshot);
     const conceptId = conceptIds[index];
     if (!conceptId) return boundedDetailResult({ status: "missing", sourceSnapshotId: snapshot.snapshotId, index });
     const detailIndex = this.detailIndex(snapshot);
@@ -949,12 +953,12 @@ export class WorkspaceGraph {
 
   private idForPath(filePath: string): NoteId { return `note:unknown:${canonicalPath(path.basename(filePath))}` as NoteId; }
 
-  private conceptIdsForSnapshot(snapshot: KnowledgeGraphSnapshot, profileId?: string | null): readonly string[] {
-    return this.topologyForSnapshot(snapshot, profileId).conceptIds;
+  private conceptIdsForSnapshot(snapshot: KnowledgeGraphSnapshot): readonly string[] {
+    return this.topologyForSnapshot(snapshot).conceptIds;
   }
 
-  private topologyForSnapshot(snapshot: KnowledgeGraphSnapshot, profileId?: string | null): GraphTopologyCompilation {
-    const cacheKey = profileCacheKey(profileId);
+  private topologyForSnapshot(snapshot: KnowledgeGraphSnapshot): GraphTopologyCompilation {
+    const cacheKey = snapshot.snapshotId;
     const cached = this.topologyCache.get(cacheKey);
     if (cached?.topology.sourceSnapshotId === snapshot.snapshotId) return cached;
     const compilation = compileGraphTopology(snapshot);
@@ -1016,10 +1020,10 @@ function genericOntologyActive(): WorkspaceOntologyActive {
 }
 
 function ontologySnapshotCacheKey(
-  profileId: string | null | undefined,
+  format: NoteRootFormat,
   active: KnowledgeGraphSnapshot["activeOntology"],
 ): string {
-  return `${profileId?.trim() || "generic-markdown"}:${active.state}:${active.revision ?? "none"}`;
+  return `${format.status.id}:${active.state}:${active.revision ?? "none"}`;
 }
 
 function ontologyReviewIdentity(active: WorkspaceOntologyActive): OntologyReviewState["active"] {
@@ -1071,8 +1075,6 @@ function ontologyActiveDiagnostics(active: WorkspaceOntologyActive): readonly Gr
     }],
   }));
 }
-function profileCacheKey(profileId?: string | null): string { return profileId?.trim() || "generic-markdown"; }
-
 function boundedSummaryResult(input: Omit<GraphConceptSummaryResult, "payloadBytes">): GraphConceptSummaryResult {
   const result = { ...input, payloadBytes: 0 };
   result.payloadBytes = stableJsonBytes(result);
@@ -1163,7 +1165,7 @@ function boundedConceptDetailResult(
     properties,
     relations,
     findings,
-    profile: snapshot.activeProfile,
+    format: snapshot.activeFormat,
     ontology: snapshot.activeOntology,
     omitted: {
       properties: allProperties.length - properties.length,

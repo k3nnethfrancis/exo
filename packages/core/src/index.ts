@@ -6,7 +6,7 @@ export * from "./terminal-settings";
 export * from "./notes";
 export * from "./onboarding-state";
 export * from "./knowledge-graph";
-export * from "./knowledge-profile";
+export * from "./note-root-format";
 export * from "./workspace-ontology";
 export * from "./ontology-review";
 export * from "./graph-projection";

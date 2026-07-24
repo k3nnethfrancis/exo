@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { GRAPH_CONCEPT_SUMMARY_MAX_BYTES } from "../graph-projection";
+import { okf01Format } from "../note-root-format";
 import { WorkspaceGraph, workspaceNoteId } from "../workspace-graph";
 import { WorkspaceOntologyStore } from "../workspace-ontology";
 import type { WorkspaceModel } from "../types";
@@ -179,9 +180,9 @@ describe("WorkspaceGraph", () => {
     await writeFile(path.join(notes, "typed.md"), "---\ntype: CustomThing\nproducer_field: keep\n---\n# Typed\n");
     await writeFile(path.join(notes, "untyped.md"), "---\nunknown: survives\n---\n# Untyped\n");
 
-    const snapshot = await new WorkspaceGraph(model(workspace, notes)).knowledgeSnapshot("okf");
+    const snapshot = await new WorkspaceGraph(model(workspace, notes), { noteRootFormat: okf01Format }).knowledgeSnapshot();
 
-    expect(snapshot.activeProfile).toMatchObject({ id: "okf", version: "0.1" });
+    expect(snapshot.activeFormat).toMatchObject({ id: "okf", version: "0.1" });
     expect(snapshot.concepts.find((concept) => concept.label === "Typed")?.properties).toMatchObject({ producer_field: "keep" });
     expect(snapshot.findings).toContainEqual(expect.objectContaining({ code: "okf.missing-type", conceptIds: ["note:notes:untyped.md"] }));
   });
@@ -289,26 +290,25 @@ describe("WorkspaceGraph", () => {
     const focusPath = path.join(notes, "focus.md");
     await writeFile(focusPath, ["---", "title: Focus", "type: Document", ...properties, "---", links].join("\n"));
     await writeFile(path.join(notes, "target.md"), "# Target\n");
-    const graph = new WorkspaceGraph(model(workspace, notes));
+    const graph = new WorkspaceGraph(model(workspace, notes), { noteRootFormat: okf01Format });
 
-    const firstTopology = await graph.graphTopology("okf");
-    const secondTopology = await graph.graphTopology("okf");
+    const firstTopology = await graph.graphTopology();
+    const secondTopology = await graph.graphTopology();
     expect(firstTopology.nodes.identityKeys.byteLength).toBeGreaterThan(0);
     expect(firstTopology.nodes.identityKeys).toBe(secondTopology.nodes.identityKeys);
     expect(firstTopology.transportHash).toBe(secondTopology.transportHash);
     const summaries = await graph.graphConceptSummaries(
       Array.from({ length: firstTopology.nodeCount }, (_, index) => index),
       firstTopology.sourceSnapshotId,
-      "okf",
     );
     expect(summaries.status).toBe("ok");
     const focusIndex = summaries.summaries.find((summary) => summary.label === "Focus")?.index;
     expect(focusIndex).toBeTypeOf("number");
-    const detail = await graph.graphConceptDetailByIndex(focusIndex ?? -1, firstTopology.sourceSnapshotId, "okf");
+    const detail = await graph.graphConceptDetailByIndex(focusIndex ?? -1, firstTopology.sourceSnapshotId);
 
     expect(detail.status).toBe("ok");
     expect(detail.payloadBytes).toBeLessThanOrEqual(256 * 1024);
-    expect(detail.detail?.profile).toMatchObject({ id: "okf", version: "0.1" });
+    expect(detail.detail?.format).toMatchObject({ id: "okf", version: "0.1" });
     expect(detail.detail?.properties).toHaveLength(64);
     expect(detail.detail?.relations).toHaveLength(128);
     expect(detail.detail?.findings).toHaveLength(64);
@@ -321,15 +321,15 @@ describe("WorkspaceGraph", () => {
       },
     });
 
-    await expect(graph.graphConceptSummaries([999], firstTopology.sourceSnapshotId, "okf")).resolves.toMatchObject({ status: "missing" });
-    await expect(graph.graphConceptSummaries(Array.from({ length: 65 }, (_, index) => index), firstTopology.sourceSnapshotId, "okf"))
+    await expect(graph.graphConceptSummaries([999], firstTopology.sourceSnapshotId)).resolves.toMatchObject({ status: "missing" });
+    await expect(graph.graphConceptSummaries(Array.from({ length: 65 }, (_, index) => index), firstTopology.sourceSnapshotId))
       .rejects.toThrow("limited to 64 nodes");
 
     await writeFile(focusPath, "# Changed\n");
     await graph.refreshFile(focusPath);
-    await expect(graph.graphConceptDetailByIndex(focusIndex ?? -1, firstTopology.sourceSnapshotId, "okf"))
+    await expect(graph.graphConceptDetailByIndex(focusIndex ?? -1, firstTopology.sourceSnapshotId))
       .resolves.toMatchObject({ status: "stale" });
-    await expect(graph.graphConceptSummaries([focusIndex ?? -1], firstTopology.sourceSnapshotId, "okf"))
+    await expect(graph.graphConceptSummaries([focusIndex ?? -1], firstTopology.sourceSnapshotId))
       .resolves.toMatchObject({ status: "stale" });
   });
 

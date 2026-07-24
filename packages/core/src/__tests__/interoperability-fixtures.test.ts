@@ -6,6 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { readWorkspaceDocument } from "../notes";
+import { okf01Format } from "../note-root-format";
 import type { RelationEdge } from "../knowledge-graph";
 import type { WorkspaceModel } from "../types";
 import { WorkspaceGraph } from "../workspace-graph";
@@ -89,9 +90,9 @@ describe("public graph interoperability fixtures", () => {
   it("projects the pinned Google slice as two open OKF Concepts with evidenced Relations", async () => {
     const bundle = path.join(fixtureRoot, "google-knowledge-catalog", "bundle");
     const before = await treeSha256(bundle);
-    const graph = new WorkspaceGraph(workspaceModel(bundle, [{ id: "google", path: bundle }]));
-    const first = await graph.knowledgeSnapshot("okf");
-    const second = await graph.knowledgeSnapshot("okf");
+    const graph = okfGraph(workspaceModel(bundle, [{ id: "google", path: bundle }]));
+    const first = await graph.knowledgeSnapshot();
+    const second = await graph.knowledgeSnapshot();
     const noteConcepts = first.concepts.filter((concept) => concept.noteId);
 
     expect(first.snapshotId).toBe(second.snapshotId);
@@ -143,7 +144,7 @@ describe("public graph interoperability fixtures", () => {
     const before = await treeSha256(wiki);
     const graph = new WorkspaceGraph(workspaceModel(wiki, [{ id: "openwiki", path: wiki }]));
     const generic = await graph.knowledgeSnapshot();
-    const okf = await graph.knowledgeSnapshot("okf");
+    const okf = await okfGraph(workspaceModel(wiki, [{ id: "openwiki", path: wiki }])).knowledgeSnapshot();
 
     expect(generic.concepts.filter(({ noteId }) => noteId).map(({ relativePath }) => relativePath)).toEqual([
       "architecture/index.md",
@@ -181,10 +182,10 @@ describe("public graph interoperability fixtures", () => {
     const runtimeRoot = path.join(temporary, ".exo");
     const before = await treeSha256(notes);
 
-    const formatOnly = await new WorkspaceGraph(
+    const formatOnly = await okfGraph(
       workspaceModel(workspace, [{ id: "notes", path: notes }]),
       { runtimeRoot },
-    ).knowledgeSnapshot("okf");
+    ).knowledgeSnapshot();
     const source = formatOnly.concepts.find(({ relativePath }) => relativePath === "source.md");
     expect(source).toMatchObject({
       conceptTypes: ["Custom Claim"],
@@ -200,10 +201,10 @@ describe("public graph interoperability fixtures", () => {
     const store = new WorkspaceOntologyStore({ workspaceRoot: workspace, runtimeRoot });
     const candidate = await store.inspectCandidate();
     await store.keepCandidate(candidate.sourceRevision ?? "");
-    const interpreted = await new WorkspaceGraph(
+    const interpreted = await okfGraph(
       workspaceModel(workspace, [{ id: "notes", path: notes }]),
       { runtimeRoot },
-    ).knowledgeSnapshot("okf");
+    ).knowledgeSnapshot();
     expect(interpreted.activeOntology).toMatchObject({ state: "active", id: "fixture-meaning" });
     expect(interpreted.concepts.find(({ relativePath }) => relativePath === "source.md")?.conceptTypes)
       .toEqual(["Custom Claim"]);
@@ -262,7 +263,7 @@ describe("public graph interoperability fixtures", () => {
     await store.keepCandidate(candidate.sourceRevision ?? "");
     const model = workspaceModel(workspace, [{ id: "a", path: rootA }, { id: "b", path: rootB }]);
 
-    const withLocalTarget = await new WorkspaceGraph(model, { runtimeRoot }).knowledgeSnapshot("okf");
+    const withLocalTarget = await okfGraph(model, { runtimeRoot }).knowledgeSnapshot();
     expect(relationFor(withLocalTarget.relations, "note:a:source.md", "references", "Target"))
       .toMatchObject({ target: "note:a:target.md", resolution: "resolved" });
     expect(relationFor(withLocalTarget.relations, "note:a:source.md", "supports"))
@@ -273,7 +274,7 @@ describe("public graph interoperability fixtures", () => {
       .toMatchObject({ resolution: "unresolved", origin: "ontology" });
 
     await unlink(path.join(rootA, "target.md"));
-    const withoutLocalTarget = await new WorkspaceGraph(model, { runtimeRoot }).knowledgeSnapshot("okf");
+    const withoutLocalTarget = await okfGraph(model, { runtimeRoot }).knowledgeSnapshot();
     const documentTarget = relationFor(withoutLocalTarget.relations, "note:a:source.md", "references", "Target");
     const ontologyTarget = relationFor(withoutLocalTarget.relations, "note:a:source.md", "supports");
     expect(documentTarget).toMatchObject({ resolution: "unresolved" });
@@ -323,10 +324,10 @@ describe("public graph interoperability fixtures", () => {
     const candidate = await store.inspectCandidate();
     await store.keepCandidate(candidate.sourceRevision ?? "");
 
-    const snapshot = await new WorkspaceGraph(
+    const snapshot = await okfGraph(
       workspaceModel(workspace, [{ id: "notes", path: notes }]),
       { runtimeRoot },
-    ).knowledgeSnapshot("okf");
+    ).knowledgeSnapshot();
     expect(snapshot.concepts.filter(({ noteId }) => noteId).map(({ relativePath }) => relativePath)).toEqual(["source.md"]);
     expect(snapshot.relations).toEqual([
       expect.objectContaining({ label: "External index", resolution: "external", origin: "document" }),
@@ -347,6 +348,10 @@ function workspaceModel(
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
   };
+}
+
+function okfGraph(model: WorkspaceModel, options: { runtimeRoot?: string } = {}): WorkspaceGraph {
+  return new WorkspaceGraph(model, { ...options, noteRootFormat: okf01Format });
 }
 
 function countByResolution(relations: readonly RelationEdge[]): Record<string, number> {

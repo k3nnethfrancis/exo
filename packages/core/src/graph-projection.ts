@@ -51,7 +51,7 @@ export interface GraphTopology {
   version: typeof GRAPH_TOPOLOGY_VERSION;
   layoutVersion: typeof GRAPH_LAYOUT_VERSION;
   sourceSnapshotId: string;
-  profileHash: string;
+  formatHash: string;
   topologyHash: string;
   transportHash: string;
   layoutEpochId: string;
@@ -111,7 +111,7 @@ export interface BoundedGraphConceptDetail {
   properties: readonly Readonly<{ key: string; value: ConceptNode["properties"][string] }>[];
   relations: readonly GraphConceptRelationDetail[];
   findings: readonly GraphFinding[];
-  profile: KnowledgeGraphSnapshot["activeProfile"];
+  format: KnowledgeGraphSnapshot["activeFormat"];
   ontology: KnowledgeGraphSnapshot["activeOntology"];
   omitted: {
     properties: number;
@@ -180,7 +180,7 @@ export function compileGraphTopology(snapshot: KnowledgeGraphSnapshot): GraphTop
 
   const topology = createGraphTopology({
     sourceSnapshotId: snapshot.snapshotId,
-    activeProfile: snapshot.activeProfile,
+    activeFormat: snapshot.activeFormat,
     activeOntology: snapshot.activeOntology,
     seed,
     nodes: { identityKeys, seeds: nodeSeeds, groups, degrees, visualClasses: nodeVisualClasses },
@@ -213,7 +213,7 @@ export function normalizeGraphConceptFilePath(filePath: string): string {
 
 export function createGraphTopology(input: {
   sourceSnapshotId: string;
-  activeProfile: KnowledgeGraphSnapshot["activeProfile"];
+  activeFormat: KnowledgeGraphSnapshot["activeFormat"];
   activeOntology: KnowledgeGraphSnapshot["activeOntology"];
   seed: number;
   nodes: GraphTopologyNodeArrays;
@@ -221,16 +221,16 @@ export function createGraphTopology(input: {
   omitted?: { tagConcepts: number; tagRelations: number };
 }): GraphTopology {
   validateTopologyArrays(input.nodes, input.edges);
-  const profileHash = digest("graph-profile", {
-    id: input.activeProfile.id,
-    version: input.activeProfile.version,
-    source: input.activeProfile.source,
-    state: input.activeProfile.state,
+  const formatHash = digest("graph-format", {
+    id: input.activeFormat.id,
+    version: input.activeFormat.version,
+    source: input.activeFormat.source,
+    state: input.activeFormat.state,
     ontology: input.activeOntology,
   });
   const topologyHash = digestTopology("graph-topology", {
     version: GRAPH_TOPOLOGY_VERSION,
-    profileHash,
+    formatHash,
     nodes: input.nodes,
     edges: input.edges,
   });
@@ -242,7 +242,7 @@ export function createGraphTopology(input: {
   const transportHash = digestTopology("graph-transport", {
     version: GRAPH_TOPOLOGY_VERSION,
     sourceSnapshotId: input.sourceSnapshotId,
-    profileHash,
+    formatHash,
     topologyHash,
     layoutEpochId,
     seed: input.seed >>> 0,
@@ -253,7 +253,7 @@ export function createGraphTopology(input: {
     version: GRAPH_TOPOLOGY_VERSION,
     layoutVersion: GRAPH_LAYOUT_VERSION,
     sourceSnapshotId: input.sourceSnapshotId,
-    profileHash,
+    formatHash,
     topologyHash,
     transportHash,
     layoutEpochId,
@@ -303,13 +303,13 @@ function graphGeography(relativePath?: string): string | undefined {
 
 function projectionSeed(snapshot: KnowledgeGraphSnapshot): number {
   // Content edits must not reseed the whole scene. The layout seed describes
-  // the stable workspace/profile/view algorithm, not one generated snapshot.
+  // the stable workspace/Format/view algorithm, not one generated snapshot.
   const identity = JSON.stringify({
     version: GRAPH_TOPOLOGY_VERSION,
     layoutVersion: GRAPH_LAYOUT_VERSION,
     roots: [...snapshot.scope.noteRootIds].sort(),
-    profile: snapshot.activeProfile.id,
-    profileVersion: snapshot.activeProfile.version,
+    format: snapshot.activeFormat.id,
+    formatVersion: snapshot.activeFormat.version,
     ontology: snapshot.activeOntology,
   });
   return createHash("sha256").update(identity).digest().readUInt32LE(0);

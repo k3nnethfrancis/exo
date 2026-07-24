@@ -73,7 +73,7 @@ export interface KnowledgeGraphSnapshot {
   concepts: readonly ConceptNode[];
   relations: readonly RelationEdge[];
   findings: readonly GraphFinding[];
-  activeProfile: KnowledgeProfileStatus;
+  activeFormat: NoteRootFormatStatus;
   activeOntology: ActiveOntologyStatus;
 }
 
@@ -94,12 +94,12 @@ export interface GraphFinding {
   evidence: readonly RelationEvidence[];
 }
 
-export interface KnowledgeProfileStatus {
+export interface NoteRootFormatStatus {
   id: string;
   version: string;
   label: string;
   source: "built-in" | "workspace";
-  state: "active" | "fallback";
+  state: "active";
 }
 
 export function graphPropertyRecord(value: Record<string, unknown>): Record<string, GraphPropertyValue> {
@@ -127,11 +127,11 @@ export function knowledgeGraphSnapshotId(
   concepts: readonly ConceptNode[],
   relations: readonly RelationEdge[],
   findings: readonly GraphFinding[],
-  profile: KnowledgeProfileStatus,
+  format: NoteRootFormatStatus,
   ontology: ActiveOntologyStatus,
 ): string {
   const digest = createHash("sha256")
-    .update(JSON.stringify({ version: KNOWLEDGE_GRAPH_VERSION, scope, concepts, relations, findings, profile, ontology }))
+    .update(JSON.stringify({ version: KNOWLEDGE_GRAPH_VERSION, scope, concepts, relations, findings, format, ontology }))
     .digest("hex")
     .slice(0, 16);
   return `knowledge-graph:${KNOWLEDGE_GRAPH_VERSION}:${digest}`;

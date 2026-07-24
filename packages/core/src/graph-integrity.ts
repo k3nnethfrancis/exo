@@ -1,7 +1,7 @@
 import type { GraphFinding, KnowledgeGraphSnapshot } from "./knowledge-graph";
 
 export interface GraphIntegrityDimension {
-  id: "identity" | "resolution" | "evidence" | "profile-conformance";
+  id: "identity" | "resolution" | "evidence" | "format-conformance";
   label: string;
   measured: number;
   total: number;
@@ -12,7 +12,7 @@ export interface GraphIntegrityDimension {
 export interface GraphIntegrityReport {
   version: "0.1";
   snapshotId: string;
-  profileId: string;
+  formatId: string;
   dimensions: readonly GraphIntegrityDimension[];
 }
 
@@ -34,16 +34,16 @@ export function evaluateGraphIntegrity(snapshot: KnowledgeGraphSnapshot): GraphI
     [relation.source, relation.target],
     [relation.id],
   ));
-  const profileFindings = snapshot.findings.filter((item) => item.code.startsWith(`${snapshot.activeProfile.id}.`));
+  const formatFindings = snapshot.findings.filter((item) => item.code.startsWith(`${snapshot.activeFormat.id}.`));
   return {
     version: "0.1",
     snapshotId: snapshot.snapshotId,
-    profileId: snapshot.activeProfile.id,
+    formatId: snapshot.activeFormat.id,
     dimensions: [
       dimension("identity", "Stable identity", snapshot.concepts.length - duplicateIds.length, snapshot.concepts.length, identityFindings),
       dimension("resolution", "Resolved relations", snapshot.relations.length - unresolvedRelations.length, snapshot.relations.length, resolutionFindings),
       dimension("evidence", "Evidence coverage", snapshot.relations.length - relationsWithoutEvidence.length, snapshot.relations.length, evidenceFindings),
-      dimension("profile-conformance", "Profile conformance", Math.max(0, snapshot.concepts.length - profileFindings.length), snapshot.concepts.length, profileFindings),
+      dimension("format-conformance", "Format conformance", Math.max(0, snapshot.concepts.length - formatFindings.length), snapshot.concepts.length, formatFindings),
     ],
   };
 }
