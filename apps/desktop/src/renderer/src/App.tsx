@@ -61,7 +61,7 @@ import {
   type PaneLeaf,
   type PaneNodeId,
 } from "./hooks/usePaneTree";
-import { collectOpenEditorPaths, findActiveEditorPath, findFocusedEditorPath } from "./paneTreeSelectors";
+import { collectOpenEditorPaths, findFocusedEditorPath } from "./paneTreeSelectors";
 import {
   clampNumber,
   DEFAULT_EDITOR_FONT_SIZE,
@@ -507,7 +507,10 @@ export function App() {
           }),
         ),
       );
-      const restoredActivePath = findActiveEditorPath(restoredTree);
+      // `usePaneTree` normalizes restored focus to the first surviving leaf.
+      // Use the same owner while bootstrap loads documents, before React has
+      // published the restored canvas back to this closure.
+      const restoredActivePath = findFocusedEditorPath(restoredTree, collectLeaves(restoredTree)[0]?.id ?? "");
       setActiveDocumentPath(restoredActivePath ?? restoredPaths.values().next().value ?? null);
     }
   }
