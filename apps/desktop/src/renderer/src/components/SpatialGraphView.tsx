@@ -47,13 +47,15 @@ interface SpatialGraphViewProps {
   refreshKey?: string;
   inspectedConcept: InspectedConcept | null;
   focusRequest: GraphFocusRequest | null;
-  activeEditorPath?: string | null;
+  /** Historical editor context for Escape; Graph focus has no active document. */
+  graphReturnPath?: string | null;
   isTargetOpen: (target: string) => boolean;
   onInspectConcept: (concept: InspectedConcept) => void;
   onFocusConcept: (concept: InspectedConcept) => void;
   onRestoreEditorConcept: (filePath: string) => void;
   onActivateOpenTarget: (filePath: string) => void;
   onOpenTarget: (target: string) => void;
+  onFocus: () => void;
 }
 
 interface RecentGraphPick {
@@ -70,7 +72,7 @@ type DebugCanvas = HTMLCanvasElement & {
     selected: number;
     pathTarget: number;
     pathNodeCount: number;
-    activeEditorPath: string | null;
+    graphReturnPath: string | null;
     inspectedFilePath: string | null;
   }) | null;
   __exoGraphPointForIndex?: (index: number) => { x: number; y: number; visible: boolean } | null;
@@ -84,13 +86,14 @@ export function SpatialGraphView({
   refreshKey,
   inspectedConcept,
   focusRequest,
-  activeEditorPath,
+  graphReturnPath,
   isTargetOpen,
   onInspectConcept,
   onFocusConcept,
   onRestoreEditorConcept,
   onActivateOpenTarget,
   onOpenTarget,
+  onFocus,
 }: SpatialGraphViewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const webGpuCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -98,9 +101,9 @@ export function SpatialGraphView({
   const workerRef = useRef<Worker | null>(null);
   const refreshCoordinatorRef = useRef<GraphSnapshotRefreshCoordinator | null>(null);
   const topologyRef = useRef<GraphTopology | null>(null);
-  const activeEditorPathRef = useRef(activeEditorPath ?? null);
+  const graphReturnPathRef = useRef(graphReturnPath ?? null);
   const inspectedConceptRef = useRef(inspectedConcept);
-  activeEditorPathRef.current = activeEditorPath ?? null;
+  graphReturnPathRef.current = graphReturnPath ?? null;
   inspectedConceptRef.current = inspectedConcept;
   const summaryCacheRef = useRef(new Map<string, GraphConceptSummary>());
   const detailCacheRef = useRef(new Map<string, BoundedGraphConceptDetail>());
@@ -286,7 +289,7 @@ export function SpatialGraphView({
         selected: runtimeRef.current?.getScene()?.interaction.selected ?? -1,
         pathTarget: runtimeRef.current?.getScene()?.interaction.pathTarget ?? -1,
         pathNodeCount: runtimeRef.current?.getScene()?.interaction.pathNodes.reduce((count, value) => count + Number(value > 0), 0) ?? 0,
-        activeEditorPath: activeEditorPathRef.current,
+        graphReturnPath: graphReturnPathRef.current,
         inspectedFilePath: inspectedConceptRef.current?.filePath ?? null,
       };
     };
@@ -605,12 +608,12 @@ export function SpatialGraphView({
                 runtime.cancelMotion();
                 return;
               }
-              const decision = graphEscapeDecision(scene.interaction.pathTarget >= 0, activeEditorPath, inspectedConcept?.filePath);
+              const decision = graphEscapeDecision(scene.interaction.pathTarget >= 0, graphReturnPath, inspectedConcept?.filePath);
               if (decision === "clear-route") {
                 runtime.clearRoute();
                 setRouteNodeCount(0);
               }
-              else if (decision === "restore-editor" && activeEditorPath) onRestoreEditorConcept(activeEditorPath);
+              else if (decision === "restore-editor" && graphReturnPath) onRestoreEditorConcept(graphReturnPath);
               else {
                 runtime.setSelection(-1);
                 setRouteNodeCount(0);
@@ -630,6 +633,7 @@ export function SpatialGraphView({
           onLostPointerCapture={onPointerCancel}
           onPointerCancel={onPointerCancel}
           onPointerDown={onPointerDown}
+          onFocus={onFocus}
           onPointerLeave={() => pointerSessionRef.current.activePointers === 0 && runtimeRef.current?.setHovered(-1)}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}

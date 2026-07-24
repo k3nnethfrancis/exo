@@ -335,10 +335,10 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     })).toMatchObject({ moving: false, pendingFrame: false });
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
       return (canvas as HTMLCanvasElement & {
-        __exoGraphSnapshot?: () => { activeEditorPath: string | null; inspectedFilePath: string | null };
+        __exoGraphSnapshot?: () => { graphReturnPath: string | null; inspectedFilePath: string | null };
       }).__exoGraphSnapshot?.();
     })).toMatchObject({
-      activeEditorPath: path.join(workspaceRoot, "notes/test-notes/graph-source.md"),
+      graphReturnPath: path.join(workspaceRoot, "notes/test-notes/graph-source.md"),
       inspectedFilePath: path.join(workspaceRoot, "notes/test-notes/graph-target.md"),
     });
     await graphCanvas.focus();

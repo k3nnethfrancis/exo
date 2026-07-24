@@ -5,10 +5,11 @@ import { SpatialGraphView } from "./SpatialGraphView";
 
 interface GraphPaneProps {
   onClose: () => void;
+  onFocus: () => void;
   onOpenTarget: (target: string) => void;
   inspectedConcept: InspectedConcept | null;
   focusRequest: GraphFocusRequest | null;
-  activeEditorPath?: string | null;
+  graphReturnPath?: string | null;
   isTargetOpen: (target: string) => boolean;
   onInspectConcept: (concept: InspectedConcept) => void;
   onFocusConcept: (concept: InspectedConcept) => void;
@@ -26,13 +27,14 @@ export function GraphPane(props: GraphPaneProps) {
       <SpatialGraphView
         inspectedConcept={props.inspectedConcept}
         focusRequest={props.focusRequest}
-        activeEditorPath={props.activeEditorPath}
+        graphReturnPath={props.graphReturnPath}
         isTargetOpen={props.isTargetOpen}
         onInspectConcept={props.onInspectConcept}
         onFocusConcept={props.onFocusConcept}
         onRestoreEditorConcept={props.onRestoreEditorConcept}
         onActivateOpenTarget={props.onActivateOpenTarget}
         onOpenTarget={props.onOpenTarget}
+        onFocus={props.onFocus}
       />
     </section>
   );
