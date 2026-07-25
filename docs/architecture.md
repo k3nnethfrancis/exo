@@ -230,7 +230,7 @@ A future Plugin is an installable distribution bundle, not another deep module o
   who authored bytes outside the explicit invocation/response envelopes.
 - Public CLI commands, command-server routes, and shared protocol types require the repository's architecture-review gate.
 
-See [`extension-architecture.md`](extension-architecture.md),
-[`workspace-ontology.md`](workspace-ontology.md), [`../CONTEXT.md`](../CONTEXT.md),
+See [`workspace-ontology.md`](workspace-ontology.md), [`../CONTEXT.md`](../CONTEXT.md),
 and [`adr/0002-folder-indexes-as-ontology.md`](adr/0002-folder-indexes-as-ontology.md)
-for the durable boundary and vocabulary.
+for the durable boundary and vocabulary. [`adr/0003-plugins-are-distribution-bundles.md`](adr/0003-plugins-are-distribution-bundles.md)
+records the distribution boundary.

@@ -22,7 +22,6 @@ define the public product contract.
 - [workspace-ontology.md](workspace-ontology.md) — reviewed, user-owned `ontology.yaml`.
 - [provider-mcp-onboarding.md](provider-mcp-onboarding.md) — bounded MCP and CLI access.
 - [terminal-runtime-decision.md](terminal-runtime-decision.md) — direct-PTY runtime contract.
-- [extension-architecture.md](extension-architecture.md) — the earned extension ladder.
 
 ## Maintainer references
 

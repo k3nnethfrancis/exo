@@ -53,15 +53,3 @@ template, if real dogfood earns it, will be copy-out only and remain user-owned.
 ## Boundary
 
 This does not restore a generic MCP manager, arbitrary server form, plugin runtime, or authority layer. Exo exposes only its own bounded retrieval context so configured agents can orient and research within the same Workspace a person selected.
-
-## Stabilization gate
-
-Caller-cwd resolution, singleton fallback, ambiguity refusal, app-scope parity,
-and the frozen two-tool list are automated. Before the contract is promoted
-from alpha, finish protocol/output/setup coverage and dogfood 10–20
-context-seeking sessions across Claude and Codex. Record whether agents
-discover Exo retrieval, search before reading, and remain inside resolved
-roots. A failure to discover tools may earn a user-managed copy-out instruction
-template; it does not earn an automatic host-file writer.
-
--- Shoshin | 2026-07-13
