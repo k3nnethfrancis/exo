@@ -2,12 +2,26 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import {
+  type ExoCommandIndexStatusResponse,
+  type ExoCommandIndexSyncResponse,
+  type ExoCommandSearchResponse,
+  type ExoCommandStatusWithControlPlane,
+  type ExoSpawnAgentCommandResponse,
+} from "@exo/core";
 import { EXO_CLI_COMMANDS } from "@exo/core/operator-help";
+import { AppClient } from "./app-client";
 import { runCli } from "./index";
 
 const client = {
-  getStatus: async () => ({ ok: true }), showWindow: async () => {}, search: async (query: string) => ({ query, mode: "lexical", source: "filesystem", warnings: [], results: [] }), getIndexStatus: async () => ({ status: "ready" }), syncIndex: async () => ({ ok: true }), openFile: async () => {}, spawnAgentCommand: async (handle: string, task: string) => ({ handle, task }),
-};
+  getStatus: async (): Promise<ExoCommandStatusWithControlPlane> => statusResponse(),
+  showWindow: async () => {},
+  search: async (query: string): Promise<ExoCommandSearchResponse> => ({ query, mode: "lexical", source: "filesystem", warnings: [], results: [] }),
+  getIndexStatus: async (): Promise<ExoCommandIndexStatusResponse> => indexStatusResponse(),
+  syncIndex: async (): Promise<ExoCommandIndexSyncResponse> => ({ status: indexStatusResponse(), phases: [], warnings: [] }),
+  openFile: async () => {},
+  spawnAgentCommand: async (): Promise<ExoSpawnAgentCommandResponse> => spawnResponse(),
+} satisfies Pick<AppClient, "getStatus" | "showWindow" | "search" | "getIndexStatus" | "syncIndex" | "openFile" | "spawnAgentCommand">;
 const connect = async () => client;
 
 describe("minimal Exo operator CLI", () => {
@@ -36,7 +50,7 @@ describe("minimal Exo operator CLI", () => {
     const offsets: number[] = [];
     const pagingClient = {
       ...client,
-      search: async (query: string, options: { limit?: number; offset?: number } = {}) => {
+      search: async (query: string, options: { limit?: number; offset?: number } = {}): Promise<ExoCommandSearchResponse> => {
         const limit = options.limit ?? 20;
         const offset = options.offset ?? 0;
         offsets.push(offset);
@@ -56,7 +70,7 @@ describe("minimal Exo operator CLI", () => {
           hasMore: resultPaths.length > offset + results.length,
         };
       },
-    };
+    } satisfies typeof client;
     const env = {
       ...process.env,
       EXO_WORKSPACE_ROOT: workspaceRoot,
@@ -167,3 +181,49 @@ describe("minimal Exo operator CLI", () => {
     }
   });
 });
+
+function statusResponse(): ExoCommandStatusWithControlPlane {
+  return {
+    workspace: {
+      workspaceRoot: "/workspace",
+      defaultTerminalCwd: "/workspace",
+      noteRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
+      searchEngine: "qmd",
+    },
+    terminals: [],
+    controlPlane: {
+      runtimeRoot: "/workspace/.exo",
+      serverJsonPath: "/workspace/.exo/server.json",
+      pid: 123,
+      port: 456,
+      baseUrl: "http://127.0.0.1:456",
+    },
+  };
+}
+
+function indexStatusResponse(): ExoCommandIndexStatusResponse {
+  return {
+    enabled: true,
+    mode: "hybrid",
+    backend: "qmd",
+    dbPath: "/workspace/.exo/index.sqlite",
+    runtimePath: "/workspace/.exo",
+    indexedRoots: [],
+    documentCount: 0,
+    pendingEmbeddings: 0,
+    hasVectorIndex: false,
+    lastUpdated: null,
+    warnings: [],
+    errors: [],
+  };
+}
+
+function spawnResponse(): ExoSpawnAgentCommandResponse {
+  return {
+    ok: true,
+    invocation: { id: "inv-1", status: "running", handle: "review", createdAt: "2026-07-24T00:00:00.000Z" },
+    terminal: { id: "term-1", title: "Review", cwd: "/workspace", kind: "shell", status: "running" },
+  };
+}

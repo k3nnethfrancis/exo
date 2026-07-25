@@ -1,7 +1,30 @@
 import { readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
-import { EXO_COMMAND_ROUTES, EXO_COMMAND_TOKEN_HEADER, type ExoCommandServerInfo } from "@exo/core";
+import {
+  EXO_COMMAND_ROUTES,
+  EXO_COMMAND_TOKEN_HEADER,
+  type ExoCommandIndexStatusResponse,
+  type ExoCommandIndexSyncResponse,
+  type ExoCommandIndexSyncRequest,
+  type ExoCommandOkResponse,
+  type ExoCommandSearchRequest,
+  type ExoCommandSearchResponse,
+  type ExoCommandServerInfo,
+  type ExoCommandStatusResponse,
+  type ExoCommandStatusTerminalInfo,
+  type ExoCommandStatusWithControlPlane,
+  type ExoCommandTerminalInfo,
+  type ExoCommandShowRequest,
+  type ExoOpenFileRequest,
+  type ExoSpawnAgentCommandRequest,
+  type ExoSpawnAgentCommandResponse,
+  type IndexedRoot,
+  type IndexSearchResponse,
+  type IndexStatus,
+  type IndexSyncResult,
+  type WorkspaceModel,
+} from "@exo/core";
 
 const defaultRequestTimeoutMs = 2_000;
 const defaultSearchRequestTimeoutMs = 30_000;
@@ -35,6 +58,8 @@ export interface AppClientProcessCheckDiagnostic {
   message?: string;
 }
 
+type ConnectedAppClientDiscovery = AppClientDiscoveryMetadata & { port: number; pid: number };
+
 export type AppClientConnectResult =
   | { ok: true; client: AppClient; discovery: AppClientDiscoveryMetadata }
   | { ok: false; failure: AppClientDiscoveryFailure };
@@ -46,7 +71,7 @@ export type AppClientConnectResult =
 export class AppClient {
   private constructor(
     private baseUrl: string,
-    private readonly discovery: AppClientDiscoveryMetadata,
+    private readonly discovery: ConnectedAppClientDiscovery,
     private readonly token: string,
     private readonly requestTimeoutMs = defaultRequestTimeoutMs,
     private readonly searchRequestTimeoutMs = defaultSearchRequestTimeoutMs,
@@ -93,7 +118,7 @@ export class AppClient {
     const searchRequestTimeoutMs = parsePositiveInt(env.EXO_APP_CLIENT_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
     const maintenanceRequestTimeoutMs =
       parsePositiveInt(env.EXO_APP_CLIENT_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
-    const discovery = { runtimeRoot, serverJsonPath, port: info.port, pid: info.pid };
+    const discovery: ConnectedAppClientDiscovery = { runtimeRoot, serverJsonPath, port: info.port, pid: info.pid };
     const client = new AppClient(baseUrl, discovery, info.token, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
 
     const initialProcessCheck = checkProcessLiveness(info.pid);
@@ -119,12 +144,11 @@ export class AppClient {
     }
   }
 
-  async getStatus(): Promise<Record<string, unknown>> {
-    const status = await this.get(EXO_COMMAND_ROUTES.status);
+  async getStatus(): Promise<ExoCommandStatusWithControlPlane> {
+    const status = await this.get(EXO_COMMAND_ROUTES.status, decodeExoCommandStatusResponse);
     return {
       ...status,
       controlPlane: {
-        ...(isRecord(status.controlPlane) ? status.controlPlane : {}),
         runtimeRoot: this.discovery.runtimeRoot,
         serverJsonPath: this.discovery.serverJsonPath,
         pid: this.discovery.pid,
@@ -135,46 +159,51 @@ export class AppClient {
   }
 
   async openFile(filePath: string): Promise<void> {
-    await this.post(EXO_COMMAND_ROUTES.open, { path: filePath });
+    const request: ExoOpenFileRequest = { path: filePath };
+    await this.post(EXO_COMMAND_ROUTES.open, request, decodeExoCommandOkResponse);
   }
 
   async showWindow(): Promise<void> {
-    await this.post(EXO_COMMAND_ROUTES.show, {});
+    const request: ExoCommandShowRequest = {};
+    await this.post(EXO_COMMAND_ROUTES.show, request, decodeExoCommandOkResponse);
   }
 
-  async search(query: string, options: { limit?: number; offset?: number } = {}): Promise<Record<string, unknown>> {
-    const params = new URLSearchParams({ q: query });
-    if (options.limit) params.set("limit", String(options.limit));
-    if (options.offset) params.set("offset", String(options.offset));
-    return this.get(`${EXO_COMMAND_ROUTES.search}?${params.toString()}`, this.searchRequestTimeoutMs);
+  async search(query: string, options: { limit?: number; offset?: number } = {}): Promise<ExoCommandSearchResponse> {
+    const request: ExoCommandSearchRequest = { q: query, ...options };
+    const params = new URLSearchParams({ q: request.q });
+    if (request.limit) params.set("limit", String(request.limit));
+    if (request.offset) params.set("offset", String(request.offset));
+    return this.get(`${EXO_COMMAND_ROUTES.search}?${params.toString()}`, decodeExoIndexSearchResponse, this.searchRequestTimeoutMs);
   }
 
-  async getIndexStatus(): Promise<Record<string, unknown>> {
-    return this.get(EXO_COMMAND_ROUTES.indexStatus);
+  async getIndexStatus(): Promise<ExoCommandIndexStatusResponse> {
+    return this.get(EXO_COMMAND_ROUTES.indexStatus, decodeExoIndexStatusResponse);
   }
 
-  async syncIndex(): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.indexSync, {}, this.maintenanceRequestTimeoutMs);
+  async syncIndex(): Promise<ExoCommandIndexSyncResponse> {
+    const request: ExoCommandIndexSyncRequest = {};
+    return this.post(EXO_COMMAND_ROUTES.indexSync, request, decodeExoIndexSyncResponse, this.maintenanceRequestTimeoutMs);
   }
 
-  async spawnAgentCommand(handle: string, task: string): Promise<Record<string, unknown>> {
-    return this.post(EXO_COMMAND_ROUTES.spawnAgentCommand, { handle, task }, this.maintenanceRequestTimeoutMs);
+  async spawnAgentCommand(handle: string, task: string): Promise<ExoSpawnAgentCommandResponse> {
+    const request: ExoSpawnAgentCommandRequest = { handle, task };
+    return this.post(EXO_COMMAND_ROUTES.spawnAgentCommand, request, decodeExoSpawnAgentCommandResponse, this.maintenanceRequestTimeoutMs);
   }
 
-  private async get(path: string, timeoutMs = this.requestTimeoutMs): Promise<any> {
+  private async get<T>(path: string, decode: (value: unknown) => T, timeoutMs = this.requestTimeoutMs): Promise<T> {
     try {
       const res = await fetch(`${this.baseUrl}${path}`, {
         headers: this.authHeaders(),
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-      return res.json();
+      return decodeSuccessfulResponse(await res.text(), "GET", path, decode);
     } catch (error) {
       throw enhanceTimeoutError(error, "GET", path, timeoutMs);
     }
   }
 
-  private async post(path: string, body: Record<string, unknown>, timeoutMs = this.requestTimeoutMs): Promise<any> {
+  private async post<T>(path: string, body: object, decode: (value: unknown) => T, timeoutMs = this.requestTimeoutMs): Promise<T> {
     try {
       const res = await fetch(`${this.baseUrl}${path}`, {
         method: "POST",
@@ -183,7 +212,7 @@ export class AppClient {
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-      return res.json();
+      return decodeSuccessfulResponse(await res.text(), "POST", path, decode);
     } catch (error) {
       throw enhanceTimeoutError(error, "POST", path, timeoutMs);
     }
@@ -195,6 +224,151 @@ export class AppClient {
       [EXO_COMMAND_TOKEN_HEADER]: this.token,
     };
   }
+}
+
+export function decodeExoCommandStatusResponse(value: unknown): ExoCommandStatusResponse {
+  if (!isExoCommandStatusResponse(value)) {
+    throw protocolShapeError("a valid status response");
+  }
+  return value;
+}
+
+export function decodeExoCommandOkResponse(value: unknown): ExoCommandOkResponse {
+  if (!isExoCommandOkResponse(value)) {
+    throw protocolShapeError("an { ok: true } response");
+  }
+  return value;
+}
+
+export function decodeExoIndexSearchResponse(value: unknown): IndexSearchResponse {
+  if (!isIndexSearchResponse(value)) {
+    throw protocolShapeError("a valid search response");
+  }
+  return value;
+}
+
+export function decodeExoIndexStatusResponse(value: unknown): IndexStatus {
+  if (!isIndexStatus(value)) {
+    throw protocolShapeError("a valid index status response");
+  }
+  return value;
+}
+
+export function decodeExoIndexSyncResponse(value: unknown): IndexSyncResult {
+  if (!isIndexSyncResult(value)) {
+    throw protocolShapeError("a valid index sync response");
+  }
+  return value;
+}
+
+export function decodeExoSpawnAgentCommandResponse(value: unknown): ExoSpawnAgentCommandResponse {
+  if (!isExoSpawnAgentCommandResponse(value)) {
+    throw protocolShapeError("a valid agent command spawn response");
+  }
+  return value;
+}
+
+function decodeSuccessfulResponse<T>(body: string, method: string, targetPath: string, decode: (value: unknown) => T): T {
+  let value: unknown;
+  try {
+    value = JSON.parse(body);
+  } catch {
+    throw protocolError(method, targetPath, "successful response was not valid JSON");
+  }
+  try {
+    return decode(value);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw protocolError(method, targetPath, detail.replace("Exo command-server protocol error: ", ""));
+  }
+}
+
+function protocolShapeError(expected: string): Error {
+  return new Error(`Exo command-server protocol error: expected ${expected}`);
+}
+
+function protocolError(method: string, targetPath: string, detail: string): Error {
+  return new Error(`Exo command-server protocol error for ${method} ${targetPath}: ${detail}.`);
+}
+
+function isExoCommandStatusResponse(value: unknown): value is ExoCommandStatusResponse {
+  return isRecord(value) && isWorkspaceModel(value.workspace) && Array.isArray(value.terminals) && value.terminals.every(isCommandStatusTerminal);
+}
+
+function isExoCommandOkResponse(value: unknown): value is ExoCommandOkResponse {
+  return isRecord(value) && value.ok === true;
+}
+
+function isIndexSearchResponse(value: unknown): value is IndexSearchResponse {
+  return isRecord(value) && typeof value.query === "string" && isIndexMode(value.mode) && isIndexBackend(value.source) && isStringArray(value.warnings) && Array.isArray(value.results) && value.results.every(isIndexSearchResult) && (value.hasMore === undefined || typeof value.hasMore === "boolean");
+}
+
+function isIndexSyncResult(value: unknown): value is IndexSyncResult {
+  return isRecord(value) && isIndexStatus(value.status) && Array.isArray(value.phases) && value.phases.every(isIndexSyncPhase) && isStringArray(value.warnings);
+}
+
+function isExoSpawnAgentCommandResponse(value: unknown): value is ExoSpawnAgentCommandResponse {
+  return isRecord(value) && value.ok === true && isRecord(value.invocation) && typeof value.invocation.id === "string" && typeof value.invocation.status === "string" && typeof value.invocation.handle === "string" && typeof value.invocation.createdAt === "string" && isCommandTerminal(value.terminal);
+}
+
+function isWorkspaceModel(value: unknown): value is WorkspaceModel {
+  return isRecord(value) && typeof value.workspaceRoot === "string" && typeof value.defaultTerminalCwd === "string" && Array.isArray(value.noteRoots) && value.noteRoots.every(isNoteRoot) && Array.isArray(value.indexedRoots) && value.indexedRoots.every(isIndexedRoot) && isIndexingConfig(value.indexing) && (value.searchEngine === undefined || isIndexBackend(value.searchEngine));
+}
+
+function isNoteRoot(value: unknown): boolean {
+  return isRecord(value) && typeof value.id === "string" && typeof value.label === "string" && typeof value.path === "string";
+}
+
+function isIndexedRoot(value: unknown): value is IndexedRoot {
+  return isRecord(value) && typeof value.id === "string" && typeof value.label === "string" && typeof value.path === "string" && isIndexedRootKind(value.kind) && typeof value.pattern === "string" && isStringArray(value.ignore) && isIndexBackend(value.backend);
+}
+
+function isIndexingConfig(value: unknown): boolean {
+  return isRecord(value) && typeof value.enabled === "boolean" && isIndexMode(value.mode) && isIndexBackend(value.backend);
+}
+
+function isCommandStatusTerminal(value: unknown): value is ExoCommandStatusTerminalInfo {
+  return isRecord(value) && isCommandTerminal(value) && value.kind === "shell" && (value.status === "running" || value.status === "exited") && typeof value.command === "string" && typeof value.attachGeneration === "number" && (value.health === undefined || value.health === "healthy" || value.health === "idle" || value.health === "unhealthy" || value.health === "exited") && (value.healthDetail === undefined || typeof value.healthDetail === "string") && (value.geometry === undefined || isTerminalGeometry(value.geometry));
+}
+
+function isCommandTerminal(value: unknown): value is ExoCommandTerminalInfo {
+  return isRecord(value) && typeof value.id === "string" && typeof value.title === "string" && typeof value.cwd === "string" && typeof value.kind === "string" && typeof value.status === "string" && (value.command === undefined || typeof value.command === "string") && (value.exitCode === undefined || typeof value.exitCode === "number");
+}
+
+function isTerminalGeometry(value: unknown): boolean {
+  return isRecord(value) && typeof value.cols === "number" && typeof value.rows === "number" && typeof value.reportedAt === "string" && (value.source === "renderer-fit" || value.source === "initial-default");
+}
+
+function isIndexStatus(value: unknown): value is IndexStatus {
+  return isRecord(value) && typeof value.enabled === "boolean" && isIndexMode(value.mode) && isIndexBackend(value.backend) && typeof value.dbPath === "string" && typeof value.runtimePath === "string" && Array.isArray(value.indexedRoots) && value.indexedRoots.every(isIndexedRoot) && typeof value.documentCount === "number" && typeof value.pendingEmbeddings === "number" && typeof value.hasVectorIndex === "boolean" && (typeof value.lastUpdated === "string" || value.lastUpdated === null) && isStringArray(value.warnings) && isStringArray(value.errors) && (value.recentJobs === undefined || (Array.isArray(value.recentJobs) && value.recentJobs.every(isIndexJobMetric)));
+}
+
+function isIndexJobMetric(value: unknown): boolean {
+  return isRecord(value) && typeof value.id === "string" && (value.kind === "sync" || value.kind === "update" || value.kind === "embed") && typeof value.reason === "string" && (value.status === "completed" || value.status === "failed") && typeof value.startedAt === "string" && typeof value.completedAt === "string" && typeof value.durationMs === "number" && (value.documentCount === undefined || typeof value.documentCount === "number") && (value.pendingEmbeddings === undefined || typeof value.pendingEmbeddings === "number") && (value.warnings === undefined || isStringArray(value.warnings)) && (value.error === undefined || typeof value.error === "string");
+}
+
+function isIndexSearchResult(value: unknown): boolean {
+  return isRecord(value) && typeof value.filePath === "string" && typeof value.title === "string" && typeof value.snippet === "string" && typeof value.score === "number" && (value.docid === undefined || typeof value.docid === "string") && isIndexBackend(value.source) && (value.content === undefined || typeof value.content === "string");
+}
+
+function isIndexSyncPhase(value: unknown): boolean {
+  return isRecord(value) && (value.name === "update" || value.name === "embed") && (value.status === "completed" || value.status === "skipped" || value.status === "failed") && typeof value.message === "string";
+}
+
+function isIndexMode(value: unknown): value is IndexSearchResponse["mode"] {
+  return value === "off" || value === "lexical" || value === "semantic" || value === "hybrid";
+}
+
+function isIndexBackend(value: unknown): value is IndexSearchResponse["source"] {
+  return value === "filesystem" || value === "qmd";
+}
+
+function isIndexedRootKind(value: unknown): boolean {
+  return value === "notes" || value === "docs" || value === "code" || value === "mixed";
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
 function parsePositiveInt(value: string | undefined): number | undefined {

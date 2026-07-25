@@ -8,7 +8,7 @@ import {
   resolveWorkspaceModel,
   workspaceEnvOverrides,
   workspaceModelFromSettings,
-  type IndexSearchResponse,
+  type ExoCommandStatusWithControlPlane,
   type WorkspaceModel,
 } from "@exo/core";
 
@@ -97,7 +97,7 @@ async function createOperations(
       search: async (query, input) => {
         const offset = parseSearchCursor(input.cursor, query);
         const response = await client.search(query, { limit: input.limit, offset });
-        return agentSearchResponse(model, response as unknown as IndexSearchResponse, { limit: input.limit, offset });
+        return agentSearchResponse(model, response, { limit: input.limit, offset });
       },
     };
   }
@@ -189,20 +189,12 @@ async function resolveWorkspaceScope(env: NodeJS.ProcessEnv, cwd: string): Promi
   return { status: "unresolved", cwd: resolvedCwd, candidateCount: workspaces.length };
 }
 
-function workspaceMatches(model: WorkspaceModel, status: Record<string, unknown>): boolean {
-  const workspace = isRecord(status.workspace) ? status.workspace : null;
-  if (
-    !workspace ||
-    typeof workspace.root !== "string" ||
-    path.resolve(workspace.root) !== path.resolve(model.workspaceRoot)
-  ) {
+function workspaceMatches(model: WorkspaceModel, status: ExoCommandStatusWithControlPlane): boolean {
+  const workspace = status.workspace;
+  if (path.resolve(workspace.workspaceRoot) !== path.resolve(model.workspaceRoot)) {
     return false;
   }
-  const roots = Array.isArray(workspace.noteRoots) ? workspace.noteRoots : [];
-  const appRoots = roots
-    .map((root) => (isRecord(root) && typeof root.path === "string" ? path.resolve(root.path) : null))
-    .filter((root): root is string => Boolean(root))
-    .sort();
+  const appRoots = workspace.noteRoots.map((root) => path.resolve(root.path)).sort();
   const expectedRoots = model.noteRoots.map((root) => path.resolve(root.path)).sort();
   return appRoots.length === expectedRoots.length && appRoots.every((root, index) => root === expectedRoots[index]);
 }

@@ -10,6 +10,11 @@ import {
   workspaceModelFromSettings,
   type WorkspaceModel,
   type IndexSearchResponse,
+  type ExoCommandIndexStatusResponse,
+  type ExoCommandIndexSyncResponse,
+  type ExoCommandSearchResponse,
+  type ExoCommandStatusWithControlPlane,
+  type ExoSpawnAgentCommandResponse,
 } from "@exo/core";
 import { EXO_CLI_USAGE } from "@exo/core/operator-help";
 import { AppClient, formatAppClientDiscoveryFailure } from "./app-client";
@@ -17,13 +22,13 @@ import { runExoMcpServer } from "./mcp-server";
 import { agentSearchResponse, boundedSearchLimit, parseSearchCursor } from "./search-response";
 
 interface AppClientLike {
-  getStatus(): Promise<Record<string, unknown>>;
+  getStatus(): Promise<ExoCommandStatusWithControlPlane>;
   showWindow(): Promise<void>;
-  search(query: string, options?: { limit?: number; offset?: number }): Promise<Record<string, unknown>>;
-  getIndexStatus(): Promise<Record<string, unknown>>;
-  syncIndex(): Promise<Record<string, unknown>>;
+  search(query: string, options?: { limit?: number; offset?: number }): Promise<ExoCommandSearchResponse>;
+  getIndexStatus(): Promise<ExoCommandIndexStatusResponse>;
+  syncIndex(): Promise<ExoCommandIndexSyncResponse>;
   openFile(filePath: string): Promise<void>;
-  spawnAgentCommand(handle: string, task: string): Promise<Record<string, unknown>>;
+  spawnAgentCommand(handle: string, task: string): Promise<ExoSpawnAgentCommandResponse>;
 }
 
 type AppClientConnector = (runtimeRoot: string, env: NodeJS.ProcessEnv) => Promise<AppClientLike | null>;
@@ -85,7 +90,7 @@ export async function runCli(argv: string[], options: {
     const response = client
       ? await client.search(query, { limit, offset })
       : await appOffSearch(env, query, { limit, offset });
-    return print(agentSearchResponse(model, response as IndexSearchResponse, { limit, offset }), stdout);
+    return print(agentSearchResponse(model, response, { limit, offset }), stdout);
   }
   if (!client) {
     client = await connectOrFail(env, stderr, connect);

@@ -14,6 +14,18 @@ afterEach(async () => {
 });
 
 describe("CommandServer operator contract", () => {
+  it("keeps the exact status success body on the wire", async () => {
+    const expected = commandStatusResponse();
+    const { server, port, token } = await startServer({ onGetStatus: () => expected });
+    try {
+      const response = await commandFetch(token, port, "/status");
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual(expected);
+    } finally {
+      await server.stop();
+    }
+  });
+
   it("requires its runtime token", async () => {
     const { server, port, token } = await startServer();
     try {
@@ -156,8 +168,42 @@ async function fetchJson(token: string, port: number, route: string, init: Reque
 }
 
 function options(runtimeRoot: string): CommandServerOptions {
-  const status = { available: false, backend: "qmd", roots: [], warnings: [] } as unknown as IndexStatus;
+  const status: IndexStatus = {
+    enabled: true,
+    mode: "hybrid",
+    backend: "qmd",
+    dbPath: "/workspace/.exo/index.sqlite",
+    runtimePath: "/workspace/.exo",
+    indexedRoots: [],
+    documentCount: 0,
+    pendingEmbeddings: 0,
+    hasVectorIndex: false,
+    lastUpdated: null,
+    warnings: [],
+    errors: [],
+  };
   return {
-    runtimeRoot, onShowWindow: () => {}, onOpenFile: async () => {}, onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }), onIndexStatus: async () => status, onIndexSync: async () => ({ status, phases: [], warnings: [] }), onGetStatus: () => ({ ok: true }), onSpawnAgentCommand: async () => { throw new Error("not used"); },
+    runtimeRoot, onShowWindow: () => {}, onOpenFile: async () => {}, onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }), onIndexStatus: async () => status, onIndexSync: async () => ({ status, phases: [], warnings: [] }), onGetStatus: () => ({ workspace: { workspaceRoot: "/workspace", defaultTerminalCwd: "/workspace", noteRoots: [], indexedRoots: [], indexing: { enabled: true, mode: "hybrid", backend: "qmd" } }, terminals: [] }), onSpawnAgentCommand: async () => { throw new Error("not used"); },
+  };
+}
+
+function commandStatusResponse() {
+  return {
+    workspace: {
+      workspaceRoot: "/workspace",
+      defaultTerminalCwd: "/workspace",
+      noteRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: true, mode: "hybrid" as const, backend: "qmd" as const },
+    },
+    terminals: [{
+      id: "term-1",
+      title: "Shell",
+      cwd: "/workspace",
+      kind: "shell" as const,
+      command: "/bin/zsh",
+      status: "running" as const,
+      attachGeneration: 1,
+    }],
   };
 }

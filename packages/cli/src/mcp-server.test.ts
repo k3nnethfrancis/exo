@@ -196,8 +196,8 @@ describe("Exo MCP server", () => {
     ], {
       env: { EXO_WORKSPACE_ROOT: root, EXO_NOTE_ROOTS: root },
       connectApp: async () => ({
-        getStatus: async () => ({ workspace: { root: otherRoot, noteRoots: [{ path: otherRoot }] } }),
-        getIndexStatus: async () => ({ unreachable: "this must not be used" }),
+        getStatus: async () => appStatus(otherRoot),
+        getIndexStatus: async () => indexStatusResponse(),
         search: async () => ({ query: "Filesystem result", mode: "lexical", source: "filesystem", warnings: [], results: [{ filePath: path.join(otherRoot, "wrong.md"), title: "Wrong", snippet: "", score: 0, source: "filesystem" }] }),
       }),
     });
@@ -216,13 +216,13 @@ describe("Exo MCP server", () => {
     ], {
       env: { EXO_WORKSPACE_ROOT: root, EXO_NOTE_ROOTS: root },
       connectApp: async () => ({
-        getStatus: async () => ({ workspace: { root, noteRoots: [{ path: root }] } }),
-        getIndexStatus: async () => ({ provider: "app-backed" }),
+        getStatus: async () => appStatus(root),
+        getIndexStatus: async () => indexStatusResponse(),
         search: async () => ({ query: "from app", mode: "hybrid", source: "qmd", warnings: [], results: [{ filePath: path.join(root, "app.md"), title: "App", snippet: "", score: 1, source: "qmd" }] }),
       }),
     });
 
-    expect(toolText(responses[0])).toMatchObject({ app: { available: true }, search: { provider: "app-backed" } });
+    expect(toolText(responses[0])).toMatchObject({ app: { available: true }, search: { backend: "qmd" } });
     expect(toolText(responses[1]).results?.[0]).toMatchObject({ path: path.join(root, "app.md"), source: "qmd" });
   });
 
@@ -237,6 +237,44 @@ describe("Exo MCP server", () => {
 interface ToolBody {
   results?: Array<Record<string, unknown>>;
   [key: string]: unknown;
+}
+
+function appStatus(root: string) {
+  return {
+    workspace: {
+      workspaceRoot: root,
+      defaultTerminalCwd: root,
+      noteRoots: [{ id: "notes", label: "notes", path: root }],
+      indexedRoots: [],
+      indexing: { enabled: true, mode: "hybrid" as const, backend: "qmd" as const },
+      searchEngine: "qmd" as const,
+    },
+    terminals: [],
+    controlPlane: {
+      runtimeRoot: path.join(root, ".exo"),
+      serverJsonPath: path.join(root, ".exo", "server.json"),
+      pid: process.pid,
+      port: 12345,
+      baseUrl: "http://127.0.0.1:12345",
+    },
+  };
+}
+
+function indexStatusResponse() {
+  return {
+    enabled: true,
+    mode: "hybrid" as const,
+    backend: "qmd" as const,
+    dbPath: "/workspace/.exo/index.sqlite",
+    runtimePath: "/workspace/.exo",
+    indexedRoots: [],
+    documentCount: 1,
+    pendingEmbeddings: 0,
+    hasVectorIndex: true,
+    lastUpdated: "2026-07-24T00:00:00.000Z",
+    warnings: [],
+    errors: [],
+  };
 }
 
 function toolText(response: Record<string, unknown>): ToolBody {

@@ -1,3 +1,5 @@
+import type { IndexSearchResponse, IndexStatus, IndexSyncResult, WorkspaceModel } from "./types";
+
 export const EXO_COMMAND_ROUTES = {
   status: "/status",
   show: "/show",
@@ -16,6 +18,41 @@ export interface ExoCommandServerInfo {
   token: string;
 }
 
+/** The successful `/status` body emitted by the desktop command server. */
+export interface ExoCommandStatusResponse {
+  workspace: WorkspaceModel;
+  terminals: ExoCommandStatusTerminalInfo[];
+}
+
+/** Discovery facts added locally by the CLI after a successful `/status` response. */
+export interface ExoCommandStatusControlPlane {
+  runtimeRoot: string;
+  serverJsonPath: string;
+  pid: number;
+  port: number;
+  baseUrl: string;
+}
+
+export interface ExoCommandStatusWithControlPlane extends ExoCommandStatusResponse {
+  controlPlane: ExoCommandStatusControlPlane;
+}
+
+/** The full terminal representation currently returned by `/status`. */
+export interface ExoCommandStatusTerminalInfo extends ExoCommandTerminalInfo {
+  command: string;
+  kind: "shell";
+  status: "running" | "exited";
+  attachGeneration: number;
+  health?: "healthy" | "idle" | "unhealthy" | "exited";
+  healthDetail?: string;
+  geometry?: {
+    cols: number;
+    rows: number;
+    reportedAt: string;
+    source: "renderer-fit" | "initial-default";
+  };
+}
+
 export interface ExoCommandTerminalInfo {
   id: string;
   title: string;
@@ -25,6 +62,28 @@ export interface ExoCommandTerminalInfo {
   status: string;
   exitCode?: number;
 }
+
+export interface ExoCommandOkResponse {
+  ok: true;
+}
+
+export type ExoCommandShowRequest = Record<string, never>;
+export type ExoCommandIndexSyncRequest = Record<string, never>;
+
+export interface ExoCommandSearchRequest {
+  q: string;
+  limit?: number;
+  offset?: number;
+  intent?: string;
+  includeContent?: boolean;
+  maxLinesPerResult?: number;
+}
+
+export type ExoCommandShowResponse = ExoCommandOkResponse;
+export type ExoCommandOpenFileResponse = ExoCommandOkResponse;
+export type ExoCommandSearchResponse = IndexSearchResponse;
+export type ExoCommandIndexStatusResponse = IndexStatus;
+export type ExoCommandIndexSyncResponse = IndexSyncResult;
 
 export interface ExoOpenFileRequest {
   path?: string;

@@ -4,8 +4,17 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { EXO_COMMAND_TOKEN_HEADER } from "@exo/core";
-import { AppClient, formatAppClientDiscoveryFailure } from "./app-client";
+import { EXO_COMMAND_TOKEN_HEADER, type ExoCommandStatusResponse } from "@exo/core";
+import {
+  AppClient,
+  decodeExoCommandOkResponse,
+  decodeExoCommandStatusResponse,
+  decodeExoIndexSearchResponse,
+  decodeExoIndexStatusResponse,
+  decodeExoIndexSyncResponse,
+  decodeExoSpawnAgentCommandResponse,
+  formatAppClientDiscoveryFailure,
+} from "./app-client";
 
 const tempPaths: string[] = [];
 const TEST_COMMAND_TOKEN = "test-command-token-1234567890abcdef";
@@ -17,6 +26,30 @@ afterEach(async () => {
 });
 
 describe("AppClient", () => {
+  it("rejects a structurally invalid successful search response at the HTTP seam", () => {
+    expect(() => decodeExoIndexSearchResponse({ query: "roleplay", mode: "lexical", source: "filesystem", results: [] }))
+      .toThrow("Exo command-server protocol error: expected a valid search response");
+  });
+
+  it("accepts the exact success bodies for every command route", () => {
+    expect(decodeExoCommandStatusResponse(statusResponse())).toEqual(statusResponse());
+    expect(decodeExoCommandOkResponse({ ok: true })).toEqual({ ok: true });
+    expect(decodeExoIndexSearchResponse(searchResponse("roleplay"))).toEqual(searchResponse("roleplay"));
+    expect(decodeExoIndexStatusResponse(indexStatusResponse())).toEqual(indexStatusResponse());
+    expect(decodeExoIndexSyncResponse({ status: indexStatusResponse(), phases: [{ name: "update", status: "completed", message: "Indexed notes." }], warnings: [] }))
+      .toMatchObject({ phases: [{ name: "update" }] });
+    expect(decodeExoSpawnAgentCommandResponse(spawnResponse())).toEqual(spawnResponse());
+  });
+
+  it("rejects invalid success bodies for every command route", () => {
+    expect(() => decodeExoCommandStatusResponse({ workspace: {}, terminals: [] })).toThrow("valid status response");
+    expect(() => decodeExoCommandOkResponse({ ok: false })).toThrow("{ ok: true }");
+    expect(() => decodeExoIndexSearchResponse({ query: "roleplay", mode: "other", source: "filesystem", warnings: [], results: [] })).toThrow("valid search response");
+    expect(() => decodeExoIndexStatusResponse({ enabled: true })).toThrow("valid index status response");
+    expect(() => decodeExoIndexSyncResponse({ status: indexStatusResponse(), phases: [{ name: "write", status: "completed", message: "no" }], warnings: [] })).toThrow("valid index sync response");
+    expect(() => decodeExoSpawnAgentCommandResponse({ ok: true, invocation: { id: "inv-1" }, terminal: {} })).toThrow("valid agent command spawn response");
+  });
+
   it("reports a missing runtime root", async () => {
     const runtimeRoot = path.join(os.tmpdir(), `exo-cli-client-missing-${Date.now()}`);
 
@@ -119,7 +152,7 @@ describe("AppClient", () => {
     });
     stubCommandServer((targetUrl) => {
       if (targetUrl.pathname === "/status") {
-        return json({ ok: true });
+        return json(statusResponse());
       }
       return json({ error: "not found" }, 404);
     });
@@ -166,12 +199,13 @@ describe("AppClient", () => {
     const runtimeRoot = await runtimeFixture();
     stubCommandServer(async (targetUrl, init) => {
       if (targetUrl.pathname === "/status") {
-        return json({ ok: true });
+        return json(statusResponse());
       }
       if (targetUrl.pathname === "/search") {
         await delayWithAbort(10, init?.signal);
         expect(authHeader(init)).toEqual(`Bearer ${TEST_COMMAND_TOKEN}`);
-        return json({ query: targetUrl.searchParams.get("q"), limit: targetUrl.searchParams.get("limit") });
+        expect(targetUrl.searchParams.get("limit")).toBe("7");
+        return json({ query: targetUrl.searchParams.get("q"), mode: "lexical", source: "filesystem", warnings: [], results: [] });
       }
       return json({ error: "not found" }, 404);
     });
@@ -181,14 +215,14 @@ describe("AppClient", () => {
       EXO_APP_CLIENT_SEARCH_TIMEOUT_MS: "100",
     });
 
-    await expect(client?.search("roleplay", { limit: 7 })).resolves.toMatchObject({ query: "roleplay", limit: "7" });
+    await expect(client?.search("roleplay", { limit: 7 })).resolves.toMatchObject({ query: "roleplay", mode: "lexical" });
   });
 
   it("attaches command-server discovery metadata to status", async () => {
     const runtimeRoot = await runtimeFixture();
     stubCommandServer((targetUrl) => {
       if (targetUrl.pathname === "/status") {
-        return json({ ok: true });
+        return json(statusResponse());
       }
       return json({ error: "not found" }, 404);
     });
@@ -196,7 +230,7 @@ describe("AppClient", () => {
     const client = await AppClient.connect(runtimeRoot);
 
     await expect(client?.getStatus()).resolves.toMatchObject({
-      ok: true,
+      workspace: { workspaceRoot: "/workspace" },
       controlPlane: {
         runtimeRoot,
         serverJsonPath: path.join(runtimeRoot, "server.json"),
@@ -212,13 +246,13 @@ describe("AppClient", () => {
     let spawnBody: unknown;
     stubCommandServer(async (targetUrl, init) => {
       if (targetUrl.pathname === "/status") {
-        return json({ ok: true });
+        return json(statusResponse());
       }
       if (targetUrl.pathname === "/agent-commands/spawn" && init?.method === "POST") {
         expect(authHeader(init)).toEqual(`Bearer ${TEST_COMMAND_TOKEN}`);
         expect(commandTokenHeader(init)).toEqual(TEST_COMMAND_TOKEN);
         spawnBody = init.body ? JSON.parse(String(init.body)) : null;
-        return json({ ok: true, invocation: { id: "inv-1" }, terminal: { id: "term-1" } });
+        return json(spawnResponse());
       }
       return json({ error: "not found" }, 404);
     });
@@ -237,7 +271,7 @@ describe("AppClient", () => {
     const runtimeRoot = await runtimeFixture();
     stubCommandServer(async (targetUrl, init) => {
       if (targetUrl.pathname === "/status") {
-        return json({ ok: true });
+        return json(statusResponse());
       }
       if (targetUrl.pathname === "/search") {
         await delayWithAbort(100, init?.signal);
@@ -252,6 +286,35 @@ describe("AppClient", () => {
     });
 
     await expect(client?.search("roleplay")).rejects.toThrow("GET /search?q=roleplay timed out after 5ms");
+  });
+
+  it("names the method and route for malformed successful JSON", async () => {
+    const runtimeRoot = await runtimeFixture();
+    let statusCalls = 0;
+    stubCommandServer((targetUrl) => {
+      if (targetUrl.pathname === "/status") {
+        statusCalls += 1;
+        return statusCalls === 1 ? json(statusResponse()) : new Response("{", { status: 200 });
+      }
+      return json({ error: "not found" }, 404);
+    });
+
+    const client = await AppClient.connect(runtimeRoot);
+
+    await expect(client?.getStatus()).rejects.toThrow("Exo command-server protocol error for GET /status: successful response was not valid JSON");
+  });
+
+  it("preserves non-2xx command-server errors without treating them as protocol errors", async () => {
+    const runtimeRoot = await runtimeFixture();
+    stubCommandServer((targetUrl) => {
+      if (targetUrl.pathname === "/status") return json(statusResponse());
+      if (targetUrl.pathname === "/search") return json({ error: "Search is unavailable" }, 503);
+      return json({ error: "not found" }, 404);
+    });
+
+    const client = await AppClient.connect(runtimeRoot);
+
+    await expect(client?.search("roleplay")).rejects.toThrow('HTTP 503: {"error":"Search is unavailable"}');
   });
 });
 
@@ -282,6 +345,58 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json" },
   });
+}
+
+function statusResponse(): ExoCommandStatusResponse {
+  return {
+    workspace: {
+      workspaceRoot: "/workspace",
+      defaultTerminalCwd: "/workspace",
+      noteRoots: [],
+      indexedRoots: [],
+      indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
+      searchEngine: "qmd",
+    },
+    terminals: [{
+      id: "term-1",
+      title: "Shell",
+      cwd: "/workspace",
+      kind: "shell",
+      command: "/bin/zsh",
+      status: "running",
+      attachGeneration: 1,
+      geometry: { cols: 120, rows: 40, reportedAt: "2026-07-24T00:00:00.000Z", source: "initial-default" },
+    }],
+  };
+}
+
+function searchResponse(query: string) {
+  return { query, mode: "lexical" as const, source: "filesystem" as const, warnings: [], results: [] };
+}
+
+function indexStatusResponse() {
+  return {
+    enabled: true,
+    mode: "hybrid" as const,
+    backend: "qmd" as const,
+    dbPath: "/workspace/.exo/index.sqlite",
+    runtimePath: "/workspace/.exo",
+    indexedRoots: [],
+    documentCount: 1,
+    pendingEmbeddings: 0,
+    hasVectorIndex: true,
+    lastUpdated: "2026-07-24T00:00:00.000Z",
+    warnings: [],
+    errors: [],
+  };
+}
+
+function spawnResponse() {
+  return {
+    ok: true,
+    invocation: { id: "inv-1", status: "running", handle: "fable", createdAt: "2026-07-24T00:00:00.000Z" },
+    terminal: { id: "term-1", title: "Fable", cwd: "/workspace", kind: "shell", status: "running" },
+  };
 }
 
 function authHeader(init: RequestInit | undefined): string | null {

@@ -6,8 +6,7 @@ import {
   EXO_COMMAND_ROUTES,
   EXO_COMMAND_TOKEN_HEADER,
   type ExoCommandServerInfo,
-  type ExoOpenFileRequest,
-  type ExoSpawnAgentCommandRequest,
+  type ExoCommandStatusResponse,
   type ExoSpawnAgentCommandResponse,
   type IndexSearchResponse,
   type IndexSyncResult,
@@ -23,7 +22,7 @@ export interface CommandServerOptions {
   onIndexSearch: (query: string, options: { limit?: number; offset?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
   onIndexStatus: () => Promise<IndexStatus>;
   onIndexSync: () => Promise<IndexSyncResult>;
-  onGetStatus: () => object;
+  onGetStatus: () => ExoCommandStatusResponse;
   onSpawnAgentCommand: (input: { handle: string; task: string }) => Promise<InvocationResult>;
 }
 
@@ -140,7 +139,7 @@ export class CommandServer {
 
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.open) {
         const body = await readBody(req);
-        const { path: filePath } = body as ExoOpenFileRequest;
+        const filePath = typeof body.path === "string" ? body.path : undefined;
         if (!filePath) {
           json(res, { error: "Missing path in body" }, 400);
           return;
@@ -157,7 +156,8 @@ export class CommandServer {
 
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.spawnAgentCommand) {
         const body = await readBody(req);
-        const { handle, task } = body as ExoSpawnAgentCommandRequest;
+        const handle = typeof body.handle === "string" ? body.handle : undefined;
+        const task = typeof body.task === "string" ? body.task : undefined;
         if (!handle || !task) {
           json(res, { ok: false, code: "missing-agent-command-spawn-input", error: "Missing handle or task in body." }, 400);
           return;
