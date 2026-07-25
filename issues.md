@@ -542,25 +542,28 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   had drained, so autocomplete frames could be misattributed to invocation
   typing. The July 24 follow-up found two newer causes: the positive invocation
   journey relied on a removed implicit Claude fallback instead of configuring
-  an enabled command, and canonical editor body snapshots were independently
-  deferred through React transitions, allowing an older render to replace
-  newer bytes after autosave had persisted them.
+  an enabled command. Separately, `useOpenDocuments` updated its canonical ref
+  synchronously, but `NoteEditor` invoked that owner inside independent React
+  transitions. The renderer state and controlled `value` prop could therefore
+  lag behind CodeMirror's newer local bytes and temporarily replace them with
+  an intermediate body while transition-priority rendering caught up.
 - Repair: preserve the exact trailing-newline contract on save; assert exact
   on-disk Markdown rather than normalizing the expected body; make invocation
   preflight compare those same exact persisted bytes; scope the input probe to
   the editor and drain the prior interaction before measuring the next one.
   The positive latency fixture now explicitly configures Claude while the
   empty/disabled command authority remains intact. Every canonical
-  `bodyChangeRef` write is synchronous; only derived projections may be
-  deferred.
+  `bodyChangeRef` owner call is synchronous; only derived projections may be
+  deferred. An AST regression enforces that priority boundary, while the
+  sustained Electron journey remains the behavioral content-integrity proof.
 - Verification: focused core tests (178) and typechecks pass. The full Electron
   journey passed once plus three consecutive repetitions with no long tasks:
   ordinary 2,000-character typing p90 `14.9–15.1 ms`, accelerated Backspace
   p90 `11 ms`, and inline invocation typing p90 `14.3 ms` in the original
   logged run. On July 24, the minimized save/delete/completion regression and
   both command-authority guards passed; the rebuilt sustained journey then
-  passed three consecutive trace-free runs with typing p99 `21.7–22.8 ms`,
-  Backspace p99 `16.9–17.4 ms`, invocation p99 `18.3–19.8 ms`, exact persisted
-  bytes, and no long tasks.
+  passed three consecutive trace-free runs after independent review with typing
+  p99 `21.5–22.8 ms`, Backspace p99 `16–17.4 ms`, invocation p99
+  `17.9–18.7 ms`, exact persisted bytes, and no long tasks.
 
 -- Shoshin | 2026-07-21

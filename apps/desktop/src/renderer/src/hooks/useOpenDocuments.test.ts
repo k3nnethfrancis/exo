@@ -53,16 +53,4 @@ describe("path-explicit document writes", () => {
     expect(next?.["/notes/left.md"].frontmatter).toEqual({});
     expect(next?.["/notes/right.md"].frontmatter).toEqual({ status: "draft" });
   });
-
-  it("commits canonical body revisions synchronously in input order", () => {
-    const filePath = "/notes/right.md";
-    const original = { [filePath]: document(filePath) };
-    const older = applyDocumentBodyEdit(original, filePath, "# Older scheduled body\n")!;
-    const canonical = applyDocumentBodyEdit(older, filePath, "# Newest canonical body\n")!;
-
-    expect(canonical[filePath]).toMatchObject({
-      body: "# Newest canonical body\n",
-      dirty: true,
-    });
-  });
 });
