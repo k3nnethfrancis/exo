@@ -2,13 +2,10 @@ import { Decoration, type DecorationSet, EditorView } from "@codemirror/view";
 import { RangeSetBuilder, type Text } from "@codemirror/state";
 
 import { LIST_GEOMETRY, listGeometryStyleVariables } from "../listGeometry";
-import type { MarkdownGraphReferences } from "../markdownLivePreview";
-import type { ListContext, MarkdownPreviewMetadata } from "./metadata";
-import { GraphReferencesWidget, ListFoldToggleWidget, MarkdownImageWidget, markdownImageTarget, TaskPrefixWidget, TableWidget } from "./widgets";
+import { listPrefixPattern, type ListContext, type MarkdownPreviewMetadata, visibleLineNumbers } from "./metadata";
+import { GraphReferencesWidget, ListFoldToggleWidget, MarkdownImageWidget, markdownImageTarget, type MarkdownGraphReferences, TaskPrefixWidget, TableWidget } from "./widgets";
 
 export interface MarkdownLivePreviewOptions {
-  onOpenTarget: (target: string) => void;
-  onOpenTag: (tag: string) => void;
   onResolveImage: (target: string, options?: { lookupByFilename?: boolean }) => Promise<{ url: string }>;
   suppressedGeneratedTitle?: string | null;
   graphReferences?: MarkdownGraphReferences | null;
@@ -25,23 +22,6 @@ const boldDecoration = Decoration.mark({ class: "exo-md-strong" });
 const italicDecoration = Decoration.mark({ class: "exo-md-emphasis" });
 const strikeDecoration = Decoration.mark({ class: "exo-md-strike" });
 const codeDecoration = Decoration.mark({ class: "exo-md-inline-code" });
-const listPrefixPattern = /^(\s*)((?:[-*+]|\d+[.)]))\s+/;
-
-export function visibleLineNumbers(
-  doc: { lineAt(position: number): { number: number }; lines: number },
-  ranges: readonly { from: number; to: number }[],
-): number[] {
-  const visible = new Set<number>();
-  for (const range of ranges) {
-    const first = doc.lineAt(range.from).number;
-    const last = doc.lineAt(range.to).number;
-    for (let line = first; line <= last; line += 1) {
-      visible.add(line);
-    }
-  }
-  return [...visible].sort((left, right) => left - right);
-}
-
 function foldedListLineNumbers(doc: Text, listContexts: Map<number, ListContext>, anchors: ReadonlySet<number>) {
   const lines = new Set<number>();
   for (const anchor of anchors) {

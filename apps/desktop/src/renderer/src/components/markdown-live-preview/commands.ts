@@ -2,9 +2,8 @@ import { Annotation, EditorSelection, EditorState, Prec, RangeSetBuilder, Transa
 import { indentLess } from "@codemirror/commands";
 import { Decoration, EditorView, keymap } from "@codemirror/view";
 
-import { collectListMetadata } from "./metadata";
+import { collectListMetadata, listPrefixPattern, visibleLineNumbers } from "./metadata";
 
-const listPrefixPattern = /^(\s*)((?:[-*+]|\d+[.)]))\s+/;
 const taskListPrefixPattern = /^(\s*)([-*+])\s+\[[ xX]\]\s+/;
 const allowListPrefixRawSelection = Annotation.define<boolean>();
 
@@ -458,16 +457,3 @@ function listPrefixArrowRightTarget(positions: ListPrefixPositions, pos: number)
   return null;
 }
 
-
-export function visibleLineNumbers(
-  doc: { lineAt(position: number): { number: number }; lines: number },
-  ranges: readonly { from: number; to: number }[],
-): number[] {
-  const visible = new Set<number>();
-  for (const range of ranges) {
-    const first = doc.lineAt(range.from).number;
-    const last = doc.lineAt(range.to).number;
-    for (let line = first; line <= last; line += 1) visible.add(line);
-  }
-  return [...visible].sort((left, right) => left - right);
-}

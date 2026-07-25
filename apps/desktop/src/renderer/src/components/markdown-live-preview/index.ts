@@ -9,11 +9,14 @@ import {
   wikilinkExitKeymap,
 } from "./commands";
 import {
+  listPrefixPattern,
   markdownPreviewMetadata,
   type MarkdownPreviewMetadata,
   updateMarkdownPreviewMetadataForChanges,
 } from "./metadata";
 import { buildDecorations } from "./decorations";
+import type { MarkdownGraphReferences } from "./widgets";
+export type { MarkdownGraphReferenceItem, MarkdownGraphReferences } from "./widgets";
 
 const toggleFoldEffect = StateEffect.define<number>();
 
@@ -81,18 +84,6 @@ interface MarkdownLivePreviewOptions {
   suppressedGeneratedTitle?: string | null;
   graphReferences?: MarkdownGraphReferences | null;
 }
-
-export interface MarkdownGraphReferenceItem {
-  label: string;
-  target: string;
-}
-
-export interface MarkdownGraphReferences {
-  backlinks: MarkdownGraphReferenceItem[];
-  references: MarkdownGraphReferenceItem[];
-}
-
-const listPrefixPattern = /^(\s*)((?:[-*+]|\d+[.)]))\s+/;
 
 export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extension[] {
   const plugin = ViewPlugin.fromClass(

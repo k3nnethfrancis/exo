@@ -1,10 +1,19 @@
 import { WidgetType } from "@codemirror/view";
 
 import { LIST_GEOMETRY } from "../listGeometry";
-import type { MarkdownGraphReferenceItem, MarkdownGraphReferences } from "../markdownLivePreview";
 import type { TableContext } from "./metadata";
 
 type ResolveImage = (target: string, options?: { lookupByFilename?: boolean }) => Promise<{ url: string }>;
+
+export interface MarkdownGraphReferenceItem {
+  label: string;
+  target: string;
+}
+
+export interface MarkdownGraphReferences {
+  backlinks: MarkdownGraphReferenceItem[];
+  references: MarkdownGraphReferenceItem[];
+}
 
 export class GraphReferencesWidget extends WidgetType {
   constructor(private readonly references: MarkdownGraphReferences) {

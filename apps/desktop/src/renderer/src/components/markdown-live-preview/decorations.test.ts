@@ -1,7 +1,8 @@
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 
-import { shouldSuppressGeneratedTitleLine, visibleLineNumbers } from "./decorations";
+import { shouldSuppressGeneratedTitleLine } from "./decorations";
+import { visibleLineNumbers } from "./metadata";
 
 describe("markdown live preview title suppression", () => {
   it("only suppresses exact generated daily-title H1 lines", () => {
