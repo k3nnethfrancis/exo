@@ -93,6 +93,27 @@ describe("CommandServer operator contract", () => {
     }
   });
 
+  it("rejects a wrong-typed open path before calling the typed handler", async () => {
+    let handlerCalled = false;
+    const { server, port, token } = await startServer({
+      onOpenFile: async () => {
+        handlerCalled = true;
+      },
+    });
+    try {
+      const response = await commandFetch(token, port, "/open", {
+        method: "POST",
+        body: JSON.stringify({ path: 123 }),
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: "Missing path in body" });
+      expect(handlerCalled).toBe(false);
+    } finally {
+      await server.stop();
+    }
+  });
+
   it("treats a non-object spawn body as the existing structured missing-input error", async () => {
     const { server, port, token } = await startServer();
     try {
@@ -107,6 +128,32 @@ describe("CommandServer operator contract", () => {
         code: "missing-agent-command-spawn-input",
         error: "Missing handle or task in body.",
       });
+    } finally {
+      await server.stop();
+    }
+  });
+
+  it("rejects wrong-typed spawn fields before calling the typed handler", async () => {
+    let handlerCalled = false;
+    const { server, port, token } = await startServer({
+      onSpawnAgentCommand: async () => {
+        handlerCalled = true;
+        throw new Error("wrong-typed spawn input reached the handler");
+      },
+    });
+    try {
+      const response = await commandFetch(token, port, "/agent-commands/spawn", {
+        method: "POST",
+        body: JSON.stringify({ handle: 123, task: 456 }),
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        ok: false,
+        code: "missing-agent-command-spawn-input",
+        error: "Missing handle or task in body.",
+      });
+      expect(handlerCalled).toBe(false);
     } finally {
       await server.stop();
     }

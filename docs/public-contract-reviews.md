@@ -60,7 +60,7 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - sha256: `3f4526a2400fe8044fbfa33e7a4b02741d70ece8d1879981a4a2550f3fc4ea3e`
 - review: user-approved-exception: 2026-07-24 Architecture Wave E command-protocol task authorizes exact request/success/error types and CLI validation for the existing routes only; it adds no route or success-response field. Independent review follows this isolated implementation slice.
 - sha256: `2caae864dc47162a81355a79b297c22c8b7e569cf01a20c146c368ddf775c300`
-- review: architect-review: 2026-07-24 Independent protected-contract correction requires fields on valid open/spawn request DTOs, distinguishes the basic `{ error }` envelope from structured spawn failures, and deletes request DTOs for retired routes. Existing route, success-body, timeout, and valid-request behavior remains unchanged; non-object JSON bodies now receive the route's existing missing-input 400 response instead of an accidental property-access 500.
+- review: architect-review: 2026-07-24 Independent protected-contract correction requires fields on valid open/spawn request DTOs, distinguishes the basic `{ error }` envelope from structured spawn failures, and deletes request DTOs for retired routes. Existing route, success-body, timeout, and valid-request behavior remains unchanged. As an explicit invalid-request hardening, both non-object JSON bodies and wrong-typed object fields are rejected at the route boundary with the route's existing missing-input 400 envelope; unknown values never reach typed handlers.
 
 ### `apps/desktop/src/main/command-server.ts#route-table`
 
