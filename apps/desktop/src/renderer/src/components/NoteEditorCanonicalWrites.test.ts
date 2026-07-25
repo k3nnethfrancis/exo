@@ -1,13 +1,11 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import { describe, expect, it } from "vitest";
 import ts from "typescript";
 
+import source from "./NoteEditor.tsx?raw";
+
 describe("NoteEditor canonical body writes", () => {
   it("never gives canonical document bytes transition priority", () => {
-    const sourcePath = fileURLToPath(new URL("./NoteEditor.tsx", import.meta.url));
-    const source = readFileSync(sourcePath, "utf8");
+    const sourcePath = "NoteEditor.tsx";
     const sourceFile = ts.createSourceFile(sourcePath, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
     const transitionedBodyWrites: number[] = [];
 
