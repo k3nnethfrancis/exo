@@ -1,5 +1,10 @@
 import type { WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
 
+import {
+  planWorkspaceSettingsApply,
+  type WorkspaceSettingsApplyPlan,
+} from "./workspace-settings-apply-plan";
+
 export interface ActiveWorkspaceRuntime {
   settings: WorkspaceSettings;
   revision: WorkspaceSettingsRevision;
@@ -70,6 +75,12 @@ export interface WorkspaceRuntimeCoordinatorOptions {
   invalidateDerivedState(candidate: Readonly<WorkspaceRuntimeCandidate>): void;
   setTerminalDefaultCwd(candidate: Readonly<WorkspaceRuntimeCandidate>): void;
   reconcileIndex(previous: WorkspaceSettings, candidate: Readonly<WorkspaceRuntimeCandidate>, reason: WorkspaceActivationRequest["reason"]): void;
+  /** Publishes settings whose Workspace authority and runtime root are unchanged. */
+  applySettingsInPlace(
+    previous: WorkspaceSettings,
+    active: ActiveWorkspaceRuntime,
+    plan: WorkspaceSettingsApplyPlan,
+  ): void;
   /** Synchronous composition-root assignment; it must not acquire resources. */
   publishActive(active: ActiveWorkspaceRuntime): void;
 }
@@ -99,6 +110,33 @@ export class WorkspaceRuntimeCoordinator {
     return this.lastFailure
       ? { status: "degraded", active: this.active, ...this.lastFailure }
       : { status: "active", active: this.active };
+  }
+
+  /**
+   * Publishes settings without replacing Workspace-owned resources.
+   *
+   * Layout, appearance, invocation, and maintenance-policy edits are not
+   * Workspace transitions. Keeping them on this path preserves graph review
+   * state and any other work owned by the active watcher or utility process.
+   */
+  applySettings(request: Omit<WorkspaceActivationRequest, "reason">): boolean {
+    if (!this.active || this.lastFailure) return false;
+    const plan = planWorkspaceSettingsApply(request.previousSettings, request.settings);
+    if (plan.reactivateWorkspace) return false;
+    const model = this.options.modelFromSettings(request.settings);
+    const runtimeRoot = this.options.runtimeRootFor(request.settings);
+    if (this.active.runtimeRoot !== runtimeRoot) return false;
+
+    const active: ActiveWorkspaceRuntime = {
+      settings: request.settings,
+      revision: request.revision,
+      model,
+      runtimeRoot,
+    };
+    this.active = active;
+    this.options.publishActive(active);
+    this.options.applySettingsInPlace(request.previousSettings, active, plan);
+    return true;
   }
 
   /** Records a post-commit resource failure only when it belongs to the

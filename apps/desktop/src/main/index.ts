@@ -393,6 +393,13 @@ function currentSnapshot() {
 async function saveSettings(request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> {
   const previous = currentSettings();
   const saved = await workspaceConfig.patch(request.expectedRevision, { ...previous, ...request.settings });
+  if (workspaceRuntimeCoordinator.applySettings({
+    previousSettings: previous,
+    settings: saved.settings,
+    revision: saved.revision,
+  })) {
+    return { ...saved, runtimeApply: { status: "applied" } };
+  }
   const activation = await workspaceRuntimeCoordinator.activate({
     previousSettings: previous,
     settings: saved.settings,
@@ -646,6 +653,32 @@ app.whenReady().then(async () => {
         indexingService.scheduleReconciliation(reason, 0);
       } else {
         indexingService.applyCurrentAutomaticPolicy();
+      }
+    },
+    applySettingsInPlace: (previous, active, plan) => {
+      workspaceNotesService.applyWorkspaceModel(active.model);
+      if (plan.rebindIndex) {
+        indexingService.activateWorkspace({
+          model: active.model,
+          settings: active.settings,
+          runtimeRoot: active.runtimeRoot,
+        });
+      } else {
+        indexingService.applySettings({
+          model: active.model,
+          settings: active.settings,
+          runtimeRoot: active.runtimeRoot,
+        });
+      }
+      if (plan.rebindIndex || plan.updateIndexPolicy) {
+        if (indexingService.shouldReconcileAfterSettingsApply(previous, active.settings)) {
+          indexingService.scheduleReconciliation("settings-apply", 0);
+        } else {
+          indexingService.applyCurrentAutomaticPolicy();
+        }
+      }
+      if (plan.updateTerminalDefault) {
+        terminalManager.setDefaultCwd(active.model.defaultTerminalCwd);
       }
     },
   });

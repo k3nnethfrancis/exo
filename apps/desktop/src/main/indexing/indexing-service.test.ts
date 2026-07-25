@@ -42,6 +42,28 @@ describe("IndexingService", () => {
     expect(service.shouldReconcileAfterSettingsApply({ ...settings, indexUpdateStrategy: "manual" }, settings)).toBe(true);
   });
 
+  it("updates maintenance policy without replacing active derived-index clients", async () => {
+    vi.useFakeTimers();
+    const settings = workspaceSettings();
+    const maintenance = derivedIndexClient();
+    const foreground = derivedIndexClient();
+    const service = indexingService(settings, undefined, maintenance, foreground);
+
+    service.applySettings({
+      model: workspaceModel(settings),
+      settings: { ...settings, indexUpdateStrategy: "manual" },
+      runtimeRoot: "/workspace/.exo",
+    });
+    service.applyCurrentAutomaticPolicy();
+    service.scheduleForFile("/workspace/notes/daily.md", "note-save");
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(maintenance.update).not.toHaveBeenCalled();
+    expect(maintenance.dispose).not.toHaveBeenCalled();
+    expect(foreground.dispose).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
   it("saves specific indexed roots and refuses broad system roots by default", async () => {
     const settings = workspaceSettings();
     let savedSettings: WorkspaceSettings | null = null;

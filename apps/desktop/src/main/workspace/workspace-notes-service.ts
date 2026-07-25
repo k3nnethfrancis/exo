@@ -83,6 +83,16 @@ export class WorkspaceNotesService {
     this.imageFileCache.clear();
   }
 
+  /**
+   * Publishes a model whose Workspace authority is unchanged.
+   *
+   * Search/index settings may change the model passed to derived operations,
+   * but they do not invalidate the graph worker or its staged review state.
+   */
+  applyWorkspaceModel(model: WorkspaceModel): void {
+    this.scope = { ...this.scope, model };
+  }
+
   invalidateDerivedState(): void {
     this.graph?.invalidate();
     const scope = this.scope;

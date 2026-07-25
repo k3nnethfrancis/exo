@@ -110,6 +110,79 @@ describe("WorkspaceRuntimeCoordinator", () => {
     expect(events).toContain("publish:/operator:null");
   });
 
+  it("publishes non-structural settings without replacing Workspace resources", async () => {
+    const events: string[] = [];
+    const coordinator = coordinatorFor(events);
+    const workspace = settings("/workspace");
+    await coordinator.activate(request(workspace, "startup"));
+    events.length = 0;
+
+    const next = {
+      ...workspace,
+      appearanceMode: "dark" as const,
+      indexUpdateStrategy: "manual" as const,
+      layout: {
+        version: 3 as const,
+        canvas: {
+          kind: "leaf" as const,
+          id: "editor",
+          content: { kind: "editor" as const, openPaths: [], activePath: null },
+        },
+        sidebarCollapsed: false,
+        sidebarWidth: 280,
+        utilityWidth: 360,
+      },
+    };
+    expect(coordinator.applySettings({
+      previousSettings: workspace,
+      settings: next,
+      revision: "settings-revision",
+    })).toBe(true);
+
+    expect(coordinator.current()).toMatchObject({
+      settings: next,
+      revision: "settings-revision",
+      model: { workspaceRoot: "/workspace" },
+    });
+    expect(events).toEqual([
+      "publish:/workspace:settings-revision",
+      "settings:/workspace:/workspace",
+    ]);
+  });
+
+  it("refuses in-place publication when Workspace authority changes", async () => {
+    const events: string[] = [];
+    const coordinator = coordinatorFor(events);
+    const source = settings("/source");
+    await coordinator.activate(request(source, "startup"));
+    events.length = 0;
+
+    expect(coordinator.applySettings({
+      previousSettings: source,
+      settings: settings("/destination"),
+      revision: "settings-revision",
+    })).toBe(false);
+    expect(coordinator.current()).toMatchObject({ model: { workspaceRoot: "/source" } });
+    expect(events).toEqual([]);
+  });
+
+  it("keeps degraded runtime settings on the repair path", async () => {
+    const events: string[] = [];
+    const coordinator = coordinatorFor(events);
+    const workspace = settings("/workspace");
+    await coordinator.activate(request(workspace, "startup"));
+    expect(coordinator.reportLateRuntimeFailure(1, "watcher", "watcher failed")).toBe(true);
+    events.length = 0;
+
+    expect(coordinator.applySettings({
+      previousSettings: workspace,
+      settings: { ...workspace, appearanceMode: "dark" },
+      revision: "settings-revision",
+    })).toBe(false);
+    expect(events).toEqual([]);
+    expect(coordinator.status()).toMatchObject({ status: "degraded", errorMessage: "watcher failed" });
+  });
+
   it("keeps A's runtime intact when B watcher preparation fails", async () => {
     const events: string[] = [];
     let publishedWorkspace: string | null = null;
@@ -275,6 +348,7 @@ function coordinatorFor(
     invalidateDerivedState: (candidate) => { events.push(`invalidate:${candidate.model.workspaceRoot}`); },
     setTerminalDefaultCwd: (candidate) => { events.push(`terminal:${candidate.model.defaultTerminalCwd}`); },
     reconcileIndex: (previous, candidate, reason) => { events.push(`index:${reason}:${previous.workspaceRoot}:${candidate.settings.workspaceRoot}`); },
+    applySettingsInPlace: (previous, active) => { events.push(`settings:${previous.workspaceRoot}:${active.settings.workspaceRoot}`); },
     publishActive: (active) => { events.push(`publish:${active.settings.workspaceRoot}:${active.revision}`); },
     ...overrides,
   });

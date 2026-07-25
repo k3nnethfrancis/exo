@@ -309,6 +309,28 @@ describe("WorkspaceNotesService", () => {
     await Promise.all([rm(workspaceA, { recursive: true, force: true }), rm(workspaceB, { recursive: true, force: true })]);
   });
 
+  it("publishes non-authority model changes without replacing the graph client", async () => {
+    const model = workspaceModel("/workspace", "/workspace/notes");
+    const nextModel: WorkspaceModel = {
+      ...model,
+      indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
+      searchEngine: "qmd",
+    };
+    const graphTopology = vi.fn().mockRejectedValue(new Error("observed model"));
+    const dispose = vi.fn();
+    const service = new WorkspaceNotesService({
+      getWorkspaceModel: () => model,
+      getRuntimeRoot: () => "/workspace/.exo",
+      derivedIndex: { graphTopology, dispose } as unknown as DerivedIndexClient,
+    });
+
+    service.applyWorkspaceModel(nextModel);
+
+    await expect(service.getGraphTopology()).rejects.toThrow("observed model");
+    expect(graphTopology).toHaveBeenCalledWith(nextModel, "/workspace/.exo", expect.anything());
+    expect(dispose).not.toHaveBeenCalled();
+  });
+
   it("authorizes and case-preserves graph concept file lookup within note roots", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const folder = path.join(noteRoot, "CasePreserved");

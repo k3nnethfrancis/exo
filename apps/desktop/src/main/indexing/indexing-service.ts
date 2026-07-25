@@ -156,6 +156,11 @@ export class IndexingService {
     this.options.sendState({ state: "idle", reason: "workspace-activated" });
   }
 
+  /** Updates policy without replacing the workers that own active graph work. */
+  applySettings(activation: IndexingWorkspaceActivation): void {
+    this.state.scope = { ...this.state.scope, ...activation };
+  }
+
   shouldUseIndex(model = this.state.scope.model): boolean {
     return model.searchEngine !== "filesystem" && model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0;
   }
