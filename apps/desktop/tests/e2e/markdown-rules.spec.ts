@@ -591,3 +591,38 @@ test("keeps cursor and shortcut selections out of rendered list markers", async 
 
   await cleanup();
 });
+
+test("repairs structural list metadata before compiling the current viewport interaction", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      await writeFile(path.join(workspaceRoot, "notes/test-notes/preview-update-order.md"), "# Preview update order\n\nplain item\n", "utf8");
+    },
+  });
+
+  try {
+    await page.getByRole("button", { name: /preview-update-order/i }).first().click();
+    await expect.poll(() => page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      return content?.cmView?.view?.state.doc.toString() ?? "";
+    })).toContain("plain item");
+    await page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) throw new Error("Unable to resolve CodeMirror view");
+      const from = view.state.doc.toString().indexOf("plain item");
+      view.dispatch({ changes: { from, to: from + "plain item".length, insert: "- [ ] repaired task" } });
+    });
+
+    const checkbox = page.locator("[data-exo-checkbox-pos]");
+    await expect(checkbox).toHaveCount(1);
+    await expect(page.locator(".exo-md-line--task")).toHaveCount(1);
+    await checkbox.click();
+    await expect.poll(() => page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      return content?.cmView?.view?.state.doc.toString() ?? "";
+    })).toContain("- [x] repaired task");
+  } finally {
+    await cleanup();
+  }
+});
