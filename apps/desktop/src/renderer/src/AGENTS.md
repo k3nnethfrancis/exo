@@ -29,8 +29,7 @@ use `window.exo` through preload/shared API types.
   pure tree transforms free of React and preload calls.
 - Graph scene/layout/interaction is owned by `graphSceneFoundation.ts`,
   `graphLayoutSimulation.ts`, `graphInteraction.ts`, and renderer hosts. Read
-  `../../../../../skills/graph-system-stability/SKILL.md` before changing a
-  graph layer.
+  `../../../../../docs/architecture.md` before changing a graph layer.
 
 ## Non-ownership and invariants
 

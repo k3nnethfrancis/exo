@@ -1,8 +1,6 @@
 # Exo Domain Context
 
-Lab vocabulary lives in `../../notes/shoshin-codex/CONTEXT.md`. The open concept and public narrative live in `../../notes/shoshin-codex/graphs-in-common.md`.
-
-This file is the canonical Exo glossary. It defines product meaning, not implementation.
+This public glossary defines product meaning, not implementation.
 
 ## Language
 

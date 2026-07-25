@@ -1,47 +1,53 @@
 # Contributing
 
-Exo is currently macOS-first and moving quickly. Keep changes small, typed, and covered by focused tests where behavior can regress.
+Exo is a macOS-first Electron application. Keep changes small, typed, and
+covered by the narrowest test that proves the behavior.
 
-## Development
+## Start locally
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Before opening a pull request:
+Use `pnpm dev:qa` when an installed Exo app is running for normal work. It uses
+isolated runtime and user-data paths. Use `pnpm pack:mac` for onboarding,
+first-run, native-module, or packaged-app verification.
+
+## Before a pull request
 
 ```bash
-pnpm check
+pnpm ci:check
 ```
 
-For desktop-specific changes, also run the relevant Playwright slice:
+Run the relevant Electron journey for desktop-visible changes. Browser-only
+tests cannot verify Electron IPC.
 
-```bash
-pnpm test:e2e
-```
+## Project shape
 
-## Project Shape
+- `apps/desktop` — Electron main process, preload, and renderer.
+- `packages/core` — Workspace, Markdown graph, search, invocation records, and shared protocol types.
+- `packages/cli` — the `exo` CLI and MCP presentation.
+- `docs` — current product and architecture contracts.
 
-- `apps/desktop` owns the Electron app.
-- `packages/core` owns workspace, search, runtime, and shared protocol logic.
-- `packages/cli` owns the `bin/exo` command surface.
-- `skills` owns repo-local contributor skills shared by Claude and Codex compatibility paths.
-- `docs/README.md`, `CONTEXT.md`, `README.md`, `docs/architecture.md`, `docs/harness.md`, `tasks.md`, `roadmap.md`, and `ledger.md` are part of the source of truth for agent/human handoff.
+Read [docs/architecture.md](docs/architecture.md) before changing a cross-cutting
+boundary. [AGENTS.md](AGENTS.md) provides the same map in an agent-friendly form.
 
-## Issue Intake
+## Pull-request standard
 
-Root `issues.md` is the canonical local tracker for active Exo bug, QA, setup, and field reports. Before filing or assigning a report, use `skills/submit-exo-issue/SKILL.md`: deduplicate, add the next `EXO-ISSUE-*` entry, include GitHub links/screenshots where relevant, and keep acceptance criteria testable.
+- One behavior or refactor per change set.
+- Do not widen Note Root authority or add a hidden filesystem/process path.
+- Keep Markdown canonical; derived state belongs under `.exo/`.
+- Update public docs and [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
+- File bugs and feature requests in GitHub Issues. Do not add a local issue or task ledger to the repository.
+- Follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-## Work Chunks
+`docs/internal/` is an ignored local workspace for maintainer plans, ledgers,
+roadmaps, and scratch notes. It is intentionally absent from clones and must
+never be committed.
 
-Keep changes small, evidence-backed, and easy to review:
+## Support scope
 
-- one behavior or refactor per chunk
-- update docs when public commands, settings, runtime behavior, or agent workflow changes
-- run focused gates while iterating
-- run `pnpm check` for broad or release-facing changes
-
-## Scope
-
-macOS is the supported development and packaging target today. Windows and Linux compatibility is welcome where it falls out naturally, but please do not add platform-specific promises without tests and docs.
+macOS is the supported development and packaging target today. Windows and
+Linux compatibility is welcome where it falls out naturally, but do not make
+platform-specific promises without tests and documentation.

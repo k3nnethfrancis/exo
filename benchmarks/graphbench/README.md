@@ -10,8 +10,9 @@ while separating three workloads that are easy to conflate:
 3. **Product** — camera/input latency, selection, labels, and memory are tested
    as user-facing capabilities rather than renderer throughput.
 
-See [roadmap.md](./roadmap.md) for the renderer, interaction, resilience, and
-scale gates. The suite's scope ends at Exo software verification.
+The suite's scope ends at Exo software verification. Its source is retained
+with Exo because it protects the production renderer; it is not a portable AI
+benchmark or an independently versioned product.
 
 The checked-in runner never downloads private data. Generated fixtures and
 benchmark results live under `artifacts/`, which is safe to replace and should

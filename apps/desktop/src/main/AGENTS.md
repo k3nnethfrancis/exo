@@ -33,7 +33,7 @@ search, command-wire, or renderer state contracts.
   renderer owns review presentation and decisions.
 - Direct PTY lifecycle: `terminal/terminal-manager.ts` and
   `terminal/terminal-runtime*.ts`. Read
-  `../../../../skills/terminal-stability/SKILL.md` before changing any terminal
+  `../../../../docs/terminal-runtime-decision.md` before changing terminal
   behavior.
 
 `index.ts` is composition only: assemble services, register IPC, and make no
@@ -62,6 +62,5 @@ pnpm --filter @exo/desktop exec vitest run src/main/invocation/invocation-runner
 pnpm --filter @exo/desktop typecheck
 ```
 
-For a cross-process change, also follow `../../../../docs/harness.md` and run
-the relevant Electron path; unit tests alone do not prove main/preload/renderer
-agreement.
+For a cross-process change, run the relevant Electron path; unit tests alone do
+not prove main/preload/renderer agreement.

@@ -5,8 +5,7 @@ Date: 2026-07-13
 ## Status
 
 Accepted and implemented. QMD and WorkspaceGraph derived work cross the same
-kind of bounded utility-process boundary; the completed incident is recorded in
-`../../issues.md#exo-issue-110-derived-graphsearch-work-can-stall-editor-navigation`.
+kind of bounded utility-process boundary.
 
 ## Context
 

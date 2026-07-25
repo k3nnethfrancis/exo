@@ -41,9 +41,7 @@ Commands and their trust decisions remain Workspace-scoped. Skills are user-edit
 - Keep the current launch model and the Project Root deletion.
 - Improve Workspace switching only if real use proves it is the friction, before building federation.
 - Defer global `--all` search, cross-workspace graph, portable workspace identity, and an index-provider matrix until dogfood proves recurring need.
-- Dogfood a personal exocortex Workspace and a project-adjacent wiki Workspace for 2–4 weeks. Record switching friction and concrete cross-scope requests in the active project evidence location.
 
 ## Sources
 
-- Fable review: `../reviews/2026-07-12-fable-wiki-scope-product-model.md`
 - LLMWiki reference: <https://github.com/ajeygore/llmwiki>

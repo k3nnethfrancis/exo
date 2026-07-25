@@ -4,7 +4,9 @@ Last updated: 2026-07-24
 
 Exo is a local, user-owned Markdown exocortex with modular, tunable search, inline agent invocation, and graph management skills.
 
-`../tasks.md` is the active execution ledger; `../issues.md` is the current QA/bug record. This document distinguishes the **shipped substrate** below from the **next vertical slice**. Historical plans may describe removed systems, but do not define current behavior.
+This document describes the shipped system boundaries. Product planning, bugs,
+and release work are tracked in GitHub Issues and pull requests; historical
+work does not define current behavior.
 
 ## Product substrate
 
@@ -69,9 +71,7 @@ active Ontology and graph snapshot identities attached.
 
 ## Accepted graph direction
 
-The isolated graph lab and quality investigation are distilled in
-`graph-system-report-and-plan.md`. The production implementation enforces this
-separation:
+The production implementation enforces this separation:
 
 ```text
 canonical Markdown
@@ -175,7 +175,7 @@ Owns the thin token-authenticated local command server and generation-safe disco
 
 A configured Command is the provider-neutral executable identity. Claude, Codex, Pi, Guardian, and other tools use the same out-of-process path.
 
-The shipped composer invokes configured Commands with explicit, user-authored messages and current-document context. The first graph-management Skill is next-slice work: it will be user-editable instructions/data for a bounded task, not code, authority, auto-chaining, or a bypass around review.
+The shipped composer invokes configured Commands with explicit, user-authored messages and current-document context. Graph discovery and contextual maintenance use user-owned Markdown Skills for bounded tasks; a Skill is instructions and data, never code, authority, auto-chaining, or a bypass around review.
 
 The initial loop is:
 
@@ -189,17 +189,18 @@ The future Skill flow adds a reviewed, bounded proposal step; it is not claimed 
 
 | Domain | Owner / durable boundary | User behavior | Evidence / canonical docs |
 | --- | --- | --- | --- |
-| Note Roots and files | `WorkspaceModel`, `WorkspaceFiles` | Exo reads and mutates only authorized Note Roots | containment tests; `../issues.md#exo-issue-103`, `../CONTEXT.md` |
-| Workspace settings | `WorkspaceConfigStore`, `WorkspaceRuntimeCoordinator`, settings effect planner | Settings preserve unowned/unknown data and configured Commands; only the affected runtime owner is rebound | settings/runtime tests; `../issues.md#exo-issue-102` |
+| Note Roots and files | `WorkspaceModel`, `WorkspaceFiles` | Exo reads and mutates only authorized Note Roots | containment tests; `../CONTEXT.md` |
+| Workspace settings | `WorkspaceConfigStore`, `WorkspaceRuntimeCoordinator`, settings effect planner | Settings preserve unowned/unknown data and configured Commands; only the affected runtime owner is rebound | settings/runtime tests |
 | Notes and properties | Markdown/frontmatter, `NoteDocument` | Source on disk remains canonical | note/Markdown tests; `../CONTEXT.md` |
-| Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context; Knowledge Graph 0.3 preserves open Properties, Relation origin, and Evidence while the Graph Pane uses compact topology plus bounded cold reads | search/graph/transport tests; `graph-system-report-and-plan.md` |
+| Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context; Knowledge Graph 0.3 preserves open Properties, Relation origin, and Evidence while the Graph Pane uses compact topology plus bounded cold reads | search/graph/transport tests; [`workspace-ontology.md`](workspace-ontology.md) |
 | Canvas and panes | `WorkspaceCanvasLayoutSettings`, pane tree | Notes, Terminal, Preview, and Connections share one canvas | pane E2E; `../README.md` |
 | Terminal | `TerminalManager`, direct `node-pty`, xterm | Live terminal with bounded reload tail; no durable session history | terminal suite; `terminal-runtime-decision.md` |
-| Commands and invocation | `AgentCommand`, `InvocationRunner`, invocation records | Explicit inline invocation, headless document work, optional session handoff, observed-change review | invocation E2E; `../issues.md#exo-issue-106` |
-| Exo MCP discovery | `packages/cli/src/mcp-server.ts`, `provider-mcp-setup.ts` | Optional provider-owned MCP for tool-capable clients; caller cwd resolves scope, ambiguous scope refuses retrieval, and app retrieval is used only for that exact Workspace. Shell-capable clients keep the Exo CLI path. | MCP + provider-setup tests; `provider-mcp-onboarding.md`, `reviews/2026-07-13-fable-mcp-agent-context-packet.md` |
-| Command server and CLI | `command-protocol.ts`, `CommandServerLifecycle` | Resident-app commands plus app-off search/status | command-server tests; `public-contract-reviews.md` |
+| Commands and invocation | `AgentCommand`, `InvocationRunner`, invocation records | Explicit inline invocation, headless document work, optional session handoff, observed-change review | invocation E2E; [`document-agent-protocol.md`](document-agent-protocol.md) |
+| Exo MCP discovery | `packages/cli/src/mcp-server.ts`, `provider-mcp-setup.ts` | Optional provider-owned MCP for tool-capable clients; caller cwd resolves scope, ambiguous scope refuses retrieval, and app retrieval is used only for that exact Workspace. Shell-capable clients keep the Exo CLI path. | MCP + provider-setup tests; [`provider-mcp-onboarding.md`](provider-mcp-onboarding.md) |
+| Command server and CLI | `command-protocol.ts`, `CommandServerLifecycle` | Resident-app commands plus app-off search/status | command-server tests; [`README.md`](../README.md) |
 
-This is the maintained pointer index. `tasks.md` decides what is next; it must not be used to imply implementation.
+This is the maintained pointer index. Current development work is visible in
+GitHub Issues and pull requests.
 
 ## Extension boundary
 
@@ -217,17 +218,6 @@ Search is the only earned typed provider seam. Folder ontology and graph managem
 
 A future Plugin is an installable distribution bundle, not another deep module or provider interface. It may package proven Skills, ontology templates, Command templates, evals, and explicitly trusted external integrations; each component keeps its own execution and authority boundary.
 
-## Future systems
-
-After the launch loop is stable:
-
-1. Add and evaluate more graph management Skills.
-2. Build Ashby Gym and Exograph Steward before assuming training is necessary.
-3. Keep SFT, preference, RL, embedding, and reranker recipes separate from local/cloud executors.
-4. Materialize selected external sources as source-faithful Markdown when indexing is useful; do not build a native Feed first.
-5. Add local/cloud index providers only after concrete demand, privacy/upload/deletion semantics, and measured retrieval value earn them.
-6. Extract a Learning Factory only after real recipes expose stable shared behavior; Exo never silently activates a candidate or expands authority.
-
 ## Safety boundaries
 
 - Renderer code never accesses files or processes directly.
@@ -240,7 +230,7 @@ After the launch loop is stable:
   who authored bytes outside the explicit invocation/response envelopes.
 - Public CLI commands, command-server routes, and shared protocol types require the repository's architecture-review gate.
 
-See `extension-architecture.md`, `graph-system-report-and-plan.md`,
-`../CONTEXT.md`, `adr/0002-folder-indexes-as-ontology.md`, and
-`adr/0005-schema-agnostic-graph-and-knowledge-profiles.md` for the durable
-boundary and vocabulary.
+See [`extension-architecture.md`](extension-architecture.md),
+[`workspace-ontology.md`](workspace-ontology.md), [`../CONTEXT.md`](../CONTEXT.md),
+and [`adr/0002-folder-indexes-as-ontology.md`](adr/0002-folder-indexes-as-ontology.md)
+for the durable boundary and vocabulary.

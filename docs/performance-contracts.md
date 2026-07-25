@@ -1,6 +1,6 @@
 # Performance contracts
 
-Last verified against source at `5a780ab` on 2026-07-24. A numeric value below
+Last verified against source at `b07a3f5` on 2026-07-24. A numeric value below
 is a test gate, not a claimed benchmark result. Where no gate measures an
 action, the status is explicitly unmeasured.
 

@@ -20,7 +20,7 @@ Your thinking, knowledge, projects, and context exceed what you can actively hol
 
 Search helps recover context, but it is not the whole problem. Exo makes relationships among notes visible and useful through links, backlinks, tags, properties, relevant-context discovery, and a focused graph.
 
-Agents help maintain the exograph without becoming the product spine. A user explicitly invokes a configured Command inline; Exo shows observed Markdown changes for review. The first editable graph-management Skill is the next vertical slice.
+Agents help maintain the exograph without becoming the product spine. A user explicitly invokes a configured Command inline; Exo shows observed Markdown changes for review. The included graph-maintenance Skill uses that same reviewed path.
 
 ## How the graph begins
 
@@ -87,26 +87,12 @@ Exo is not building:
 - Direct `node-pty` terminals rendered by xterm, with bounded in-memory replay for renderer reload and operator reads.
 - CLI control of the local workspace/runtime.
 
-## Roadmap
+## Project direction
 
-Exo is early. The current branch is a heavy-handed Exograph refactor. Near-term priorities follow the four launch primitives:
-
-- Finish the trustworthy Markdown workspace and packaged-app proof.
-- Make filesystem/QMD Search reliable, fast, and explicit about provider health.
-- Consolidate the graph model around open Concepts, Properties, Relations, and
-  Evidence; prove Generic Markdown and OKF compatibility with deterministic
-  contract tests.
-- Integrate the tested spatial Graph View only after renderer-neutral projection,
-  packaged-app, and editor-latency-under-load gates pass.
-- Turn Connections into actionable context through links, tags, properties,
-  neighborhoods, and explained suggestions.
-- Ship one **Find and connect relevant context** graph/wiki skill through configured Command invocation and diff review.
-- Continue removing retired architecture that does not serve this loop.
-
-See `roadmap.md` and `tasks.md` for the active plan.
-
-The current graph-system plan is `docs/graph-system-report-and-plan.md`.
-`docs/exograph-simplification-plan.md` is the historical refactor record.
+Exo is early and macOS-first. The public focus is a dependable Markdown
+workspace, local search, a legible graph, and explicit agent-assisted changes
+that remain under human review. Public bugs and feature requests belong in
+GitHub Issues; release history belongs in [CHANGELOG.md](CHANGELOG.md).
 
 ## Graph performance gates
 
@@ -234,6 +220,12 @@ Type `@` in a Markdown editor, select a configured Command such as `@claude`, th
 
 CLI is the durable local integration surface.
 
+## Skills
+
+The repository includes reusable, provider-neutral [Markdown Skills](skills/README.md)
+for ontology design, graph and terminal changes, UI quality, and issue reports.
+They are reviewable instructions, not executable plugins or hidden authority.
+
 ## CLI
 
 The CLI is the compact shell-capable agent/operator surface: orient, search,
@@ -310,7 +302,7 @@ Runtime files live under `.exo/` inside the workspace root:
 
 `.exo/` is derived local state, never canonical notes. Add `.exo/` to `.gitignore` when the Workspace root is in a Git repository; Exo warns about an unignored runtime directory rather than modifying your repository. Moving or copying a Workspace intentionally requires re-authorizing configured Commands.
 
-QMD is the default indexing provider for optional Exo-managed notes search. Live Explore typing remains fast filename/path search; indexed search is explicit through Enter in Explore when enabled and through CLI index/search tools. See `docs/qmd-integration-notes.md` for the adapter contract and upgrade notes.
+QMD is the default indexing provider for optional Exo-managed notes search. Live Explore typing remains fast filename/path search; indexed search is explicit through Enter in Explore when enabled and through CLI index/search tools. See [`docs/architecture.md`](docs/architecture.md) for the current system boundary.
 
 ## Development Harness
 
@@ -343,7 +335,7 @@ pnpm test:e2e
 pnpm test:visual
 ```
 
-See `docs/harness.md` for work-chunk rules, validation evidence, and agent-friendly development workflow.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development and validation guidance.
 
 ## Stack
 
@@ -358,15 +350,8 @@ See `docs/harness.md` for work-chunk rules, validation evidence, and agent-frien
 - `apps/desktop` - Electron main/preload/renderer, settings, terminal supervision, and the local command server.
 - `packages/core` - Note Root workspace model, Markdown files, configured Commands, QMD adapter, and shared command protocol.
 - `packages/cli` - `bin/exo` command surface.
-- `docs/architecture.md` - package and runtime architecture.
-- `docs/extension-architecture.md` - current extension architecture and core-versus-extension boundary.
-- `docs/terminal-runtime-decision.md` - current direct-PTY terminal decision.
-- `docs/harness.md` - developer harness, gates, and agent workflow.
-- `docs/usability-readiness.md` - near-term standard for installed daily use.
-- `tasks.md` - active execution tracker.
-- `roadmap.md` - future work and sequencing.
-- `docs/qmd-integration-notes.md` - current QMD adapter contract and upgrade checklist.
-- `ledger.md` - fastest current-state handoff.
+- `docs` - current product and architecture contracts.
+- `benchmarks/graphbench` - Exo's internal graph-rendering regression harness.
 
 ## Packaging
 
@@ -406,19 +391,9 @@ macOS Electron crash reports:
 ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
 ```
 
-## Docs Order
+## Documentation
 
-1. `AGENTS.md` - contributor invariants and active Codex execution context
-2. `CONTEXT.md` - canonical Exo vocabulary and domain boundaries
-3. `tasks.md` - active work and sequencing
-4. `issues.md` - bugs, QA findings, and release blockers
-5. `docs/graph-system-report-and-plan.md` - graph evidence, knowledge model, quality framework, and integration gates
-6. `README.md` - product overview and onboarding
-7. `roadmap.md` - short-term direction and long-term research ladder
-8. `docs/architecture.md` - current architecture and retained data-model boundaries
-9. `docs/extension-architecture.md` - current extension ladder
-10. `docs/README.md` - current/historical documentation map
-11. `docs/harness.md` - contribution harness and validation gates
-12. `docs/usability-readiness.md` - installed-app readiness standard
-13. `ledger.md` - completed implementation history
-14. `docs/exograph-simplification-plan.md` - historical refactor rationale and prior audits
+Start with [CONTRIBUTING.md](CONTRIBUTING.md) for local development and
+[docs/README.md](docs/README.md) for current product and architecture
+references. [AGENTS.md](AGENTS.md) is a provider-neutral map for coding
+agents; it carries the same public contracts as the contributor docs.

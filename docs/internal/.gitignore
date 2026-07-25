@@ -1,0 +1,4 @@
+# Local maintainer planning and working notes belong here.
+# Keep this directory out of the public repository.
+*
+!.gitignore

@@ -9,13 +9,13 @@ Use this skill when a user reports an Exo bug, QA finding, setup failure, confus
 
 ## Standard
 
-Root `issues.md` is the canonical submission surface for Exo field reports and implementation issues. GitHub issues are optional mirrors for public tracking or Codex-loop automation, not the source of truth.
+GitHub Issues are the canonical public submission surface for Exo field reports
+and implementation work. Do not create a local issue ledger.
 
 ## Workflow
 
-1. Inspect root `issues.md` for duplicates or related context.
-2. Add or update the root `issues.md` entry as the primary action, using the next unused `EXO-ISSUE-*` under `## Open` when creating a new issue.
-3. Use a concise issue body:
+1. Search GitHub Issues for duplicates or related context.
+2. Create or update one GitHub Issue with a concise body:
 
 - Summary
 - Observed
@@ -23,9 +23,10 @@ Root `issues.md` is the canonical submission surface for Exo field reports and i
 - Acceptance criteria
 - Relevant screenshot/log/source paths
 
-4. If the issue should also exist on GitHub, create or update the GitHub issue after `issues.md` and include the GitHub URL in `Source`.
-5. If the GitHub issue is actionable by automation, apply both `codex-loop` and `ready-for-codex`; otherwise do not assume automation will pick it up.
-6. Do not create parallel issue trackers under `docs/` or the notes vault.
+3. Add labels only when they exist and accurately describe the report. Do not
+   assume an automation label or a scheduled agent loop.
+4. Do not create parallel issue trackers under `docs/`, a notes vault, or a
+   local repository file.
 
 ## Severity Guide
 

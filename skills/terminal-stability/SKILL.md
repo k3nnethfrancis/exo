@@ -12,7 +12,7 @@ Use this skill before changing Exo terminal runtime, terminal rendering, termina
 Read these current sources first:
 
 - `AGENTS.md`
-- `tasks.md` and `issues.md` for active scope and terminal evidence
+- the relevant GitHub Issue or pull request when one exists
 - `docs/terminal-runtime-decision.md`
 - `apps/desktop/src/main/terminal/terminal-manager.ts`
 - `apps/desktop/src/renderer/src/components/TerminalView.tsx`
@@ -53,7 +53,8 @@ Users who want tmux durability can run `tmux` inside a normal Exo terminal. Clau
 - Do not call `terminal.reset()` or replay a full snapshot on normal tab switch, pane focus, pane move, preview focus, or metadata refresh.
 - Direct pty output is streamed to xterm and to a byte- or character-bounded live tail only where current UI/CLI callers need a short readback, including output without newlines.
 - No terminal transcript persistence, restore snapshot, or session-after-restart feature should be added without a new explicit architecture review.
-- Fake local agent commands should be used for automated tests. Do not depend on live Claude/Codex/Fable inference in CI.
+- Fake local commands should be used for automated tests. Do not depend on live
+  provider inference in CI.
 - Command launch must route through configured data-only Commands and InvocationRunner, not a built-in harness registry or readiness manager.
 - Ordinary shell wheel, trackpad, and selection stay with xterm. A mouse-mode TUI may own wheel input only with a visible indicator and documented modifier escape to local scrollback.
 - App exit ends the PTY. Renderer reload may replay bounded memory, but Exo must not imply durable process persistence.

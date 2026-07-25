@@ -48,4 +48,6 @@ pnpm --filter @exo/core typecheck
 pnpm --filter @exo/core check:unused
 ```
 
-For graph changes, load `../../skills/graph-system-stability/SKILL.md` first.
+For graph changes, read `../../docs/architecture.md`,
+`../../docs/note-root-formats.md`, and `../../docs/workspace-ontology.md`
+before editing.

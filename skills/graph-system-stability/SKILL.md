@@ -12,18 +12,18 @@ view. Apply only the branch of this workflow relevant to the task.
 
 Read these current sources first:
 
-- `AGENTS.md`, `CONTEXT.md`, `tasks.md`, and `issues.md`
-- `docs/graph-system-report-and-plan.md`
-- `docs/adr/0005-schema-agnostic-graph-and-knowledge-profiles.md`
+- `AGENTS.md` and `CONTEXT.md`
 - `docs/architecture.md`
+- `docs/note-root-formats.md` and `docs/workspace-ontology.md`
+- `benchmarks/graphbench/contract.md`
 
 For layout, scene, renderer, gestures, or labels also read:
 
-- `../exo-graph-viz-lab/stellar-contract.md`
-- `../exo-graph-viz-lab/graphbench/contract.md`
+- `apps/desktop/src/renderer/src/components/SpatialGraphView.tsx`
+- `apps/desktop/src/renderer/src/graphWebGpuRenderer.ts`
 
-Treat the graph lab as experiment evidence. Production Exo must consume a stable
-contract, not import the lab as a second application or semantics path.
+Keep production graph semantics in Exo's stable contracts; do not introduce a
+second graph application or graph model.
 
 ## Classify the change
 
@@ -113,8 +113,8 @@ Markdown → Knowledge Graph → Graph projection → Layout → Scene → Rende
    old behavior.
 5. Run only the focused gates required by the affected layer, then broaden in
    proportion to integration risk.
-6. Update `CONTEXT.md` only for changed domain language, an ADR only for a hard-
-   to-reverse decision, and the graph report/tasks when sequencing changes.
+6. Update `CONTEXT.md` only for changed domain language and an ADR only for a
+   hard-to-reverse decision. Track follow-up work in GitHub Issues.
 7. Record benchmark results with exact fixtures and do not convert lab success
    into a production claim without packaged-app evidence.
 
@@ -136,15 +136,10 @@ resolution, Evidence, deterministic snapshots, and compatibility behavior.
 
 ### Spatial scene or renderer changes
 
-From `../exo-graph-viz-lab`:
-
 ```bash
-node stellar-benchmark.cjs
-node stellar-density-benchmark.cjs
-node stellar-grid-artifact-check.cjs
-cd graphbench
-npm run smoke
-npm run layout:smoke
+pnpm graphbench:test
+pnpm graphbench:smoke
+pnpm graphbench:resilience
 ```
 
 Run only applicable tracks, but never substitute a render pass for a layout or

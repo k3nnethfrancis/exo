@@ -1,0 +1,17 @@
+name: Feature request
+description: Propose a focused product improvement.
+title: "feature: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you solving?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would a useful outcome look like?
+    validations:
+      required: true

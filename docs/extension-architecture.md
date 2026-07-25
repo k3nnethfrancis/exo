@@ -94,7 +94,7 @@ The current product does not ship a catalog, marketplace, general manifest/capab
 V2 candidates:
 
 - Note-result hydration: search provider result plus Exo-owned note metadata and graph context.
-- The first graph-management Skill, after the trust and distillation gates in `../tasks.md`.
+- Graph-management Skills, once a concrete workflow proves they earn a product surface.
 - View projections for Markdown/frontmatter conventions such as tasks, dates, tables, calendar, or kanban if dogfooding proves they matter.
 - Out-of-process provider protocol for search/index providers.
 

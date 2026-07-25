@@ -40,10 +40,7 @@ Ordinary shell wheel, trackpad, and selection stay with xterm. A full-screen TUI
 
 The production factory is direct `node-pty`; a deterministic fake exists only for tests. Automated coverage uses local shells and fake Commands, never live model inference.
 
-Required proof is defined in `skills/terminal-stability/SKILL.md` and includes input fidelity, resize, ordinary and mouse-mode scrolling, mounted-tab preservation, bounded reload replay, renderer fallback, Command launch, and honest app-exit behavior.
-
-## Historical documents
-
-The tmux/transcript-era plans and spike reports were retired in the P4 documentation
-pass. Git retains their historical text. This decision and
-`skills/terminal-stability/SKILL.md` are the durable terminal policy.
+Required proof covers input fidelity, resize, ordinary and mouse-mode
+scrolling, mounted-tab preservation, bounded reload replay, renderer fallback,
+Command launch, and honest app-exit behavior. Run the focused terminal Electron
+journey as part of any terminal-runtime change.
