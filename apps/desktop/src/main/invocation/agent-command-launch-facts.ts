@@ -10,8 +10,8 @@ import {
   type AgentCommandLaunchContext,
 } from "@exo/core";
 
-import type { AgentCommandLaunchFacts } from "../shared/api";
-import { commandEnvironment } from "./command-environment";
+import type { AgentCommandLaunchFacts } from "../../shared/api";
+import { commandEnvironment } from "../command/command-environment";
 
 export async function inspectAgentCommandLaunchFacts(
   command: AgentCommand,

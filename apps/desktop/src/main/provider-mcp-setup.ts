@@ -4,7 +4,7 @@ import { access, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { ProviderMcpSetupInput, ProviderMcpSetupResult } from "../shared/api";
-import { commandEnvironment } from "./command-environment";
+import { commandEnvironment } from "./command/command-environment";
 
 const execFileAsync = promisify(execFile);
 

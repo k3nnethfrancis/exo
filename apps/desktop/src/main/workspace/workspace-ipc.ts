@@ -2,8 +2,8 @@ import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import path from "node:path";
 import { assertOntologyReviewGuard, WorkspaceFiles, type WorkspaceModel } from "@exo/core";
 
-import type { DesktopApi, FileStatInfo, RendererEditorDiagnostic, WorkspaceRegistryEntry } from "../shared/api";
-import { handleDesktopInvoke } from "./typed-ipc";
+import type { DesktopApi, FileStatInfo, RendererEditorDiagnostic, WorkspaceRegistryEntry } from "../../shared/api";
+import { handleDesktopInvoke } from "../typed-ipc";
 
 type WorkspaceApi = DesktopApi["workspace"];
 type NotesApi = DesktopApi["notes"];

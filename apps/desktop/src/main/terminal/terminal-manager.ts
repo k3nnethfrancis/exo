@@ -13,12 +13,12 @@ import {
   DEFAULT_TERMINAL_TAIL_CACHE_CHARS,
 } from "@exo/core/terminal-settings";
 
-import type { TerminalCreateOptions, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../shared/api";
+import type { TerminalCreateOptions, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../../shared/api";
 import type { TerminalProcess, TerminalProcessFactory } from "./terminal-runtime";
 import { DirectPtyProcessFactory } from "./terminal-runtime-pty";
 import { TerminalGeometryService } from "./terminal-geometry-service";
 import { TerminalTailCache, normalizeTailLineLimit } from "./terminal-tail-cache";
-import { commandEnvironment } from "./command-environment";
+import { commandEnvironment } from "../command/command-environment";
 
 interface TerminalRecord {
   info: TerminalSessionInfo;

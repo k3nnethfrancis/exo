@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 
 import type { InvocationProcessOwnership } from "@exo/core";
 
-import { commandEnvironment } from "./command-environment";
+import { commandEnvironment } from "../command/command-environment";
 
 export interface InvocationProcess {
   readonly ownership: InvocationProcessOwnership;

@@ -178,8 +178,8 @@ const publicContractSurfaces = [
     slice: 'exported-protocol',
   },
   {
-    id: 'apps/desktop/src/main/command-server.ts#route-table',
-    path: 'apps/desktop/src/main/command-server.ts',
+    id: 'apps/desktop/src/main/command/command-server.ts#route-table',
+    path: 'apps/desktop/src/main/command/command-server.ts',
     label: 'command-server HTTP method and route table',
     slice: 'command-server-routes',
   },

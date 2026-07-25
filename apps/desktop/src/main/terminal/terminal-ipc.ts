@@ -1,5 +1,5 @@
 import type { TerminalManager } from "./terminal-manager";
-import { handleDesktopInvoke } from "./typed-ipc";
+import { handleDesktopInvoke } from "../typed-ipc";
 
 export function registerTerminalIpcHandlers(
   terminalManager: TerminalManager,

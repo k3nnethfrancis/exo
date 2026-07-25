@@ -27,7 +27,7 @@ import {
   type WorkspaceModel,
 } from "@exo/core";
 import type { WorkspaceChangeEvent } from "./workspace-watchers";
-import type { DerivedIndexClient } from "./derived-index-process";
+import type { DerivedIndexClient } from "../indexing/derived-index-process";
 
 export interface WorkspaceNotesServiceOptions {
   getWorkspaceModel: () => WorkspaceModel;

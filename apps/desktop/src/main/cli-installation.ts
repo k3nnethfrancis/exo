@@ -3,7 +3,7 @@ import { access, lstat, readFile, readlink } from "node:fs/promises";
 import path from "node:path";
 
 import type { CliInstallationStatus } from "../shared/api";
-import { commandEnvironment } from "./command-environment";
+import { commandEnvironment } from "./command/command-environment";
 
 const LEGACY_SHIM_MARKER = "packages/cli/dist/index.cjs";
 

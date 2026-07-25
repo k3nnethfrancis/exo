@@ -14,7 +14,7 @@
     "check:repo": "node scripts/check-repo.mjs",
     "ci:check": "pnpm check:repo && pnpm check && ./scripts/install-local --dry-run --skip-install --skip-build",
     "stable:check": "pnpm ci:check && pnpm terminal:check",
-    "terminal:check": "pnpm --filter @exo/desktop exec vitest run src/main/terminal-manager.test.ts src/renderer/src/App.test.tsx && pnpm stable:smoke",
+    "terminal:check": "pnpm --filter @exo/desktop exec vitest run src/main/terminal/terminal-manager.test.ts src/renderer/src/App.test.tsx && pnpm stable:smoke",
     "stable:smoke": "node scripts/stable-smoke.mjs",
     "app": "pnpm build && node scripts/run-built-app.mjs",
     "check": "pnpm check:unused && pnpm typecheck && pnpm test && pnpm build",

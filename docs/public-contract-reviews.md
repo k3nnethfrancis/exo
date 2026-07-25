@@ -62,7 +62,7 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - sha256: `2caae864dc47162a81355a79b297c22c8b7e569cf01a20c146c368ddf775c300`
 - review: architect-review: 2026-07-24 Independent protected-contract correction requires fields on valid open/spawn request DTOs, distinguishes the basic `{ error }` envelope from structured spawn failures, and deletes request DTOs for retired routes. Existing route, success-body, timeout, and valid-request behavior remains unchanged. As an explicit invalid-request hardening, both non-object JSON bodies and wrong-typed object fields are rejected at the route boundary with the route's existing missing-input 400 envelope; unknown values never reach typed handlers.
 
-### `apps/desktop/src/main/command-server.ts#route-table`
+### `apps/desktop/src/main/command/command-server.ts#route-table`
 
 - sha256: `44fa7ee1d2d59a8de978dbec49e4d0694e08ff897b98b92dabc4b75f4ed41c04`
 - review: guard-baseline: 2026-07-04 existing command-server HTTP method and route match surface; guard cleanup does not change behavior.

@@ -16,7 +16,7 @@ import {
   type IndexStatus,
 } from "@exo/core";
 
-import { InvocationRunnerError, type InvocationResult } from "./invocation-runner";
+import { InvocationRunnerError, type InvocationResult } from "../invocation/invocation-runner";
 
 export interface CommandServerOptions {
   runtimeRoot: string;

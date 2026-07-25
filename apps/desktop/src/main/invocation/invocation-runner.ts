@@ -32,8 +32,8 @@ import {
 } from "@exo/core";
 import { commandForClaudeResume as buildClaudeResumeCommand } from "@exo/core/provider-session";
 
-import type { TerminalSessionInfo } from "../shared/api";
-import type { AgentCommandContinuityStatus, AgentCommandLaunchFacts, AgentInvocationAuthorizationFacts } from "../shared/api";
+import type { TerminalSessionInfo } from "../../shared/api";
+import type { AgentCommandContinuityStatus, AgentCommandLaunchFacts, AgentInvocationAuthorizationFacts } from "../../shared/api";
 import { bindResolvedExecutable, inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
 import {
   DirectInvocationProcessFactory,
@@ -47,8 +47,8 @@ import {
   inspectInvocationAdapterResult,
   supportsAutomaticContinuity,
 } from "./invocation-adapter";
-import type { AgentTerminalWorkspaceContext, TerminalManager } from "./terminal-manager";
-import type { WorkspaceChangeEvent, WorkspaceWatcherService } from "./workspace-watchers";
+import type { AgentTerminalWorkspaceContext, TerminalManager } from "../terminal/terminal-manager";
+import type { WorkspaceChangeEvent, WorkspaceWatcherService } from "../workspace/workspace-watchers";
 import { InvocationActivityAdapter, type ParsedInvocationActivity } from "./invocation-activity-adapter";
 import {
   InvocationReviewError,

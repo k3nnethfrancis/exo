@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 describe("invocation review motion", () => {
   it("removes review-control motion when reduced motion is requested", () => {
     const css = readFileSync(
-      new URL("../renderer/src/components/invocation/invocation-ui.css", import.meta.url),
+      new URL("../../renderer/src/components/invocation/invocation-ui.css", import.meta.url),
       "utf8",
     );
     const reducedMotion = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));

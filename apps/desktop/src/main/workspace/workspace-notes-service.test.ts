@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
 import type { WorkspaceModel } from "@exo/core";
-import type { DerivedIndexClient } from "./derived-index-process";
+import type { DerivedIndexClient } from "../indexing/derived-index-process";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 
 describe("WorkspaceNotesService", () => {

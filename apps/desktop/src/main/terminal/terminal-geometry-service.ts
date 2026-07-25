@@ -1,4 +1,4 @@
-import type { TerminalGeometryRecord } from "../shared/api";
+import type { TerminalGeometryRecord } from "../../shared/api";
 
 // Renderer-owned xterm measurements are the source of truth. Main records the
 // latest measurement and resizes the direct PTY with it, so cursor-relative

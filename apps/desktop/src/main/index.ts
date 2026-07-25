@@ -30,24 +30,24 @@ import {
 
 import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import type { WorkspaceSettingsSaveOutcome } from "../shared/api";
-import { InvocationRunner } from "./invocation-runner";
-import { awaitInvocationAwareQuit } from "./invocation-quit";
+import { InvocationRunner } from "./invocation/invocation-runner";
+import { awaitInvocationAwareQuit } from "./invocation/invocation-quit";
 import { AppLifecycleController } from "./app-lifecycle";
-import { CommandServer } from "./command-server";
-import { CommandServerLifecycle } from "./command-server-lifecycle";
-import { IndexingService } from "./indexing-service";
-import { UtilityDerivedIndexClient } from "./derived-index-process";
-import { WorkspaceConfigStore, workspaceSettingsFromModel } from "./workspace-config-store";
-import { registerTerminalIpcHandlers } from "./terminal-ipc";
-import { TerminalManager } from "./terminal-manager";
-import { registerWorkspaceIpcHandlers } from "./workspace-ipc";
+import { CommandServer } from "./command/command-server";
+import { CommandServerLifecycle } from "./command/command-server-lifecycle";
+import { IndexingService } from "./indexing/indexing-service";
+import { UtilityDerivedIndexClient } from "./indexing/derived-index-process";
+import { WorkspaceConfigStore, workspaceSettingsFromModel } from "./workspace/workspace-config-store";
+import { registerTerminalIpcHandlers } from "./terminal/terminal-ipc";
+import { TerminalManager } from "./terminal/terminal-manager";
+import { registerWorkspaceIpcHandlers } from "./workspace/workspace-ipc";
 import { configureProviderMcp } from "./provider-mcp-setup";
 import { findSourceProjectRoot, inspectCliInstallation } from "./cli-installation";
 import { resolvePreviewTarget } from "./preview-target";
-import { WorkspaceNotesService } from "./workspace-notes-service";
-import { WorkspaceWatcherService } from "./workspace-watchers";
-import { WorkspaceRuntimeCoordinator } from "./workspace-runtime-coordinator";
-import { hasOperatorWorkspaceSetup } from "./workspace-setup-gate";
+import { WorkspaceNotesService } from "./workspace/workspace-notes-service";
+import { WorkspaceWatcherService } from "./workspace/workspace-watchers";
+import { WorkspaceRuntimeCoordinator } from "./runtime/workspace-runtime-coordinator";
+import { hasOperatorWorkspaceSetup } from "./workspace/workspace-setup-gate";
 import { configureGpuStartup } from "./gpu-startup-policy";
 import { runStandaloneGraphGpuProbe } from "./gpu-probe-runner";
 

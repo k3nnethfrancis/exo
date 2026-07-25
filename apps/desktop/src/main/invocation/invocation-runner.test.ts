@@ -7,10 +7,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { AgentCommandTrustStore, agentCommandExecutableFingerprint, createDefaultClaudeAgentCommand, formatDocumentAgentInvocation, formatDocumentAgentResponse, InvocationContinuityStore, InvocationStore, removeDocumentAgentInvocation, type WorkspaceSettings } from "@exo/core";
 
-import type { TerminalManager } from "./terminal-manager";
+import type { TerminalManager } from "../terminal/terminal-manager";
 import { commandForClaudeResume, commandForHeadlessInvocation, extractClaudeSessionId, InvocationRunner, InvocationRunnerError } from "./invocation-runner";
 import { DirectInvocationProcessFactory, type InvocationProcess, type InvocationProcessExit, type InvocationProcessFactory } from "./invocation-process";
-import type { WorkspaceWatcherService } from "./workspace-watchers";
+import type { WorkspaceWatcherService } from "../workspace/workspace-watchers";
 
 const temporaryRoots: string[] = [];
 const TEST_PROTOCOL_INVOCATION_ID = "11111111-1111-4111-8111-111111111111";
