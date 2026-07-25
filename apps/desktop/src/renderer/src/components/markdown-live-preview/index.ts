@@ -1,4 +1,4 @@
-import { type Extension, StateEffect, StateField, type Text, Transaction } from "@codemirror/state";
+import { type ChangeSet, type Extension, StateEffect, StateField, type Text, Transaction } from "@codemirror/state";
 import { EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import {
   listContinuationOutdentKeymap,
@@ -85,6 +85,30 @@ interface MarkdownLivePreviewOptions {
   graphReferences?: MarkdownGraphReferences | null;
 }
 
+interface MarkdownPreviewProjectionUpdate {
+  previousDoc: Text;
+  nextDoc: Text;
+  changes: ChangeSet;
+  docChanged: boolean;
+  rebuild: boolean;
+}
+
+/** Internal composition seam: projection compilation must observe metadata
+ * repaired for the same document generation. */
+export function advanceMarkdownPreviewProjection<Result>(
+  update: MarkdownPreviewProjectionUpdate,
+  metadata: MarkdownPreviewMetadata,
+  compile: (currentMetadata: MarkdownPreviewMetadata) => Result,
+): { metadata: MarkdownPreviewMetadata; projection: Result | null } {
+  const currentMetadata = update.docChanged
+    ? updateMarkdownPreviewMetadataForChanges(update.previousDoc, update.nextDoc, update.changes, metadata)
+    : metadata;
+  return {
+    metadata: currentMetadata,
+    projection: update.rebuild ? compile(currentMetadata) : null,
+  };
+}
+
 export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extension[] {
   const plugin = ViewPlugin.fromClass(
     class {
@@ -97,11 +121,20 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
       }
 
       update(update: ViewUpdate) {
-        if (update.docChanged) {
-          this.metadata = updateMarkdownPreviewMetadataForChanges(update.startState.doc, update.state.doc, update.changes, this.metadata);
-        }
-        if (update.docChanged || update.viewportChanged || update.selectionSet || update.transactions.some(tr => tr.effects.some(e => e.is(toggleFoldEffect)))) {
-          this.decorations = buildDecorations(update.view, options, this.metadata, update.view.state.field(foldedListParentAnchorsField));
+        const next = advanceMarkdownPreviewProjection({
+          previousDoc: update.startState.doc,
+          nextDoc: update.state.doc,
+          changes: update.changes,
+          docChanged: update.docChanged,
+          rebuild: update.docChanged
+            || update.viewportChanged
+            || update.selectionSet
+            || update.transactions.some(tr => tr.effects.some(e => e.is(toggleFoldEffect))),
+        }, this.metadata, (metadata) =>
+          buildDecorations(update.view, options, metadata, update.view.state.field(foldedListParentAnchorsField)));
+        this.metadata = next.metadata;
+        if (next.projection) {
+          this.decorations = next.projection;
         }
       }
     },

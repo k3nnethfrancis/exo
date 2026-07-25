@@ -456,4 +456,3 @@ function listPrefixArrowRightTarget(positions: ListPrefixPositions, pos: number)
   }
   return null;
 }
-

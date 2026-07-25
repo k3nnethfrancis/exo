@@ -1,7 +1,8 @@
 import { EditorState, StateField } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 
-import { markdownLivePreview } from "./index";
+import { advanceMarkdownPreviewProjection, markdownLivePreview } from "./index";
+import { markdownPreviewMetadata } from "./metadata";
 
 function foldedListParentAnchorsField() {
   const field = markdownLivePreview({
@@ -76,5 +77,35 @@ describe("markdown live preview folded-list identity", () => {
       { from: checkbox, to: checkbox + 1, insert: "x" },
     ] }).state;
     expect(changed.field(field)).toEqual(new Set([changed.doc.line(2).from]));
+  });
+});
+
+describe("markdown live preview projection ordering", () => {
+  it("repairs structural metadata before compiling the projection", () => {
+    const state = EditorState.create({ doc: "- parent\nplain item" });
+    const plainItem = state.doc.line(2);
+    const transaction = state.update({
+      changes: {
+        from: plainItem.from,
+        to: plainItem.to,
+        insert: "  - [ ] repaired task",
+      },
+    });
+    const initialMetadata = markdownPreviewMetadata(state.doc);
+
+    const next = advanceMarkdownPreviewProjection({
+      previousDoc: state.doc,
+      nextDoc: transaction.state.doc,
+      changes: transaction.changes,
+      docChanged: true,
+      rebuild: true,
+    }, initialMetadata, (metadata) => metadata.listContexts.get(2));
+
+    expect(next.projection).toMatchObject({
+      depth: 1,
+      isListStart: true,
+      marker: "-",
+    });
+    expect(next.metadata.listContexts.get(2)).toBe(next.projection);
   });
 });
