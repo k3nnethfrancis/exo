@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
+import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
 
 import { launchExoWorkspaceFixture } from "../helpers";
 import { latencySummary } from "../terminalQuality";
@@ -192,6 +193,7 @@ test("keeps sustained Markdown typing within the input-to-frame-ready budget", a
   const initialBody = largeMarkdownFixture();
   const { electronApp, page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
     mutable: true,
+    prepareSettings: writeSettingsWithEnabledClaudeCommand,
     prepareWorkspace: async (root) => {
       const note = path.join(root, "notes/test-notes/typing.md");
       await writeFile(note, initialBody, "utf8");
@@ -337,6 +339,49 @@ test("keeps sustained Markdown typing within the input-to-frame-ready budget", a
     await page.keyboard.press(process.platform === "darwin" ? "Meta+s" : "Control+s");
     await expectSavedBody(page, notePath, expectedInvocationBody);
     await disconnectInputToFrameReadyProbe(page);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("offers agent completion after a saved append is fully deleted", async () => {
+  const priorInvocation = `<exo-invocation id="123e4567-e89b-42d3-a456-426614174000" agent="claude" status="sent">
+@claude Prior request
+</exo-invocation>`;
+  const initialBody = `# Completion regression
+
+${priorInvocation}
+
+Stable body.
+`;
+  const { electronApp, page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareSettings: writeSettingsWithEnabledClaudeCommand,
+    prepareWorkspace: async (root) => {
+      await writeFile(path.join(root, "notes/test-notes/completion-after-delete.md"), initialBody, "utf8");
+    },
+  });
+  const notePath = path.join(workspaceRoot, "notes/test-notes/completion-after-delete.md");
+
+  try {
+    await openFromCommand(electronApp, notePath);
+    await waitForEditorTitle(page, "completion-after-delete");
+    const content = page.locator(".editor-surface .cm-content");
+    await content.click();
+    await moveEditorCursorToEnd(page);
+
+    const deletionFixture = "temporary deletion";
+    await content.pressSequentially(deletionFixture, { delay: 0 });
+    await expectSavedBody(page, notePath, `${initialBody}${deletionFixture}`);
+    for (let index = 0; index < deletionFixture.length; index += 1) {
+      await page.keyboard.press("Backspace");
+    }
+    expect(await editorBody(page)).toBe(initialBody);
+    await expectSavedBody(page, notePath, initialBody);
+
+    await content.pressSequentially("\n@claude", { delay: 0 });
+    expect(await editorBody(page)).toBe(`${initialBody}\n@claude`);
+    await expect(page.getByTestId("agent-suggestions")).toBeVisible();
   } finally {
     await cleanup();
   }
@@ -538,6 +583,20 @@ function largeMarkdownFixture(): string {
   const table = "| Metric | Budget |\n| --- | ---: |\n| p90 | 17 ms |";
   const fence = "```ts\nconst frameBudgetMs = 17;\n```";
   return `# Typing latency\n\n${priorInvocation}\n\n${table}\n\n${fence}\n\n${paragraphs.join("\n\n")}\n\n`;
+}
+
+async function writeSettingsWithEnabledClaudeCommand(input: {
+  settingsPath: string;
+  workspaceRoot: string;
+}): Promise<void> {
+  await writeFile(input.settingsPath, JSON.stringify({
+    workspaceRoot: input.workspaceRoot,
+    defaultTerminalCwd: input.workspaceRoot,
+    noteRoots: [path.join(input.workspaceRoot, "notes/test-notes")],
+    agentCommands: [createDefaultClaudeAgentCommand()],
+    indexedRoots: [],
+    indexing: { enabled: false, mode: "off", backend: "qmd" },
+  }, null, 2), "utf8");
 }
 
 async function editorBody(page: Page): Promise<string> {

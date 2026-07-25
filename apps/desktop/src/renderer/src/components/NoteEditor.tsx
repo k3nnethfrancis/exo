@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { flushSync } from "react-dom";
 
 import CodeMirror, { ExternalChange, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
@@ -244,7 +244,7 @@ export function NoteEditor(props: NoteEditorProps) {
       onClose: (documentBody) => {
         setInlineComposerActive(false);
         setInlineComposerHandle(null);
-        startTransition(() => bodyChangeRef.current(documentBody));
+        bodyChangeRef.current(documentBody);
       },
       onRestore: (documentBody) => {
         setInlineComposerActive(true);
@@ -384,9 +384,10 @@ export function NoteEditor(props: NoteEditorProps) {
   const handleEditorChange = useMemo(
     () =>
       (value: string, update: ViewUpdate) => {
-        // CodeMirror has already applied this edit. Deprioritise the
-        // workspace-model update so long inline requests stay responsive.
-        startTransition(() => bodyChangeRef.current(value));
+        // The open-document model is canonical save input. Commit every body
+        // revision in input order; deferring independent snapshots can let an
+        // older transition render after a newer autosave has completed.
+        bodyChangeRef.current(value);
         maybeUpdateWikilinkSuggestions(update);
         maybeUpdateAgentSuggestions(update);
       },
@@ -1074,7 +1075,7 @@ export function NoteEditor(props: NoteEditorProps) {
           editable={!document.readOnly && !editingFrozen && !invocationReview?.decisionPending}
           onBlur={() => {
             const view = codeMirrorRef.current?.view;
-            if (inlineComposerActive && view) startTransition(() => bodyChangeRef.current(view.state.doc.toString()));
+            if (inlineComposerActive && view) bodyChangeRef.current(view.state.doc.toString());
           }}
           onChange={inlineComposerActive ? undefined : handleEditorChange}
           onCreateEditor={handleEditorCreated}

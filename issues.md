@@ -530,7 +530,8 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
 
 ### EXO-ISSUE-123: Sustained editor latency journey has an autosave/content assertion race
 
-- Status: resolved 2026-07-22
+- Status: resolved 2026-07-24; follow-up integrity and command-precondition
+  regressions repaired
 - Severity: medium
 - Area: Electron editor latency harness, autosave/external refresh, inline
   invocation composer
@@ -539,14 +540,27 @@ history, `ledger.md`, and dated reviews retain resolved refactor archaeology.
   could therefore create a character the person never typed. Separately, the
   test probe reset its buffers before prior `requestAnimationFrame` callbacks
   had drained, so autocomplete frames could be misattributed to invocation
-  typing.
+  typing. The July 24 follow-up found two newer causes: the positive invocation
+  journey relied on a removed implicit Claude fallback instead of configuring
+  an enabled command, and canonical editor body snapshots were independently
+  deferred through React transitions, allowing an older render to replace
+  newer bytes after autosave had persisted them.
 - Repair: preserve the exact trailing-newline contract on save; assert exact
   on-disk Markdown rather than normalizing the expected body; make invocation
   preflight compare those same exact persisted bytes; scope the input probe to
   the editor and drain the prior interaction before measuring the next one.
+  The positive latency fixture now explicitly configures Claude while the
+  empty/disabled command authority remains intact. Every canonical
+  `bodyChangeRef` write is synchronous; only derived projections may be
+  deferred.
 - Verification: focused core tests (178) and typechecks pass. The full Electron
   journey passed once plus three consecutive repetitions with no long tasks:
   ordinary 2,000-character typing p90 `14.9–15.1 ms`, accelerated Backspace
-  p90 `11 ms`, and inline invocation typing p90 `14.3 ms` in the logged run.
+  p90 `11 ms`, and inline invocation typing p90 `14.3 ms` in the original
+  logged run. On July 24, the minimized save/delete/completion regression and
+  both command-authority guards passed; the rebuilt sustained journey then
+  passed three consecutive trace-free runs with typing p99 `21.7–22.8 ms`,
+  Backspace p99 `16.9–17.4 ms`, invocation p99 `18.3–19.8 ms`, exact persisted
+  bytes, and no long tasks.
 
 -- Shoshin | 2026-07-21
