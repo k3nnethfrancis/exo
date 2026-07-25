@@ -6,23 +6,29 @@ search, command-wire, or renderer state contracts.
 
 ## Start with the owner
 
-- Workspace activation and committed scope: `workspace-runtime-coordinator.ts`.
+- Workspace activation and committed scope:
+  `runtime/workspace-runtime-coordinator.ts`.
   Its candidate is private until one synchronous final commit; late work must
   not publish or degrade a replacement Workspace. Start at
-  `workspace-runtime-coordinator.test.ts`.
+  `runtime/workspace-runtime-coordinator.test.ts`.
 - Workspace settings, filesystem service, and IPC wiring:
-  `workspace-config-store.ts`, `workspace-notes-service.ts`, and
-  `workspace-ipc.ts`. Core owns path containment and persistent model types.
-- Watcher lifetime: `workspace-watchers.ts`. Filesystem freshness comes from
-  this service, not renderer polling. Test `workspace-watchers.test.ts`.
-- Derived indexing: `indexing-service.ts` and `derived-index-*.ts`; it stays
-  asynchronous and must never make renderer interaction wait.
-- Command-server lifecycle: `command-server-lifecycle.ts`; HTTP route/payload
-  contracts belong in `packages/core/src/command-protocol.ts` and the transport
-  implementation is `command-server.ts`.
-- Invocation execution and review artifacts: `invocation-runner.ts` and
-  `invocation-review.ts`. The renderer owns review presentation and decisions.
-- Direct PTY lifecycle: `terminal-manager.ts` and `terminal-runtime*.ts`. Read
+  `workspace/workspace-config-store.ts`, `workspace/workspace-notes-service.ts`,
+  and `workspace/workspace-ipc.ts`. Core owns path containment and persistent
+  model types.
+- Watcher lifetime: `workspace/workspace-watchers.ts`. Filesystem freshness
+  comes from this service, not renderer polling. Test
+  `workspace/workspace-watchers.test.ts`.
+- Derived indexing: `indexing/indexing-service.ts` and
+  `indexing/derived-index-*.ts`; it stays asynchronous and must never make
+  renderer interaction wait.
+- Command-server lifecycle: `command/command-server-lifecycle.ts`; HTTP
+  route/payload contracts belong in `packages/core/src/command-protocol.ts` and
+  the transport implementation is `command/command-server.ts`.
+- Invocation execution and review artifacts:
+  `invocation/invocation-runner.ts` and `invocation/invocation-review.ts`. The
+  renderer owns review presentation and decisions.
+- Direct PTY lifecycle: `terminal/terminal-manager.ts` and
+  `terminal/terminal-runtime*.ts`. Read
   `../../../../skills/terminal-stability/SKILL.md` before changing any terminal
   behavior.
 
@@ -45,10 +51,10 @@ second implementation of a named owner.
 ## Focused gates
 
 ```bash
-pnpm --filter @exo/desktop exec vitest run src/main/workspace-runtime-coordinator.test.ts
-pnpm --filter @exo/desktop exec vitest run src/main/workspace-watchers.test.ts
-pnpm --filter @exo/desktop exec vitest run src/main/command-server-lifecycle.test.ts src/main/command-server.test.ts
-pnpm --filter @exo/desktop exec vitest run src/main/invocation-runner.test.ts src/main/invocation-review.test.ts
+pnpm --filter @exo/desktop exec vitest run src/main/runtime/workspace-runtime-coordinator.test.ts
+pnpm --filter @exo/desktop exec vitest run src/main/workspace/workspace-watchers.test.ts
+pnpm --filter @exo/desktop exec vitest run src/main/command/command-server-lifecycle.test.ts src/main/command/command-server.test.ts
+pnpm --filter @exo/desktop exec vitest run src/main/invocation/invocation-runner.test.ts src/main/invocation/invocation-review.test.ts
 pnpm --filter @exo/desktop typecheck
 ```
 
