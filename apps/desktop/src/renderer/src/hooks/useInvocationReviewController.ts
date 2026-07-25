@@ -34,10 +34,14 @@ interface InvocationReviewControllerOptions {
 }
 
 export interface InvocationReviewPayloadRequest {
-  workspaceGeneration: number;
+  workspaceIdentity: InvocationReviewWorkspaceIdentity;
   invocationId: string;
   changeId: string;
   requestId: number;
+}
+
+export interface InvocationReviewWorkspaceIdentity {
+  workspaceKey: string | null;
 }
 
 export interface InvocationReviewDecisionSnapshot {
@@ -47,8 +51,24 @@ export interface InvocationReviewDecisionSnapshot {
   affectedOpenPaths: string[];
 }
 
+export function captureInvocationReviewWorkspaceIdentity(
+  current: InvocationReviewWorkspaceIdentity | null,
+  workspaceKey: string | null,
+): InvocationReviewWorkspaceIdentity {
+  return current?.workspaceKey === workspaceKey
+    ? current
+    : { workspaceKey };
+}
+
+export function invocationReviewWorkspaceIdentityIsCurrent(
+  captured: InvocationReviewWorkspaceIdentity,
+  rendered: InvocationReviewWorkspaceIdentity,
+): boolean {
+  return captured === rendered;
+}
+
 export function invocationReviewPayloadRequestIsCurrent(request: InvocationReviewPayloadRequest, current: InvocationReviewPayloadRequest): boolean {
-  return request.workspaceGeneration === current.workspaceGeneration
+  return invocationReviewWorkspaceIdentityIsCurrent(request.workspaceIdentity, current.workspaceIdentity)
     && request.invocationId === current.invocationId
     && request.changeId === current.changeId
     && request.requestId === current.requestId;
@@ -82,65 +102,95 @@ export async function runInvocationReviewDecision<Result>(
 }
 
 export function useInvocationReviewController(options: InvocationReviewControllerOptions) {
-  const [queue, setQueue] = useState<InvocationReviewQueueState>(EMPTY_INVOCATION_REVIEW_QUEUE);
-  const [history, setHistory] = useState<InvocationHistoryItem[]>([]);
-  const [decisionPending, setDecisionPending] = useState(false);
-  const [frozenPaths, setFrozenPaths] = useState<string[]>([]);
-  const workspaceGenerationRef = useRef(0);
+  const renderedWorkspaceIdentityRef = useRef<InvocationReviewWorkspaceIdentity | null>(null);
+  renderedWorkspaceIdentityRef.current = captureInvocationReviewWorkspaceIdentity(renderedWorkspaceIdentityRef.current, options.workspaceKey);
+  const workspaceIdentity = renderedWorkspaceIdentityRef.current;
+  const workspaceStateIdentityRef = useRef(workspaceIdentity);
+  const [queueState, setQueueState] = useState<InvocationReviewQueueState>(EMPTY_INVOCATION_REVIEW_QUEUE);
+  const [historyState, setHistoryState] = useState<InvocationHistoryItem[]>([]);
+  const [decisionPendingState, setDecisionPendingState] = useState(false);
+  const [frozenPathsState, setFrozenPathsState] = useState<string[]>([]);
   const hydrationRequestRef = useRef(0);
   const payloadRequestRef = useRef<InvocationReviewPayloadRequest | null>(null);
   const historyRequestRef = useRef(0);
-  const decisionPendingRef = useRef(false);
-  const historyDocumentRef = useLatest(options.historyDocument);
-  const workspaceKeyRef = useLatest(options.workspaceKey);
+  const decisionPendingRef = useRef<InvocationReviewWorkspaceIdentity | null>(null);
   const optionsRef = useLatest(options);
+  const projectionIsCurrent = invocationReviewWorkspaceIdentityIsCurrent(workspaceStateIdentityRef.current, workspaceIdentity);
+  const queue = projectionIsCurrent
+    ? queueState
+    : EMPTY_INVOCATION_REVIEW_QUEUE;
+  const history = projectionIsCurrent
+    ? historyState
+    : [];
+  const decisionPending = projectionIsCurrent
+    ? decisionPendingState
+    : false;
+  const frozenPaths = projectionIsCurrent
+    ? frozenPathsState
+    : [];
   const activeEntry = activeInvocationReviewEntry(queue);
   const activeChangeId = activeInvocationReviewChangeId(queue);
   const activePayload = activeEntry && activeChangeId ? activeEntry.payloads[activeChangeId] ?? null : null;
+  const workspaceIsCurrent = useCallback((captured: InvocationReviewWorkspaceIdentity) =>
+    renderedWorkspaceIdentityRef.current !== null
+      && invocationReviewWorkspaceIdentityIsCurrent(captured, renderedWorkspaceIdentityRef.current), []);
 
   useEffect(() => {
-    const workspaceGeneration = ++workspaceGenerationRef.current;
+    const identity = workspaceIdentity;
+    if (!workspaceIsCurrent(identity)) return;
     const request = ++hydrationRequestRef.current;
     payloadRequestRef.current = null;
-    decisionPendingRef.current = false;
-    setDecisionPending(false);
-    setFrozenPaths([]);
-    setHistory([]);
-    setQueue(options.workspaceKey ? beginInvocationReviewHydration() : EMPTY_INVOCATION_REVIEW_QUEUE);
+    decisionPendingRef.current = null;
+    workspaceStateIdentityRef.current = identity;
+    setDecisionPendingState(false);
+    setFrozenPathsState([]);
+    setHistoryState([]);
+    setQueueState(options.workspaceKey ? beginInvocationReviewHydration() : EMPTY_INVOCATION_REVIEW_QUEUE);
     if (!options.workspaceKey) return;
     let cancelled = false;
     void window.exo.workspace.listPendingInvocationReviews()
       .then((items) => {
-        if (cancelled || workspaceGeneration !== workspaceGenerationRef.current || request !== hydrationRequestRef.current) return;
-        setQueue((current) => mergeInvocationReviewHydration(current, items));
+        if (cancelled || !workspaceIsCurrent(identity) || request !== hydrationRequestRef.current) return;
+        setQueueState((current) => mergeInvocationReviewHydration(current, items));
       })
       .catch((error) => {
-        if (cancelled || workspaceGeneration !== workspaceGenerationRef.current || request !== hydrationRequestRef.current) return;
+        if (cancelled || !workspaceIsCurrent(identity) || request !== hydrationRequestRef.current) return;
         console.warn("[exo] failed to load pending invocation reviews", error);
-        setQueue((current) => mergeInvocationReviewHydration(current, []));
+        setQueueState((current) => mergeInvocationReviewHydration(current, []));
       });
     return () => { cancelled = true; };
-  }, [options.workspaceKey]);
+  }, [options.workspaceKey, workspaceIdentity, workspaceIsCurrent]);
 
   useEffect(() => {
+    const identity = workspaceIdentity;
+    if (!workspaceIsCurrent(identity)) return;
     const request = ++historyRequestRef.current;
     const decision = invocationHistoryLoadDecision(options.historyDocument);
     if (!options.workspaceKey || decision.kind === "clear") {
-      setHistory([]);
+      setHistoryState([]);
       return;
     }
     if (decision.kind === "preserve") return;
     let cancelled = false;
     void window.exo.workspace.listInvocationHistory(decision.filePath)
-      .then((items) => { if (!cancelled && request === historyRequestRef.current) setHistory(items); })
-      .catch(() => { if (!cancelled && request === historyRequestRef.current) setHistory([]); });
+      .then((items) => {
+        if (!cancelled && workspaceIsCurrent(identity) && request === historyRequestRef.current) {
+          setHistoryState(items);
+        }
+      })
+      .catch(() => {
+        if (!cancelled && workspaceIsCurrent(identity) && request === historyRequestRef.current) {
+          setHistoryState([]);
+        }
+      });
     return () => { cancelled = true; };
-  }, [options.historyDocument?.filePath, options.historyDocument?.readOnly, options.workspaceKey]);
+  }, [options.historyDocument?.filePath, options.historyDocument?.readOnly, options.workspaceKey, workspaceIdentity, workspaceIsCurrent]);
 
   useEffect(() => {
-    if (!activeEntry || !activeChangeId || activePayload) return;
+    const identity = workspaceIdentity;
+    if (!workspaceIsCurrent(identity) || !activeEntry || !activeChangeId || activePayload) return;
     const request: InvocationReviewPayloadRequest = {
-      workspaceGeneration: workspaceGenerationRef.current,
+      workspaceIdentity: identity,
       invocationId: activeEntry.invocationId,
       changeId: activeChangeId,
       requestId: (payloadRequestRef.current?.requestId ?? 0) + 1,
@@ -149,122 +199,153 @@ export function useInvocationReviewController(options: InvocationReviewControlle
     let cancelled = false;
     void window.exo.workspace.getInvocationFileReview({ invocationId: request.invocationId, changeId: request.changeId })
       .then((payload) => {
-        if (cancelled || !payloadRequestRef.current || !invocationReviewPayloadRequestIsCurrent(request, payloadRequestRef.current)) return;
-        setQueue((current) => cacheInvocationFileReview(current, payload));
+        if (cancelled || !workspaceIsCurrent(identity) || !payloadRequestRef.current || !invocationReviewPayloadRequestIsCurrent(request, payloadRequestRef.current)) return;
+        setQueueState((current) => cacheInvocationFileReview(current, payload));
       })
       .catch((error) => {
-        if (cancelled || !payloadRequestRef.current || !invocationReviewPayloadRequestIsCurrent(request, payloadRequestRef.current)) return;
+        if (cancelled || !workspaceIsCurrent(identity) || !payloadRequestRef.current || !invocationReviewPayloadRequestIsCurrent(request, payloadRequestRef.current)) return;
         console.warn("[exo] failed to load invocation file review", error);
         optionsRef.current.onReviewError(activeEntry.command, error);
       });
     return () => { cancelled = true; };
-  }, [activeChangeId, activeEntry?.invocationId, activePayload, optionsRef]);
+  }, [activeChangeId, activeEntry?.invocationId, activePayload, optionsRef, workspaceIdentity, workspaceIsCurrent]);
 
   useEffect(() => {
-    if (activePayload) optionsRef.current.onOpenReviewDocument(activePayload, activeEntry?.source ?? "pending");
-  }, [activeEntry?.source, activePayload?.change.id, activePayload?.invocation.id, optionsRef]);
+    const identity = workspaceIdentity;
+    if (activePayload && workspaceIsCurrent(identity)) {
+      optionsRef.current.onOpenReviewDocument(activePayload, activeEntry?.source ?? "pending");
+    }
+  }, [activeEntry?.source, activePayload?.change.id, activePayload?.invocation.id, optionsRef, workspaceIdentity, workspaceIsCurrent]);
 
   const applyRecord = useCallback((record: InvocationRecord) => {
-    if (record.workspaceRoot && record.workspaceRoot !== workspaceKeyRef.current) return;
-    setQueue((current) => applyInvocationReviewRecord(current, record));
-    const document = historyDocumentRef.current;
+    const identity = workspaceIdentity;
+    if (!workspaceIsCurrent(identity) || (record.workspaceRoot && record.workspaceRoot !== identity.workspaceKey)) return;
+    setQueueState((current) => applyInvocationReviewRecord(current, record));
+    const document = options.historyDocument;
     if (!document || document.readOnly || record.taggedDocumentPath !== document.filePath) return;
     const request = ++historyRequestRef.current;
     void window.exo.workspace.listInvocationHistory(record.taggedDocumentPath)
-      .then((items) => { if (request === historyRequestRef.current) setHistory(items); })
+      .then((items) => {
+        if (workspaceIsCurrent(identity) && request === historyRequestRef.current) {
+          setHistoryState(items);
+        }
+      })
       .catch(() => undefined);
-  }, [historyDocumentRef, workspaceKeyRef]);
+  }, [options.historyDocument, workspaceIdentity, workspaceIsCurrent]);
 
-  const finishDecision = useCallback((workspaceGeneration: number) => {
-    if (workspaceGeneration !== workspaceGenerationRef.current) return;
-    decisionPendingRef.current = false;
-    flushSync(() => { setDecisionPending(false); setFrozenPaths([]); });
-  }, []);
+  const finishDecision = useCallback((identity: InvocationReviewWorkspaceIdentity) => {
+    if (!workspaceIsCurrent(identity) || decisionPendingRef.current !== identity) return;
+    decisionPendingRef.current = null;
+    flushSync(() => {
+      if (!workspaceIsCurrent(identity)) return;
+      setDecisionPendingState(false);
+      setFrozenPathsState([]);
+    });
+  }, [workspaceIsCurrent]);
 
   const resolveCurrent = useCallback(async (action: ReviewAction) => {
-    if (!activeEntry || !activeChangeId || !activePayload || activeEntry.source === "history") return;
-    const started = beginInvocationReviewDecision(decisionPendingRef.current, activePayload, options.openDocumentPaths);
+    const identity = workspaceIdentity;
+    if (!workspaceIsCurrent(identity) || !activeEntry || !activeChangeId || !activePayload || activeEntry.source === "history") return;
+    const started = beginInvocationReviewDecision(decisionPendingRef.current === identity, activePayload, options.openDocumentPaths);
     if (!started.started || !started.snapshot) return;
     const snapshot = started.snapshot;
     const entry = activeEntry;
-    const workspaceGeneration = workspaceGenerationRef.current;
-    const workspaceKey = options.workspaceKey;
-    decisionPendingRef.current = true;
-    flushSync(() => { setDecisionPending(true); setFrozenPaths(snapshot.affectedOpenPaths); });
+    decisionPendingRef.current = identity;
+    flushSync(() => {
+      if (!workspaceIsCurrent(identity)) return;
+      setDecisionPendingState(true);
+      setFrozenPathsState(snapshot.affectedOpenPaths);
+    });
     try {
       const resolvedRecord = await runInvocationReviewDecision(snapshot, {
         prepareDocumentsForReview: async (paths) => {
-          if (workspaceGeneration !== workspaceGenerationRef.current || workspaceKey !== workspaceKeyRef.current) return;
+          if (!workspaceIsCurrent(identity)) return;
           await optionsRef.current.prepareDocumentsForReview(paths);
         },
         decide: () => {
-          if (workspaceGeneration !== workspaceGenerationRef.current || workspaceKey !== workspaceKeyRef.current) {
+          if (!workspaceIsCurrent(identity)) {
             return Promise.reject(new InvocationReviewWorkspaceChangedError());
           }
           return window.exo.workspace.reviewInvocationFile({ invocationId: snapshot.invocationId, changeId: snapshot.changeId, action });
         },
       });
-      if (workspaceGeneration !== workspaceGenerationRef.current || workspaceKey !== workspaceKeyRef.current) return;
-      setQueue((current) => applyInvocationReviewRecord(current, resolvedRecord!));
+      if (!workspaceIsCurrent(identity)) return;
+      setQueueState((current) => applyInvocationReviewRecord(current, resolvedRecord));
       await optionsRef.current.reloadTrees();
-      if (workspaceGeneration !== workspaceGenerationRef.current) return;
+      if (!workspaceIsCurrent(identity)) return;
       const decision = resolvedRecord.changeset?.files.find((change) => change.id === snapshot.changeId)?.decision.status;
-      if (decision === "kept" || decision === "rejected") await optionsRef.current.onReviewResolved(snapshot.payload, action);
+      if (decision === "kept" || decision === "rejected") {
+        if (!workspaceIsCurrent(identity)) return;
+        await optionsRef.current.onReviewResolved(snapshot.payload, action);
+        if (!workspaceIsCurrent(identity)) return;
+      }
     } catch (error) {
-      if (workspaceGeneration === workspaceGenerationRef.current && workspaceKey === workspaceKeyRef.current) {
+      if (workspaceIsCurrent(identity)) {
         optionsRef.current.onReviewError(entry.command, error);
         const refreshed = await window.exo.workspace.getInvocationFileReview({ invocationId: snapshot.invocationId, changeId: snapshot.changeId }).catch(() => null);
-        if (refreshed && workspaceGeneration === workspaceGenerationRef.current) setQueue((current) => cacheInvocationFileReview(current, refreshed));
+        if (refreshed && workspaceIsCurrent(identity)) {
+          setQueueState((current) => cacheInvocationFileReview(current, refreshed));
+        }
       }
     } finally {
-      finishDecision(workspaceGeneration);
+      finishDecision(identity);
     }
-  }, [activeChangeId, activeEntry, activePayload, finishDecision, options.openDocumentPaths, options.workspaceKey, optionsRef, workspaceKeyRef]);
+  }, [activeChangeId, activeEntry, activePayload, finishDecision, options.openDocumentPaths, optionsRef, workspaceIdentity, workspaceIsCurrent]);
 
   const resolveAll = useCallback(async (action: ReviewAction) => {
-    if (!activeEntry || activeEntry.source === "history") return;
-    const started = beginInvocationReviewDecision(decisionPendingRef.current, null, options.openDocumentPaths);
+    const identity = workspaceIdentity;
+    if (!workspaceIsCurrent(identity) || !activeEntry || activeEntry.source === "history") return;
+    const started = beginInvocationReviewDecision(decisionPendingRef.current === identity, null, options.openDocumentPaths);
     if (!started.started) return;
     const entry = activeEntry;
-    const workspaceGeneration = workspaceGenerationRef.current;
-    const workspaceKey = options.workspaceKey;
-    decisionPendingRef.current = true;
-    flushSync(() => setDecisionPending(true));
+    decisionPendingRef.current = identity;
+    flushSync(() => {
+      if (!workspaceIsCurrent(identity)) return;
+      setDecisionPendingState(true);
+      setFrozenPathsState([]);
+    });
     try {
       const payloads: InvocationFileReviewPayload[] = [];
       for (const changeId of entry.changeIds) {
-        if (workspaceGeneration !== workspaceGenerationRef.current || workspaceKey !== workspaceKeyRef.current) return;
+        if (!workspaceIsCurrent(identity)) return;
         const payload = entry.payloads[changeId] ?? await window.exo.workspace.getInvocationFileReview({ invocationId: entry.invocationId, changeId });
-        if (!entry.payloads[changeId] && workspaceGeneration === workspaceGenerationRef.current) setQueue((current) => cacheInvocationFileReview(current, payload));
+        if (!workspaceIsCurrent(identity)) return;
+        if (!entry.payloads[changeId]) setQueueState((current) => cacheInvocationFileReview(current, payload));
         payloads.push(payload);
       }
       const affectedOpenPaths = invocationReviewAffectedOpenPaths(payloads, options.openDocumentPaths);
-      if (workspaceGeneration !== workspaceGenerationRef.current || workspaceKey !== workspaceKeyRef.current) return;
-      flushSync(() => setFrozenPaths(affectedOpenPaths));
+      if (!workspaceIsCurrent(identity)) return;
+      flushSync(() => {
+        if (workspaceIsCurrent(identity)) setFrozenPathsState(affectedOpenPaths);
+      });
       await optionsRef.current.prepareDocumentsForReview(affectedOpenPaths);
-      if (workspaceGeneration !== workspaceGenerationRef.current || workspaceKey !== workspaceKeyRef.current) return;
+      if (!workspaceIsCurrent(identity)) return;
       const record = await window.exo.workspace.reviewInvocationAll({ invocationId: entry.invocationId, action });
-      if (workspaceGeneration !== workspaceGenerationRef.current || workspaceKey !== workspaceKeyRef.current) return;
-      setQueue((current) => applyInvocationReviewRecord(current, record));
+      if (!workspaceIsCurrent(identity)) return;
+      setQueueState((current) => applyInvocationReviewRecord(current, record));
       await optionsRef.current.reloadTrees();
-      if (workspaceGeneration !== workspaceGenerationRef.current || workspaceKey !== workspaceKeyRef.current) return;
+      if (!workspaceIsCurrent(identity)) return;
       for (const payload of payloads) {
+        if (!workspaceIsCurrent(identity)) return;
         const decision = record.changeset?.files.find((change) => change.id === payload.change.id)?.decision.status;
-        if (decision === "kept" || decision === "rejected") await optionsRef.current.onReviewResolved(payload, action);
+        if (decision === "kept" || decision === "rejected") {
+          await optionsRef.current.onReviewResolved(payload, action);
+          if (!workspaceIsCurrent(identity)) return;
+        }
       }
     } catch (error) {
-      if (workspaceGeneration === workspaceGenerationRef.current && workspaceKey === workspaceKeyRef.current) optionsRef.current.onReviewError(entry.command, error);
+      if (workspaceIsCurrent(identity)) optionsRef.current.onReviewError(entry.command, error);
     } finally {
-      finishDecision(workspaceGeneration);
+      finishDecision(identity);
     }
-  }, [activeEntry, finishDecision, options.openDocumentPaths, options.workspaceKey, optionsRef, workspaceKeyRef]);
+  }, [activeEntry, finishDecision, options.openDocumentPaths, optionsRef, workspaceIdentity, workspaceIsCurrent]);
 
-  const navigate = useCallback((index: number) => setQueue((current) => navigateInvocationReview(current, index)), []);
-  const openHistory = useCallback((item: InvocationHistoryItem) => setQueue((current) => openInvocationHistoryReview(current, item)), []);
-  const dismissHistory = useCallback(() => setQueue(closeInvocationHistoryReview), []);
+  const navigate = useCallback((index: number) => setQueueState((current) => navigateInvocationReview(current, index)), []);
+  const openHistory = useCallback((item: InvocationHistoryItem) => setQueueState((current) => openInvocationHistoryReview(current, item)), []);
+  const dismissHistory = useCallback(() => setQueueState(closeInvocationHistoryReview), []);
   const refreshActiveConflict = useCallback(() => {
     if (!activeEntry || !activeChangeId) return;
-    setQueue((current) => ({
+    setQueueState((current) => ({
       ...current,
       entries: current.entries.map((entry) => entry.invocationId === activeEntry.invocationId
         ? { ...entry, payloads: Object.fromEntries(Object.entries(entry.payloads).filter(([id]) => id !== activeChangeId)) }
