@@ -58,7 +58,9 @@ Escape hatch: if a repo check flags a change that is genuinely implementation-on
 - review: user-approved-exception: 2026-07-20 Launch Gate C explicitly replaces guessed single-file attribution with the exact multi-file Changeset model. The authenticated CLI `invoke` response is intentionally narrowed to a version-independent launch summary rather than exporting Exo's internal review record.
 - review: architect-review: 2026-07-20 Gate C final contract review confirmed the bounded response preserves the CLI's actual consumer needs—invocation identity/status plus visible Terminal identity—while preventing future internal Changeset evolution from silently changing this public route.
 - sha256: `3f4526a2400fe8044fbfa33e7a4b02741d70ece8d1879981a4a2550f3fc4ea3e`
-- review: user-approved-exception: 2026-07-24 Architecture Wave E command-protocol task authorizes exact request/success/error types and CLI validation for the existing routes only; the desktop wire JSON, status codes, and timeouts are unchanged. Independent review follows this isolated implementation slice.
+- review: user-approved-exception: 2026-07-24 Architecture Wave E command-protocol task authorizes exact request/success/error types and CLI validation for the existing routes only; it adds no route or success-response field. Independent review follows this isolated implementation slice.
+- sha256: `2caae864dc47162a81355a79b297c22c8b7e569cf01a20c146c368ddf775c300`
+- review: architect-review: 2026-07-24 Independent protected-contract correction requires fields on valid open/spawn request DTOs, distinguishes the basic `{ error }` envelope from structured spawn failures, and deletes request DTOs for retired routes. Existing route, success-body, timeout, and valid-request behavior remains unchanged; non-object JSON bodies now receive the route's existing missing-input 400 response instead of an accidental property-access 500.
 
 ### `apps/desktop/src/main/command-server.ts#route-table`
 

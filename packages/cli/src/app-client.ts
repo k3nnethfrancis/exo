@@ -226,42 +226,42 @@ export class AppClient {
   }
 }
 
-export function decodeExoCommandStatusResponse(value: unknown): ExoCommandStatusResponse {
+function decodeExoCommandStatusResponse(value: unknown): ExoCommandStatusResponse {
   if (!isExoCommandStatusResponse(value)) {
     throw protocolShapeError("a valid status response");
   }
   return value;
 }
 
-export function decodeExoCommandOkResponse(value: unknown): ExoCommandOkResponse {
+function decodeExoCommandOkResponse(value: unknown): ExoCommandOkResponse {
   if (!isExoCommandOkResponse(value)) {
     throw protocolShapeError("an { ok: true } response");
   }
   return value;
 }
 
-export function decodeExoIndexSearchResponse(value: unknown): IndexSearchResponse {
+function decodeExoIndexSearchResponse(value: unknown): IndexSearchResponse {
   if (!isIndexSearchResponse(value)) {
     throw protocolShapeError("a valid search response");
   }
   return value;
 }
 
-export function decodeExoIndexStatusResponse(value: unknown): IndexStatus {
+function decodeExoIndexStatusResponse(value: unknown): IndexStatus {
   if (!isIndexStatus(value)) {
     throw protocolShapeError("a valid index status response");
   }
   return value;
 }
 
-export function decodeExoIndexSyncResponse(value: unknown): IndexSyncResult {
+function decodeExoIndexSyncResponse(value: unknown): IndexSyncResult {
   if (!isIndexSyncResult(value)) {
     throw protocolShapeError("a valid index sync response");
   }
   return value;
 }
 
-export function decodeExoSpawnAgentCommandResponse(value: unknown): ExoSpawnAgentCommandResponse {
+function decodeExoSpawnAgentCommandResponse(value: unknown): ExoSpawnAgentCommandResponse {
   if (!isExoSpawnAgentCommandResponse(value)) {
     throw protocolShapeError("a valid agent command spawn response");
   }

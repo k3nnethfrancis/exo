@@ -78,6 +78,40 @@ describe("CommandServer operator contract", () => {
     }
   });
 
+  it("treats a non-object open body as the existing missing-path request error", async () => {
+    const { server, port, token } = await startServer();
+    try {
+      const response = await commandFetch(token, port, "/open", {
+        method: "POST",
+        body: "null",
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({ error: "Missing path in body" });
+    } finally {
+      await server.stop();
+    }
+  });
+
+  it("treats a non-object spawn body as the existing structured missing-input error", async () => {
+    const { server, port, token } = await startServer();
+    try {
+      const response = await commandFetch(token, port, "/agent-commands/spawn", {
+        method: "POST",
+        body: "null",
+      });
+
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toEqual({
+        ok: false,
+        code: "missing-agent-command-spawn-input",
+        error: "Missing handle or task in body.",
+      });
+    } finally {
+      await server.stop();
+    }
+  });
+
   it("returns a stable invocation launch summary instead of the internal review record", async () => {
     const { server, port, token } = await startServer({
       onSpawnAgentCommand: async () => ({

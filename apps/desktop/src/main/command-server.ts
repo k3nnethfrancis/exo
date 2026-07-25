@@ -5,9 +5,12 @@ import { mkdir } from "node:fs/promises";
 import {
   EXO_COMMAND_ROUTES,
   EXO_COMMAND_TOKEN_HEADER,
+  type ExoCommandBasicErrorResponse,
+  type ExoCommandOkResponse,
   type ExoCommandServerInfo,
   type ExoCommandStatusResponse,
   type ExoSpawnAgentCommandResponse,
+  type ExoSpawnAgentCommandErrorResponse,
   type IndexSearchResponse,
   type IndexSyncResult,
   type IndexStatus,
@@ -88,12 +91,12 @@ export class CommandServer {
 
     try {
       if (!isLoopbackRemote(req.socket.remoteAddress)) {
-        json(res, { error: "Command server only accepts loopback requests." }, 403);
+        json(res, { error: "Command server only accepts loopback requests." } satisfies ExoCommandBasicErrorResponse, 403);
         return;
       }
 
       if (!this.isAuthenticated(req)) {
-        json(res, { error: "Missing or invalid Exo command token." }, 401);
+        json(res, { error: "Missing or invalid Exo command token." } satisfies ExoCommandBasicErrorResponse, 401);
         return;
       }
 
@@ -104,14 +107,14 @@ export class CommandServer {
 
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.show) {
         this.options.onShowWindow();
-        json(res, { ok: true });
+        json(res, { ok: true } satisfies ExoCommandOkResponse);
         return;
       }
 
       if (method === "GET" && pathname === EXO_COMMAND_ROUTES.search) {
         const query = url.searchParams.get("q") ?? "";
         if (!query) {
-          json(res, { error: "Missing query parameter ?q=" }, 400);
+          json(res, { error: "Missing query parameter ?q=" } satisfies ExoCommandBasicErrorResponse, 400);
           return;
         }
         const limit = parseOptionalNumber(url.searchParams.get("limit"));
@@ -139,27 +142,31 @@ export class CommandServer {
 
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.open) {
         const body = await readBody(req);
-        const filePath = typeof body.path === "string" ? body.path : undefined;
+        const filePath = isRecord(body) && typeof body.path === "string" ? body.path : undefined;
         if (!filePath) {
-          json(res, { error: "Missing path in body" }, 400);
+          json(res, { error: "Missing path in body" } satisfies ExoCommandBasicErrorResponse, 400);
           return;
         }
         try {
           await this.options.onOpenFile(filePath);
         } catch (error) {
-          json(res, { error: error instanceof Error ? error.message : String(error) }, 400);
+          json(res, { error: error instanceof Error ? error.message : String(error) } satisfies ExoCommandBasicErrorResponse, 400);
           return;
         }
-        json(res, { ok: true });
+        json(res, { ok: true } satisfies ExoCommandOkResponse);
         return;
       }
 
       if (method === "POST" && pathname === EXO_COMMAND_ROUTES.spawnAgentCommand) {
         const body = await readBody(req);
-        const handle = typeof body.handle === "string" ? body.handle : undefined;
-        const task = typeof body.task === "string" ? body.task : undefined;
+        const handle = isRecord(body) && typeof body.handle === "string" ? body.handle : undefined;
+        const task = isRecord(body) && typeof body.task === "string" ? body.task : undefined;
         if (!handle || !task) {
-          json(res, { ok: false, code: "missing-agent-command-spawn-input", error: "Missing handle or task in body." }, 400);
+          json(
+            res,
+            { ok: false, code: "missing-agent-command-spawn-input", error: "Missing handle or task in body." } satisfies ExoSpawnAgentCommandErrorResponse,
+            400,
+          );
           return;
         }
         try {
@@ -187,7 +194,11 @@ export class CommandServer {
           } satisfies ExoSpawnAgentCommandResponse);
         } catch (error) {
           if (error instanceof InvocationRunnerError) {
-            json(res, { ok: false, code: error.code, error: error.message, ...error.details }, error.code === "agent-command-untrusted" ? 403 : 400);
+            json(
+              res,
+              { ok: false, code: error.code, error: error.message, ...error.details } satisfies ExoSpawnAgentCommandErrorResponse,
+              error.code === "agent-command-untrusted" ? 403 : 400,
+            );
             return;
           }
           throw error;
@@ -195,10 +206,10 @@ export class CommandServer {
         return;
       }
 
-      json(res, { error: "Not found" }, 404);
+      json(res, { error: "Not found" } satisfies ExoCommandBasicErrorResponse, 404);
     } catch (error) {
       const status = error instanceof CommandServerHttpError ? error.status : 500;
-      json(res, { error: error instanceof Error ? error.message : String(error) }, status);
+      json(res, { error: error instanceof Error ? error.message : String(error) } satisfies ExoCommandBasicErrorResponse, status);
     }
   }
 
@@ -230,7 +241,7 @@ function json(res: ServerResponse, data: unknown, status = 200): void {
   res.end(JSON.stringify(data));
 }
 
-function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+function readBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
     const contentType = String(req.headers["content-type"] ?? "");
     if (contentType && !contentType.toLowerCase().includes("application/json")) {
@@ -271,4 +282,8 @@ class CommandServerHttpError extends Error {
 
 function isLoopbackRemote(remoteAddress: string | undefined): boolean {
   return !remoteAddress || remoteAddress === "127.0.0.1" || remoteAddress === "::1" || remoteAddress === "::ffff:127.0.0.1";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

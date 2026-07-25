@@ -86,12 +86,12 @@ export type ExoCommandIndexStatusResponse = IndexStatus;
 export type ExoCommandIndexSyncResponse = IndexSyncResult;
 
 export interface ExoOpenFileRequest {
-  path?: string;
+  path: string;
 }
 
 export interface ExoSpawnAgentCommandRequest {
-  handle?: string;
-  task?: string;
+  handle: string;
+  task: string;
 }
 
 export interface ExoSpawnAgentCommandResponse {
@@ -105,25 +105,15 @@ export interface ExoSpawnAgentCommandResponse {
   terminal: ExoCommandTerminalInfo;
 }
 
-export interface ExoCommandErrorResponse {
+/** The error envelope shared by routes that report only a human-readable failure. */
+export interface ExoCommandBasicErrorResponse {
+  error: string;
+}
+
+/** The structured failure envelope emitted only by `/agent-commands/spawn`. */
+export interface ExoSpawnAgentCommandErrorResponse {
   ok: false;
   code: string;
   error: string;
   [key: string]: unknown;
-}
-
-
-export interface ExoIndexRootRequest {
-  path?: string;
-  name?: string;
-  kind?: string;
-  pattern?: string;
-  ignore?: string[];
-  force?: boolean;
-}
-
-export interface ExoReadDocumentRequest {
-  target?: string;
-  fromLine?: number;
-  maxLines?: number;
 }
