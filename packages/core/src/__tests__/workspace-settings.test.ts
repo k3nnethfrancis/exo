@@ -7,6 +7,7 @@ import { createDefaultClaudeAgentCommand } from "../agent-invocation";
 import type { WorkspaceSettings } from "../types";
 import {
   loadWorkspaceSettings,
+  getWorkspaceRegistryEntry,
   listWorkspaceRegistryEntries,
   loadWorkspaceRegistry,
   loadActiveWorkspaceSettings,
@@ -1209,6 +1210,44 @@ describe("workspace settings registry", () => {
   it("treats explicit workspace env as an override", () => {
     expect(workspaceEnvOverrides({ EXO_WORKSPACE_ROOT: "/tmp/manual" })).toBe(true);
     expect(workspaceEnvOverrides({})).toBe(false);
+  });
+
+  it("persists saved workspaces for the switcher", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-registry-"));
+    const env = { EXO_USER_DATA_PATH: userDataPath };
+
+    try {
+      const firstSettings = normalizeWorkspaceSettings({
+        workspaceRoot: "/tmp/exo-test/notes-alpha",
+        defaultTerminalCwd: "/tmp/exo-test/notes-alpha",
+        noteRoots: ["/tmp/exo-test/notes-alpha"],
+        projectRoots: ["/tmp/exo-test/project-alpha"],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+      });
+      const secondSettings = normalizeWorkspaceSettings({
+        workspaceRoot: "/tmp/exo-test/notes-beta",
+        defaultTerminalCwd: "/tmp/exo-test/project-beta",
+        noteRoots: ["/tmp/exo-test/notes-beta"],
+        projectRoots: ["/tmp/exo-test/project-beta"],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+      });
+
+      expect(firstSettings).not.toBeNull();
+      expect(secondSettings).not.toBeNull();
+      await saveWorkspaceSettings(firstSettings!, env);
+      await saveWorkspaceSettings(secondSettings!, env);
+
+      const workspaces = await listWorkspaceRegistryEntries(env);
+      expect(workspaces.map((workspace) => workspace.label)).toEqual(["notes-beta", "notes-alpha"]);
+      expect(workspaces[0].settings.defaultTerminalCwd).toBe("/tmp/exo-test/project-beta");
+      await expect(getWorkspaceRegistryEntry(workspaces[1].id, env)).resolves.toMatchObject({
+        notesFolder: "/tmp/exo-test/notes-alpha",
+      });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
   });
 });
 

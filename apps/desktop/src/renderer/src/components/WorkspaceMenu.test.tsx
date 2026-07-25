@@ -1,0 +1,23 @@
+import { describe, expect, it } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { EXO_CLI_COMMANDS } from "@exo/core/operator-help";
+
+import { APP_KEYBINDINGS } from "../shellHelpModel";
+import { WorkspaceHelpPanel } from "./WorkspaceMenu";
+
+describe("workspace help menu", () => {
+  it("renders one compact help surface from the current keybinding and CLI catalogs", () => {
+    const html = renderToStaticMarkup(<WorkspaceHelpPanel isMac onBack={() => {}} />);
+
+    expect(html).toContain("Keyboard");
+    expect(html).toContain("CLI");
+    for (const shortcut of APP_KEYBINDINGS) {
+      expect(html).toContain(shortcut.label);
+      expect(html).toContain(shortcut.mac);
+    }
+    for (const command of EXO_CLI_COMMANDS) {
+      expect(html).toContain(command.syntax.replaceAll("<", "&lt;").replaceAll(">", "&gt;"));
+    }
+    expect(html).toContain('aria-label="Back to workspace menu"');
+  });
+});
