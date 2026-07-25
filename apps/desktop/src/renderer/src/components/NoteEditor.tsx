@@ -17,7 +17,11 @@ import { codeLanguageForPath } from "./codeLanguages";
 import { AgentIcon } from "./AgentIcon";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownInlineFormattingEdit } from "./markdownInlineFormatting";
-import { markdownLivePreview, type MarkdownGraphReferences } from "./markdownLivePreview";
+import {
+  markdownLivePreview,
+  refreshMarkdownPreviewEffect,
+  type MarkdownGraphReferences,
+} from "./markdownLivePreview";
 import { inlineAgentComposerExtension, isPersistedInvocationPosition, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
 import { invocationInlineReviewExtension, invocationReviewOriginal } from "../invocationInlineReview";
 import type { EditorFaultContext } from "./editorFaultDiagnostics";
@@ -49,6 +53,13 @@ interface WikilinkPreviewState {
   excerpt: string;
   loading: boolean;
 }
+
+const EDITOR_BASIC_SETUP = {
+  autocompletion: false,
+  lineNumbers: false,
+  foldGutter: false,
+  highlightSelectionMatches: false,
+} as const;
 
 interface AgentSuggestionState {
   from: number;
@@ -197,6 +208,8 @@ export function NoteEditor(props: NoteEditorProps) {
   const graphReferences = useMemo((): MarkdownGraphReferences | null => {
     return graphReferencesForMarkdownMode(showNoteMetadata, rawMarkdownMode, graphContext);
   }, [graphContext, rawMarkdownMode, showNoteMetadata]);
+  const graphReferencesRef = useRef(graphReferences);
+  graphReferencesRef.current = graphReferences;
   const invocationCommands = useMemo(() => agentCommands.filter((command) => command.enabled), [agentCommands]);
   const invokeAgentRef = useRef(onInvokeAgent);
   const bodyChangeRef = useRef(onBodyChange);
@@ -576,9 +589,9 @@ export function NoteEditor(props: NoteEditorProps) {
       onOpenTag: (tag) => openTagRef.current(tag),
       onResolveImage: (target, options) => resolveMarkdownImageRef.current(documentPath, target, options?.lookupByFilename),
       suppressedGeneratedTitle,
-      graphReferences,
+      getGraphReferences: () => graphReferencesRef.current,
     }),
-    [documentPath, graphReferences, suppressedGeneratedTitle],
+    [documentPath, suppressedGeneratedTitle],
   );
   const markdownSpellcheck = useMemo(
     () => EditorView.contentAttributes.of({ spellcheck: "true" }),
@@ -641,6 +654,13 @@ export function NoteEditor(props: NoteEditorProps) {
         ],
     [agentComposer, cmTheme, codeLanguage?.extensions, invocationReviewExtensions, markdownFormattingKeymap, markdownPreviewExtensions, markdownSpellcheck, rawMarkdownMode, saveKeymap, selectionTracker, syntaxTheme, useMarkdownEditing],
   );
+
+  useLayoutEffect(() => {
+    const view = codeMirrorRef.current?.view;
+    if (view && useMarkdownEditing && !rawMarkdownMode) {
+      view.dispatch({ effects: refreshMarkdownPreviewEffect.of(null) });
+    }
+  }, [graphReferences, rawMarkdownMode, useMarkdownEditing]);
 
   useEffect(() => {
     if (!document) {
@@ -1066,12 +1086,7 @@ export function NoteEditor(props: NoteEditorProps) {
           key={`${document.filePath}:${useMarkdownEditing && !rawMarkdownMode ? "live" : "code"}:${theme.id}:${fontSize}`}
           value={document.body}
           extensions={editorExtensions}
-          basicSetup={{
-            autocompletion: false,
-            lineNumbers: false,
-            foldGutter: false,
-            highlightSelectionMatches: false,
-          }}
+          basicSetup={EDITOR_BASIC_SETUP}
           editable={!document.readOnly && !editingFrozen && !invocationReview?.decisionPending}
           onBlur={() => {
             const view = codeMirrorRef.current?.view;

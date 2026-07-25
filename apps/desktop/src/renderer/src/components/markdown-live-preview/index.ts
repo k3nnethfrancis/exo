@@ -19,6 +19,7 @@ import type { MarkdownGraphReferences } from "./widgets";
 export type { MarkdownGraphReferenceItem, MarkdownGraphReferences } from "./widgets";
 
 const toggleFoldEffect = StateEffect.define<number>();
+export const refreshMarkdownPreviewEffect = StateEffect.define<null>();
 
 const foldedListParentAnchorsField = StateField.define<Set<number>>({
   create() {
@@ -83,6 +84,7 @@ interface MarkdownLivePreviewOptions {
   onResolveImage: (target: string, options?: { lookupByFilename?: boolean }) => Promise<{ url: string }>;
   suppressedGeneratedTitle?: string | null;
   graphReferences?: MarkdownGraphReferences | null;
+  getGraphReferences?: () => MarkdownGraphReferences | null;
 }
 
 interface MarkdownPreviewProjectionUpdate {
@@ -110,6 +112,10 @@ export function advanceMarkdownPreviewProjection<Result>(
 }
 
 export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extension[] {
+  const decorationOptions = () => ({
+    ...options,
+    graphReferences: options.getGraphReferences?.() ?? options.graphReferences,
+  });
   const plugin = ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
@@ -117,7 +123,7 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
 
       constructor(view: EditorView) {
         this.metadata = markdownPreviewMetadata(view.state.doc);
-        this.decorations = buildDecorations(view, options, this.metadata, view.state.field(foldedListParentAnchorsField));
+        this.decorations = buildDecorations(view, decorationOptions(), this.metadata, view.state.field(foldedListParentAnchorsField));
       }
 
       update(update: ViewUpdate) {
@@ -129,9 +135,11 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
           rebuild: update.docChanged
             || update.viewportChanged
             || update.selectionSet
-            || update.transactions.some(tr => tr.effects.some(e => e.is(toggleFoldEffect))),
+            || update.transactions.some(tr => tr.effects.some(e => (
+              e.is(toggleFoldEffect) || e.is(refreshMarkdownPreviewEffect)
+            ))),
         }, this.metadata, (metadata) =>
-          buildDecorations(update.view, options, metadata, update.view.state.field(foldedListParentAnchorsField)));
+          buildDecorations(update.view, decorationOptions(), metadata, update.view.state.field(foldedListParentAnchorsField)));
         this.metadata = next.metadata;
         if (next.projection) {
           this.decorations = next.projection;
