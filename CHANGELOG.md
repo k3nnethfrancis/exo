@@ -81,6 +81,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Fixed
 
+- Keeps canonical editor bytes synchronous with CodeMirror through autosave and
+  inline Command composition, preventing deferred controlled renders from
+  replacing newer typed text.
 - Keeps active Workspace transitions atomic across settings, watchers, Search,
   graph publication, terminals, and command discovery; stale asynchronous work
   can no longer republish an older Workspace.
