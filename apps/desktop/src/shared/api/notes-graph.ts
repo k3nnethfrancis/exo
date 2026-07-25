@@ -1,0 +1,36 @@
+import type {
+  GraphConceptDetailByIndexResult,
+  GraphConceptLookupReference,
+  GraphConceptLookupResult,
+  GraphConceptSummaryResult,
+  GraphTopology,
+  NoteDocument,
+  WorkspaceGraphContext,
+} from "@exo/core";
+
+export interface FileStatInfo {
+  size: number;
+  mtimeMs: number;
+}
+
+export interface ResolvedMarkdownImage {
+  url: string;
+}
+
+export interface NotesGraphApi {
+  read: (filePath: string) => Promise<NoteDocument>;
+  save: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<void>;
+  stat: (filePath: string) => Promise<FileStatInfo | null>;
+  getGraphContext: (filePath: string) => Promise<WorkspaceGraphContext | null>;
+  getGraphTopology: () => Promise<GraphTopology>;
+  getGraphConceptSummaries: (indexes: number[], sourceSnapshotId: string) => Promise<GraphConceptSummaryResult>;
+  graphConceptLookup: (reference: GraphConceptLookupReference, sourceSnapshotId: string) => Promise<GraphConceptLookupResult>;
+  getGraphConceptDetailByIndex: (index: number, sourceSnapshotId: string) => Promise<GraphConceptDetailByIndexResult>;
+  resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
+  resolveMarkdownImage: (sourceFilePath: string, target: string, lookupByFilename?: boolean) => Promise<ResolvedMarkdownImage>;
+  ensureTarget: (sourceFilePath: string, target: string) => Promise<string>;
+  suggestTargets: (
+    sourceFilePath: string,
+    query: string,
+  ) => Promise<Array<{ filePath: string; title: string; target: string; snippet: string }>>;
+}

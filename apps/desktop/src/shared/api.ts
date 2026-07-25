@@ -1,341 +1,56 @@
-import type {
-  IndexSearchResponse,
-  IndexSyncResult,
-  IndexStatus,
-  FolderIndexResult,
-  FolderIndexStatus,
-  FolderOverview,
-  GraphConceptDetailByIndexResult,
-  GraphConceptLookupReference,
-  GraphConceptLookupResult,
-  GraphConceptSummaryResult,
-  GraphTopology,
-  NoteDocument,
-  WorkspaceGraphContext,
-  SearchResult,
-  TreeNode,
-  OnboardingStateStore,
-  WorkspaceModel,
-  WorkspaceSettings,
-  WorkspaceSettingsSaveRequest,
-  WorkspaceSettingsSnapshot,
-  WorkspaceSearchResults,
-  InvocationRecord,
-  AgentCommandTrustStatus,
-  AgentCommand,
-  InvocationAuthorizationDecision,
-  InvocationActivityEvent,
-  InvocationFileChange,
-  OntologyKeepResult,
-  OntologyRejectResult,
-  OntologyReviewGuard,
-  OntologyReviewState,
-} from "@exo/core";
+import type { WorkspaceFilesystemApi } from "./api/workspace-filesystem";
+import type { WorkspaceIndexApi } from "./api/workspace-index";
+import type { WorkspaceInvocationApi } from "./api/invocation-commands";
+import type { NotesGraphApi } from "./api/notes-graph";
+import type { ShellApi } from "./api/shell";
+import type { TerminalsApi } from "./api/terminal";
+import type { WorkspaceSetupApi } from "./api/workspace-setup";
 
-export type TerminalKind = "shell";
-export type TerminalLaunchKind = "shell";
-export type TerminalHealthState = "healthy" | "idle" | "unhealthy" | "exited";
-export type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal" | "agents";
+export type {
+  AgentCommandContinuityStatus,
+  AgentCommandLaunchFacts,
+  AgentInvocationAuthorizationFacts,
+  CliInstallationStatus,
+  InvocationFileReviewPayload,
+  InvocationHistoryItem,
+  InvocationReviewListItem,
+  LaunchAgentInvocationInput,
+  LaunchAgentInvocationResponse,
+  ProviderMcpSetupInput,
+  ProviderMcpSetupResult,
+  RendererEditorDiagnostic,
+  TestAgentCommandInput,
+} from "./api/invocation-commands";
+export type { FileStatInfo, ResolvedMarkdownImage } from "./api/notes-graph";
+export type {
+  TerminalCreateOptions,
+  TerminalDataEvent,
+  TerminalGeometryRecord,
+  TerminalHealthState,
+  TerminalKind,
+  TerminalLaunchKind,
+  TerminalMessageResult,
+  TerminalSessionInfo,
+  TerminalWriteResult,
+} from "./api/terminal";
+export type {
+  WorkspaceRegistryEntry,
+  WorkspaceSettingsRuntimeApplyOutcome,
+  WorkspaceSettingsSaveOutcome,
+  WorkspaceSettingsSection,
+  WorkspaceSetupState,
+} from "./api/workspace-setup";
+export type { IndexSyncStateEvent } from "./api/workspace-index";
 
-export interface TerminalGeometryRecord {
-  cols: number;
-  rows: number;
-  reportedAt: string;
-  source: "renderer-fit" | "initial-default";
-}
-
-export interface TerminalSessionInfo {
-  id: string;
-  title: string;
-  cwd: string;
-  kind: TerminalKind;
-  command: string;
-  status: "running" | "exited";
-  exitCode?: number;
-  health?: TerminalHealthState;
-  healthDetail?: string;
-  geometry?: TerminalGeometryRecord;
-  attachGeneration: number;
-}
-
-export interface TerminalCreateOptions {
-  terminalKind?: TerminalLaunchKind;
-  cwd?: string;
-}
-
-export interface TerminalDataEvent {
-  id: string;
-  generation: number;
-  data: string;
-}
-
-export interface TerminalWriteResult {
-  ok: boolean;
-  delivery: "sent" | "queued" | "not-found";
-  writeId?: number;
-}
-
-export interface TerminalMessageResult extends TerminalWriteResult {}
-
-export interface FileStatInfo {
-  size: number;
-  mtimeMs: number;
-}
-
-export interface ResolvedMarkdownImage {
-  url: string;
-}
-
-export interface WorkspaceSetupState {
-  complete: boolean;
-  onboardingComplete: boolean;
-  onboarding: OnboardingStateStore;
-  settingsPath: string;
-}
-
-export interface WorkspaceRegistryEntry {
-  id: string;
-  label: string;
-  notesFolder: string;
-  settings: WorkspaceSettings;
-  updatedAt: string;
-}
-
-export type WorkspaceSettingsRuntimeApplyOutcome =
-  | { status: "applied" }
-  /** The Workspace committed, but a noncritical post-commit rebind needs attention. */
-  | { status: "degraded"; errorMessage: string }
-  | { status: "failed"; errorMessage: string };
-
-export interface WorkspaceSettingsSaveOutcome extends WorkspaceSettingsSnapshot {
-  runtimeApply: WorkspaceSettingsRuntimeApplyOutcome;
-}
-
-export interface IndexSyncStateEvent {
-  state: "running" | "idle" | "error";
-  reason: string;
-  result?: IndexSyncResult;
-  error?: string;
-}
-
-export interface LaunchAgentInvocationInput {
-  handle: string;
-  /** UUID stored in the inert <exo-invocation> document envelope. */
-  protocolInvocationId: string;
-  documentPath: string;
-  mentionText: string;
-  message: string;
-  documentFrontmatter?: Record<string, unknown>;
-  documentBody?: string;
-  authorization: InvocationAuthorizationDecision;
-  expectedFingerprint: string;
-}
-
-export interface LaunchAgentInvocationResponse {
-  ok: true;
-  invocation: InvocationRecord;
-  /** Present only for the explicit, visible command test flow. */
-  terminal?: TerminalSessionInfo;
-}
-
-export interface InvocationFileReviewPayload {
-  invocation: InvocationRecord;
-  change: InvocationFileChange;
-  beforeText: string | null;
-  afterText: string | null;
-  /** The artifact is valid but deliberately too large to move across IPC. */
-  beforeTextOmitted?: boolean;
-  afterTextOmitted?: boolean;
-  canKeep: boolean;
-  canReject: boolean;
-}
-
-export interface InvocationReviewListItem {
-  invocationId: string;
-  createdAt: string;
-  endedAt?: string;
-  command: Pick<InvocationRecord["command"], "handle" | "label">;
-  changedFileCount: number;
-  pendingFileCount: number;
-  /** Opaque review keys in deterministic changeset order. */
-  pendingChangeIds: string[];
-  status: InvocationRecord["status"];
-}
-
-export interface InvocationHistoryItem {
-  invocationId: string;
-  createdAt: string;
-  endedAt?: string;
-  command: Pick<InvocationRecord["command"], "handle" | "label">;
-  outcome: "kept" | "rejected" | "pending" | "failed";
-  changedFileCount: number;
-  /** Opaque review keys in deterministic changeset order. */
-  changeIds: string[];
-  providerSessionId?: string;
-}
-
-export interface AgentCommandLaunchFacts {
-  commandId: string;
-  handle: string;
-  label: string;
-  fingerprint: string;
-  cwd: string | null;
-  cwdReady: boolean;
-  executable: string;
-  executablePath: string | null;
-  executableReady: boolean;
-  launchable: boolean;
-  block?: "disabled" | "unsupported-prompt-delivery" | "invalid-cwd-policy" | "document-required" | "cwd-missing" | "executable-missing";
-  detail: string;
-}
-
-export interface AgentInvocationAuthorizationFacts extends AgentCommandLaunchFacts {
-  command: AgentCommand;
-  trusted: boolean;
-}
-
-export interface TestAgentCommandInput {
-  commandId: string;
-  expectedFingerprint: string;
-}
-
-export interface AgentCommandContinuityStatus {
-  commandId: string;
-  supported: boolean;
-  policy: "continuous" | "fresh";
-  hasHead: boolean;
-  active: boolean;
-}
-
-/** An explicit installation of Exo's read-only MCP server into provider-owned config. */
-export interface ProviderMcpSetupInput {
-  providers: Array<"claude" | "codex">;
-}
-
-export interface ProviderMcpSetupResult {
-  provider: "claude" | "codex";
-  ok: boolean;
-  detail: string;
-}
-
-/** A read-only diagnosis of the `exo` command the desktop app can see. */
-export interface CliInstallationStatus {
-  state: "current" | "legacy-exo" | "missing" | "non-exo" | "unavailable";
-  /** The command found on PATH, when one is present. */
-  commandPath?: string;
-  /** The checkout command it should point to, when this app can identify one. */
-  sourcePath?: string;
-  /** A command the user may run from a known checkout. Never run by the app. */
-  installCommand?: string;
-}
-
-/** A content-free renderer fault record, retained only in Exo's local main log. */
-export interface RendererEditorDiagnostic {
-  kind: "editor-render-fault";
-  occurredAt: string;
-  notePath: string | null;
-  mode: "markdown-live" | "markdown-raw" | "code" | "empty";
-  selection: { anchor: number; head: number } | null;
-  agentHandle: string | null;
-  errorSignature: string;
-}
-
+/**
+ * The renderer's single desktop bridge contract. Domain definitions remain
+ * private to this directory; callers keep importing this stable aggregate seam.
+ */
 export interface DesktopApi {
   /** Present only in explicit test launches; absent from ordinary production. */
   test?: { graphHooks: true };
-  workspace: {
-    getModel: () => Promise<WorkspaceModel>;
-    getSettings: () => Promise<WorkspaceSettingsSnapshot>;
-    getSetupState: () => Promise<WorkspaceSetupState>;
-    markOnboardingComplete: () => Promise<OnboardingStateStore>;
-    listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
-    activateWorkspace: (input: { workspaceId: string; expectedRevision: WorkspaceSettingsSaveRequest["expectedRevision"] }) => Promise<WorkspaceSettingsSaveOutcome>;
-    saveSettings: (request: WorkspaceSettingsSaveRequest) => Promise<WorkspaceSettingsSaveOutcome>;
-    selectFolder: (options?: { title?: string; allowMultiple?: boolean; buttonLabel?: string }) => Promise<string[]>;
-    getIndexStatus: () => Promise<IndexStatus>;
-    previewOntology: () => Promise<OntologyReviewState>;
-    keepOntology: (guard: OntologyReviewGuard) => Promise<OntologyKeepResult>;
-    rejectOntology: (guard: OntologyReviewGuard) => Promise<OntologyRejectResult>;
-    resolvePreviewTarget: (target: string) => Promise<{ url: string; source: "url" | "file" }>;
-    launchAgentInvocation: (input: LaunchAgentInvocationInput) => Promise<LaunchAgentInvocationResponse>;
-    getAgentInvocationAuthorization: (input: { handle: string; documentPath: string }) => Promise<AgentInvocationAuthorizationFacts>;
-    getAgentCommandTrust: (handle: string) => Promise<AgentCommandTrustStatus>;
-    resetAgentCommandTrust: (handle: string) => Promise<{ revoked: boolean }>;
-    getAgentCommandLaunchFacts: (commandId: string) => Promise<AgentCommandLaunchFacts>;
-    getAgentCommandContinuity: (commandId: string) => Promise<AgentCommandContinuityStatus>;
-    resetAgentCommandContinuity: (commandId: string) => Promise<{ cleared: number }>;
-    testAgentCommand: (input: TestAgentCommandInput) => Promise<LaunchAgentInvocationResponse>;
-    configureProviderMcp: (input: ProviderMcpSetupInput) => Promise<ProviderMcpSetupResult[]>;
-    getCliInstallationStatus: () => Promise<CliInstallationStatus>;
-    recordRendererDiagnostic: (diagnostic: RendererEditorDiagnostic) => Promise<void>;
-    endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;
-    listPendingInvocationReviews: () => Promise<InvocationReviewListItem[]>;
-    listInvocationHistory: (notePath: string) => Promise<InvocationHistoryItem[]>;
-    getInvocationFileReview: (input: { invocationId: string; changeId: string }) => Promise<InvocationFileReviewPayload>;
-    reviewInvocationFile: (input: { invocationId: string; changeId: string; action: "keep" | "reject" }) => Promise<InvocationRecord>;
-    reviewInvocationAll: (input: { invocationId: string; action: "keep" | "reject" }) => Promise<InvocationRecord>;
-    resumeInvocationInTerminal: (invocationId: string) => Promise<TerminalSessionInfo>;
-    onInvocationUpdated: (callback: (record: InvocationRecord) => void) => () => void;
-    onInvocationActivity: (callback: (event: InvocationActivityEvent) => void) => () => void;
-    syncIndex: () => Promise<IndexSyncResult>;
-    updateIndex: () => Promise<IndexStatus>;
-    embedIndex: () => Promise<IndexStatus>;
-    listTree: (
-      rootPath: string,
-      options?: { markdownOnly?: boolean; maxDepth?: number; includeEmptyDirectories?: boolean },
-    ) => Promise<TreeNode[]>;
-    searchNotes: (query: string) => Promise<SearchResult[]>;
-    searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
-    searchIndex: (query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) => Promise<IndexSearchResponse>;
-    searchTag: (tag: string) => Promise<SearchResult[]>;
-    getFolderIndexStatus: () => Promise<FolderIndexStatus>;
-    getFolderOverview: (directoryPath: string) => Promise<FolderOverview>;
-    ensureFolderIndex: (directoryPath: string) => Promise<FolderIndexResult>;
-    createFile: (targetPath: string, content?: string) => Promise<string>;
-    createFolder: (targetPath: string) => Promise<FolderIndexResult>;
-    renamePath: (sourcePath: string, nextPath: string) => Promise<string>;
-    deletePath: (targetPath: string) => Promise<void>;
-    onDidChange: (callback: (event: { rootPath: string; eventType: string; filePath: string | null }) => void) => () => void;
-    onIndexSyncState: (callback: (event: IndexSyncStateEvent) => void) => () => void;
-    onGraphChanged: (callback: () => void) => () => void;
-    onOntologyCandidateChanged: (callback: () => void) => () => void;
-    onCommandOpenFile: (callback: (filePath: string) => void) => () => void;
-    onCommandOpenSettings: (callback: (event: { section: WorkspaceSettingsSection }) => void) => () => void;
-  };
-  notes: {
-    read: (filePath: string) => Promise<NoteDocument>;
-    save: (filePath: string, frontmatter: Record<string, unknown>, body: string) => Promise<void>;
-    stat: (filePath: string) => Promise<FileStatInfo | null>;
-    getGraphContext: (filePath: string) => Promise<WorkspaceGraphContext | null>;
-    getGraphTopology: () => Promise<GraphTopology>;
-    getGraphConceptSummaries: (indexes: number[], sourceSnapshotId: string) => Promise<GraphConceptSummaryResult>;
-    graphConceptLookup: (reference: GraphConceptLookupReference, sourceSnapshotId: string) => Promise<GraphConceptLookupResult>;
-    getGraphConceptDetailByIndex: (index: number, sourceSnapshotId: string) => Promise<GraphConceptDetailByIndexResult>;
-    resolveTarget: (sourceFilePath: string, target: string) => Promise<string | null>;
-    resolveMarkdownImage: (sourceFilePath: string, target: string, lookupByFilename?: boolean) => Promise<ResolvedMarkdownImage>;
-    ensureTarget: (sourceFilePath: string, target: string) => Promise<string>;
-    suggestTargets: (
-      sourceFilePath: string,
-      query: string,
-    ) => Promise<Array<{ filePath: string; title: string; target: string; snippet: string }>>;
-  };
-  terminals: {
-    ensureDefault: () => Promise<TerminalSessionInfo>;
-    list: () => Promise<TerminalSessionInfo[]>;
-    create: (options: TerminalCreateOptions) => Promise<TerminalSessionInfo>;
-    read: (id: string, options?: { maxLines?: number }) => Promise<string>;
-    write: (id: string, data: string) => Promise<TerminalWriteResult>;
-    sendMessage: (id: string, message: string, submit?: boolean) => Promise<TerminalMessageResult>;
-    resize: (id: string, cols: number, rows: number) => Promise<void>;
-    kill: (id: string) => Promise<void>;
-    resolveDroppedFilePaths: (files: File[]) => string[];
-    onCreated: (callback: (session: TerminalSessionInfo) => void) => () => void;
-    onUpdated: (callback: (session: TerminalSessionInfo) => void) => () => void;
-    onData: (callback: (event: TerminalDataEvent) => void) => () => void;
-    onExit: (callback: (event: { id: string; exitCode?: number }) => void) => () => void;
-  };
-  shell: {
-    openExternal: (target: string) => Promise<void>;
-    focusWindow: () => Promise<void>;
-  };
+  workspace: WorkspaceSetupApi & WorkspaceIndexApi & WorkspaceFilesystemApi & WorkspaceInvocationApi;
+  notes: NotesGraphApi;
+  terminals: TerminalsApi;
+  shell: ShellApi;
 }
