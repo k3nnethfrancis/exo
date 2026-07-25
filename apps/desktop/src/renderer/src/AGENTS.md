@@ -24,7 +24,7 @@ use `window.exo` through preload/shared API types.
   widget, and decoration owners live under
   `components/markdown-live-preview/`; test
   `components/markdown-live-preview/index.test.ts` and
-  `../../tests/e2e/markdown-rules.spec.ts`.
+  `../../../tests/e2e/markdown-rules.spec.ts`.
 - Pane topology is `hooks/usePaneTree.ts` plus `paneTreeSelectors.ts`; keep
   pure tree transforms free of React and preload calls.
 - Graph scene/layout/interaction is owned by `graphSceneFoundation.ts`,
