@@ -28,9 +28,10 @@ The current Folder model is:
 - Tags and typed relationships express additional membership beyond the primary path.
 
 This produces useful structure through normal organization without a mandatory
-schema or ontology database. One optional user-owned `ontology.yaml` may
-interpret these facts across the Workspace; it does not replace Folder Indexes
-or become another canonical store.
+schema or ontology database. One optional user-owned Ontology selected from the
+root `ontology.yaml` or flat `ontologies/*.yaml` library may interpret these
+facts across the Workspace; it does not replace Folder Indexes or become
+another canonical store.
 
 ## Note Root Formats and Workspace Ontology
 
@@ -47,14 +48,24 @@ setting today. Under that external convention, `index.md` and `log.md` remain
 openable/searchable/editable Notes but do not enter the Concept graph. See
 `note-root-formats.md` for the exact boundary.
 
-An explicitly kept `<Workspace Root>/ontology.yaml` applies after Format
-projection. It may interpret open Concept Types, Property shapes,
-reference-valued Relations, and validation rules. The user-edited file is a
+An explicitly kept source from `<Workspace Root>/ontology.yaml` or a direct
+`.yaml` child of `<Workspace Root>/ontologies/` applies after Format projection.
+Exactly one source—or Generic Markdown—may be active; sources are never merged.
+An Ontology may interpret open Concept Types, Property shapes, reference-valued
+Relations, and validation rules. A selected or user-edited source is a
 Candidate; only a separately reviewed Keep may persist its exact accepted
-source under `.exo/ontology` and publish a new graph generation. Candidate
-watcher events alone never invalidate the graph. The Ontology never changes
-Markdown or source document Relations. See `workspace-ontology.md` and ADR
-0006.
+source identity under `.exo/ontology` and publish a new graph generation.
+Candidate watcher events alone never invalidate the graph. The Ontology never
+changes Markdown or source document Relations. See `workspace-ontology.md` and
+ADRs 0006 and 0007.
+
+Optional discovery and maintenance remain separate operations. Discovery runs
+one trusted Claude or Codex Command against a disposable Markdown-only snapshot
+with provider-enforced read-only controls. It returns a schema-bound proposal;
+the Exo host alone may stage it as an inert Candidate, and Keep remains
+mandatory. The first maintenance Skill is user-owned Markdown and launches
+through the ordinary inline Invocation and Changeset review path with the exact
+active Ontology and graph snapshot identities attached.
 
 ## Accepted graph direction
 

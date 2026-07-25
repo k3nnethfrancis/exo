@@ -50,7 +50,12 @@ export interface DerivedIndexClient {
   graphConceptDetailByIndex(model: WorkspaceModel, runtimeRoot: string, index: number, sourceSnapshotId: string, signal?: AbortSignal): Promise<GraphConceptDetailByIndexResult>;
   graphRefresh(model: WorkspaceModel, runtimeRoot: string, filePath: string, signal?: AbortSignal): Promise<void>;
   graphInvalidate(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<void>;
-  ontologyPreview(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<OntologyReviewState>;
+  ontologyPreview(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    sourcePath?: string | null,
+    signal?: AbortSignal,
+  ): Promise<OntologyReviewState>;
   ontologyKeep(model: WorkspaceModel, runtimeRoot: string, guard: OntologyReviewGuard, signal?: AbortSignal): Promise<OntologyKeepResult>;
   ontologyReject(model: WorkspaceModel, runtimeRoot: string, guard: OntologyReviewGuard, signal?: AbortSignal): Promise<OntologyRejectResult>;
   dispose(): void;
@@ -185,8 +190,13 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
     await this.request({ operation: "graph-invalidate", context: { model, runtimeRoot } }, signal);
   }
 
-  ontologyPreview(model: WorkspaceModel, runtimeRoot: string, signal?: AbortSignal): Promise<OntologyReviewState> {
-    return this.request({ operation: "ontology-preview", context: { model, runtimeRoot } }, signal);
+  ontologyPreview(
+    model: WorkspaceModel,
+    runtimeRoot: string,
+    sourcePath?: string | null,
+    signal?: AbortSignal,
+  ): Promise<OntologyReviewState> {
+    return this.request({ operation: "ontology-preview", context: { model, runtimeRoot }, sourcePath }, signal);
   }
 
   ontologyKeep(

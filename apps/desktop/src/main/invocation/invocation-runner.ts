@@ -65,6 +65,7 @@ export interface InvocationRequest {
   mentionText?: string;
   documentFrontmatter?: Record<string, unknown>;
   documentBody?: string;
+  skill?: import("@exo/core").InvocationSkillContext;
   message: string;
 }
 
@@ -213,6 +214,7 @@ export class InvocationRunner extends EventEmitter {
       id, workspaceRoot: settings.workspaceRoot, noteRoots: [...settings.noteRoots], status: "pending", context: request.context,
       ...(request.context === "note" ? { taggedDocumentPath: request.documentPath, originalMentionText: request.mentionText, mentionProvenance: "human-authored" as const } : { mentionProvenance: "unknown" as const }),
       ...(request.protocolInvocationId ? { protocolInvocationId: request.protocolInvocationId } : {}),
+      ...(request.skill ? { skill: request.skill } : {}),
       message: request.message,
       continuity: { policy: command.continuityPolicy, outcome: "fresh" },
       promptDelivery: command.promptDelivery,

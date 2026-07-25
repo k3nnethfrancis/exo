@@ -90,6 +90,79 @@ describe("Workspace ontology", () => {
     });
   });
 
+  it("lists the user-owned flat ontology library without following nested paths or symlinks", async () => {
+    const { workspace, store } = await ontologyStore();
+    const source = await readFile(path.join(fixtureRoot, "ontology.yaml"), "utf8");
+    await writeFile(path.join(workspace, "ontology.yaml"), source);
+    await mkdir(path.join(workspace, "ontologies", "nested"), { recursive: true });
+    await writeFile(path.join(workspace, "ontologies", "publishing.yaml"), source.replace("id: research", "id: publishing"));
+    await writeFile(path.join(workspace, "ontologies", "research.yml"), source);
+    await writeFile(path.join(workspace, "ontologies", "notes.md"), source);
+    await writeFile(path.join(workspace, "ontologies", "nested", "ignored.yaml"), source);
+    await symlink(
+      path.join(workspace, "ontology.yaml"),
+      path.join(workspace, "ontologies", "linked.yaml"),
+    );
+
+    await expect(store.listSources()).resolves.toEqual([
+      expect.objectContaining({ sourcePath: "ontology.yaml", state: "valid", id: "research" }),
+      expect.objectContaining({ sourcePath: "ontologies/publishing.yaml", state: "valid", id: "publishing" }),
+    ]);
+  });
+
+  it("keeps a selected library source and restores its exact identity after restart", async () => {
+    const { workspace, runtime, store } = await ontologyStore();
+    const source = await readFile(path.join(fixtureRoot, "ontology.yaml"), "utf8");
+    await mkdir(path.join(workspace, "ontologies"));
+    await writeFile(path.join(workspace, "ontologies", "publishing.yaml"), source.replace("id: research", "id: publishing"));
+
+    const candidate = await store.inspectCandidate("ontologies/publishing.yaml");
+    expect(candidate).toMatchObject({
+      state: "valid",
+      sourcePath: "ontologies/publishing.yaml",
+      ontology: { id: "publishing" },
+    });
+    await store.keepReviewedCandidate(
+      candidate.sourceRevision ?? "",
+      null,
+      "ontologies/publishing.yaml",
+    );
+
+    await expect(new WorkspaceOntologyStore({ workspaceRoot: workspace, runtimeRoot: runtime }).active())
+      .resolves.toMatchObject({
+        state: "active",
+        sourcePath: "ontologies/publishing.yaml",
+        ontology: { id: "publishing" },
+      });
+  });
+
+  it("does not apply a selected source that changed after review", async () => {
+    const { workspace, store } = await ontologyStore();
+    const sourcePath = "ontologies/research.yaml";
+    const absolutePath = path.join(workspace, sourcePath);
+    await mkdir(path.dirname(absolutePath));
+    await cp(path.join(fixtureRoot, "ontology.yaml"), absolutePath);
+    const candidate = await store.inspectCandidate(sourcePath);
+    await writeFile(absolutePath, "ontology_schema: 1\nid: replacement\nversion: 1\n");
+
+    await expect(store.keepReviewedCandidate(
+      candidate.sourceRevision ?? "",
+      null,
+      sourcePath,
+    )).rejects.toThrow("candidate changed");
+    await expect(store.active()).resolves.toMatchObject({ state: "generic" });
+  });
+
+  it("represents Generic as an explicit selectable candidate even when ontology files exist", async () => {
+    const { workspace, store } = await ontologyStore();
+    await cp(path.join(fixtureRoot, "ontology.yaml"), path.join(workspace, "ontology.yaml"));
+
+    await expect(store.inspectCandidate(null)).resolves.toMatchObject({
+      state: "absent",
+      sourcePath: null,
+    });
+  });
+
   it("does not activate edits, and Keep/Reject compare the current candidate revision", async () => {
     const { workspace, store } = await ontologyStore();
     await cp(path.join(fixtureRoot, "ontology.yaml"), path.join(workspace, "ontology.yaml"));
@@ -212,6 +285,48 @@ describe("Workspace ontology", () => {
 
     await expect(store.rejectCandidate(candidate.sourceRevision ?? "")).rejects.toThrow("activation state is invalid");
     await expect(readFile(store.activationPath, "utf8")).resolves.toBe(corrupt);
+  });
+
+  it("stages a valid host-authored candidate only against exact Candidate and Active identities", async () => {
+    const { workspace, store } = await ontologyStore();
+    const active = await store.active();
+    const source = "ontology_schema: 1\nid: discovered\nversion: 1\n";
+
+    const staged = await store.stageReviewedCandidateSource({
+      sourcePath: "ontology.yaml",
+      source,
+      expectedSourceRevision: null,
+      expectedActivationRevision: active.activationRevision,
+    });
+
+    expect(staged).toMatchObject({ state: "valid", sourcePath: "ontology.yaml", ontology: { id: "discovered" } });
+    await expect(readFile(path.join(workspace, "ontology.yaml"), "utf8")).resolves.toBe(source);
+    await expect(store.active()).resolves.toMatchObject({ state: "generic" });
+
+    await expect(store.stageReviewedCandidateSource({
+      sourcePath: "ontology.yaml",
+      source: "ontology_schema: 1\nid: stale\nversion: 1\n",
+      expectedSourceRevision: null,
+      expectedActivationRevision: active.activationRevision,
+    })).rejects.toThrow("candidate changed");
+  });
+
+  it("never replaces a symlink while staging a discovered candidate", async () => {
+    const { workspace, store } = await ontologyStore();
+    const outside = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-stage-outside-"));
+    roots.push(outside);
+    const outsideFile = path.join(outside, "ontology.yaml");
+    await writeFile(outsideFile, "ontology_schema: 1\nid: outside\nversion: 1\n");
+    await symlink(outsideFile, path.join(workspace, "ontology.yaml"));
+    const active = await store.active();
+
+    await expect(store.stageReviewedCandidateSource({
+      sourcePath: "ontology.yaml",
+      source: "ontology_schema: 1\nid: discovered\nversion: 1\n",
+      expectedSourceRevision: null,
+      expectedActivationRevision: active.activationRevision,
+    })).rejects.toThrow("regular file");
+    await expect(readFile(outsideFile, "utf8")).resolves.toContain("id: outside");
   });
 
   it("requires stable unique validation rule ids", () => {

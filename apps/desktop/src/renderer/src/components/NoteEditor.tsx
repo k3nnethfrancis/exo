@@ -25,6 +25,7 @@ import {
 import { inlineAgentComposerExtension, isPersistedInvocationPosition, openInlineAgentComposer, type InlineAgentDraft } from "./inlineAgentComposer";
 import { invocationInlineReviewExtension, invocationReviewOriginal } from "../invocationInlineReview";
 import type { EditorFaultContext } from "./editorFaultDiagnostics";
+import type { AgentComposeRequest } from "./EditorPane";
 import { InvocationReviewControls, type InvocationReviewPosition, type InvocationReviewQueueProjection } from "./invocation";
 import {
   buildNoteGraphContext,
@@ -103,6 +104,8 @@ interface NoteEditorProps {
   isNoteDocument: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
   scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
+  agentComposeRequest?: AgentComposeRequest | null;
+  onAgentComposeRequestHandled?: (nonce: number) => void;
   onDiagnosticContext: (context: EditorFaultContext) => void;
 }
 
@@ -137,6 +140,8 @@ export function NoteEditor(props: NoteEditorProps) {
     isNoteDocument,
     revealLineRequest,
     scrollRestoreRequest,
+    agentComposeRequest,
+    onAgentComposeRequestHandled,
     onDiagnosticContext,
   } = props;
   const [rawMarkdownMode, setRawMarkdownMode] = useState(false);
@@ -150,6 +155,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const restoringScrollRef = useRef(false);
   const processedRevealLineNonceRef = useRef<number | null>(null);
   const processedScrollRestoreNonceRef = useRef<number | null>(null);
+  const processedAgentComposeNonceRef = useRef<number | null>(null);
   const wikilinkSuggestionRequestRef = useRef(0);
   const wikilinkPreviewRequestRef = useRef(0);
   const suppressedWikilinkCompletionRef = useRef<{ pos: number; text: string } | null>(null);
@@ -170,6 +176,26 @@ export function NoteEditor(props: NoteEditorProps) {
     setWikilinkPreview(null);
     suppressedWikilinkCompletionRef.current = null;
   }, [document?.filePath]);
+
+  useEffect(() => {
+    if (!agentComposeRequest || !document || document.kind !== "markdown" || document.readOnly) return;
+    if (agentComposeRequest.filePath !== document.filePath) return;
+    if (processedAgentComposeNonceRef.current === agentComposeRequest.nonce) return;
+    const view = codeMirrorRef.current?.view;
+    if (!view || view.state.doc.toString() !== document.body) return;
+    processedAgentComposeNonceRef.current = agentComposeRequest.nonce;
+    const end = view.state.doc.length;
+    openInlineAgentComposer(view, {
+      from: end,
+      to: end,
+      handle: agentComposeRequest.handle,
+      initialMessage: agentComposeRequest.message,
+      skill: agentComposeRequest.skill,
+    });
+    setInlineComposerActive(true);
+    setInlineComposerHandle(agentComposeRequest.handle);
+    onAgentComposeRequestHandled?.(agentComposeRequest.nonce);
+  }, [agentComposeRequest, document, onAgentComposeRequestHandled]);
 
   const documentPath = document?.filePath ?? "";
   if (renderedDocumentPathRef.current !== documentPath) {

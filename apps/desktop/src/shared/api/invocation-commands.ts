@@ -5,6 +5,8 @@ import type {
   InvocationAuthorizationDecision,
   InvocationFileChange,
   InvocationRecord,
+  InvocationSkillContext,
+  OntologyReviewState,
 } from "@exo/core";
 
 import type { TerminalSessionInfo } from "./terminal";
@@ -18,6 +20,7 @@ export interface LaunchAgentInvocationInput {
   message: string;
   documentFrontmatter?: Record<string, unknown>;
   documentBody?: string;
+  skill?: InvocationSkillContext;
   authorization: InvocationAuthorizationDecision;
   expectedFingerprint: string;
 }
@@ -85,6 +88,21 @@ export interface AgentInvocationAuthorizationFacts extends AgentCommandLaunchFac
   trusted: boolean;
 }
 
+export interface PreparedGraphMaintenanceSkill {
+  message: string;
+  skill: InvocationSkillContext;
+}
+
+export interface OntologyDiscoveryResult {
+  status: "staged" | "abstained" | "question";
+  summary: string;
+  question?: string;
+  review: OntologyReviewState;
+  command: { id: string; handle: string; label: string };
+  skill: { id: string; label: string; path: string; revision: string };
+  graphSnapshotId: string;
+}
+
 export interface TestAgentCommandInput {
   commandId: string;
   expectedFingerprint: string;
@@ -134,6 +152,8 @@ export interface RendererEditorDiagnostic {
 export interface WorkspaceInvocationApi {
   launchAgentInvocation: (input: LaunchAgentInvocationInput) => Promise<LaunchAgentInvocationResponse>;
   getAgentInvocationAuthorization: (input: { handle: string; documentPath: string }) => Promise<AgentInvocationAuthorizationFacts>;
+  prepareGraphMaintenanceSkill: (input: { documentPath: string }) => Promise<PreparedGraphMaintenanceSkill>;
+  discoverOntology: () => Promise<OntologyDiscoveryResult>;
   getAgentCommandTrust: (handle: string) => Promise<AgentCommandTrustStatus>;
   resetAgentCommandTrust: (handle: string) => Promise<{ revoked: boolean }>;
   getAgentCommandLaunchFacts: (commandId: string) => Promise<AgentCommandLaunchFacts>;

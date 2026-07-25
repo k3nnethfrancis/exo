@@ -57,11 +57,13 @@ The Folder-based classification implied by a Note's path. It supplies a default 
 _Avoid_: exclusive type, enforced taxonomy
 
 **Ontology**
-An optional, user-owned `<Workspace Root>/ontology.yaml` that passively
+An optional, user-owned interpretation stored at `<Workspace Root>/ontology.yaml`
+or as a direct `.yaml` child of `<Workspace Root>/ontologies/`. It passively
 interprets Concept Types, Property shapes, reference Relations, and validation
-rules across the Workspace. One reviewed Ontology may be active at a time. It
-complements the vocabulary already expressed in folders and Markdown; it never
-owns or mutates that data.
+rules across the Workspace. Exactly one reviewed Ontology—or Generic
+Markdown—may be active at a time. Ontologies are selected, never merged. They
+complement the vocabulary already expressed in folders and Markdown and never
+own or mutate that data.
 _Avoid_: fixed taxonomy, app-owned schema
 
 **Format**
@@ -112,7 +114,13 @@ Search results and graph neighbors selected for the focused Note with an inspect
 _Avoid_: unexplained recommendations, automatic graph facts
 
 **Baseline Core**
-The shipped core is a trustworthy Markdown workspace, modular Search, Folder Overview, Connections/graph context, mixed panes, configured Commands, explicit inline invocation, and reviewable observed changes. The first graph-management Skill is the next vertical slice. It does not require plugins, provider-specific harnesses, Feed, Gym, training, cloud indexing, or durable terminal history.
+The shipped core is a trustworthy Markdown workspace, modular Search, Folder
+Overview, Connections/graph context, mixed panes, configured Commands, explicit
+inline invocation, reviewable observed changes, a single-active user-owned
+Ontology library, and the first reviewable graph-maintenance Skill. Optional
+Ontology discovery is an early-access proposal flow, not a required onboarding
+gate. The core does not require plugins, provider-specific harnesses, Feed,
+Gym, training, cloud indexing, or durable terminal history.
 _Avoid_: minimal demo, vanilla app
 
 **Pane**

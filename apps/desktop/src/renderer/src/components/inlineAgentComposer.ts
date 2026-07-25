@@ -1,5 +1,6 @@
 import { Facet, Prec, StateEffect, StateField, type EditorState, type Extension, type Range, type Transaction } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, WidgetType, keymap } from "@codemirror/view";
+import type { InvocationSkillContext } from "@exo/core";
 import { findDocumentAgentEnvelopes, formatDocumentAgentInvocation } from "@exo/core/document-agent-protocol";
 
 export interface InlineAgentDraft {
@@ -7,6 +8,7 @@ export interface InlineAgentDraft {
   handle: string;
   message: string;
   documentBody: string;
+  skill?: InvocationSkillContext;
   anchor: InlineAgentViewportAnchor;
   restoreComposer: () => string | null;
   focusComposer: () => void;
@@ -31,6 +33,7 @@ export interface ComposerState {
   from: number;
   messageFrom: number;
   to: number;
+  skill?: InvocationSkillContext;
 }
 
 const openComposer = StateEffect.define<ComposerState>();
@@ -126,15 +129,44 @@ function invocationProtocolSyntaxChanged(transaction: Transaction): boolean {
 
 let nextComposerId = 1;
 
-export function openInlineAgentComposer(view: EditorView, input: { from: number; to: number; handle: string }): void {
+export function inlineAgentComposerInsertion(input: {
+  handle: string;
+  initialMessage?: string;
+  prefix?: string;
+}): { inserted: string; mentionOffset: number; messageOffset: number } {
   const mention = `@${input.handle}`;
-  const inserted = `${mention} `;
+  const prefix = input.prefix ?? "";
+  const inserted = `${prefix}${mention} ${input.initialMessage ?? ""}`;
+  return {
+    inserted,
+    mentionOffset: prefix.length,
+    messageOffset: prefix.length + mention.length,
+  };
+}
+
+export function openInlineAgentComposer(view: EditorView, input: {
+  from: number;
+  to: number;
+  handle: string;
+  initialMessage?: string;
+  skill?: InvocationSkillContext;
+}): void {
+  const prefix = input.from > 0 && view.state.sliceDoc(input.from - 1, input.from) !== "\n" ? "\n\n" : "";
+  const insertion = inlineAgentComposerInsertion({ handle: input.handle, initialMessage: input.initialMessage, prefix });
+  const composerFrom = input.from + insertion.mentionOffset;
   const id = nextComposerId++;
-  const messageFrom = input.from + mention.length;
+  const messageFrom = input.from + insertion.messageOffset;
   view.dispatch({
-    changes: { from: input.from, to: input.to, insert: inserted },
-    effects: openComposer.of({ id, handle: input.handle, from: input.from, messageFrom, to: input.from + inserted.length }),
-    selection: { anchor: input.from + inserted.length },
+    changes: { from: input.from, to: input.to, insert: insertion.inserted },
+    effects: openComposer.of({
+      id,
+      handle: input.handle,
+      from: composerFrom,
+      messageFrom,
+      to: input.from + insertion.inserted.length,
+      ...(input.skill ? { skill: input.skill } : {}),
+    }),
+    selection: { anchor: input.from + insertion.inserted.length },
     userEvent: "input.complete",
   });
   view.focus();
@@ -238,6 +270,7 @@ function sendInlineAgentComposer(view: EditorView): boolean {
     handle: composer.handle,
     message,
     documentBody: view.state.doc.toString(),
+    ...(composer.skill ? { skill: composer.skill } : {}),
     anchor,
     restoreComposer: () => restoreSentInlineAgentComposer(view, {
       protocolInvocationId,

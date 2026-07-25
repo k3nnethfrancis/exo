@@ -22,6 +22,8 @@ export interface DesktopInvokeHandlers {
   "workspace:resolve-preview-target": WorkspaceApi["resolvePreviewTarget"];
   "workspace:launch-agent-invocation": WorkspaceApi["launchAgentInvocation"];
   "workspace:get-agent-invocation-authorization": WorkspaceApi["getAgentInvocationAuthorization"];
+  "workspace:prepare-graph-maintenance-skill": WorkspaceApi["prepareGraphMaintenanceSkill"];
+  "workspace:discover-ontology": WorkspaceApi["discoverOntology"];
   "workspace:get-agent-command-trust": WorkspaceApi["getAgentCommandTrust"];
   "workspace:reset-agent-command-trust": WorkspaceApi["resetAgentCommandTrust"];
   "workspace:get-agent-command-launch-facts": WorkspaceApi["getAgentCommandLaunchFacts"];

@@ -626,6 +626,45 @@ describe("WorkspaceGraph", () => {
     });
     expect(await graph.status()).toEqual({ state: "stale", noteCount: 0, edgeCount: 0 });
   });
+
+  it("switches one reviewed library Ontology at a time and can return to Generic", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-library-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    const runtimeRoot = path.join(workspace, ".exo-test");
+    await mkdir(path.join(workspace, "ontologies"), { recursive: true });
+    await mkdir(notes);
+    await writeFile(path.join(notes, "note.md"), "---\ntype: project\n---\n# Note\n");
+    await writeFile(path.join(workspace, "ontologies", "projects.yaml"), [
+      "ontology_schema: 1",
+      "id: projects",
+      "version: 1",
+      "types:",
+      "  project: {}",
+    ].join("\n"));
+    const graph = new WorkspaceGraph(model(workspace, notes), { runtimeRoot });
+
+    const preview = await graph.previewOntology("ontologies/projects.yaml");
+    expect(preview).toMatchObject({
+      library: [{ sourcePath: "ontologies/projects.yaml", id: "projects" }],
+      candidate: { sourcePath: "ontologies/projects.yaml", pending: true },
+      guard: { candidateSourcePath: "ontologies/projects.yaml" },
+      effects: { after: { typedConcepts: 1 } },
+    });
+    expect((await graph.keepOntology(preview.guard)).status).toBe("applied");
+    await expect(graph.previewOntology()).resolves.toMatchObject({
+      active: { state: "active", sourcePath: "ontologies/projects.yaml", id: "projects" },
+      candidate: { sourcePath: "ontologies/projects.yaml", pending: false },
+    });
+
+    const generic = await graph.previewOntology(null);
+    expect(generic).toMatchObject({
+      candidate: { sourcePath: null, pending: true },
+      effects: { after: { ontologyRelations: 0 } },
+    });
+    expect((await graph.keepOntology(generic.guard)).status).toBe("applied");
+    expect((await graph.knowledgeSnapshot()).activeOntology.state).toBe("generic");
+  });
 });
 
 function model(workspaceRoot: string, notes: string): WorkspaceModel {

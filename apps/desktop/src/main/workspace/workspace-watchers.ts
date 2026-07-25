@@ -143,7 +143,7 @@ export class WorkspaceWatcherService {
     const workspaceRoot = path.resolve(model.workspaceRoot);
     if (!uniqueRootPaths.some((rootPath) => path.resolve(rootPath) === workspaceRoot) && existsSync(workspaceRoot)) {
       try {
-        const watcher = createWatcher(workspaceRoot, (eventType, filename) => {
+        const watcher = createWatcher(workspaceRoot, { recursive: true }, (eventType, filename) => {
           const filePath = typeof filename === "string" && filename.length > 0 ? path.join(workspaceRoot, filename) : null;
           if (!filePath || !isWorkspaceOntologyPath(workspaceRoot, filePath)) return;
           this.queue({ rootPath: workspaceRoot, eventType, filePath }, generation);

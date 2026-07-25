@@ -88,6 +88,17 @@ export interface InvocationContinuitySummary {
   resumedFromInvocationId?: string;
 }
 
+export interface InvocationSkillContext {
+  id: string;
+  label: string;
+  path: string;
+  revision: string;
+  graphSnapshotId: string;
+  ontology:
+    | { state: "generic" }
+    | { state: "active"; id?: string; sourcePath?: string; revision?: string };
+}
+
 export interface InvocationRecord {
   id: string;
   /** Immutable origin for runtime scoping; older records may omit it. */
@@ -114,6 +125,8 @@ export interface InvocationRecord {
   /** Provider-emitted provenance, never inferred from command output. */
   providerSessionId?: string;
   continuity: InvocationContinuitySummary;
+  /** Exact user-owned Skill and graph interpretation supplied to this run. */
+  skill?: InvocationSkillContext;
   /** Exact multi-file proposal derived from immutable launch/settled manifests. */
   changeset?: InvocationChangeset;
 }
@@ -466,7 +479,48 @@ export function normalizeInvocationRecord(input: unknown): InvocationRecord | nu
     ...optionalStringField("terminalSessionId", candidate.terminalSessionId),
     ...optionalProviderSessionId(candidate.providerSessionId),
     continuity: normalizeInvocationContinuity(candidate.continuity),
+    ...optionalInvocationSkill(candidate.skill),
     ...optionalChangeset(candidate.changeset),
+  };
+}
+
+function optionalInvocationSkill(value: unknown): { skill?: InvocationSkillContext } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const candidate = value as Partial<InvocationSkillContext>;
+  const id = normalizeRequiredString(candidate.id);
+  const label = normalizeRequiredString(candidate.label);
+  const skillPath = normalizeRequiredString(candidate.path);
+  const revision = normalizeRequiredString(candidate.revision);
+  const graphSnapshotId = normalizeRequiredString(candidate.graphSnapshotId);
+  const ontology = normalizeInvocationSkillOntology(candidate.ontology);
+  if (!id || !label || !skillPath || !path.isAbsolute(skillPath)
+    || !revision || !/^[a-f0-9]{64}$/u.test(revision)
+    || !graphSnapshotId || !ontology) return {};
+  return {
+    skill: {
+      id,
+      label,
+      path: path.resolve(skillPath),
+      revision,
+      graphSnapshotId,
+      ontology,
+    },
+  };
+}
+
+function normalizeInvocationSkillOntology(value: unknown): InvocationSkillContext["ontology"] | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.state === "generic") return { state: "generic" };
+  if (candidate.state !== "active") return null;
+  const id = normalizeRequiredString(candidate.id);
+  const sourcePath = normalizeRequiredString(candidate.sourcePath);
+  const revision = normalizeRequiredString(candidate.revision);
+  return {
+    state: "active",
+    ...(id ? { id } : {}),
+    ...(sourcePath ? { sourcePath } : {}),
+    ...(revision ? { revision } : {}),
   };
 }
 

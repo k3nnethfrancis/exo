@@ -432,16 +432,23 @@ export class WorkspaceGraph {
     return snapshot;
   }
 
-  async previewOntology(): Promise<OntologyReviewState> {
+  async previewOntology(requestedSourcePath?: string | null): Promise<OntologyReviewState> {
     const store = this.requireOntologyStore();
-    const [candidate, active] = await Promise.all([
-      store.inspectCandidate(),
-      this.loadActiveOntology(),
+    const active = await this.loadActiveOntology();
+    const sourcePath = requestedSourcePath === undefined
+      ? active.sourcePath ?? "ontology.yaml"
+      : requestedSourcePath;
+    const [library, candidate] = await Promise.all([
+      store.listSources(),
+      store.inspectCandidate(sourcePath),
     ]);
     const candidateRevision = candidate.sourceRevision ?? null;
-    const candidatePending = candidate.state === "absent"
+    const candidatePending = sourcePath === null
       ? active.state === "active"
-      : candidateRevision !== null && candidateRevision !== active.sourceRevision;
+      : candidate.state === "absent"
+        ? active.state === "active" && sourcePath === active.sourcePath
+        : candidateRevision !== null
+          && (candidateRevision !== active.sourceRevision || sourcePath !== active.sourcePath);
     const diagnostics = candidate.diagnostics.slice(0, ONTOLOGY_REVIEW_MAX_DIAGNOSTICS)
       .map(({ severity, code, message }) => ({
         severity,
@@ -450,6 +457,7 @@ export class WorkspaceGraph {
       }));
     const candidateIdentity = {
       state: candidate.state,
+      sourcePath,
       ...(candidate.ontology ? {
         id: boundedOntologyReviewText(candidate.ontology.id, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS),
         ...(candidate.ontology.label ? { label: boundedOntologyReviewText(candidate.ontology.label, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS) } : {}),
@@ -459,15 +467,27 @@ export class WorkspaceGraph {
       pending: candidatePending,
       rejected: candidateRevision !== null
         ? candidateRevision === active.rejectedCandidateRevision
+          && sourcePath === active.rejectedCandidateSourcePath
         : active.sourceRevision !== undefined
+          && (sourcePath === null || sourcePath === active.sourcePath)
           && active.rejectedCandidateRevision === absentWorkspaceOntologyCandidateRevision(active.sourceRevision),
     };
+    const libraryIdentity = library.map((entry) => ({
+      sourcePath: entry.sourcePath,
+      state: entry.state,
+      ...(entry.id ? { id: boundedOntologyReviewText(entry.id, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS) } : {}),
+      ...(entry.label ? { label: boundedOntologyReviewText(entry.label, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS) } : {}),
+      ...(entry.version ? { version: boundedOntologyReviewText(entry.version, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS) } : {}),
+      ...(entry.revision ? { revision: entry.revision } : {}),
+    }));
     if (!candidatePending) {
       this.stagedOntologyReview = null;
       return {
+        library: libraryIdentity,
         active: ontologyReviewIdentity(active),
         candidate: candidateIdentity,
         guard: {
+          candidateSourcePath: sourcePath,
           candidateRevision,
           activationRevision: active.activationRevision,
           baseSnapshotId: NON_ACTIONABLE_ONTOLOGY_REVIEW_BASE,
@@ -478,6 +498,7 @@ export class WorkspaceGraph {
     }
     const { snapshot: baseSnapshot, sourceRevision } = await this.ontologyReviewBase();
     const guard: OntologyReviewGuard = {
+      candidateSourcePath: sourcePath,
       candidateRevision,
       activationRevision: active.activationRevision,
       baseSnapshotId: baseSnapshot.snapshotId,
@@ -498,6 +519,7 @@ export class WorkspaceGraph {
       ? { guard, snapshot: candidateSnapshot, sourceRevision }
       : null;
     return {
+      library: libraryIdentity,
       active: ontologyReviewIdentity(active),
       candidate: candidateIdentity,
       guard,
@@ -513,26 +535,30 @@ export class WorkspaceGraph {
     const sourceRevision = await this.workspaceMarkdownRevision();
     if (!staged || staged.sourceRevision !== sourceRevision) {
       await this.reloadGraphFromDisk();
-      return { status: "stale", review: await this.previewOntology() };
+      return { status: "stale", review: await this.previewOntology(guard.candidateSourcePath) };
     }
     const currentActive = await this.loadActiveOntology();
     const currentBase = await this.knowledgeSnapshot();
-    const candidate = await store.inspectCandidate();
+    const candidate = await store.inspectCandidate(guard.candidateSourcePath);
     if (!staged?.snapshot
       || !sameOntologyGuard(staged.guard, guard)
       || (candidate.sourceRevision ?? null) !== guard.candidateRevision
       || currentActive.activationRevision !== guard.activationRevision
       || currentBase.snapshotId !== guard.baseSnapshotId) {
-      return { status: "stale", review: await this.previewOntology() };
+      return { status: "stale", review: await this.previewOntology(guard.candidateSourcePath) };
     }
     let state;
     try {
       state = guard.candidateRevision === null
         ? await store.keepReviewedGeneric(guard.activationRevision)
-        : await store.keepReviewedCandidate(guard.candidateRevision, guard.activationRevision);
+        : await store.keepReviewedCandidate(
+          guard.candidateRevision,
+          guard.activationRevision,
+          guard.candidateSourcePath ?? undefined,
+        );
     } catch (error) {
       if (!isOntologyReviewRace(error)) throw error;
-      return { status: "stale", review: await this.previewOntology() };
+      return { status: "stale", review: await this.previewOntology(guard.candidateSourcePath) };
     }
     this.activeOntology = state.active;
     this.activeOntologyInFlight = null;
@@ -542,7 +568,7 @@ export class WorkspaceGraph {
     const cacheKey = ontologySnapshotCacheKey(this.#format, staged.snapshot.activeOntology);
     this.knowledgeSnapshotCache.set(cacheKey, staged.snapshot);
     this.stagedOntologyReview = null;
-    return { status: "applied", review: await this.previewOntology() };
+    return { status: "applied", review: await this.previewOntology(guard.candidateSourcePath) };
   }
 
   async rejectOntology(guard: OntologyReviewGuard): Promise<OntologyRejectResult> {
@@ -551,31 +577,35 @@ export class WorkspaceGraph {
     const sourceRevision = await this.workspaceMarkdownRevision();
     if (!staged || staged.sourceRevision !== sourceRevision) {
       await this.reloadGraphFromDisk();
-      return { status: "stale", review: await this.previewOntology() };
+      return { status: "stale", review: await this.previewOntology(guard.candidateSourcePath) };
     }
     const active = await this.loadActiveOntology();
     const base = await this.knowledgeSnapshot();
-    const candidate = await store.inspectCandidate();
+    const candidate = await store.inspectCandidate(guard.candidateSourcePath);
     if (!staged
       || !sameOntologyGuard(staged.guard, guard)
       || (candidate.sourceRevision ?? null) !== guard.candidateRevision
       || active.activationRevision !== guard.activationRevision
       || base.snapshotId !== guard.baseSnapshotId) {
-      return { status: "stale", review: await this.previewOntology() };
+      return { status: "stale", review: await this.previewOntology(guard.candidateSourcePath) };
     }
     let state;
     try {
       state = guard.candidateRevision === null
         ? await store.rejectReviewedGeneric(guard.activationRevision)
-        : await store.rejectReviewedCandidate(guard.candidateRevision, guard.activationRevision);
+        : await store.rejectReviewedCandidate(
+          guard.candidateRevision,
+          guard.activationRevision,
+          guard.candidateSourcePath ?? undefined,
+        );
     } catch (error) {
       if (!isOntologyReviewRace(error)) throw error;
-      return { status: "stale", review: await this.previewOntology() };
+      return { status: "stale", review: await this.previewOntology(guard.candidateSourcePath) };
     }
     this.activeOntology = state.active;
     this.activeOntologyInFlight = null;
     this.stagedOntologyReview = null;
-    return { status: "rejected", review: await this.previewOntology() };
+    return { status: "rejected", review: await this.previewOntology(guard.candidateSourcePath) };
   }
 
   async graphTopology(): Promise<GraphTopology> {
@@ -1053,6 +1083,7 @@ function ontologySnapshotCacheKey(
 function ontologyReviewIdentity(active: WorkspaceOntologyActive): OntologyReviewState["active"] {
   return {
     state: active.state,
+    ...(active.sourcePath ? { sourcePath: active.sourcePath } : {}),
     ...(active.ontology ? {
       id: boundedOntologyReviewText(active.ontology.id, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS),
       ...(active.ontology.label ? { label: boundedOntologyReviewText(active.ontology.label, ONTOLOGY_REVIEW_MAX_IDENTITY_CHARS) } : {}),
@@ -1063,7 +1094,8 @@ function ontologyReviewIdentity(active: WorkspaceOntologyActive): OntologyReview
 }
 
 function sameOntologyGuard(left: OntologyReviewGuard, right: OntologyReviewGuard): boolean {
-  return left.candidateRevision === right.candidateRevision
+  return left.candidateSourcePath === right.candidateSourcePath
+    && left.candidateRevision === right.candidateRevision
     && left.activationRevision === right.activationRevision
     && left.baseSnapshotId === right.baseSnapshotId;
 }

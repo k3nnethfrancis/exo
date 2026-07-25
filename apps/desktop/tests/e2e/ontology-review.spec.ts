@@ -1,4 +1,4 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
@@ -13,7 +13,7 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     prepareWorkspace: async (workspaceRoot) => {
       await writeFile(
         path.join(workspaceRoot, "notes/test-notes/ontology-source.md"),
-        "---\ntype: paper\nsupports: [ontology-target]\n---\n# Ontology source\n",
+        "---\ntype: paper\nsupports: [ontology-target]\nrefutes: [ontology-target]\n---\n# Ontology source\n",
         "utf8",
       );
       await writeFile(
@@ -22,6 +22,36 @@ test("reviews Ontology effects before publishing one persistent graph change", a
         "utf8",
       );
       await writeOntology(workspaceRoot, 1);
+      await writeAlternativeOntology(workspaceRoot);
+    },
+    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
+      const noteRoot = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(settingsPath, JSON.stringify({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [noteRoot],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        agentCommands: [{
+          id: "fixture",
+          label: "Fixture",
+          handle: "fixture",
+          command: "/usr/bin/true",
+          adapter: "generic",
+          continuityPolicy: "fresh",
+          cwdPolicy: "workspace_root",
+          promptDelivery: "stdin",
+          version: 1,
+          enabled: true,
+        }],
+        appearanceMode: "system",
+        colorThemeId: "exo-neutral",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "manual",
+      }, null, 2), "utf8");
     },
   });
   let relaunched: Awaited<ReturnType<typeof relaunchExoWorkspaceFixture>> | null = null;
@@ -121,9 +151,29 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     const afterRejectEvidence = await ontologyEvidence(relaunched.page, sourcePath);
     expect(afterRejectEvidence.ontology).toEqual(acceptedEvidence.ontology);
     expect(afterRejectEvidence.sourceSnapshotId).toBe(restartedEvidence.sourceSnapshotId);
+
+    const selector = restartedRow.getByRole("combobox", { name: "Choose ontology" });
+    await selector.selectOption({ label: "criticism" });
+    await expect(restartedRow).toContainText("→ criticism");
+    await restartedRow.getByRole("button", { name: "Keep ontology" }).click();
+    await expect.poll(async () => (await ontologyEvidence(relaunched!.page, sourcePath)).relation?.predicate).toBe("refutes");
+
+    await selector.selectOption({ label: "Generic" });
+    await expect(restartedRow).toContainText("→ Generic");
+    await restartedRow.getByRole("button", { name: "Keep ontology" }).click();
+    await expectGraphContext(relaunched.page, sourcePath, { ontologyRelations: 0, outgoing: 0, backlinks: 0 });
+    await expect.poll(() => ontologyEdgeCount(relaunched!.page)).toBe(0);
     await relaunched.page.getByTestId("workspace-settings-close").click();
-    await expect(restartedLocalGraph).toContainText("1 edges");
-    await expectCanvasPixels(restartedLocalGraph.getByTestId("graph-neighborhood-canvas"));
+    await expect(restartedLocalGraph).toContainText("No neighborhood yet");
+
+    await relaunched.page.getByTestId("open-note-graph").click();
+    const graphPane = relaunched.page.getByTestId("graph-pane");
+    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Ontology source changed");
+    await graphPane.getByRole("button", { name: "Find relevant connections" }).click();
+    await expect(relaunched.page.getByTestId("inline-agent-composer")).toHaveCount(1);
+    await expect(relaunched.page.locator(".cm-content")).toContainText("skills/find-and-connect-relevant-context.md");
+    await expect(readFile(path.join(noteRoot, "skills/find-and-connect-relevant-context.md"), "utf8"))
+      .resolves.toContain("Do not edit this Skill, ontology.yaml");
   } finally {
     await relaunched?.electronApp.close().catch(() => {});
     await fixture.cleanup();
@@ -142,6 +192,23 @@ async function writeOntology(workspaceRoot: string, version: number): Promise<vo
     "  supports:",
     "    value: reference[]",
     "    predicate: supports",
+  ].join("\n"), "utf8");
+}
+
+async function writeAlternativeOntology(workspaceRoot: string): Promise<void> {
+  const library = path.join(workspaceRoot, "ontologies");
+  await mkdir(library, { recursive: true });
+  await writeFile(path.join(library, "criticism.yaml"), [
+    "ontology_schema: 1",
+    "id: criticism",
+    "version: 1",
+    "types:",
+    "  paper: {}",
+    "  claim: {}",
+    "properties:",
+    "  refutes:",
+    "    value: reference[]",
+    "    predicate: refutes",
   ].join("\n"), "utf8");
 }
 

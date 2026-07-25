@@ -15,6 +15,7 @@ interface GraphPaneProps {
   onFocusConcept: (concept: InspectedConcept) => void;
   onRestoreEditorConcept: (filePath: string) => void;
   onActivateOpenTarget: (filePath: string) => void;
+  onStartMaintenance: (filePath: string) => void;
 }
 
 export function GraphPane(props: GraphPaneProps) {
@@ -34,6 +35,7 @@ export function GraphPane(props: GraphPaneProps) {
         onRestoreEditorConcept={props.onRestoreEditorConcept}
         onActivateOpenTarget={props.onActivateOpenTarget}
         onOpenTarget={props.onOpenTarget}
+        onStartMaintenance={props.onStartMaintenance}
         onFocus={props.onFocus}
       />
     </section>

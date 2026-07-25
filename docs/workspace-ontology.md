@@ -1,9 +1,10 @@
 # Workspace Ontology foundation
 
-Exo recognizes one user-owned candidate at:
+Exo recognizes user-owned Ontology sources at:
 
 ```text
 <Workspace Root>/ontology.yaml
+<Workspace Root>/ontologies/*.yaml
 ```
 
 An Ontology is a passive interpreter for existing Markdown. It never owns or
@@ -78,11 +79,17 @@ parsed source. Unknown Concept Types remain valid. Candidate validation is
 atomic: an invalid rule prevents the whole candidate from compiling, while the
 original file remains untouched.
 
-## Candidate and Active are different
+## Library, Candidate, and Active are different
 
-Changing `ontology.yaml` creates a **Candidate**. It never changes the active
-graph by itself. The core store compares exact candidate revisions for Keep and
-Reject, preventing a stale review from accepting newer bytes.
+The root source and direct, regular `.yaml` files in `ontologies/` form a flat
+library. Nested directories, symlinks, arbitrary paths, inheritance, merging,
+and simultaneous activation are unsupported. Exactly one saved source or
+Generic Markdown may be active.
+
+Selecting or changing a source creates a **Candidate**. It never changes the
+active graph by itself. The core store compares exact source path, candidate,
+active, and base-graph identities for Keep and Reject, preventing a stale
+review from accepting newer bytes.
 
 An explicitly kept source and revision are atomically persisted under the
 Workspace runtime's `.exo/ontology/activation.json`. This is reproducible
@@ -91,13 +98,13 @@ kept interpreter while the user-owned candidate changes. A missing or invalid
 kept state falls back explicitly to the existing base graph without additional
 Ontology interpretation.
 
-Workspace Settings shows one compact review row beneath the Notes folder when a
-Candidate differs from Active. It reports bounded typed-Concept, Ontology-
-Relation, and Finding effects. Keep and Reject are explicit; stale Candidate,
-Active, or Markdown revisions require a fresh review. Keep atomically persists
-the exact accepted source and then publishes the already-reviewed graph.
-Reject preserves Active. Both actions compare an exact content-derived
-Markdown manifest, so they do not depend on filesystem-watcher timing.
+Workspace Settings and Graph expose the same compact selector and review row.
+It reports bounded typed-Concept, Ontology-Relation, and Finding effects. Keep
+and Reject are explicit; stale Candidate, Active, or Markdown revisions require
+a fresh review. Keep atomically persists the exact accepted source and source
+identity, then publishes the already-reviewed graph. Reject preserves Active.
+Both actions compare an exact content-derived Markdown manifest, so they do not
+depend on filesystem-watcher timing.
 
 Candidate edits alone remain inert. Their dedicated watcher notification does
 not invalidate Note caches, refresh Explorer, or replace graph identity. A
@@ -105,6 +112,27 @@ successful Keep emits one ordinary graph-changed event. Authored Links and
 Backlinks remain authored facts; resolved local Ontology Relations appear only
 in the bounded Connections graph neighborhood with their Ontology origin and
 Evidence preserved.
+
+## Optional discovery
+
+The sparkle action in Settings or Graph uses the first trusted, enabled Claude
+or Codex Command to inspect a disposable Markdown-only snapshot. The provider
+receives a user-owned `skills/design-workspace-ontology.md`, a schema-bound
+response contract, read-only tools/sandboxing, and no live Workspace write
+authority. Generic Commands are not accepted by this early-access path.
+
+The Exo host validates the returned source, rechecks the exact graph,
+Candidate, and Active identities observed before the run, and is the only
+writer allowed to stage root `ontology.yaml`. A proposal is still only a
+Candidate: the active graph does not change until Keep. Abstention, questions,
+malformed output, provider failure, or stale identity write nothing.
+
+Graph maintenance is separate. The link action on a selected graph Note
+installs or reads the user-owned
+`skills/find-and-connect-relevant-context.md`, then opens an ordinary inline
+Invocation prefilled with bounded graph evidence and the exact active Ontology
+identity. Command+Return runs the existing trust, activity, Changeset, and
+Keep/Reject path. The Skill cannot edit Ontology sources.
 
 ## Interpretation contract
 

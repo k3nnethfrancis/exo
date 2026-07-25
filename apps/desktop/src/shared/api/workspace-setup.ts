@@ -46,7 +46,7 @@ export interface WorkspaceSetupApi {
   activateWorkspace: (input: { workspaceId: string; expectedRevision: WorkspaceSettingsSaveRequest["expectedRevision"] }) => Promise<WorkspaceSettingsSaveOutcome>;
   saveSettings: (request: WorkspaceSettingsSaveRequest) => Promise<WorkspaceSettingsSaveOutcome>;
   selectFolder: (options?: { title?: string; allowMultiple?: boolean; buttonLabel?: string }) => Promise<string[]>;
-  previewOntology: () => Promise<OntologyReviewState>;
+  previewOntology: (sourcePath?: string | null) => Promise<OntologyReviewState>;
   keepOntology: (guard: OntologyReviewGuard) => Promise<OntologyKeepResult>;
   rejectOntology: (guard: OntologyReviewGuard) => Promise<OntologyRejectResult>;
   resolvePreviewTarget: (target: string) => Promise<{ url: string; source: "url" | "file" }>;

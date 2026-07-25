@@ -13,6 +13,7 @@ describe("Ontology review boundary", () => {
       activationRevision: "active",
       baseSnapshotId: "knowledge-graph:0.3:test",
     })).toEqual({
+      candidateSourcePath: "ontology.yaml",
       candidateRevision: null,
       activationRevision: "active",
       baseSnapshotId: "knowledge-graph:0.3:test",

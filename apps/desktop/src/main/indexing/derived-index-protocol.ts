@@ -40,7 +40,7 @@ export type DerivedIndexRequest =
   | { id: number; operation: "graph-concept-detail-by-index"; context: DerivedIndexContext; index: number; sourceSnapshotId: string }
   | { id: number; operation: "graph-refresh"; context: DerivedIndexContext; filePath: string }
   | { id: number; operation: "graph-invalidate"; context: DerivedIndexContext }
-  | { id: number; operation: "ontology-preview"; context: DerivedIndexContext }
+  | { id: number; operation: "ontology-preview"; context: DerivedIndexContext; sourcePath?: string | null }
   | { id: number; operation: "ontology-keep"; context: DerivedIndexContext; guard: OntologyReviewGuard }
   | { id: number; operation: "ontology-reject"; context: DerivedIndexContext; guard: OntologyReviewGuard };
 

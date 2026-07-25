@@ -18,6 +18,8 @@ export type {
   LaunchAgentInvocationResponse,
   ProviderMcpSetupInput,
   ProviderMcpSetupResult,
+  PreparedGraphMaintenanceSkill,
+  OntologyDiscoveryResult,
   RendererEditorDiagnostic,
   TestAgentCommandInput,
 } from "./api/invocation-commands";

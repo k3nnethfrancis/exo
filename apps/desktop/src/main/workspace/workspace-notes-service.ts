@@ -395,13 +395,18 @@ export class WorkspaceNotesService {
     return this.awaitCurrentScope(scope, this.workspaceGraph(scope).graphTopology());
   }
 
-  async previewOntology(): Promise<OntologyReviewState> {
+  async previewOntology(sourcePath?: string | null): Promise<OntologyReviewState> {
     const scope = this.scope;
     const derivedIndex = this.derivedIndex;
     if (derivedIndex && scope.runtimeRoot) {
-      return this.awaitCurrentScope(scope, derivedIndex.ontologyPreview(scope.model, scope.runtimeRoot, scope.controller.signal));
+      return this.awaitCurrentScope(scope, derivedIndex.ontologyPreview(
+        scope.model,
+        scope.runtimeRoot,
+        sourcePath,
+        scope.controller.signal,
+      ));
     }
-    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).previewOntology());
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).previewOntology(sourcePath));
   }
 
   async keepOntology(guard: OntologyReviewGuard): Promise<OntologyKeepResult> {

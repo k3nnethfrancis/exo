@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exo/core";
+import type { AgentCommand, InvocationSkillContext, NoteDocument, WorkspaceGraphContext } from "@exo/core";
 import type { InvocationFileReviewPayload } from "../../../shared/api";
 import type { InvocationReviewQueueProjection } from "./invocation";
 import type { DragManager } from "../hooks/useDragManager";
@@ -24,6 +24,14 @@ export interface EditorPaneState {
   activePath: string | null;
   openFolderPaths?: string[];
   activeFolderPath?: string | null;
+}
+
+export interface AgentComposeRequest {
+  filePath: string;
+  nonce: number;
+  handle: string;
+  message: string;
+  skill?: InvocationSkillContext;
 }
 
 interface EditorPaneProps {
@@ -62,6 +70,8 @@ interface EditorPaneProps {
   compact: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
   scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
+  agentComposeRequest?: AgentComposeRequest | null;
+  onAgentComposeRequestHandled?: (nonce: number) => void;
   isNoteDocument: (filePath: string) => boolean;
 }
 
@@ -101,6 +111,8 @@ export function EditorPane(props: EditorPaneProps) {
     compact,
     revealLineRequest,
     scrollRestoreRequest,
+    agentComposeRequest,
+    onAgentComposeRequestHandled,
     isNoteDocument,
   } = props;
 
@@ -208,6 +220,8 @@ export function EditorPane(props: EditorPaneProps) {
         isNoteDocument={activeDocument ? isNoteDocument(activeDocument.filePath) : false}
         revealLineRequest={revealLineRequest}
         scrollRestoreRequest={scrollRestoreRequest}
+        agentComposeRequest={agentComposeRequest?.filePath === activeDocument?.filePath ? agentComposeRequest : null}
+        onAgentComposeRequestHandled={onAgentComposeRequestHandled}
         onDiagnosticContext={updateFaultContext}
       /></EditorFaultBoundary>}
     </div>

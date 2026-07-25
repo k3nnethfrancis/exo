@@ -1777,6 +1777,12 @@ button svg,
   font-size: 10px;
 }
 
+.spatial-graph__detail-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .spatial-graph__detail-title {
   display: block;
   width: 100%;
@@ -1794,6 +1800,27 @@ button svg,
 }
 
 .spatial-graph__detail-title:disabled { cursor: default; }
+
+.spatial-graph__maintenance {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.spatial-graph__maintenance:hover {
+  background: var(--hover-bg);
+  color: var(--text);
+}
+
+.spatial-graph__maintenance:active { transform: scale(0.94); }
 
 .spatial-graph__detail-meta {
   display: flex;
@@ -2558,6 +2585,62 @@ select.dialog-card__input {
   color: var(--text);
   font-weight: 650;
   text-overflow: ellipsis;
+}
+
+.ontology-review__select {
+  max-width: 220px;
+  height: 26px;
+  padding: 0 24px 0 7px;
+  border: 0;
+  border-radius: 7px;
+  outline: 0;
+  background: var(--surface-3);
+  color: var(--text);
+  font: 650 12px var(--sans);
+  text-overflow: ellipsis;
+}
+
+.ontology-review__select:hover,
+.ontology-review__select:focus-visible {
+  background: var(--surface-hover);
+}
+
+.ontology-review--compact {
+  display: flex;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.ontology-review--compact .ontology-review__main {
+  flex-wrap: nowrap;
+  gap: 4px;
+}
+
+.ontology-review--compact .ontology-review__select {
+  max-width: 140px;
+  height: 24px;
+  background: transparent;
+  color: var(--muted);
+  font: 600 10px var(--sans);
+}
+
+.ontology-review--compact .ontology-review__select:hover,
+.ontology-review--compact .ontology-review__select:focus-visible {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.ontology-review--compact .ontology-review__candidate,
+.ontology-review--compact .ontology-review__tokens > span:not(.ontology-review__notice),
+.ontology-review--compact .ontology-review__diagnostic {
+  display: none;
+}
+
+.ontology-review--compact .ontology-review__actions {
+  gap: 0;
 }
 
 .ontology-review__candidate,

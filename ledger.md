@@ -7,6 +7,28 @@ This is the shipped-history handoff for Exo. Active bugs and QA findings live in
 current product and architecture live in `README.md`, `CONTEXT.md`, and
 `docs/architecture.md`.
 
+## Pre-dogfood Ontology loop — 2026-07-24
+
+- Added a user-owned Ontology library with root `ontology.yaml`, direct
+  `ontologies/*.yaml` sources, Generic Markdown as the no-Ontology state, and
+  exactly one active interpretation. Every selection reuses Candidate effects
+  plus explicit Keep/Reject; sources are never merged.
+- Added optional read-only discovery through a trusted Claude or Codex Command.
+  Exo creates a disposable Markdown-only snapshot, validates a bounded
+  structured response, rechecks graph and Ontology identities, and alone may
+  stage the proposed root source. No discovery result silently changes Active
+  or live Notes.
+- Added the first provider-neutral graph-maintenance Skill, **Find and connect
+  relevant context**. It is installed as user-owned Markdown, receives bounded
+  evidence plus exact Skill/Ontology/graph identities, and runs through the
+  ordinary inline Invocation and Changeset review path.
+- Confirmed the compact Gate C state surface remains the one Invocation UX:
+  immediate activity, quiet completion, progressive failure detail, inline
+  review controls, and the existing multi-file Changeset queue.
+- Forced ontology onboarding and a bespoke Ontology editor remain deferred
+  until real Workspace dogfood. Candidate YAML remains ordinary user-owned
+  Workspace content that can be edited before Keep.
+
 ## Principal architecture cleanup handoff — 2026-07-24
 
 - Deleted dead repository surfaces and corrected current operational docs before
@@ -339,8 +361,8 @@ Research IDE, note-taking system, agent control room, code-review surface, and t
 
 1. Use installed Exo as the default environment for daily work and record every friction point as live bug-bash input.
 2. Stand up the GitHub issue-fix loop with conservative labels, isolated worktrees, test/app-QA requirements, and draft PR output.
-3. Ship user-owned `ontology.yaml`, conformance/explanation UX, and the first
-   reviewable graph-maintenance Skill on the completed Gate D graph foundation.
+3. Dogfood the shipped Ontology library, optional discovery proposal, and first
+   reviewable graph-maintenance Skill on real Workspaces before expanding them.
 4. Expand the internal graph performance suite with frozen visual profiles,
    cross-hardware matrices, real corpora, and optional GPU timestamps.
 5. Continue multi-agent coordination: roster, objectives, direct messages, changed-file/review links, file+SQLite transport, CLI/MCP access.

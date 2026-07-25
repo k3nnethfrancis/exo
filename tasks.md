@@ -1,6 +1,6 @@
 # Exo Tasks
 
-Last updated: 2026-07-21
+Last updated: 2026-07-24
 
 This is Exo's active execution ledger. It records only current work. Completed implementation belongs in Git and `ledger.md`; reproducible bugs belong in `issues.md`; architecture rationale belongs in `docs/exograph-simplification-plan.md`.
 
@@ -81,13 +81,38 @@ onboarding while these gates remain open.
   a review-first ontology-discovery product slice. The study remains
   exploratory: do not add a corpus, judge, threshold, or synthetic eval before
   real product traces expose concrete failure modes.
-- [ ] Productize optional ontology discovery after configured Command setup:
+- [x] Productize optional ontology discovery after configured Command setup:
   read-only agent proposal, host-staged candidate YAML, editable review,
   qualitative before/after graph comparison, and explicit Keep/Reject. Keep
   the base Markdown graph intact; note migration is a separate reviewed action.
-- [ ] Design a user-owned ontology library with one active interpretation at a
+- [x] Design a user-owned ontology library with one active interpretation at a
   time plus Generic Markdown as no-ontology. Do not overload the closed
   Note Root Format seam or claim Format switching is already shipped.
+
+### Pre-dogfood product loop — active
+
+- [x] Promote the principal architecture cleanup to `dev`. Reviewed and gated
+  stack: `32688f6`.
+- [x] Finish the compact Invocation state surface against the existing Gate C
+  lifecycle: immediate cursor acknowledgement, one bounded activity state,
+  inline diff-anchored review controls, quiet success, and progressive error
+  detail without raw reasoning or terminal transcript.
+- [x] Add a user-owned Ontology library with one active Ontology at a time,
+  Generic Markdown as none, explicit switching through the existing
+  candidate/effects/Keep contract, and no simultaneous rule composition.
+- [x] Productize optional Ontology discovery after configured Command setup:
+  read-only proposal, host-staged candidate YAML, editable review, qualitative
+  before/after graph comparison, and explicit Keep/Reject.
+- [x] Ship the first provider-neutral Ontology maintenance Skill, **Find and
+  connect relevant context**, parameterized at invocation time by the active
+  Ontology and exact graph evidence. Every edit uses ordinary Changeset review;
+  the Skill cannot edit the Ontology.
+- [x] Gate the connected journey in source and the packaged arm64 app before
+  dogfood: invoke → activity → review; choose/discover/activate Ontology → graph
+  changes; run maintenance Skill → inspect evidence → Keep/Reject.
+  Automated safety and activation evidence:
+  `docs/reviews/output/2026-07-24-pre-dogfood-ontology-loop.md`. Real trusted
+  discovery and maintenance quality remain the owner-reviewed dogfood step.
 
 ## Loop 01 architectural ruling — 2026-07-12
 

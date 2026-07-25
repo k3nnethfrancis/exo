@@ -84,7 +84,12 @@ describe("UtilityDerivedIndexClient", () => {
   it("serializes Ontology preview, Keep, and Reject through the graph worker", async () => {
     const worker = new FakeProcess();
     const client = new UtilityDerivedIndexClient({ spawn: () => worker, workerPath: "/app/derived-index-worker.js" });
-    const guard = { candidateRevision: "candidate", activationRevision: null, baseSnapshotId: "snapshot" };
+    const guard = {
+      candidateSourcePath: "ontology.yaml",
+      candidateRevision: "candidate",
+      activationRevision: null,
+      baseSnapshotId: "snapshot",
+    };
     const review = {
       active: { state: "generic" as const },
       candidate: { state: "valid" as const, revision: "candidate", pending: true, rejected: false },

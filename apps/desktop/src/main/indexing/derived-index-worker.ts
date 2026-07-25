@@ -3,6 +3,7 @@ import path from "node:path";
 import {
   qmdSearchProvider,
   assertOntologyReviewGuard,
+  assertWorkspaceOntologySelection,
   WorkspaceIndex,
   WorkspaceGraph,
   type WorkspaceModel,
@@ -84,7 +85,7 @@ function run(request: DerivedIndexRequest): Promise<DerivedIndexResult> {
       graphFor(model, runtimeRoot).invalidate();
       return Promise.resolve(null);
     case "ontology-preview":
-      return graphFor(model, runtimeRoot).previewOntology();
+      return graphFor(model, runtimeRoot).previewOntology(request.sourcePath);
     case "ontology-keep":
       return graphFor(model, runtimeRoot).keepOntology(assertOntologyReviewGuard(request.guard));
     case "ontology-reject":
@@ -123,10 +124,18 @@ function postBounded(response: DerivedIndexResponse): void {
 function isRequest(value: unknown): value is DerivedIndexRequest {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<DerivedIndexRequest>;
-  return Number.isSafeInteger(candidate.id)
+  const common = Number.isSafeInteger(candidate.id)
     && ["status", "search", "update", "embed", "sync", "graph-context", "graph-topology", "graph-concept-summaries", "graph-concept-lookup", "graph-concept-detail-by-index", "graph-refresh", "graph-invalidate", "ontology-preview", "ontology-keep", "ontology-reject"].includes(String(candidate.operation))
     && Boolean(candidate.context?.model)
     && typeof candidate.context?.runtimeRoot === "string";
+  if (!common) return false;
+  if (candidate.operation !== "ontology-preview") return true;
+  try {
+    assertWorkspaceOntologySelection(candidate.sourcePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function errorMessage(error: unknown): string {

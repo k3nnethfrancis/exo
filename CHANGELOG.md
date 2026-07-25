@@ -6,6 +6,17 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Added
 
+- Adds a flat user-owned Ontology library: root `ontology.yaml`, direct
+  `ontologies/*.yaml` sources, Generic Markdown as none, one active
+  interpretation at a time, and explicit effect review before every switch.
+- Adds optional Ontology discovery through a trusted Claude or Codex Command.
+  The provider sees only a disposable Markdown snapshot under read-only
+  controls; Exo validates and stages a proposal, but never activates it without
+  Keep.
+- Adds the first provider-neutral graph-maintenance Skill, **Find and connect
+  relevant context**. A graph-selected Note opens an ordinary inline
+  Invocation carrying bounded evidence plus exact Skill, Ontology, and graph
+  snapshot identities; all resulting writes use Changeset review.
 - Adds a reusable, harness-only mini trace assessment that runs a Skill through
   fresh read-only Claude and Codex sessions and generates a private local
   comparison dashboard without defining an automated quality gate.
@@ -21,15 +32,15 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Adds the reviewed Workspace Ontology foundation: an atomic `ontology.yaml`
   parser/compiler, Candidate/Active revision store, persisted accepted source,
   exact rule Evidence, and Generic Markdown fallback without modifying Notes.
-- Adds the experimental feature-branch graph-system tracer: an open Knowledge Graph 0.3,
-  Generic Markdown and permissive OKF Formats, evidence-backed utility
+- Adds the experimental feature-branch graph-system tracer: an open Knowledge
+  Graph 0.3, Generic Markdown and permissive OKF Formats, evidence-backed
+  dimensions, dense renderer-neutral projection, and an interactive Canvas
+  Graph Pane whose semantic construction and finite layout run outside the
+  editor critical path. Canvas projection and painting remain renderer work.
 - Adds Markdown-native `⌘B` and `⌘I` formatting: selections are wrapped in
   bold or italic markers and an empty selection leaves the caret between them.
 - Renders Obsidian-style `![[image.png]]` embeds from contained files in the
   current Note Root, including the common `|width` suffix.
-  dimensions, dense renderer-neutral projection, and an interactive Canvas
-  Graph Pane whose semantic construction and finite layout run outside the
-  editor critical path. Canvas projection and painting remain renderer work.
 - Adds automatic semantic catch-up for QMD `On save` indexing: small pending
   sets run in bounded slices only after Exo is quiet and the system is idle,
   while `Manual only` remains an explicit pause.

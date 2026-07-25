@@ -1,4 +1,4 @@
-import { RefreshCw, Scan } from "lucide-react";
+import { Link2, RefreshCw, Scan } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -42,6 +42,7 @@ import type { GraphCanvasSurface } from "../graphCanvasRenderer";
 import type { GraphWebGpuSurface } from "../graphWebGpuRenderer";
 import type { GraphLayoutWorkerRequest, GraphLayoutWorkerResponse } from "../graphLayoutWorkerProtocol";
 import type { GraphFocusRequest, InspectedConcept } from "../hooks/useInspectedConcept";
+import { OntologyReviewRow } from "./OntologyReviewRow";
 
 interface SpatialGraphViewProps {
   refreshKey?: string;
@@ -55,6 +56,7 @@ interface SpatialGraphViewProps {
   onRestoreEditorConcept: (filePath: string) => void;
   onActivateOpenTarget: (filePath: string) => void;
   onOpenTarget: (target: string) => void;
+  onStartMaintenance: (filePath: string) => void;
   onFocus: () => void;
 }
 
@@ -91,6 +93,7 @@ export function SpatialGraphView({
   onRestoreEditorConcept,
   onActivateOpenTarget,
   onOpenTarget,
+  onStartMaintenance,
   onFocus,
 }: SpatialGraphViewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -581,6 +584,7 @@ export function SpatialGraphView({
       <div className="spatial-graph__toolbar">
         <span className="spatial-graph__count">{topology?.nodeCount ?? 0} · {topology?.edgeCount ?? 0}</span>
         {routeNodeCount > 0 ? <span data-testid="graph-route-status">Route · {routeNodeCount}</span> : null}
+        <OntologyReviewRow compact />
         <button aria-label="Frame graph" onClick={() => runtimeRef.current?.frameAll()} title="Frame graph" type="button"><Scan size={14} /></button>
         <button aria-label="Refresh graph" onClick={() => setReloadNonce((value) => value + 1)} title="Refresh graph" type="button"><RefreshCw size={14} /></button>
       </div>
@@ -653,6 +657,7 @@ export function SpatialGraphView({
         degree={runtimeRef.current?.getScene()?.interaction.selected ?? -1}
         topology={topology}
         onOpenTarget={onOpenTarget}
+        onStartMaintenance={onStartMaintenance}
       />
     </div>
   );
@@ -664,12 +669,14 @@ function GraphConceptDetailPanel({
   degree,
   topology,
   onOpenTarget,
+  onStartMaintenance,
 }: {
   detail: BoundedGraphConceptDetail | null;
   detailStatus: string | null;
   degree: number;
   topology: GraphTopology | null;
   onOpenTarget: (target: string) => void;
+  onStartMaintenance: (filePath: string) => void;
 }) {
   if (!detail) {
     return <div className="spatial-graph__hint">{detailStatus ?? "Drag to orbit · shift-drag or two fingers to pan · pinch or scroll to zoom"}</div>;
@@ -678,7 +685,20 @@ function GraphConceptDetailPanel({
   const properties = detail.properties.filter(({ key }) => !["title", "tags", "type"].includes(key)).slice(0, 4);
   return (
     <div className="spatial-graph__detail">
-      <button className="spatial-graph__detail-title" disabled={!concept.filePath} onClick={() => concept.filePath && onOpenTarget(concept.filePath)} type="button">{concept.label}</button>
+      <div className="spatial-graph__detail-heading">
+        <button className="spatial-graph__detail-title" disabled={!concept.filePath} onClick={() => concept.filePath && onOpenTarget(concept.filePath)} type="button">{concept.label}</button>
+        {concept.filePath ? (
+          <button
+            aria-label="Find relevant connections"
+            className="spatial-graph__maintenance"
+            onClick={() => onStartMaintenance(concept.filePath!)}
+            title="Find relevant connections"
+            type="button"
+          >
+            <Link2 aria-hidden="true" size={14} />
+          </button>
+        ) : null}
+      </div>
       <div className="spatial-graph__detail-meta">
         <span>{concept.conceptTypes.join(" · ") || "Note"}</span>
         <span>{degree >= 0 ? topology?.nodes.degrees[degree] ?? 0 : 0} links</span>

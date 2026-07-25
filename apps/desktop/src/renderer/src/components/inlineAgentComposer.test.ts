@@ -6,6 +6,7 @@ import {
   InlineAgentAffordanceWidget,
   cancelInlineAgentDraft,
   captureInlineInvocationAnchor,
+  inlineAgentComposerInsertion,
   restoreInlineInvocationText,
   type ComposerState,
 } from "./inlineAgentComposer";
@@ -22,6 +23,18 @@ function composer(overrides: Partial<ComposerState> = {}): ComposerState {
 }
 
 describe("inline agent affordance", () => {
+  it("builds a prefilled Skill request as ordinary inline composer text", () => {
+    expect(inlineAgentComposerInsertion({
+      handle: "claude",
+      initialMessage: "Use the selected Skill.",
+      prefix: "\n\n",
+    })).toEqual({
+      inserted: "\n\n@claude Use the selected Skill.",
+      mentionOffset: 2,
+      messageOffset: 9,
+    });
+  });
+
   it("keeps the same DOM widget while the active request grows", () => {
     const before = new InlineAgentAffordanceWidget(composer());
     const afterTyping = new InlineAgentAffordanceWidget(composer({ to: 42 }));

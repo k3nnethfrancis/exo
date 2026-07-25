@@ -401,6 +401,19 @@ describe("agent invocation model", () => {
       attribution: { status: "ambiguous", reason: "user and agent touched the file during the invocation window" },
       providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
       continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: "inv-0" },
+      skill: {
+        id: "find-and-connect-relevant-context",
+        label: "Find and connect relevant context",
+        path: "/tmp/notes/skills/find-and-connect-relevant-context.md",
+        revision: "c".repeat(64),
+        graphSnapshotId: "graph:12",
+        ontology: {
+          state: "active",
+          id: "research",
+          sourcePath: "ontologies/research.yaml",
+          revision: "d".repeat(64),
+        },
+      },
       review: { status: "pending", beforeSha256: "a".repeat(64), afterSha256: "b".repeat(64) },
       changeset: {
         version: 1,
@@ -424,6 +437,14 @@ describe("agent invocation model", () => {
       command: { id: "claude", handle: "claude", version: 1, executableFingerprint: expect.any(String) },
       providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
       continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: "inv-0" },
+      skill: {
+        id: "find-and-connect-relevant-context",
+        graphSnapshotId: "graph:12",
+        ontology: {
+          state: "active",
+          sourcePath: "ontologies/research.yaml",
+        },
+      },
       noteRoots: ["/tmp/notes"],
       changeset: { status: "pending-review", files: [{ operation: "modified" }] },
     });

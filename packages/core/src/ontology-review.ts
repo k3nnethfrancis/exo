@@ -20,6 +20,7 @@ export interface OntologyGraphEffectSummary {
 }
 
 export interface OntologyReviewGuard {
+  candidateSourcePath: string | null;
   candidateRevision: string | null;
   activationRevision: string | null;
   baseSnapshotId: string;
@@ -32,8 +33,17 @@ export interface OntologyReviewDiagnostic {
 }
 
 export interface OntologyReviewState {
+  library: readonly {
+    sourcePath: string;
+    state: "absent" | "valid" | "invalid";
+    id?: string;
+    label?: string;
+    version?: string;
+    revision?: string;
+  }[];
   active: {
     state: "generic" | "active" | "invalid-state";
+    sourcePath?: string;
     id?: string;
     label?: string;
     version?: string;
@@ -41,6 +51,7 @@ export interface OntologyReviewState {
   };
   candidate: {
     state: "absent" | "valid" | "invalid";
+    sourcePath: string | null;
     id?: string;
     label?: string;
     version?: string;
@@ -67,14 +78,31 @@ export function assertOntologyReviewGuard(value: unknown): OntologyReviewGuard {
     throw new Error("Ontology review requires a valid review guard.");
   }
   const candidate = value as Partial<OntologyReviewGuard>;
-  if (!Object.keys(candidate).every((key) => ["candidateRevision", "activationRevision", "baseSnapshotId"].includes(key))) {
+  if (!Object.keys(candidate).every((key) => [
+    "candidateSourcePath",
+    "candidateRevision",
+    "activationRevision",
+    "baseSnapshotId",
+  ].includes(key))) {
     throw new Error("Ontology review guard contains unsupported fields.");
   }
   return {
+    candidateSourcePath: boundedNullableSourcePath(candidate.candidateSourcePath),
     candidateRevision: boundedNullableRevision(candidate.candidateRevision, "candidate"),
     activationRevision: boundedNullableRevision(candidate.activationRevision, "activation"),
     baseSnapshotId: boundedString(candidate.baseSnapshotId, "base snapshot", 256),
   };
+}
+
+function boundedNullableSourcePath(value: unknown): string | null {
+  if (value === undefined) return "ontology.yaml";
+  if (value === null) return null;
+  const sourcePath = boundedString(value, "candidate source path", 512);
+  if (sourcePath === "ontology.yaml") return sourcePath;
+  if (!/^ontologies\/[^/\\]+\.yaml$/u.test(sourcePath)) {
+    throw new Error("Ontology review candidate source path is unsupported.");
+  }
+  return sourcePath;
 }
 
 export function boundedOntologyReviewText(value: string, maxLength: number): string {

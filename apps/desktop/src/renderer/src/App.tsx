@@ -5,6 +5,7 @@ import type {
   AgentCommand,
   FolderIndexStatus,
   IndexStatus,
+  InvocationSkillContext,
   WorkspaceModel,
   WorkspaceSettings,
 } from "@exo/core";
@@ -14,7 +15,7 @@ import type { InvocationActivityEvent } from "@exo/core/invocation-activity";
 import type { CliInstallationStatus, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
-import { EditorPane, type EditorPaneState } from "./components/EditorPane";
+import { EditorPane, type AgentComposeRequest, type EditorPaneState } from "./components/EditorPane";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
 import { GraphPane } from "./components/GraphPane";
@@ -95,6 +96,7 @@ interface PendingInvocationAuthorization {
   draft: InlineAgentDraft;
   fingerprint: string;
   reason: string;
+  skill?: InvocationSkillContext;
 }
 
 const NOTE_TREE_MAX_DEPTH = 3;
@@ -116,6 +118,8 @@ export function App() {
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [inspectorTabRequest, setInspectorTabRequest] = useState<{ tab: "history"; nonce: number } | null>(null);
   const [pendingInvocationAuthorization, setPendingInvocationAuthorization] = useState<PendingInvocationAuthorization | null>(null);
+  const [agentComposeRequest, setAgentComposeRequest] = useState<AgentComposeRequest | null>(null);
+  const agentComposeNonceRef = useRef(0);
   const [invocationActivity, setInvocationActivity] = useState<InvocationActivityState | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [folderIndexStatus, setFolderIndexStatus] = useState<FolderIndexStatus | null>(null);
@@ -567,6 +571,7 @@ export function App() {
       draft,
       fingerprint: authorization.fingerprint,
       reason: authorization.detail,
+      ...(draft.skill ? { skill: draft.skill } : {}),
     };
     if (!authorization.trusted) {
       setInvocationActivity(null);
@@ -599,6 +604,7 @@ export function App() {
         message: pending.draft.message,
         documentFrontmatter: persisted.frontmatter,
         documentBody: persisted.body,
+        ...(pending.skill ? { skill: pending.skill } : {}),
         authorization,
         expectedFingerprint: pending.fingerprint,
       });
@@ -741,6 +747,29 @@ export function App() {
     const ensured = resolved ?? await window.exo.notes.ensureTarget(activeDocumentPath, target);
     await reloadTrees();
     await canvasNavigation.openFile(ensured, focusedPaneId);
+  }
+
+  async function composeGraphMaintenance(filePath: string) {
+    const command = workspaceSettingsRef.current?.agentCommands?.find((candidate) => candidate.enabled);
+    if (!command) {
+      await workspaceSettingsController.openDialog("agents");
+      return;
+    }
+    try {
+      const prepared = await window.exo.workspace.prepareGraphMaintenanceSkill({ documentPath: filePath });
+      await canvasNavigation.openFile(filePath, findEditorLeaf(canvasTree)?.id);
+      const nonce = agentComposeNonceRef.current + 1;
+      agentComposeNonceRef.current = nonce;
+      setAgentComposeRequest({
+        filePath,
+        nonce,
+        handle: command.handle,
+        message: prepared.message,
+        skill: prepared.skill,
+      });
+    } catch (error) {
+      setInvocationActivity(failInvocationActivity(command, error));
+    }
   }
 
   async function openTag(tag: string) {
@@ -1359,6 +1388,7 @@ export function App() {
             onClose={() => canvasActions.removeLeaf(leaf.id)}
             onFocus={() => canvasNavigation.focusPane(leaf.id)}
             onOpenTarget={(target) => void openKnowledgeTarget(target)}
+            onStartMaintenance={(filePath) => void composeGraphMaintenance(filePath)}
           />;
         }
         if (leaf.content.kind === "terminal") {
@@ -1501,6 +1531,10 @@ export function App() {
               compact={compactEditorChrome}
               revealLineRequest={canvasNavigation.editorRevealLineRequest}
               scrollRestoreRequest={editorScrollRestoreRequest}
+              agentComposeRequest={agentComposeRequest}
+              onAgentComposeRequestHandled={(nonce) => {
+                setAgentComposeRequest((current) => current?.nonce === nonce ? null : current);
+              }}
               isNoteDocument={(filePath) => workspaceModel ? workspaceModel.noteRoots.some((root) => isPathWithin(root.path, filePath)) : true}
             />
           </>

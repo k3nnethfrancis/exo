@@ -1,6 +1,11 @@
 import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import path from "node:path";
-import { assertOntologyReviewGuard, WorkspaceFiles, type WorkspaceModel } from "@exo/core";
+import {
+  assertOntologyReviewGuard,
+  assertWorkspaceOntologySelection,
+  WorkspaceFiles,
+  type WorkspaceModel,
+} from "@exo/core";
 
 import type { DesktopApi, FileStatInfo, RendererEditorDiagnostic, WorkspaceRegistryEntry } from "../../shared/api";
 import { handleDesktopInvoke } from "../typed-ipc";
@@ -24,6 +29,8 @@ export interface WorkspaceIpcHandlers {
   ensureFolderIndex: WorkspaceApi["ensureFolderIndex"];
   launchAgentInvocation: WorkspaceApi["launchAgentInvocation"];
   getAgentInvocationAuthorization: WorkspaceApi["getAgentInvocationAuthorization"];
+  prepareGraphMaintenanceSkill: WorkspaceApi["prepareGraphMaintenanceSkill"];
+  discoverOntology: WorkspaceApi["discoverOntology"];
   getAgentCommandTrust: WorkspaceApi["getAgentCommandTrust"];
   resetAgentCommandTrust: WorkspaceApi["resetAgentCommandTrust"];
   getAgentCommandLaunchFacts: WorkspaceApi["getAgentCommandLaunchFacts"];
@@ -79,7 +86,12 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:list-workspaces", async () => handlers.listWorkspaces());
   handleDesktopInvoke("workspace:activate-workspace", async (_event, input) => handlers.activateWorkspace(input));
   handleDesktopInvoke("workspace:get-index-status", async () => handlers.getIndexStatus());
-  handleDesktopInvoke("workspace:ontology-preview", async () => handlers.previewOntology());
+  handleDesktopInvoke(
+    "workspace:ontology-preview",
+    async (_event, sourcePath) => handlers.previewOntology(
+      sourcePath === undefined ? undefined : assertWorkspaceOntologySelection(sourcePath),
+    ),
+  );
   handleDesktopInvoke("workspace:ontology-keep", async (_event, guard) => handlers.keepOntology(assertOntologyReviewGuard(guard)));
   handleDesktopInvoke("workspace:ontology-reject", async (_event, guard) => handlers.rejectOntology(assertOntologyReviewGuard(guard)));
   handleDesktopInvoke("workspace:get-folder-index-status", async () => handlers.getFolderIndexStatus());
@@ -96,6 +108,11 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const documentPath = await workspaceFiles().existing(input.documentPath);
     return handlers.getAgentInvocationAuthorization({ ...input, documentPath });
   });
+  handleDesktopInvoke("workspace:prepare-graph-maintenance-skill", async (_event, input) => {
+    const documentPath = await workspaceFiles().existing(input.documentPath);
+    return handlers.prepareGraphMaintenanceSkill({ documentPath });
+  });
+  handleDesktopInvoke("workspace:discover-ontology", async () => handlers.discoverOntology());
   handleDesktopInvoke("workspace:get-agent-command-trust", async (_event, handle) => handlers.getAgentCommandTrust(handle));
   handleDesktopInvoke("workspace:reset-agent-command-trust", async (_event, handle) => handlers.resetAgentCommandTrust(handle));
   handleDesktopInvoke("workspace:get-agent-command-launch-facts", async (_event, commandId) =>

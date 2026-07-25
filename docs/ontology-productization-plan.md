@@ -1,6 +1,6 @@
 # Ontology discovery, library, and format productization
 
-**Status:** proposed next vertical slice — not a statement of shipped UI
+**Status:** early-access vertical slice implemented on `dev`
 
 ## Purpose
 
@@ -37,11 +37,15 @@ Markdown Notes ──Format──> base Knowledge Graph ──active Ontology─
 
 ## Current foundation and gap
 
-Today Exo has a single user-owned `<Workspace Root>/ontology.yaml`, a
-Candidate/Active state machine, stale-safe Keep/Reject, isolated candidate
-compilation, and bounded effect summaries. It does not yet have public Format
-selection, an agent-led discovery flow, a saved Ontology library, graph-side
-comparison controls, or a public OKF setup flow.
+Exo now has a user-owned root `<Workspace Root>/ontology.yaml`, a flat
+`ontologies/*.yaml` library, one-active-or-Generic selection, stale-safe
+Keep/Reject, isolated candidate compilation, and bounded effect summaries in
+Settings and Graph. A trusted Claude or Codex Command may optionally inspect a
+disposable read-only Markdown snapshot and return one schema-bound proposal;
+only the Exo host can stage that source, and it remains inert until Keep.
+
+Public Format selection, a forced onboarding step, a visual Ontology editor,
+and a public OKF setup flow remain out of scope.
 
 The next slice extends this foundation. It does not replace `WorkspaceGraph`,
 the existing review guard, the current `document | ontology | inferred` origin
@@ -121,33 +125,35 @@ Define the library storage/migration contract; Format-detection contract; exact
 review language; and the narrow preloaded Ontology design Skill packet. Update
 the public glossary and architecture docs only after those decisions are fixed.
 
-### Phase 1 — safe core library
+### Phase 1 — safe core library — complete
 
 Extend the Ontology store and graph worker to enumerate saved sources, select
 one Active source or Generic, preserve Candidate/Active guards, and compile
 each source in isolation. Add deterministic tests for switch, restart, stale
 external edit, missing source, invalid source, and authored-fact invariance.
 
-### Phase 2 — graph and Settings control
+### Phase 2 — graph and Settings control — complete
 
 Add a compact current-Ontology control and Draft/current/Generic preview to
 Settings and Graph. Use existing graph projection/scene contracts; do not add a
 second graph model, simulation, or renderer path. Verify selection does not
 enter editor/navigation critical paths.
 
-### Phase 3 — read-only discovery Invocation
+### Phase 3 — read-only discovery Invocation — early access
 
-Build the host-staged discovery runner around configured Commands and the
-existing review model. It must use a frozen snapshot, schema validation,
-workspace revision recheck, full trace/provenance, and no Note write authority.
-Add explicit abstention and failure behavior.
+The discovery runner accepts only trusted, enabled Claude/Codex Commands. It
+copies contained Markdown into a disposable snapshot, forces provider-specific
+read-only execution, validates one structured response, rechecks graph,
+Candidate, and Active identities, and stages only a valid root candidate.
+Abstention, question, malformed output, provider failure, and stale identity
+leave live Workspace bytes unchanged.
 
-### Phase 4 — onboarding and real-work early access
+### Phase 4 — real-work dogfood before onboarding — active
 
-Expose the skippable onboarding step after Command setup. Run the cleaned
-five-Claude/five-Codex trace study first, then dogfood the flow on real
-Workspaces. The owner reviews qualitative graph shape and trace evidence;
-there is no automated correctness threshold in this phase.
+Dogfood discovery from Settings/Graph on real Workspaces. The owner reviews
+qualitative graph shape and trace evidence; there is no automated correctness
+threshold. The accepted product spec explicitly defers forced onboarding until
+this real-work use proves the flow reliably helps.
 
 ## Verification
 
