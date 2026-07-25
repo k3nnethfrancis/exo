@@ -1,11 +1,42 @@
 # Exo Ledger
 
-Last updated: 2026-07-20
+Last updated: 2026-07-24
 
 This is the shipped-history handoff for Exo. Active bugs and QA findings live in root
 `issues.md`; active tasks live in `tasks.md`; future systems live in `roadmap.md`; the
 current product and architecture live in `README.md`, `CONTEXT.md`, and
 `docs/architecture.md`.
+
+## Principal architecture cleanup handoff — 2026-07-24
+
+- Deleted dead repository surfaces and corrected current operational docs before
+  changing architecture. The cleanup preserved the user's dirty primary
+  checkout and promoted reviewed slices through an isolated integration branch.
+- Grouped desktop main-process owners by domain (`runtime`, `workspace`,
+  `command`, `indexing`, `invocation`, and `terminal`) without compatibility
+  barrels, changed APIs, or test-body rewrites.
+- Narrowed protocol and bridge ownership: command requests/responses now have
+  exact decoders, desktop API definitions are split by capability, and
+  invalid wire values fail at their real boundary.
+- Kept `App` as the renderer composition root while extracting navigation,
+  invocation review, and live-preview owners. Workspace transitions are atomic,
+  focused panes are the sole document owner, and stale async results are
+  generation-gated across render-before-effect races.
+- Repaired editor byte integrity by keeping canonical CodeMirror body writes
+  synchronous while deferring only derived projections. A mechanical priority
+  contract and Electron journey cover save, continued typing/deletion, save,
+  and inline Command composition.
+- Replaced the false `App.test.tsx` catch-all with owner-local suites. All 59
+  substantive renderer behaviors were preserved beside their owners, the one
+  Node-backed persistence case moved to core, and only the inert sentinel was
+  removed.
+- Added progressive ownership maps at the repository, package, main-process,
+  and renderer boundaries. Repository checks verify every documented path and
+  focused test target still resolves.
+- Independent runtime/core and renderer reviewers both returned `PROMOTE` with
+  no P0–P3 findings. Combined CI, terminal checks, nine stable Electron smoke
+  journeys, and three sustained editor-latency runs pass; the latency runs had
+  zero long tasks and stayed below 22 ms p99 for canonical typing.
 
 ## Launch Gate C handoff — 2026-07-20
 
