@@ -14,7 +14,7 @@ Read these current sources first:
 - `AGENTS.md`
 - `tasks.md` and `issues.md` for active scope and terminal evidence
 - `docs/terminal-runtime-decision.md`
-- `apps/desktop/src/main/terminal-manager.ts`
+- `apps/desktop/src/main/terminal/terminal-manager.ts`
 - `apps/desktop/src/renderer/src/components/TerminalView.tsx`
 - `apps/desktop/src/renderer/src/hooks/useTerminalSessions.ts`
 - `packages/core/src/agent-invocation.ts` when Command launch is involved

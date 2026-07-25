@@ -14,10 +14,10 @@ action, the status is explicitly unmeasured.
 | Graph interaction and topology rendering | No single p50/p90/p99 launch gate recorded here; graph performance is separately measured by its focused suite. | `WorkspaceGraph` publishes compact topology; labels/evidence remain bounded cold reads and Canvas/WebGPU cannot invent semantics. | Graph owner | [`benchmarks/graphbench/contract.md`](../benchmarks/graphbench/contract.md), [`graphWebGpuRenderer.test.ts`](../apps/desktop/src/renderer/src/graphWebGpuRenderer.test.ts) | Semantic graph rebuild, unbounded detail lookup, QMD/index maintenance |
 | Terminal input echo | p50 <75 ms; p90 <150 ms | One direct `node-pty` lifecycle; xterm owns live rendering and scrollback. | Terminal owner | [`shell.spec.ts`](../apps/desktop/tests/e2e/shell.spec.ts) | Renderer metadata/replay reads and work in another terminal |
 | Terminal input while another terminal streams | p50 <100 ms; p90 <250 ms | Streaming output cannot monopolize the active terminal's input path. | Terminal owner | [`shell.spec.ts`](../apps/desktop/tests/e2e/shell.spec.ts) | Other-terminal output processing |
-| Workspace switch | Unmeasured | The current configuration store uses revisioned atomic settings writes; no source-level latency budget is asserted. | Workspace configuration owner | [`workspace-config-store.test.ts`](../apps/desktop/src/main/workspace-config-store.test.ts) (coherence only) | A future measured gate must keep watcher/index/invocation rebind work out of the visible transition path. |
+| Workspace switch | Unmeasured | The current configuration store uses revisioned atomic settings writes; no source-level latency budget is asserted. | Workspace configuration owner | [`workspace-config-store.test.ts`](../apps/desktop/src/main/workspace/workspace-config-store.test.ts) (coherence only) | A future measured gate must keep watcher/index/invocation rebind work out of the visible transition path. |
 
 The implementation owner for derived lifecycle is the utility-process boundary
-in [`derived-index-process.ts`](../apps/desktop/src/main/derived-index-process.ts):
+in [`derived-index-process.ts`](../apps/desktop/src/main/indexing/derived-index-process.ts):
 QMD, filesystem scans, graph refresh, and Ontology review run outside Electron
 main, with cancellation and worker restart. The contract does not prescribe a
 future Workspace-switch implementation.
