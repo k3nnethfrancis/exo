@@ -11,6 +11,10 @@ search, command-wire, or renderer state contracts.
   Its candidate is private until one synchronous final commit; late work must
   not publish or degrade a replacement Workspace. Start at
   `runtime/workspace-runtime-coordinator.test.ts`.
+- Settings effect ownership:
+  `runtime/workspace-settings-apply-plan.ts`. Layout and appearance publish in
+  place; terminal and index changes go only to those owners; only Workspace
+  root authority replaces the full runtime.
 - Workspace settings, filesystem service, and IPC wiring:
   `workspace/workspace-config-store.ts`, `workspace/workspace-notes-service.ts`,
   and `workspace/workspace-ipc.ts`. Core owns path containment and persistent

@@ -1,6 +1,6 @@
 # Exo Architecture
 
-Last updated: 2026-07-20
+Last updated: 2026-07-24
 
 Exo is a local, user-owned Markdown exocortex with modular, tunable search, inline agent invocation, and graph management skills.
 
@@ -117,6 +117,15 @@ shader, validation, or success outcome.
 
 Owns workspace configuration, revisions, unknown-key preservation, migration, and atomic persistence.
 
+### `WorkspaceRuntimeCoordinator`
+
+Owns atomic activation when Workspace authority changes. The settings effect
+planner keeps ordinary persistence out of this expensive path: layout,
+appearance, Commands, and unknown keys publish in place; terminal-default and
+index changes go only to those owners; only Workspace-root or Note-root changes
+replace the command server, watcher, graph scope, and invocation recovery
+scope. A degraded runtime cannot use the in-place path to impersonate repair.
+
 ### `WorkspaceFiles`
 
 Owns Note Root identity, path authorization, containment, symlink policy, absolute-path validation, and filesystem change events. Root-relative identities are a later interface-quality improvement, not a current shared IPC contract.
@@ -170,7 +179,7 @@ The future Skill flow adds a reviewed, bounded proposal step; it is not claimed 
 | Domain | Owner / durable boundary | User behavior | Evidence / canonical docs |
 | --- | --- | --- | --- |
 | Note Roots and files | `WorkspaceModel`, `WorkspaceFiles` | Exo reads and mutates only authorized Note Roots | containment tests; `../issues.md#exo-issue-103`, `../CONTEXT.md` |
-| Workspace settings | `WorkspaceConfigStore`, revisioned `WorkspaceSettings` | Settings preserve unowned/unknown data and configured Commands | settings tests; `../issues.md#exo-issue-102` |
+| Workspace settings | `WorkspaceConfigStore`, `WorkspaceRuntimeCoordinator`, settings effect planner | Settings preserve unowned/unknown data and configured Commands; only the affected runtime owner is rebound | settings/runtime tests; `../issues.md#exo-issue-102` |
 | Notes and properties | Markdown/frontmatter, `NoteDocument` | Source on disk remains canonical | note/Markdown tests; `../CONTEXT.md` |
 | Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context; Knowledge Graph 0.3 preserves open Properties, Relation origin, and Evidence while the Graph Pane uses compact topology plus bounded cold reads | search/graph/transport tests; `graph-system-report-and-plan.md` |
 | Canvas and panes | `WorkspaceCanvasLayoutSettings`, pane tree | Notes, Terminal, Preview, and Connections share one canvas | pane E2E; `../README.md` |

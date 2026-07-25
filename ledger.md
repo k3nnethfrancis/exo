@@ -30,13 +30,24 @@ current product and architecture live in `README.md`, `CONTEXT.md`, and
   substantive renderer behaviors were preserved beside their owners, the one
   Node-backed persistence case moved to core, and only the inert sentinel was
   removed.
+- Split settings persistence from runtime replacement with an explicit effect
+  planner. Layout, appearance, Commands, and unknown keys now publish in place;
+  terminal and index changes update only those owners; Workspace authority
+  changes retain the atomic activation path. This preserves staged Ontology
+  review state across layout and no-op saves.
+- Stabilized CodeMirror configuration across delayed graph-context commits.
+  Graph references now refresh through a targeted editor effect and static
+  setup options keep the native Find panel alive during rapid input.
 - Added progressive ownership maps at the repository, package, main-process,
   and renderer boundaries. Repository checks verify every documented path and
   focused test target still resolves.
 - Independent runtime/core and renderer reviewers both returned `PROMOTE` with
-  no P0–P3 findings. Combined CI, terminal checks, nine stable Electron smoke
-  journeys, and three sustained editor-latency runs pass; the latency runs had
-  zero long tasks and stayed below 22 ms p99 for canonical typing.
+  no P0–P3 findings. The complete Electron matrix passes 130 journeys with
+  three intentional skips, including five repeated Ontology-review journeys
+  and ten repeated native Find/Replace journeys. Combined CI, terminal checks,
+  nine stable Electron smoke journeys, and three sustained editor-latency runs
+  also pass, and the arm64 macOS app packages successfully; the latency runs
+  had zero long tasks and stayed below 22 ms p99 for canonical typing.
 
 ## Launch Gate C handoff — 2026-07-20
 
