@@ -1,4 +1,6 @@
 node_modules/
+.pnpm-store/
+.npm/
 dist/
 .vite/
 out/
@@ -6,14 +8,27 @@ release/
 coverage/
 test-results/
 playwright-report/
+*.tsbuildinfo
 # Generated local development output.
 /artifacts/
 .exo/
 .exo-dev/
 .env
+.env.*.local
+!.env.example
+
+# Exo publishes provider-neutral skills in /skills and keeps a tracked
+# .claude/skills compatibility pointer. All other harness/editor state is local.
 .claude/settings.local.json
+.cursor/
+.vscode/
+.idea/
+.zed/
+.opencode/
+
 *.log
 .DS_Store
+Thumbs.db
 
 # Guardrails: real user workspaces/notes should not be committed here.
 /notes/
