@@ -7,7 +7,6 @@ import {
   getWorkspaceRegistryEntry,
   listWorkspaceRegistryEntries,
   loadWorkspaceSettings,
-  legacyProjectRootsInPersistence,
   normalizeWorkspaceSettings,
   resolveWorkspaceSettingsPath,
   saveWorkspaceSettings,
@@ -40,7 +39,6 @@ const writes = new Map<string, Promise<void>>();
 export class WorkspaceConfigStore {
   private readonly env: NodeJS.ProcessEnv;
   private current: WorkspaceSettingsSnapshot | null = null;
-  private loggedProjectRootNormalization = false;
 
   constructor(private readonly options: WorkspaceConfigStoreOptions) {
     this.env = options.env ?? process.env;
@@ -49,15 +47,10 @@ export class WorkspaceConfigStore {
   async load(): Promise<WorkspaceSettingsSnapshot | null> {
     await (writes.get(this.path()) ?? Promise.resolve());
     const env = this.persistenceEnv();
-    const droppedProjectRoots = await legacyProjectRootsInPersistence(env);
     // The registry is a user-selectable history, not permission to silently
     // reactivate a Workspace when the active settings file is missing or
     // invalid. Startup must return null so first-run recovery remains visible.
     const settings = await loadWorkspaceSettings(env);
-    if (!this.loggedProjectRootNormalization && droppedProjectRoots.length > 0) {
-      this.loggedProjectRootNormalization = true;
-      console.info("[exo] normalized retired project roots", { droppedProjectRoots });
-    }
     this.current = settings ? { settings, revision: workspaceSettingsRevision(settings) } : null;
     return this.current;
   }

@@ -10,7 +10,7 @@ export const EXO_AGENT_RESPONSE_TAG = "exo-agent-response";
 
 export interface DocumentAgentInvocationEnvelope {
   kind: "invocation";
-  /** Missing only for envelopes written by pre-protocol Exo builds. */
+  /** Missing for render-only source envelopes that cannot identify a V1 run. */
   id?: string;
   agent: string;
   status: "sent";
@@ -51,8 +51,8 @@ export function formatDocumentAgentResponse(input: { invocationId: string; agent
 
 /**
  * Parses only the two protocol envelopes, retains source coordinates for the
- * editor, and ignores malformed/unpaired markup. It accepts old invocation
- * envelopes without ids so existing notes retain their live rendering.
+ * editor, and ignores malformed/unpaired markup. ID-less invocation envelopes
+ * remain render-only Markdown and can never identify or authorize a V1 run.
  */
 export function findDocumentAgentEnvelopes(text: string): DocumentAgentEnvelope[] {
   const envelopes: DocumentAgentEnvelope[] = [];

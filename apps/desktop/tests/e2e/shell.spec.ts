@@ -151,7 +151,7 @@ function runGit(cwd: string, args: string[]) {
 
 test.describe.configure({ mode: "parallel" });
 
-test("makes a legacy multi-root migration visible once without touching retired folders", async () => {
+test("does not present or acknowledge retired Workspace migration metadata", async () => {
   const fixture = await launchExoWorkspaceFixture({
     configured: false,
     expectOnboarding: false,
@@ -159,11 +159,10 @@ test("makes a legacy multi-root migration visible once without touching retired 
     workspaceRootEnv: false,
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       const primaryRoot = path.join(workspaceRoot, "notes/test-notes");
-      const retiredRoot = path.join(workspaceRoot, "projects/sample-project");
       await writeFile(settingsPath, JSON.stringify({
         workspaceRoot,
         defaultTerminalCwd: workspaceRoot,
-        noteRoots: [primaryRoot, retiredRoot],
+        noteRoots: [primaryRoot],
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         appearanceMode: "dark",
@@ -173,23 +172,18 @@ test("makes a legacy multi-root migration visible once without touching retired 
         explorerScale: 1,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
+        futureWorkspaceMetadata: { retained: true },
       }), "utf8");
     },
   });
 
   try {
-    const notice = fixture.page.getByTestId("main-wiki-migration-notice");
-    await expect(notice).toContainText("One main wiki");
-    await expect(notice).toContainText("Other folders were left untouched.");
-    await notice.getByRole("button", { name: "Acknowledge main wiki migration" }).click();
-    await expect(notice).toBeHidden();
+    await expect(fixture.page.getByTestId("main-wiki-migration-notice")).toHaveCount(0);
 
     const saved = JSON.parse(await readFile(fixture.settingsPath, "utf8"));
     expect(saved.noteRoots).toEqual([path.join(fixture.workspaceRoot, "notes/test-notes")]);
-    expect(saved.migrationMetadata.mainWiki).toMatchObject({
-      retiredNoteRoots: [path.join(fixture.workspaceRoot, "projects/sample-project")],
-      acknowledgedAt: expect.any(String),
-    });
+    expect(saved.futureWorkspaceMetadata).toEqual({ retained: true });
+    expect(saved).not.toHaveProperty("migrationMetadata");
   } finally {
     await fixture.cleanup();
   }

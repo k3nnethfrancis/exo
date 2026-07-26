@@ -489,7 +489,6 @@ async function launchInvocationFixture(
         workspaceRoot,
         defaultTerminalCwd: workspaceRoot,
         noteRoots: [path.join(workspaceRoot, "notes/test-notes")],
-        projectRoots: [path.join(workspaceRoot, "projects/sample-project")],
         agentCommands: [{
           id: "fixture",
           label: "Fixture",

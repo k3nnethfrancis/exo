@@ -66,7 +66,6 @@ describe("agent invocation model", () => {
       handle: " @Claude ",
       command: " claude ",
       cwdPolicy: "workspace_root",
-      promptDelivery: "auto",
       version: 0,
     })).toEqual({
       id: "Claude-Code",
@@ -82,22 +81,22 @@ describe("agent invocation model", () => {
     });
   });
 
-  it("upgrades only prior built-in Claude defaults to the current headless edit command", () => {
+  it("rejects retired built-in Claude defaults without rewriting editable commands", () => {
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude",
       cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",
-    })).toMatchObject({ command: createDefaultClaudeAgentCommand().command, adapter: "claude-code", continuityPolicy: "continuous", promptDelivery: "stdin" });
+    })).toBeNull();
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude -p",
       cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
-    })).toMatchObject({ command: createDefaultClaudeAgentCommand().command, adapter: "claude-code", continuityPolicy: "continuous", promptDelivery: "stdin" });
+    })).toBeNull();
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude -p --permission-mode acceptEdits",
       adapter: "claude-code", continuityPolicy: "continuous", cwdPolicy: "workspace_root", promptDelivery: "stdin", version: 1,
-    })).toMatchObject({ command: createDefaultClaudeAgentCommand().command, adapter: "claude-code", continuityPolicy: "continuous", promptDelivery: "stdin" });
+    })).toBeNull();
     expect(normalizeAgentCommand({
       id: "custom", label: "My Claude", handle: "claude", command: "claude",
-      cwdPolicy: "workspace_root", promptDelivery: "terminalInputAfterLaunch",
+      cwdPolicy: "workspace_root", promptDelivery: "stdin",
     })).toMatchObject({ command: "claude", adapter: "generic", continuityPolicy: "fresh", promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
       id: "claude", label: "Claude", handle: "claude", command: "claude -p --model sonnet",
@@ -133,12 +132,12 @@ describe("agent invocation model", () => {
     })).toBeNull();
   });
 
-  it("normalizes legacy terminal delivery and rejects unsupported prompt delivery modes", () => {
+  it("accepts only canonical stdin prompt delivery", () => {
     expect(normalizeAgentCommand({
-      id: "claude",
-      label: "Claude",
-      handle: "claude",
-      command: "claude",
+      id: "custom",
+      label: "Custom",
+      handle: "custom",
+      command: "/bin/cat",
       promptDelivery: "stdin",
     })).toMatchObject({ promptDelivery: "stdin" });
     expect(normalizeAgentCommand({
@@ -319,10 +318,10 @@ describe("agent invocation model", () => {
     expect(snapshot).toMatch(/\[\.\.\. \d+ characters omitted after snapshot; read the working note from disk for full content \.\.\.\]$/);
   });
 
-  it("bounds a legacy no-protocol snapshot around the last matching mention", () => {
+  it("bounds an untagged no-protocol snapshot around the last matching mention", () => {
     const body = `${"a".repeat(45_000)}\nLEGACY_NEAR @claude explain this\n${"b".repeat(45_000)}`;
     const prompt = formatNoteInvocationPrompt({
-      documentPath: "/workspace/notes/legacy.md",
+      documentPath: "/workspace/notes/untagged.md",
       mentionText: "@claude",
       message: "Explain this.",
       body,
@@ -363,6 +362,20 @@ describe("agent invocation model", () => {
       expect.objectContaining({ kind: "invocation", id: invocationId, agent: "claude", status: "sent" }),
       expect.objectContaining({ kind: "response", invocationId, agent: "claude" }),
     ]);
+  });
+
+  it("renders an id-less source envelope but never treats it as an executable V1 invocation", () => {
+    const document = '<exo-invocation agent="claude" status="sent">\n@claude preserved source\n</exo-invocation>';
+
+    expect(findDocumentAgentEnvelopes(document)).toEqual([
+      expect.objectContaining({ kind: "invocation", agent: "claude", status: "sent" }),
+    ]);
+    expect(findDocumentAgentEnvelopes(document)[0]).not.toHaveProperty("id");
+    expect(removeDocumentAgentInvocation(
+      document,
+      "11111111-1111-4111-8111-111111111111",
+      "claude",
+    )).toBeNull();
   });
 
   it("derives the clean base by removing only the exact invocation envelope", () => {
@@ -474,7 +487,7 @@ describe("agent invocation model", () => {
     expect(record?.continuity).toEqual({ policy: "continuous", outcome: "resume-failed", resumedFromInvocationId: "inv-0" });
   });
 
-  it("normalizes CLI invocation records without a tagged document", () => {
+  it("rejects pre-launch invocation prompt delivery records", () => {
     expect(normalizeInvocationRecord({
       id: "inv-cli",
       status: "user-ended",
@@ -484,12 +497,7 @@ describe("agent invocation model", () => {
       command: createDefaultClaudeAgentCommand(),
       cwd: "/tmp",
       createdAt: "2026-07-08T00:00:00.000Z",
-    })).toMatchObject({
-      id: "inv-cli",
-      context: "cli",
-      status: "user-ended",
-      mentionProvenance: "unknown",
-    });
+    })).toBeNull();
   });
 });
 

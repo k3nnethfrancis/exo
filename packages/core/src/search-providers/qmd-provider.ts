@@ -672,7 +672,8 @@ async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise
   if (rootsNeedingReindex.length > 0 && !hasPendingReindex) {
     // Publish recovery state before QMD applies the new collection config. If
     // this process stops after that sync, the next open conservatively rebuilds
-    // every current root rather than trusting partially migrated documents.
+    // every current root rather than trusting partially reconfigured derived
+    // state.
     await writePendingQmdCollectionReindex(runtimeRoot);
   }
   const store = await qmd.createStore({
@@ -867,7 +868,7 @@ async function existingQmdCollectionMatchesRoot(storedPath: string, root: Indexe
     return true;
   }
   // WorkspaceFiles owns the canonical realpath containment policy. Comparing
-  // each candidate as a configured root keeps this migration check from
+  // each candidate as a configured root keeps this repair check from
   // inventing a second filesystem-identity rule.
   const files = new WorkspaceFiles([root.path, storedPath]);
   try {
@@ -878,7 +879,7 @@ async function existingQmdCollectionMatchesRoot(storedPath: string, root: Indexe
     return rootIdentity === storedIdentity;
   } catch (error) {
     if (isMissingFilesystemPath(error)) {
-      // A missing legacy path cannot truthfully prove a physical alias. The
+      // A missing stale path cannot truthfully prove a physical alias. The
       // equal-lexical-path case returned above remains the narrow fallback.
       return false;
     }

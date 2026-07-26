@@ -805,7 +805,6 @@ function workspaceSettings(): WorkspaceSettings {
     workspaceRoot: "/workspace",
     defaultTerminalCwd: "/workspace",
     noteRoots: ["/workspace/notes"],
-    projectRoots: [],
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     appearanceMode: "system",

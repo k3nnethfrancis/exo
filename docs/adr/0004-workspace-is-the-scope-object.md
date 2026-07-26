@@ -5,7 +5,7 @@
 
 ## Context
 
-LLM-wiki practice demonstrates a useful workflow: a project can carry its own Markdown knowledge, agent instructions, maintenance log, and sources adjacent to its code. It does not establish that Exo should restore the removed `projectRoots` domain, make every machine folder one global graph, or make a federation a launch feature.
+LLM-wiki practice demonstrates a useful workflow: a project can carry its own Markdown knowledge, agent instructions, maintenance log, and sources adjacent to its code. It does not establish that Exo should make every machine folder one global graph or make a federation a launch feature.
 
 Exo already has the necessary launch object: `WorkspaceModel` owns writable `NoteRoot`s, read-only retrieval `IndexedRoot`s, index configuration, and workspace-scoped Command trust. The previous Project Root surface was deleted because it mixed authorization, Explorer topology, command cwd, retrieval, graph scope, and persistence without one product meaning.
 

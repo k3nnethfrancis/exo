@@ -20,12 +20,12 @@ export interface WorkspaceModel {
   indexing: IndexingConfig;
   /** Content scope shared by Explorer, graph, and search. Missing means generic Markdown scope. */
   contentPolicy?: WorkspaceContentPolicy;
-  /** The user's chosen search engine. Undefined preserves legacy model callers. */
+  /** The user's chosen search engine. Undefined derives selection from indexing. */
   searchEngine?: SearchEngine;
 }
 
 export interface WorkspaceSettings {
-  /** Forward-compatible persisted settings are retained unless explicitly retired. */
+  /** Forward-compatible persisted settings are retained except explicit unsupported fields. */
   [key: string]: unknown;
   workspaceRoot: string;
   defaultTerminalCwd: string;
@@ -61,20 +61,7 @@ export interface WorkspaceSettingsSaveRequest {
   expectedRevision: WorkspaceSettingsRevision;
 }
 
-export type WorkspaceLayoutSettings = LegacyWorkspaceLayoutSettings | WorkspaceCanvasLayoutSettings;
-
-/** Legacy two-zone layout retained only so existing user settings still load. */
-export interface LegacyWorkspaceLayoutSettings {
-  editorTree: WorkspacePaneNode;
-  terminalTree: WorkspacePaneNode;
-  terminalCollapsed: boolean;
-  terminalMonitorMode: boolean;
-  sidePanesFlipped: boolean;
-  zoneSplitRatio: number;
-  sidebarCollapsed: boolean;
-  sidebarWidth: number;
-  inspectorCollapsed: boolean;
-}
+export type WorkspaceLayoutSettings = WorkspaceCanvasLayoutSettings;
 
 /** The single-canvas layout written by the current renderer. */
 export interface WorkspaceCanvasLayoutSettings {

@@ -97,7 +97,7 @@ export function TerminalView(props: TerminalViewProps) {
     disposedRef.current = false;
     // Terminal apps render modern TUI glyphs: emoji, braille spinners,
     // box drawing, and private-use symbols. Xterm's default width table is too
-    // old for those sequences, which can make clean tmux output display as
+    // old for those sequences, which can make clean PTY output display as
     // wrapped borders or replacement glyphs after refresh/resize.
     terminal.loadAddon(unicode11Addon);
     terminal.unicode.activeVersion = "11";
@@ -113,7 +113,7 @@ export function TerminalView(props: TerminalViewProps) {
     const disposeData = terminal.onData((data) => {
       // Main owns terminal writability. Renderer inputEnabled can briefly lag
       // after refresh/hydration, and dropping keystrokes here caused live
-      // tmux panes to accept input only after a hard refresh.
+      // PTY sessions to accept input only after a hard refresh.
       if (isTerminalGeneratedResponse(data)) {
         return;
       }
@@ -380,8 +380,8 @@ function enqueueTerminalWrite(
     return;
   }
 
-  // Presentation normalization is display-only: tmux output, transcripts, and
-  // CLI reads keep the original bytes. This asks Chromium/xterm to render
+  // Presentation normalization is display-only: PTY output and CLI reads keep
+  // the original bytes. This asks Chromium/xterm to render
   // terminal UI symbols like Claude's U+23FA marker as text, not colorful emoji.
   const displayData = normalizeTerminalPresentation(data);
   for (const chunk of outputChunkerRef.current.chunks(displayData, TERMINAL_WRITE_CHUNK_SIZE)) {
@@ -447,7 +447,7 @@ function safeFit(
 
   // This dedupe is scoped to one TerminalView attach generation. The
   // attachGeneration effect clears sizeRef so a new attach reports its first
-  // renderer-fit geometry back to tmux.
+  // renderer-fit geometry back to the direct PTY.
   if (
     sizeRef.current.width === rect.width &&
     sizeRef.current.height === rect.height &&

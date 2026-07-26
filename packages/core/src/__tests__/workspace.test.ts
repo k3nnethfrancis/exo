@@ -26,23 +26,11 @@ describe("workspace", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
       EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
-      EXO_PROJECT_ROOTS: path.join(fixtureWorkspaceRoot, "projects/sample-project"),
     });
 
     expect(model.workspaceRoot).toBe(fixtureWorkspaceRoot);
     expect(model.defaultTerminalCwd).toBe(fixtureWorkspaceRoot);
     expect(model.noteRoots).toHaveLength(1);
-  });
-
-  it("ignores the retired project-root environment variable", () => {
-    const model = resolveWorkspaceModel({
-      EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
-      EXO_PROJECT_ROOTS: "",
-    });
-
-    expect(model.noteRoots).toHaveLength(1);
-    expect("projectRoots" in model).toBe(false);
   });
 
   it("uses portable workspace defaults when env is absent", () => {
@@ -66,7 +54,6 @@ describe("workspace", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
       EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
-      EXO_PROJECT_ROOTS: "",
       EXO_INDEX_MODE: "hybrid",
       EXO_INDEXED_ROOTS: JSON.stringify([{ id: "index-notes", label: "notes", path: indexPath, kind: "notes", pattern: "**/*.md" }]),
     });
@@ -154,7 +141,6 @@ describe("workspace", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
       EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
-      EXO_PROJECT_ROOTS: path.join(fixtureWorkspaceRoot, "projects/sample-project"),
     });
 
     const results = await searchNotes(model, "focus-note");
@@ -183,7 +169,6 @@ describe("workspace", () => {
       const model = resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: path.join(root, "notes"),
-        EXO_PROJECT_ROOTS: "",
       });
 
       const titleResults = await searchNotes(model, "Sigmund Lab");
@@ -203,7 +188,6 @@ describe("workspace", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
       EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
-      EXO_PROJECT_ROOTS: path.join(fixtureWorkspaceRoot, "projects/sample-project"),
     });
 
     const results = await searchWorkspace(model, "focus-note");
@@ -215,7 +199,6 @@ describe("workspace", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
       EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
-      EXO_PROJECT_ROOTS: "",
     });
 
     const results = await searchWorkspace(model, "research");
@@ -231,7 +214,6 @@ describe("workspace", () => {
       const model = resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: path.join(root, "notes"),
-        EXO_PROJECT_ROOTS: "",
       });
 
       expect(resolveNotePath(model, "garden/research/ashby.md", path.join(root, "outside"))).toBe(notePath);

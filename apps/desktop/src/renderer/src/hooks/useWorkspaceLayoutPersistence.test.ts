@@ -112,44 +112,9 @@ describe("WorkspaceCanvas persistence", () => {
     expect(decodePersistedWorkspaceCanvas(snapshot)).toEqual(snapshot);
   });
 
-  it("removes legacy terminal and preview leaves while preserving editor splits", () => {
-    const restored = decodePersistedWorkspaceCanvas({
-      version: 1,
-      canvas: {
-        kind: "split",
-        id: "old-shell",
-        direction: "horizontal",
-        ratio: 0.62,
-        children: [
-          editor,
-          {
-            kind: "split",
-            id: "old-utility",
-            direction: "vertical",
-            ratio: 0.5,
-            children: [
-              { kind: "leaf", id: "terminal", content: { kind: "terminal", terminalIds: ["term-1"], activeTerminalId: "term-1" } },
-              { kind: "leaf", id: "preview", content: { kind: "browser", url: "http://localhost:3000" } },
-            ],
-          },
-        ],
-      },
-      sidebarCollapsed: true,
-      sidebarWidth: 220,
-      utilityWidth: 510,
-    });
-
-    expect(restored).toEqual({ version: 3, canvas: editor, sidebarCollapsed: true, sidebarWidth: 220, utilityWidth: 510 });
-  });
-
-  it("does not revive a separate legacy terminal tree", () => {
-    const restored = decodePersistedWorkspaceCanvas({
-      version: 0,
-      editorTree: editor,
-      terminalTree: { kind: "leaf", id: "terminal", content: { kind: "terminal", terminalIds: ["term-1"], activeTerminalId: "term-1" } },
-    });
-
-    expect(restored?.canvas).toEqual(editor);
+  it("rejects an unsupported persisted canvas version", () => {
+    expect(decodePersistedWorkspaceCanvas({ version: 2, canvas: editor })).toBeNull();
+    expect(decodePersistedWorkspaceCanvas({ version: 3, editorTree: editor })).toBeNull();
   });
 
   it("preserves an open Folder Overview alongside ordinary note tabs", () => {

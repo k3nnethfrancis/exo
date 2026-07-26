@@ -197,24 +197,24 @@ describe("Folder Overview editor ownership", () => {
     }
     expect(closeFolderOverviewContent(restored.content, "/notes/projects").restoredPath).toBe("/notes/a.md");
 
-    const legacy = decodeCanvas({
+    const withoutReturnPath = decodeCanvas({
       ...persisted,
       content: {
         ...persisted.content,
         activeFolderReturnPath: undefined,
       },
     });
-    expect(legacy).toMatchObject({
+    expect(withoutReturnPath).toMatchObject({
       content: {
         activeFolderPath: "/notes/projects",
         activePath: null,
       },
     });
-    expect(legacy?.kind).toBe("leaf");
-    if (legacy?.kind !== "leaf" || legacy.content.kind !== "editor") {
-      throw new Error("expected legacy editor pane");
+    expect(withoutReturnPath?.kind).toBe("leaf");
+    if (withoutReturnPath?.kind !== "leaf" || withoutReturnPath.content.kind !== "editor") {
+      throw new Error("expected editor pane without a return path");
     }
-    expect(closeFolderOverviewInTree(legacy, "editor", "/notes/projects", "editor")).toMatchObject({
+    expect(closeFolderOverviewInTree(withoutReturnPath, "editor", "/notes/projects", "editor")).toMatchObject({
       activeDocumentPath: null,
       tree: { content: { activePath: null } },
     });

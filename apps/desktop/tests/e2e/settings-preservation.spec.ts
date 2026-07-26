@@ -12,19 +12,18 @@ test("every non-structural Settings round trip preserves commands, layout, and o
         workspaceRoot,
         defaultTerminalCwd: workspaceRoot,
         noteRoots: [path.join(workspaceRoot, "notes/test-notes")],
-        projectRoots: [],
         agentCommands: [{
           id: "preserved-command",
           label: "Preserved command",
           handle: "preserved",
           command: "/bin/cat",
           cwdPolicy: "workspace_root",
-          promptDelivery: "terminalInputAfterLaunch",
+          promptDelivery: "stdin",
           version: 1,
           enabled: true,
         }],
         futureSetting: { keep: "me" },
-        migrationMetadata: { sourceVersion: 2, completedSteps: ["roots", "commands"] },
+        futureWorkspaceMetadata: { sourceVersion: 3, keep: true },
         indexedRoots: [path.join(workspaceRoot, "notes/test-notes")],
         indexing: { enabled: true, mode: "lexical", backend: "qmd" },
         searchEngine: "qmd",
@@ -107,7 +106,6 @@ test("an explicit empty Commands list stays empty and does not offer @claude", a
         workspaceRoot,
         defaultTerminalCwd: workspaceRoot,
         noteRoots: [path.join(workspaceRoot, "notes/test-notes")],
-        projectRoots: [],
         agentCommands: [],
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
@@ -146,7 +144,6 @@ test("a disabled Claude command stays unavailable to inline completion", async (
         workspaceRoot,
         defaultTerminalCwd: workspaceRoot,
         noteRoots: [path.join(workspaceRoot, "notes/test-notes")],
-        projectRoots: [],
         agentCommands: [{
           id: "claude",
           label: "Claude",
@@ -403,7 +400,7 @@ async function expectPreservedSettings(settingsPath: string, seeded: Record<stri
   expect(persisted.agentCommands).toEqual(seeded.agentCommands);
   expect(persisted.layout).toEqual(seeded.layout);
   expect(persisted.futureSetting).toEqual(seeded.futureSetting);
-  expect(persisted.migrationMetadata).toEqual(seeded.migrationMetadata);
+  expect(persisted.futureWorkspaceMetadata).toEqual(seeded.futureWorkspaceMetadata);
 }
 
 async function persistedSettings(settingsPath: string): Promise<Record<string, unknown>> {

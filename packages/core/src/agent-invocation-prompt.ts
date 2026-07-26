@@ -12,7 +12,7 @@ export const DEFAULT_AGENT_INVOCATION_PROMPT = [
   "Configured Note Roots:",
   "{{note_roots}}",
   "Exo observes and reviews note changes inside configured Note Roots. Do not treat every file under the Workspace root as an Exo note or as implicitly writable.",
-  "Exo wikilinks may be durable and aliased ([[durable/path/to/note|Readable title]]) or legacy bare stems ([[note-name]]). Resolve referenced notes with native filesystem tools or Exo CLI/Search. When writing a link, prefer the durable path target with a readable alias.",
+  "Exo wikilinks may be durable and aliased ([[durable/path/to/note|Readable title]]) or short bare stems ([[note-name]]). Resolve referenced notes with native filesystem tools or Exo CLI/Search. When writing a link, prefer the durable path target with a readable alias.",
   "",
   "Working note:",
   "{{working_note}}",

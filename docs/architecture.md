@@ -74,7 +74,7 @@ domain logic.
 
 | Owner | Responsibility | Must not own |
 | --- | --- | --- |
-| `WorkspaceConfigStore` | settings, workspace registry, revisioned atomic writes, migrations | live runtime activation |
+| `WorkspaceConfigStore` | canonical settings, workspace registry, revisioned atomic writes, unknown-key preservation, unsupported-format rejection | live runtime activation |
 | `WorkspaceRuntimeCoordinator` | swaps expensive workspace authority when roots change | unrelated appearance/layout saves |
 | `WorkspaceFiles` | canonical paths, Note Root containment, symlink policy, watchers | graph/search interpretation |
 | `WorkspaceGraph` | graph snapshots, evidence, backlinks, ontology review and local context | rendering or direct UI state |

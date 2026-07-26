@@ -688,7 +688,6 @@ function workspaceSettings(): WorkspaceSettings {
     workspaceRoot: "/workspace",
     defaultTerminalCwd: "/workspace",
     noteRoots: ["/workspace/notes"],
-    projectRoots: ["/workspace/project"],
     indexedRoots: [
       {
         id: "index-notes",

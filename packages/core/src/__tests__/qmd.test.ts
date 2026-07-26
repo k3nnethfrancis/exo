@@ -79,7 +79,6 @@ describe("QMD index adapter", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: root,
       EXO_NOTE_ROOTS: path.join(root, "notes"),
-      EXO_PROJECT_ROOTS: "",
     });
 
     const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
@@ -106,7 +105,6 @@ describe("QMD index adapter", () => {
       ...resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: [path.join(root, "notes"), docsPath, extraPath].join(path.delimiter),
-        EXO_PROJECT_ROOTS: "",
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -145,7 +143,6 @@ describe("QMD index adapter", () => {
       ...resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: [path.join(root, "notes"), docsPath].join(path.delimiter),
-        EXO_PROJECT_ROOTS: "",
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -192,7 +189,6 @@ describe("QMD index adapter", () => {
       ...resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: path.join(root, "notes"),
-        EXO_PROJECT_ROOTS: "",
       }),
       indexedRoots: [indexedRoot],
       indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
@@ -245,24 +241,24 @@ describe("QMD index adapter", () => {
     expect(stores).toEqual([]);
   });
 
-  it("migrates a physical legacy collection to a current symlink root once", async () => {
+  it("repairs a stale physical collection after the current root becomes a symlink alias", async () => {
     const root = await fixtureRoot();
     const physicalPath = path.join(root, "notes");
     const aliasPath = path.join(root, "notes-alias");
     await symlink(physicalPath, aliasPath);
     await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
     await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
-    existingQmdCollections = [{ name: "legacy-physical", pwd: physicalPath }];
-    existingQmdDocumentCollections = ["legacy-physical"];
+    existingQmdCollections = [{ name: "stale-physical", pwd: physicalPath }];
+    existingQmdDocumentCollections = ["stale-physical"];
     const aliasRoot = createIndexedRoot(aliasPath, { id: "index-notes", label: "notes", kind: "notes" });
     const model = { ...indexedModel(root, "lexical"), indexedRoots: [aliasRoot] };
 
     const first = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
 
-    const migratedStore = stores[1];
-    const aliasCollection = configuredCollectionForPath(migratedStore, aliasPath);
-    expect(migratedStore.updateOptions).toEqual([{ collections: [aliasCollection] }]);
-    expect(migratedStore.visibleDocumentCollectionsBeforeUpdates).toEqual([[]]);
+    const repairedStore = stores[1];
+    const aliasCollection = configuredCollectionForPath(repairedStore, aliasPath);
+    expect(repairedStore.updateOptions).toEqual([{ collections: [aliasCollection] }]);
+    expect(repairedStore.visibleDocumentCollectionsBeforeUpdates).toEqual([[]]);
     expect(first.results.map((entry) => entry.filePath)).toEqual([path.join(aliasPath, "focus.md")]);
 
     await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
@@ -270,7 +266,7 @@ describe("QMD index adapter", () => {
     expect(stores[3].updateOptions).toEqual([]);
   });
 
-  it("retries an interrupted migration against all current roots and clears its marker", async () => {
+  it("retries an interrupted reindex repair against all current roots and clears its marker", async () => {
     const root = await fixtureRoot();
     const physicalPath = path.join(root, "notes");
     const aliasPath = path.join(root, "notes-alias");
@@ -280,12 +276,12 @@ describe("QMD index adapter", () => {
     await Promise.all([mkdir(docsPath), mkdir(projectsPath)]);
     await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
     await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
-    existingQmdCollections = [{ name: "legacy-physical", pwd: physicalPath }];
+    existingQmdCollections = [{ name: "stale-physical", pwd: physicalPath }];
     const aliasRoot = createIndexedRoot(aliasPath, { id: "index-notes", label: "notes", kind: "notes" });
-    const legacyModel = { ...indexedModel(root, "lexical"), indexedRoots: [aliasRoot] };
+    const aliasModel = { ...indexedModel(root, "lexical"), indexedRoots: [aliasRoot] };
     updateError = new Error("simulated reindex failure");
 
-    const failed = await qmdSearchProvider.search(legacyModel, path.join(root, ".exo"), "focus");
+    const failed = await qmdSearchProvider.search(aliasModel, path.join(root, ".exo"), "focus");
     expect(failed.source).toBe("filesystem");
     expect(stores[1].updateCalls).toBe(1);
     expect(await fileExists(pendingQmdCollectionReindexPath(root))).toBe(true);
@@ -330,7 +326,6 @@ describe("QMD index adapter", () => {
       ...resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: path.join(root, "notes"),
-        EXO_PROJECT_ROOTS: "",
       }),
       indexedRoots: [first, second, punctuation, lowerCasePunctuation],
       indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
@@ -436,7 +431,7 @@ describe("QMD index adapter", () => {
     expect(removedSiblingStore.updateOptions).toEqual([]);
   });
 
-  it("reconfigures a legacy collision once before serving newly distinct roots", async () => {
+  it("reconfigures a stale collection-name collision once before serving newly distinct roots", async () => {
     const root = await fixtureRoot();
     const firstPath = path.join(root, "first");
     const secondPath = path.join(root, "second");
@@ -985,7 +980,6 @@ describe("QMD index adapter", () => {
       ...resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: path.join(root, "notes"),
-        EXO_PROJECT_ROOTS: "",
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -1144,7 +1138,6 @@ describe("QMD index adapter", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: root,
       EXO_NOTE_ROOTS: path.join(root, "notes"),
-      EXO_PROJECT_ROOTS: "",
     });
 
     const result = await qmdSearchProvider.read(model, path.join(root, ".exo"), filePath, { fromLine: 2, maxLines: 1 });
@@ -1219,7 +1212,6 @@ function indexedModel(root: string, mode: "lexical" | "semantic" | "hybrid") {
     ...resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: root,
       EXO_NOTE_ROOTS: path.join(root, "notes"),
-      EXO_PROJECT_ROOTS: "",
     }),
     indexedRoots: [createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" })],
     indexing: { enabled: true, mode, backend: "qmd" as const },

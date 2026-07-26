@@ -14,17 +14,13 @@ import {
 import { workspaceSettingsDialogFixture } from "./workspaceSettingsTestFixtures";
 
 describe("workspace settings renderer model", () => {
-  it("does not revive retired terminal settings through dialog saves", () => {
+  it("does not add retired terminal settings through dialog saves", () => {
     const current = normalizeWorkspaceSettings({
       workspaceRoot: "/workspace",
       defaultTerminalCwd: "/workspace",
       noteRoots: ["/workspace/notes"],
-      projectRoots: [],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
-      terminalHistoryLines: 24_000,
-      terminalTranscriptRetention: "days",
-      terminalTranscriptRetentionDays: 30,
     });
 
     expect(current).not.toBeNull();
@@ -195,7 +191,6 @@ describe("workspace settings renderer model", () => {
       workspaceRoot: "/workspace",
       defaultTerminalCwd: "/workspace",
       noteRoots: ["/workspace/notes"],
-      projectRoots: [],
       indexedRoots: [],
       indexMode: "off" as const,
       searchEngine: "filesystem" as const,
@@ -219,21 +214,18 @@ describe("workspace settings renderer model", () => {
     );
   });
 
-  it("uses fixed internal scrollback and ignores legacy history fields", () => {
+  it("uses fixed internal scrollback while preserving unknown forward metadata", () => {
     const settings = normalizeWorkspaceSettings({
       workspaceRoot: "/workspace",
       defaultTerminalCwd: "/workspace",
       noteRoots: ["/workspace/notes"],
-      projectRoots: [],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
-      // Old persisted settings may include both fields. Runtime bounds stay
-      // internal and neither is retained as a user preference.
-      terminalHistoryMode: "full",
-      terminalHistoryLines: 1_000_000,
-    } as Parameters<typeof normalizeWorkspaceSettings>[0] & { terminalHistoryMode: "full" });
+      futureTerminalMetadata: { retained: true },
+    });
 
     expect(settings ? resolveSettingsTerminalRuntime(settings).scrollbackLines : null).toBe(100_000);
+    expect(settings?.futureTerminalMetadata).toEqual({ retained: true });
     expect(clampNumber(Number.NaN, 10, 20)).toBe(10);
     expect(clampNumber(25, 10, 20)).toBe(20);
     expect(clampNumber(15, 10, 20)).toBe(15);
