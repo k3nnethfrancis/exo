@@ -79,8 +79,6 @@ export interface ExoCommandSearchRequest {
   maxLinesPerResult?: number;
 }
 
-export type ExoCommandShowResponse = ExoCommandOkResponse;
-export type ExoCommandOpenFileResponse = ExoCommandOkResponse;
 export type ExoCommandSearchResponse = IndexSearchResponse;
 export type ExoCommandIndexStatusResponse = IndexStatus;
 export type ExoCommandIndexSyncResponse = IndexSyncResult;

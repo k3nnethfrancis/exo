@@ -6,10 +6,3 @@ export function safeStoreSegment(value: string): string {
 
   return trimmed.replace(/[^A-Za-z0-9_.-]/g, "-").replace(/^\.+$/, "-");
 }
-
-export function safeStoreFileName(value: string): string {
-  if (value.includes("/") || value.includes("\\")) {
-    throw new Error("Store filename must not contain path separators.");
-  }
-  return safeStoreSegment(value);
-}

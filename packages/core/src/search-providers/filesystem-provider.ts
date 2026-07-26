@@ -16,7 +16,7 @@ import { searchWorkspace } from "../workspace";
 const DEFAULT_SEARCH_LIMIT = 10;
 const DEFAULT_CONTENT_LINES = 80;
 
-export const filesystemSearchProviderMetadata: SearchProviderMetadata = {
+const filesystemSearchProviderMetadata: SearchProviderMetadata = {
   id: "filesystem",
   label: "Core filesystem search",
   description: "Built-in filename, path, tag, and text search across Note Roots.",

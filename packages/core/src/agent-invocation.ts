@@ -8,13 +8,13 @@ import { DEFAULT_AGENT_INVOCATION_PROMPT } from "./agent-invocation-prompt";
 export { DEFAULT_AGENT_INVOCATION_PROMPT } from "./agent-invocation-prompt";
 export { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
 
-export const AGENT_COMMAND_PROMPT_DELIVERIES = ["stdin"] as const;
+const AGENT_COMMAND_PROMPT_DELIVERIES = ["stdin"] as const;
 export const DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY: AgentCommandPromptDelivery = "stdin";
-export const AGENT_COMMAND_CWD_POLICIES = ["workspace_root", "note_dir", "fixed"] as const;
-export const AGENT_COMMAND_ADAPTERS = ["generic", "claude-code", "codex-cli"] as const;
-export const AGENT_COMMAND_UNSUPPORTED_V1_FIELDS = ["env", "template", "promptTemplate"] as const;
+const AGENT_COMMAND_CWD_POLICIES = ["workspace_root", "note_dir", "fixed"] as const;
+const AGENT_COMMAND_ADAPTERS = ["generic", "claude-code", "codex-cli"] as const;
+const AGENT_COMMAND_UNSUPPORTED_V1_FIELDS = ["env", "template", "promptTemplate"] as const;
 export const NOTE_INVOCATION_SNAPSHOT_MAX_CHARACTERS = 24_000;
-export const AGENT_INVOCATION_PROMPT_MAX_CHARACTERS = 40_000;
+const AGENT_INVOCATION_PROMPT_MAX_CHARACTERS = 40_000;
 
 export type AgentCommandPromptDelivery = (typeof AGENT_COMMAND_PROMPT_DELIVERIES)[number];
 export type AgentCommandCwdPolicy = (typeof AGENT_COMMAND_CWD_POLICIES)[number];
@@ -137,10 +137,6 @@ export function normalizeAgentHandle(value: unknown): string | null {
   }
   const trimmed = value.trim().replace(/^@/, "").toLowerCase();
   return AGENT_HANDLE_PATTERN.test(trimmed) ? trimmed : null;
-}
-
-export function isAgentHandle(value: unknown): value is string {
-  return normalizeAgentHandle(value) === value;
 }
 
 export function normalizeAgentCommand(input: unknown, fallbackId?: string): AgentCommand | null {

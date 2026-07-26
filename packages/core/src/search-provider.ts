@@ -37,15 +37,6 @@ export interface IndexUpdateOptions {
   rootIds?: string[];
 }
 
-export interface IndexRootInput {
-  path: string;
-  id?: string;
-  label?: string;
-  kind?: IndexedRoot["kind"];
-  pattern?: string;
-  ignore?: string[];
-}
-
 export interface SearchProvider {
   metadata: SearchProviderMetadata;
   getStatus(model: WorkspaceModel, runtimeRoot: string): Promise<IndexStatus>;

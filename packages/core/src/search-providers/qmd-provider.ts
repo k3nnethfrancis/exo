@@ -79,7 +79,7 @@ class QmdCollectionConfigurationError extends Error {
   }
 }
 
-export const qmdSearchProviderMetadata: SearchProviderMetadata = {
+const qmdSearchProviderMetadata: SearchProviderMetadata = {
   id: "qmd",
   label: "QMD search",
   description: "Bundled local Markdown search provider.",
