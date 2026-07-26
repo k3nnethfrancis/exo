@@ -21,7 +21,6 @@ export type {
   PreparedGraphMaintenanceSkill,
   OntologyDiscoveryResult,
   RendererEditorDiagnostic,
-  TestAgentCommandInput,
 } from "./api/invocation-commands";
 export type { FileStatInfo, ResolvedMarkdownImage } from "./api/notes-graph";
 export type {
@@ -30,18 +29,16 @@ export type {
   TerminalGeometryRecord,
   TerminalHealthState,
   TerminalKind,
-  TerminalLaunchKind,
-  TerminalMessageResult,
   TerminalSessionInfo,
   TerminalWriteResult,
 } from "./api/terminal";
 export type {
-  WorkspaceRegistryEntry,
   WorkspaceSettingsRuntimeApplyOutcome,
   WorkspaceSettingsSaveOutcome,
   WorkspaceSettingsSection,
   WorkspaceSetupState,
 } from "./api/workspace-setup";
+export type { WorkspaceRegistryEntry } from "@exo/core";
 export type { IndexSyncStateEvent } from "./api/workspace-index";
 
 /**

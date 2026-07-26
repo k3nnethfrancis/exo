@@ -1,6 +1,5 @@
 import type {
   AgentCommand,
-  AgentCommandTrustStatus,
   InvocationActivityEvent,
   InvocationAuthorizationDecision,
   InvocationFileChange,
@@ -103,11 +102,6 @@ export interface OntologyDiscoveryResult {
   graphSnapshotId: string;
 }
 
-export interface TestAgentCommandInput {
-  commandId: string;
-  expectedFingerprint: string;
-}
-
 export interface AgentCommandContinuityStatus {
   commandId: string;
   supported: boolean;
@@ -154,12 +148,8 @@ export interface WorkspaceInvocationApi {
   getAgentInvocationAuthorization: (input: { handle: string; documentPath: string }) => Promise<AgentInvocationAuthorizationFacts>;
   prepareGraphMaintenanceSkill: (input: { documentPath: string }) => Promise<PreparedGraphMaintenanceSkill>;
   discoverOntology: () => Promise<OntologyDiscoveryResult>;
-  getAgentCommandTrust: (handle: string) => Promise<AgentCommandTrustStatus>;
-  resetAgentCommandTrust: (handle: string) => Promise<{ revoked: boolean }>;
-  getAgentCommandLaunchFacts: (commandId: string) => Promise<AgentCommandLaunchFacts>;
   getAgentCommandContinuity: (commandId: string) => Promise<AgentCommandContinuityStatus>;
   resetAgentCommandContinuity: (commandId: string) => Promise<{ cleared: number }>;
-  testAgentCommand: (input: TestAgentCommandInput) => Promise<LaunchAgentInvocationResponse>;
   configureProviderMcp: (input: ProviderMcpSetupInput) => Promise<ProviderMcpSetupResult[]>;
   getCliInstallationStatus: () => Promise<CliInstallationStatus>;
   recordRendererDiagnostic: (diagnostic: RendererEditorDiagnostic) => Promise<void>;

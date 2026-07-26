@@ -46,12 +46,8 @@ const api: DesktopApi = {
     getAgentInvocationAuthorization: (input) => invokeDesktop("workspace:get-agent-invocation-authorization", input),
     prepareGraphMaintenanceSkill: (input) => invokeDesktop("workspace:prepare-graph-maintenance-skill", input),
     discoverOntology: () => invokeDesktop("workspace:discover-ontology"),
-    getAgentCommandTrust: (handle) => invokeDesktop("workspace:get-agent-command-trust", handle),
-    resetAgentCommandTrust: (handle) => invokeDesktop("workspace:reset-agent-command-trust", handle),
-    getAgentCommandLaunchFacts: (commandId) => invokeDesktop("workspace:get-agent-command-launch-facts", commandId),
     getAgentCommandContinuity: (commandId) => invokeDesktop("workspace:get-agent-command-continuity", commandId),
     resetAgentCommandContinuity: (commandId) => invokeDesktop("workspace:reset-agent-command-continuity", commandId),
-    testAgentCommand: (input) => invokeDesktop("workspace:test-agent-command", input),
     configureProviderMcp: (input) => invokeDesktop("workspace:configure-provider-mcp", input),
     getCliInstallationStatus: () => invokeDesktop("workspace:get-cli-installation-status"),
     recordRendererDiagnostic: (diagnostic) => invokeDesktop("workspace:record-renderer-diagnostic", diagnostic),
@@ -76,7 +72,6 @@ const api: DesktopApi = {
     updateIndex: () => invokeDesktop("workspace:index-update"),
     embedIndex: () => invokeDesktop("workspace:index-embed"),
     listTree: (rootPath, options) => invokeDesktop("workspace:list-tree", rootPath, options),
-    searchNotes: (query) => invokeDesktop("workspace:search-notes", query),
     searchWorkspace: (query) => invokeDesktop("workspace:search-workspace", query),
     searchIndex: (query, options) => invokeDesktop("workspace:search-index", query, options),
     searchTag: (tag) => invokeDesktop("workspace:search-tag", tag),
@@ -133,7 +128,6 @@ const api: DesktopApi = {
     suggestTargets: (sourceFilePath, query) => invokeDesktop("notes:suggest-targets", sourceFilePath, query),
   },
   terminals: {
-    ensureDefault: () => invokeDesktop("terminals:ensure-default"),
     list: () => invokeDesktop("terminals:list"),
     create: (options) => invokeDesktop("terminals:create", options),
     read: (id, options) => invokeDesktop("terminals:read", id, options),
@@ -150,12 +144,6 @@ const api: DesktopApi = {
         callback(session);
       ipcRenderer.on("terminal:created", listener);
       return () => ipcRenderer.removeListener("terminal:created", listener);
-    },
-    onUpdated: (callback) => {
-      const listener = (_event: unknown, session: Awaited<ReturnType<DesktopApi["terminals"]["create"]>>) =>
-        callback(session);
-      ipcRenderer.on("terminal:updated", listener);
-      return () => ipcRenderer.removeListener("terminal:updated", listener);
     },
     onData: (callback) => {
       const listener = (_event: unknown, payload: Parameters<typeof callback>[0]) => callback(payload);

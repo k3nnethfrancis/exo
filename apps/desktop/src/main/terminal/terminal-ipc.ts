@@ -4,7 +4,6 @@ import { handleDesktopInvoke } from "../typed-ipc";
 export function registerTerminalIpcHandlers(
   terminalManager: TerminalManager,
 ): void {
-  handleDesktopInvoke("terminals:ensure-default", async () => terminalManager.ensureDefault());
   handleDesktopInvoke("terminals:list", async () => terminalManager.list());
   handleDesktopInvoke("terminals:create", async (_event, options) => terminalManager.create(options));
   handleDesktopInvoke("terminals:read", async (_event, id, options) => terminalManager.readTail(id, options) ?? "");

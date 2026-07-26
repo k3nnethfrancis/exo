@@ -96,14 +96,6 @@ export class TerminalManager extends EventEmitter {
     return this.sessions.get(id)?.info ?? null;
   }
 
-  async ensureDefault(): Promise<TerminalSessionInfo> {
-    const existing = this.list().find((session) => session.kind === "shell");
-    if (existing) {
-      return existing;
-    }
-    return this.create({ kind: "shell" });
-  }
-
   setDefaultCwd(cwd: string) {
     this.defaultCwd = cwd;
   }

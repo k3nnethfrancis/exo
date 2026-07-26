@@ -31,12 +31,8 @@ export interface WorkspaceIpcHandlers {
   getAgentInvocationAuthorization: WorkspaceApi["getAgentInvocationAuthorization"];
   prepareGraphMaintenanceSkill: WorkspaceApi["prepareGraphMaintenanceSkill"];
   discoverOntology: WorkspaceApi["discoverOntology"];
-  getAgentCommandTrust: WorkspaceApi["getAgentCommandTrust"];
-  resetAgentCommandTrust: WorkspaceApi["resetAgentCommandTrust"];
-  getAgentCommandLaunchFacts: WorkspaceApi["getAgentCommandLaunchFacts"];
   getAgentCommandContinuity: WorkspaceApi["getAgentCommandContinuity"];
   resetAgentCommandContinuity: WorkspaceApi["resetAgentCommandContinuity"];
-  testAgentCommand: WorkspaceApi["testAgentCommand"];
   configureProviderMcp: WorkspaceApi["configureProviderMcp"];
   getCliInstallationStatus: WorkspaceApi["getCliInstallationStatus"];
   recordRendererDiagnostic: WorkspaceApi["recordRendererDiagnostic"];
@@ -68,7 +64,6 @@ export interface WorkspaceIpcHandlers {
   saveNote: NotesApi["save"];
   saveSettings: WorkspaceApi["saveSettings"];
   searchIndex: WorkspaceApi["searchIndex"];
-  searchNotes: WorkspaceApi["searchNotes"];
   searchTag: WorkspaceApi["searchTag"];
   searchWorkspace: WorkspaceApi["searchWorkspace"];
   statNote: (filePath: string) => Promise<FileStatInfo | null>;
@@ -113,14 +108,8 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     return handlers.prepareGraphMaintenanceSkill({ documentPath });
   });
   handleDesktopInvoke("workspace:discover-ontology", async () => handlers.discoverOntology());
-  handleDesktopInvoke("workspace:get-agent-command-trust", async (_event, handle) => handlers.getAgentCommandTrust(handle));
-  handleDesktopInvoke("workspace:reset-agent-command-trust", async (_event, handle) => handlers.resetAgentCommandTrust(handle));
-  handleDesktopInvoke("workspace:get-agent-command-launch-facts", async (_event, commandId) =>
-    handlers.getAgentCommandLaunchFacts(commandId),
-  );
   handleDesktopInvoke("workspace:get-agent-command-continuity", async (_event, commandId) => handlers.getAgentCommandContinuity(commandId));
   handleDesktopInvoke("workspace:reset-agent-command-continuity", async (_event, commandId) => handlers.resetAgentCommandContinuity(commandId));
-  handleDesktopInvoke("workspace:test-agent-command", async (_event, input) => handlers.testAgentCommand(input));
   handleDesktopInvoke("workspace:configure-provider-mcp", async (_event, input) => handlers.configureProviderMcp(input));
   handleDesktopInvoke("workspace:get-cli-installation-status", async () => handlers.getCliInstallationStatus());
   handleDesktopInvoke("workspace:record-renderer-diagnostic", async (_event, diagnostic) =>
@@ -186,7 +175,6 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     }
     return handlers.inspectContentScope(resolvedPath);
   });
-  handleDesktopInvoke("workspace:search-notes", async (_event, query) => handlers.searchNotes(query));
   handleDesktopInvoke("workspace:search-workspace", async (_event, query) => handlers.searchWorkspace(query));
   handleDesktopInvoke(
     "workspace:search-index",

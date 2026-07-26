@@ -18,7 +18,6 @@ export interface WorkspaceIndexApi {
   syncIndex: () => Promise<IndexSyncResult>;
   updateIndex: () => Promise<IndexStatus>;
   embedIndex: () => Promise<IndexStatus>;
-  searchNotes: (query: string) => Promise<SearchResult[]>;
   searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
   searchIndex: (query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) => Promise<IndexSearchResponse>;
   searchTag: (tag: string) => Promise<SearchResult[]>;

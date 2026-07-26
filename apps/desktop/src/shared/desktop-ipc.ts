@@ -25,12 +25,8 @@ export interface DesktopInvokeHandlers {
   "workspace:get-agent-invocation-authorization": WorkspaceApi["getAgentInvocationAuthorization"];
   "workspace:prepare-graph-maintenance-skill": WorkspaceApi["prepareGraphMaintenanceSkill"];
   "workspace:discover-ontology": WorkspaceApi["discoverOntology"];
-  "workspace:get-agent-command-trust": WorkspaceApi["getAgentCommandTrust"];
-  "workspace:reset-agent-command-trust": WorkspaceApi["resetAgentCommandTrust"];
-  "workspace:get-agent-command-launch-facts": WorkspaceApi["getAgentCommandLaunchFacts"];
   "workspace:get-agent-command-continuity": WorkspaceApi["getAgentCommandContinuity"];
   "workspace:reset-agent-command-continuity": WorkspaceApi["resetAgentCommandContinuity"];
-  "workspace:test-agent-command": WorkspaceApi["testAgentCommand"];
   "workspace:configure-provider-mcp": WorkspaceApi["configureProviderMcp"];
   "workspace:get-cli-installation-status": WorkspaceApi["getCliInstallationStatus"];
   "workspace:record-renderer-diagnostic": WorkspaceApi["recordRendererDiagnostic"];
@@ -45,7 +41,6 @@ export interface DesktopInvokeHandlers {
   "workspace:index-update": WorkspaceApi["updateIndex"];
   "workspace:index-embed": WorkspaceApi["embedIndex"];
   "workspace:list-tree": WorkspaceApi["listTree"];
-  "workspace:search-notes": WorkspaceApi["searchNotes"];
   "workspace:search-workspace": WorkspaceApi["searchWorkspace"];
   "workspace:search-index": WorkspaceApi["searchIndex"];
   "workspace:search-tag": WorkspaceApi["searchTag"];
@@ -67,7 +62,6 @@ export interface DesktopInvokeHandlers {
   "notes:resolve-markdown-image": NotesApi["resolveMarkdownImage"];
   "notes:ensure-target": NotesApi["ensureTarget"];
   "notes:suggest-targets": NotesApi["suggestTargets"];
-  "terminals:ensure-default": TerminalsApi["ensureDefault"];
   "terminals:list": TerminalsApi["list"];
   "terminals:create": TerminalsApi["create"];
   "terminals:read": TerminalsApi["read"];
@@ -89,7 +83,6 @@ export interface DesktopEventPayloads {
   "command:open-file": string;
   "command:open-settings": { section: WorkspaceSettingsSection };
   "terminal:created": TerminalSessionInfo;
-  "terminal:updated": TerminalSessionInfo;
   "terminal:data": TerminalDataEvent;
   "terminal:exit": { id: string; exitCode?: number };
 }

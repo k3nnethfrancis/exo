@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { TerminalLaunchKind, TerminalSessionInfo } from "../../../shared/api";
+import type { TerminalKind, TerminalSessionInfo } from "../../../shared/api";
 import type { TerminalHydrationReason } from "../components/terminalHydration";
 import { writeTerminalData } from "../components/terminalRegistry";
 import { terminalSessionsEqual } from "../terminalSessions";
@@ -111,19 +111,6 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     const removeCreatedListener = window.exo.terminals.onCreated((session) => {
       adoptExternalSessions([session], { activateLatest: true });
     });
-    const removeUpdatedListener = window.exo.terminals.onUpdated((session) => {
-      const previousSession = sessionsRef.current.find((candidate) => candidate.id === session.id);
-      const nextSessions = replaceTerminalSession(sessionsRef.current, session);
-      sessionsRef.current = nextSessions;
-      setSessions(nextSessions);
-      if (
-        activeTerminalIdRef.current === session.id &&
-        previousSession &&
-        session.attachGeneration > previousSession.attachGeneration
-      ) {
-        void hydrateTerminal(session.id, { force: true });
-      }
-    });
     const syncInterval = window.setInterval(() => {
       void window.exo.terminals.list().then((nextSessions) => {
         const previousSessions = syncTerminalSessions(nextSessions);
@@ -150,7 +137,6 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
       removeDataListener();
       removeExitListener();
       removeCreatedListener();
-      removeUpdatedListener();
       window.clearInterval(syncInterval);
     };
   }, []);
@@ -256,7 +242,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     setHydratingTerminalIds((current) => new Set([...current].filter((id) => activeIds.has(id))));
   }
 
-  async function createTerminal(terminalKind: TerminalLaunchKind, cwd?: string): Promise<TerminalSessionInfo> {
+  async function createTerminal(terminalKind: TerminalKind, cwd?: string): Promise<TerminalSessionInfo> {
     const session = await window.exo.terminals.create({ terminalKind, cwd });
     const nextSessions = sessionsRef.current.some((existing) => existing.id === session.id)
       ? sessionsRef.current
@@ -381,13 +367,6 @@ function mergeSessions(current: TerminalSessionInfo[], nextSessions: TerminalSes
     }
   }
   return next;
-}
-
-function replaceTerminalSession(current: TerminalSessionInfo[], session: TerminalSessionInfo): TerminalSessionInfo[] {
-  if (!current.some((existing) => existing.id === session.id)) {
-    return [...current, session];
-  }
-  return current.map((existing) => (existing.id === session.id ? session : existing));
 }
 
 function pruneRecordToKeys<T>(record: Record<string, T>, keys: Set<string>): Record<string, T> {

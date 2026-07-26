@@ -21,7 +21,6 @@ import {
   resolveWorkspaceModel,
   saveWorkspaceDocument,
   workspaceModelFromSettings,
-  searchNotes,
   writeOnboardingStateStore,
   type OnboardingStateStore,
   type OntologyReviewGuard,
@@ -209,9 +208,6 @@ function createFirstRunWorkspaceModel(): WorkspaceModel {
 function broadcastTerminalData() {
   terminalManager.on("created", (session) => {
     sendToRenderer("terminal:created", session);
-  });
-  terminalManager.on("updated", (session) => {
-    sendToRenderer("terminal:updated", session);
   });
   terminalManager.on("data", (event) => {
     sendToRenderer("terminal:data", event);
@@ -425,12 +421,8 @@ function registerIpcHandlers() {
         ontologyDiscoveryInFlight = false;
       }
     },
-    getAgentCommandTrust: (handle) => invocationRunner.getCommandTrust(handle),
-    resetAgentCommandTrust: (handle) => invocationRunner.resetCommandTrust(handle),
-    getAgentCommandLaunchFacts: (commandId) => invocationRunner.getCommandLaunchFacts(commandId),
     getAgentCommandContinuity: (commandId) => invocationRunner.getCommandContinuityStatus(commandId),
     resetAgentCommandContinuity: (commandId) => invocationRunner.resetCommandContinuity(commandId),
-    testAgentCommand: (input) => invocationRunner.testCommand(input.commandId, input.expectedFingerprint),
     configureProviderMcp,
     getCliInstallationStatus: () => inspectCliInstallation({ sourceProjectRoot }),
     recordRendererDiagnostic: async (diagnostic) => {
@@ -475,7 +467,6 @@ function registerIpcHandlers() {
     },
     saveSettings,
     searchIndex: (query, options) => indexingService.search(query, options),
-    searchNotes: (query) => searchNotes(workspaceModel, query),
     searchTag: (tag) => workspaceNotesService.searchTag(tag),
     searchWorkspace: (query) => workspaceNotesService.searchFilenames(query),
     statNote: async (filePath) => {

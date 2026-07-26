@@ -5,7 +5,7 @@ import type {
   OntologyReviewGuard,
   OntologyReviewState,
   WorkspaceModel,
-  WorkspaceSettings,
+  WorkspaceRegistryEntry,
   WorkspaceSettingsSaveRequest,
   WorkspaceSettingsSnapshot,
 } from "@exo/core";
@@ -18,14 +18,6 @@ export interface WorkspaceSetupState {
   onboardingComplete: boolean;
   onboarding: OnboardingStateStore;
   settingsPath: string;
-}
-
-export interface WorkspaceRegistryEntry {
-  id: string;
-  label: string;
-  notesFolder: string;
-  settings: WorkspaceSettings;
-  updatedAt: string;
 }
 
 export type WorkspaceSettingsRuntimeApplyOutcome =

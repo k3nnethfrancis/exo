@@ -13,12 +13,38 @@ describe("TerminalManager direct PTY", () => {
     const manager = new TerminalManager(root, 1_024, {}, factory);
     const terminal = await manager.create({ terminalKind: "shell", cwd: root });
 
-    await manager.write(terminal.id, "hello world\u001b[?1000h");
+    await expect(manager.write(terminal.id, "hello world\u001b[?1000h")).resolves.toEqual({
+      ok: true,
+      delivery: "sent",
+      writeId: 1,
+    });
+    await expect(manager.write("missing", "ignored")).resolves.toEqual({
+      ok: false,
+      delivery: "not-found",
+    });
     factory.process.emitData(`${"a".repeat(16)}${"b".repeat(1_024)}`);
 
     expect(factory.process.writes).toEqual(["hello world\u001b[?1000h"]);
     expect(manager.readTail(terminal.id)).toBe("b".repeat(1_024));
     expect(terminal).toMatchObject({ kind: "shell", cwd: root, status: "running" });
+  });
+
+  it("reports direct message delivery through the shared write result", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-terminal-manager-"));
+    const factory = new FakeTerminalProcessFactory();
+    const manager = new TerminalManager(root, 1_024, {}, factory);
+    const terminal = await manager.create({ terminalKind: "shell", cwd: root });
+
+    await expect(manager.sendMessage(terminal.id, "hello", false)).resolves.toEqual({
+      ok: true,
+      delivery: "sent",
+      writeId: 1,
+    });
+    await expect(manager.sendMessage("missing", "ignored", false)).resolves.toEqual({
+      ok: false,
+      delivery: "not-found",
+    });
+    expect(factory.process.writes).toEqual(["hello"]);
   });
 
   it("uses the immutable invocation Workspace for agent terminal environment", async () => {
