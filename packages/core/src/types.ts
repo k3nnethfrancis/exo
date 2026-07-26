@@ -17,12 +17,12 @@ export interface WorkspaceModel {
   noteRoots: NoteRoot[];
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
-  /** The user's chosen search engine. Undefined preserves legacy model callers. */
+  /** The user's chosen search engine. Undefined derives selection from indexing. */
   searchEngine?: SearchEngine;
 }
 
 export interface WorkspaceSettings {
-  /** Forward-compatible persisted settings are retained unless explicitly retired. */
+  /** Forward-compatible persisted settings are retained except explicit unsupported fields. */
   [key: string]: unknown;
   workspaceRoot: string;
   defaultTerminalCwd: string;

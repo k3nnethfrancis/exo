@@ -26,22 +26,11 @@ test("keeps an aggregate-scale synthetic vault inside its authorized Note Root",
         workspaceRoot,
         defaultTerminalCwd: workspaceRoot,
         noteRoots: [fixturePaths.authorizedRoot],
-        projectRoots: [fixturePaths.retiredRoot],
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         searchEngine: "filesystem",
       };
       await writeFile(settingsPath, JSON.stringify(settings, null, 2), "utf8");
-      await writeFile(path.join(path.dirname(settingsPath), "workspace-registry.json"), JSON.stringify({
-        activeWorkspaceId: "synthetic-workspace",
-        workspaces: [{
-          id: "synthetic-workspace",
-          label: "synthetic-workspace",
-          notesFolder: fixturePaths.authorizedRoot,
-          settings,
-          updatedAt: "2026-07-19T00:00:00.000Z",
-        }],
-      }, null, 2), "utf8");
     },
   });
   const fixturePaths = requireFixturePaths(paths);
@@ -54,8 +43,7 @@ test("keeps an aggregate-scale synthetic vault inside its authorized Note Root",
 
     const model = await fixture.page.evaluate(() => window.exo.workspace.getModel());
     expect(model.noteRoots.map((root) => root.path)).toEqual([fixturePaths.authorizedRoot]);
-    expect(model).not.toHaveProperty("projectRoots");
-    await expect(fixture.page.getByText("retired-note", { exact: false })).toHaveCount(0);
+    await expect(fixture.page.getByText("excluded-note", { exact: false })).toHaveCount(0);
 
     const authorizedTree = await fixture.page.evaluate(
       ({ authorizedRoot }) => window.exo.workspace.listTree(authorizedRoot, { markdownOnly: true, maxDepth: 1 }),
@@ -116,11 +104,7 @@ test("keeps an aggregate-scale synthetic vault inside its authorized Note Root",
     }
 
     const normalizedSettings = JSON.parse(await readFile(fixture.settingsPath, "utf8")) as Record<string, unknown>;
-    const normalizedRegistry = JSON.parse(
-      await readFile(path.join(path.dirname(fixture.settingsPath), "workspace-registry.json"), "utf8"),
-    ) as { workspaces: Array<{ settings: Record<string, unknown> }> };
-    expect(normalizedSettings).not.toHaveProperty("projectRoots");
-    expect(normalizedRegistry.workspaces[0]?.settings).not.toHaveProperty("projectRoots");
+    expect(normalizedSettings.noteRoots).toEqual([fixturePaths.authorizedRoot]);
   } finally {
     await fixture.cleanup();
   }
@@ -156,10 +140,10 @@ async function containmentRefusals(page: Page, paths: ContainmentFixturePaths): 
       symlinkDirectoryRead: await errorFrom(() => window.exo.notes.read(`${fixturePaths.symlinkDirectory}/outside-note.md`)),
       symlinkDirectoryWrite: await errorFrom(() => window.exo.workspace.createFile(`${fixturePaths.symlinkDirectory}/created.md`)),
       outsideWrite: await errorFrom(() => window.exo.workspace.createFile(`${fixturePaths.outsideRoot}/created.md`)),
-      retiredRead: await errorFrom(() => window.exo.notes.read(fixturePaths.retiredNote)),
-      retiredWrite: await errorFrom(() => window.exo.workspace.createFile(`${fixturePaths.retiredRoot}/created.md`)),
-      retiredDelete: await errorFrom(() => window.exo.workspace.deletePath(fixturePaths.retiredNote)),
-      retiredTree: await errorFrom(() => window.exo.workspace.listTree(fixturePaths.retiredRoot, { markdownOnly: true })),
+      excludedRead: await errorFrom(() => window.exo.notes.read(fixturePaths.excludedNote)),
+      excludedWrite: await errorFrom(() => window.exo.workspace.createFile(`${fixturePaths.excludedRoot}/created.md`)),
+      excludedDelete: await errorFrom(() => window.exo.workspace.deletePath(fixturePaths.excludedNote)),
+      excludedTree: await errorFrom(() => window.exo.workspace.listTree(fixturePaths.excludedRoot, { markdownOnly: true })),
       outsideTree: await errorFrom(() => window.exo.workspace.listTree(fixturePaths.outsideRoot, { markdownOnly: true })),
       symlinkTree: await errorFrom(() => window.exo.workspace.listTree(fixturePaths.symlinkDirectory, { markdownOnly: true })),
       escapedWikilink: await errorFrom(() => window.exo.notes.ensureTarget(fixturePaths.sourceNote, "../../outside-root/wikilink")),

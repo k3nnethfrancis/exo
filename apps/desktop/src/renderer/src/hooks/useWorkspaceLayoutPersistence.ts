@@ -51,11 +51,12 @@ export function createWorkspaceCanvasSnapshot(input: Pick<UseWorkspaceLayoutPers
   };
 }
 
-/** Restore a safe mixed-pane canvas; old utility leaves without stable ids are discarded. */
+/** Restore the current persisted canvas format; live terminal leaves are discarded. */
 export function decodePersistedWorkspaceCanvas(layout: unknown): WorkspaceCanvasLayout | null {
   if (!layout || typeof layout !== "object") return null;
-  const candidate = layout as { canvas?: unknown; editorTree?: unknown; terminalTree?: unknown; sidebarCollapsed?: unknown; sidebarWidth?: unknown; utilityWidth?: unknown };
-  const canvas = decodeWorkspaceCanvasLayout(candidate.canvas ?? candidate.editorTree ?? candidate.terminalTree);
+  const candidate = layout as { version?: unknown; canvas?: unknown; sidebarCollapsed?: unknown; sidebarWidth?: unknown; utilityWidth?: unknown };
+  if (candidate.version !== 3 || !candidate.canvas) return null;
+  const canvas = decodeWorkspaceCanvasLayout(candidate.canvas);
   return {
     version: 3,
     canvas,

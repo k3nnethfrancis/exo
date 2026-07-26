@@ -461,7 +461,7 @@ export const THEME_FAMILIES: ExoThemeFamily[] = [
   {
     id: "exo-solar",
     label: "Exo Solar",
-    description: "Warm legacy Exo palette with Solarized-like light surfaces.",
+    description: "Warm classic Exo palette with Solarized-like light surfaces.",
     variants: {
       light: solarLight,
       dark: solarDark,

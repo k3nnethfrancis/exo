@@ -79,7 +79,6 @@ describe("QMD index adapter", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: root,
       EXO_NOTE_ROOTS: path.join(root, "notes"),
-      EXO_PROJECT_ROOTS: "",
     });
 
     const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
@@ -106,7 +105,6 @@ describe("QMD index adapter", () => {
       ...resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: [path.join(root, "notes"), docsPath, extraPath].join(path.delimiter),
-        EXO_PROJECT_ROOTS: "",
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -145,7 +143,6 @@ describe("QMD index adapter", () => {
       ...resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: [path.join(root, "notes"), docsPath].join(path.delimiter),
-        EXO_PROJECT_ROOTS: "",
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -176,7 +173,6 @@ describe("QMD index adapter", () => {
       ...resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: path.join(root, "notes"),
-        EXO_PROJECT_ROOTS: "",
       }),
       indexedRoots: [indexedRoot],
       indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
@@ -314,7 +310,6 @@ describe("QMD index adapter", () => {
       ...resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: path.join(root, "notes"),
-        EXO_PROJECT_ROOTS: "",
       }),
       indexedRoots: [first, second, punctuation, lowerCasePunctuation],
       indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
@@ -969,7 +964,6 @@ describe("QMD index adapter", () => {
       ...resolveWorkspaceModel({
         EXO_WORKSPACE_ROOT: root,
         EXO_NOTE_ROOTS: path.join(root, "notes"),
-        EXO_PROJECT_ROOTS: "",
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -1128,7 +1122,6 @@ describe("QMD index adapter", () => {
     const model = resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: root,
       EXO_NOTE_ROOTS: path.join(root, "notes"),
-      EXO_PROJECT_ROOTS: "",
     });
 
     const result = await qmdSearchProvider.read(model, path.join(root, ".exo"), filePath, { fromLine: 2, maxLines: 1 });
@@ -1203,7 +1196,6 @@ function indexedModel(root: string, mode: "lexical" | "semantic" | "hybrid") {
     ...resolveWorkspaceModel({
       EXO_WORKSPACE_ROOT: root,
       EXO_NOTE_ROOTS: path.join(root, "notes"),
-      EXO_PROJECT_ROOTS: "",
     }),
     indexedRoots: [createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" })],
     indexing: { enabled: true, mode, backend: "qmd" as const },

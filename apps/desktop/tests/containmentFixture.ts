@@ -10,9 +10,9 @@ export const CONTAINMENT_FIXTURE_SHAPE = {
 export interface ContainmentFixturePaths {
   authorizedRoot: string;
   outsideRoot: string;
-  retiredRoot: string;
+  excludedRoot: string;
   outsideNote: string;
-  retiredNote: string;
+  excludedNote: string;
   symlinkDirectory: string;
   symlinkFile: string;
   sourceNote: string;
@@ -29,11 +29,11 @@ export async function createContainmentFixture(workspaceRoot: string): Promise<C
   await rm(workspaceRoot, { recursive: true, force: true });
   const authorizedRoot = path.join(workspaceRoot, "authorized-root");
   const outsideRoot = path.join(workspaceRoot, "outside-root");
-  const retiredRoot = path.join(workspaceRoot, "retired-root");
+  const excludedRoot = path.join(workspaceRoot, "excluded-root");
   await Promise.all([
     mkdir(authorizedRoot, { recursive: true }),
     mkdir(outsideRoot, { recursive: true }),
-    mkdir(retiredRoot, { recursive: true }),
+    mkdir(excludedRoot, { recursive: true }),
   ]);
 
   const directories: string[] = [];
@@ -74,10 +74,10 @@ export async function createContainmentFixture(workspaceRoot: string): Promise<C
   await Promise.all(writes);
 
   const outsideNote = path.join(outsideRoot, "outside-note.md");
-  const retiredNote = path.join(retiredRoot, "retired-note.md");
+  const excludedNote = path.join(excludedRoot, "excluded-note.md");
   await Promise.all([
     writeFile(outsideNote, "# Outside Synthetic Note\n", "utf8"),
-    writeFile(retiredNote, "# Retired Synthetic Note\n", "utf8"),
+    writeFile(excludedNote, "# Excluded Synthetic Note\n", "utf8"),
   ]);
   const symlinkDirectory = path.join(authorizedRoot, "linked-outside");
   const symlinkFile = path.join(authorizedRoot, "linked-outside-note.md");
@@ -87,9 +87,9 @@ export async function createContainmentFixture(workspaceRoot: string): Promise<C
   return {
     authorizedRoot,
     outsideRoot,
-    retiredRoot,
+    excludedRoot,
     outsideNote,
-    retiredNote,
+    excludedNote,
     symlinkDirectory,
     symlinkFile,
     sourceNote: path.join(authorizedRoot, "synthetic-note-0000.md"),

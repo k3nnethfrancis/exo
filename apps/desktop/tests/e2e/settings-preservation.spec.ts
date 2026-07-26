@@ -106,7 +106,6 @@ test("an explicit empty Commands list stays empty and does not offer @claude", a
         workspaceRoot,
         defaultTerminalCwd: workspaceRoot,
         noteRoots: [path.join(workspaceRoot, "notes/test-notes")],
-        projectRoots: [],
         agentCommands: [],
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
@@ -145,7 +144,6 @@ test("a disabled Claude command stays unavailable to inline completion", async (
         workspaceRoot,
         defaultTerminalCwd: workspaceRoot,
         noteRoots: [path.join(workspaceRoot, "notes/test-notes")],
-        projectRoots: [],
         agentCommands: [{
           id: "claude",
           label: "Claude",

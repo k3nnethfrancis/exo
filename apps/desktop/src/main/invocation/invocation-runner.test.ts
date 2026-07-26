@@ -1583,7 +1583,6 @@ function settings(workspaceRoot: string, command: ReturnType<typeof createDefaul
     workspaceRoot,
     defaultTerminalCwd: workspaceRoot,
     noteRoots: [workspaceRoot],
-    projectRoots: [],
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     agentCommands: [command],

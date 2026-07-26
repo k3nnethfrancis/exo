@@ -80,7 +80,7 @@ describe("workspace settings registry", () => {
   });
 
   it("migrates persisted duplicate Indexed Root paths once without rewriting stable settings", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-indexed-root-dedupe-migration-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-indexed-root-dedupe-repair-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };
     const notesFolder = path.join(userDataPath, "notes");
     const pathOne = path.join(notesFolder, "path-one");
@@ -152,7 +152,7 @@ describe("workspace settings registry", () => {
     }
   });
 
-  it("migrates legacy active QMD settings and off settings to an explicit search engine", () => {
+  it("derives a search engine when one is not explicitly configured", () => {
     const base = {
       workspaceRoot: "/tmp/exo-search-engine",
       defaultTerminalCwd: "/tmp/exo-search-engine",
@@ -692,7 +692,7 @@ describe("workspace settings registry", () => {
     }
   });
 
-  it("retains distinct Workspace identities that collided under a retired hash", async () => {
+  it("retains distinct Workspace identities that collide under a short hash", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-workspace-identity-collision-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };
 

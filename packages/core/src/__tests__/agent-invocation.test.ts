@@ -318,10 +318,10 @@ describe("agent invocation model", () => {
     expect(snapshot).toMatch(/\[\.\.\. \d+ characters omitted after snapshot; read the working note from disk for full content \.\.\.\]$/);
   });
 
-  it("bounds a legacy no-protocol snapshot around the last matching mention", () => {
+  it("bounds an untagged no-protocol snapshot around the last matching mention", () => {
     const body = `${"a".repeat(45_000)}\nLEGACY_NEAR @claude explain this\n${"b".repeat(45_000)}`;
     const prompt = formatNoteInvocationPrompt({
-      documentPath: "/workspace/notes/legacy.md",
+      documentPath: "/workspace/notes/untagged.md",
       mentionText: "@claude",
       message: "Explain this.",
       body,

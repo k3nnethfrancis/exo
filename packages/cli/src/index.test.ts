@@ -75,7 +75,6 @@ describe("minimal Exo operator CLI", () => {
       ...process.env,
       EXO_WORKSPACE_ROOT: workspaceRoot,
       EXO_NOTE_ROOTS: workspaceRoot,
-      EXO_PROJECT_ROOTS: "",
     };
 
     try {
@@ -151,7 +150,6 @@ describe("minimal Exo operator CLI", () => {
       ...process.env,
       EXO_WORKSPACE_ROOT: workspaceRoot,
       EXO_NOTE_ROOTS: noteRoot,
-      EXO_PROJECT_ROOTS: "",
       EXO_USER_DATA_PATH: path.join(workspaceRoot, "user-data"),
     };
     let discoveredRuntimeRoot = "";
@@ -172,7 +170,6 @@ describe("minimal Exo operator CLI", () => {
       expect(await runCli(["node", "exo", "search", "local-first"], options)).toBe(0);
 
       expect(output).toContain('"available": false');
-      expect(output).not.toContain("projectRoots");
       expect(output).toContain("orientation.md");
       expect(output).toContain('"path"');
       expect(discoveredRuntimeRoot).toBe(path.join(workspaceRoot, ".exo"));

@@ -191,7 +191,6 @@ describe("workspace settings renderer model", () => {
       workspaceRoot: "/workspace",
       defaultTerminalCwd: "/workspace",
       noteRoots: ["/workspace/notes"],
-      projectRoots: [],
       indexedRoots: [],
       indexMode: "off" as const,
       searchEngine: "filesystem" as const,

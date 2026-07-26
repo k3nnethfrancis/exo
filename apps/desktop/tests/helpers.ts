@@ -99,7 +99,6 @@ async function launchExoFixtureForJourney(
   const workspaceEnv = configured
     ? {
         EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
-        EXO_PROJECT_ROOTS: path.join(workspaceRoot, "projects/sample-project"),
       }
     : {};
 
@@ -125,7 +124,6 @@ async function launchExoFixtureForJourney(
     delete launchEnv.EXO_WORKSPACE_ROOT;
     delete launchEnv.EXO_DEFAULT_TERMINAL_CWD;
     delete launchEnv.EXO_NOTE_ROOTS;
-    delete launchEnv.EXO_PROJECT_ROOTS;
   }
   if (options?.runtimeRootEnv === false) {
     delete launchEnv.EXO_RUNTIME_ROOT;
@@ -253,7 +251,6 @@ async function relaunchExoFixtureForJourney(
     HOME: previous.homeRoot,
     ...(configured ? {
       EXO_NOTE_ROOTS: path.join(previous.workspaceRoot, "notes/test-notes"),
-      EXO_PROJECT_ROOTS: path.join(previous.workspaceRoot, "projects/sample-project"),
     } : {}),
     EXO_SHELL: "/bin/sh",
     EXO_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
@@ -265,7 +262,6 @@ async function relaunchExoFixtureForJourney(
     delete launchEnv.EXO_WORKSPACE_ROOT;
     delete launchEnv.EXO_DEFAULT_TERMINAL_CWD;
     delete launchEnv.EXO_NOTE_ROOTS;
-    delete launchEnv.EXO_PROJECT_ROOTS;
   }
   if (options?.runtimeRootEnv === false) {
     delete launchEnv.EXO_RUNTIME_ROOT;
