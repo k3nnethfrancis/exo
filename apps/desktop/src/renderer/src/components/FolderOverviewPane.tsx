@@ -71,13 +71,13 @@ export function FolderOverviewPane({ directoryPath, onOpenFolder, onOpenFile, on
         <div>
           <div className="folder-overview__eyebrow"><Folder size={14} /> Folder</div>
           <h1>{title}</h1>
-          {loadedOverview ? <p>{loadedOverview.indexExists ? "A user-authored folder index grounds this overview." : "This folder has no index yet. Viewing it has not changed your files."}</p> : null}
+          {loadedOverview ? <p>{loadedOverview.indexExists ? "A user-authored Folder Note grounds this overview." : "This folder has no Folder Note yet. Viewing it has not changed your files."}</p> : null}
         </div>
         <div className="folder-overview__actions">
           {loadedOverview ? loadedOverview.indexExists ? (
-            <button onClick={() => onOpenFile(loadedOverview.indexPath)} type="button">Open index</button>
+            <button onClick={() => onOpenFile(loadedOverview.indexPath)} type="button">Open Folder Note</button>
           ) : (
-            <button onClick={() => void createIndex()} type="button"><Plus size={14} /> Create index</button>
+            <button onClick={() => void createIndex()} type="button"><Plus size={14} /> Add Folder Note</button>
           ) : null}
           <button aria-label="Close folder overview" className="folder-overview__close" onClick={onClose} type="button">×</button>
         </div>
@@ -110,7 +110,7 @@ export function FolderOverviewPane({ directoryPath, onOpenFolder, onOpenFile, on
             </div>
           ) : <p className="folder-overview__empty">{
             !loadedOverview.indexExists
-              ? "Create an index to give this folder its own links and context."
+              ? "Add a Folder Note to give this folder its own links and context."
               : graphStatus === "error"
                 ? "Local context is unavailable."
                 : graphStatus === "ready"

@@ -3646,6 +3646,54 @@ select.dialog-card__input {
   font-size: 12px;
 }
 
+.onboarding-scope-options {
+  display: grid;
+  gap: 8px;
+}
+
+.onboarding-scope-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.onboarding-scope-option:hover,
+.onboarding-scope-option--selected {
+  border-color: var(--surface-border-strong);
+  background: var(--surface-3);
+}
+
+.onboarding-scope-option--selected {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.onboarding-scope-option > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.onboarding-scope-option strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.onboarding-scope-option small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
 .dialog-check {
   display: flex;
   align-items: center;

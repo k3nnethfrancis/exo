@@ -14,11 +14,13 @@ export interface UseWorkspaceTreesOptions {
 export function useWorkspaceTrees(options: UseWorkspaceTreesOptions) {
   const [noteTrees, setNoteTrees] = useState<Record<string, TreeNode[]>>({});
   const loadedTreeDirectoriesRef = useRef<Set<string>>(new Set());
+  const excludedPathsRef = useRef<string[]>([]);
 
   function replaceTreesForModel(
     model: WorkspaceModel,
     nextNoteTrees: Record<string, TreeNode[]>,
   ): void {
+    excludedPathsRef.current = model.contentPolicy?.excludedPaths ?? [];
     setNoteTrees(nextNoteTrees);
     loadedTreeDirectoriesRef.current = loadedRootKeys(model);
   }
@@ -42,7 +44,7 @@ export function useWorkspaceTrees(options: UseWorkspaceTreesOptions) {
     const children = await window.exo.workspace.listTree(directoryPath, {
       markdownOnly: true,
       maxDepth: 1,
-      includeEmptyDirectories: true,
+      excludedPaths: excludedPathsRef.current,
     });
     setNoteTrees((current) => replaceTreeChildrenInRoots(current, directoryPath, children));
   }
@@ -62,7 +64,11 @@ export async function loadInitialTrees(
   const nextNoteTrees = await Promise.all(
     model.noteRoots.map(
       async (root) =>
-        [root.path, await window.exo.workspace.listTree(root.path, { markdownOnly: true, maxDepth: options.noteTreeMaxDepth, includeEmptyDirectories: true })] as const,
+        [root.path, await window.exo.workspace.listTree(root.path, {
+          markdownOnly: true,
+          maxDepth: options.noteTreeMaxDepth,
+          excludedPaths: model.contentPolicy?.excludedPaths ?? [],
+        })] as const,
     ),
   );
 

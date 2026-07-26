@@ -15,16 +15,11 @@ playwright-report/
 .exo-dev/
 .env
 .env.*.local
-!.env.example
 
-# Exo publishes provider-neutral skills in /skills. These narrow compatibility
-# pointers are public; all other Claude/Codex harness state is local.
-/.claude/*
-!/.claude/skills
-/.codex/*
-!/.codex/skills/
-!/.codex/skills/graph-system-stability
-!/.codex/skills/terminal-stability
+# Provider configuration is personal. Exo's reusable public guidance lives in
+# /skills and AGENTS.md instead.
+/.claude/
+/.codex/
 
 .cursor/
 .vscode/

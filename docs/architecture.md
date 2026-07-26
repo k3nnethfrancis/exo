@@ -1,236 +1,161 @@
-# Exo Architecture
+# Architecture
 
-Last updated: 2026-07-24
+Exo is a local Electron application over user-owned Markdown. This document is
+the technical map for contributors: follow the boundaries below rather than
+adding convenience paths around them.
 
-Exo is a local, user-owned Markdown exocortex with modular, tunable search, inline agent invocation, and graph management skills.
+## Read in this order
 
-This document describes the shipped system boundaries. Product planning, bugs,
-and release work are tracked in GitHub Issues and pull requests; historical
-work does not define current behavior.
+1. [`../README.md`](../README.md) for the supported product surface.
+2. [`glossary.md`](glossary.md) for product language.
+3. [`note-root-formats.md`](note-root-formats.md) and
+   [`knowledge-graph.md`](knowledge-graph.md) for the canonical data model.
+4. This document for package ownership.
+5. The closest `AGENTS.md`, source module, and focused test before changing a
+   subsystem.
 
-## Product substrate
-
-- Markdown and frontmatter under explicit Note Roots are canonical user data.
-- Local Markdown image targets stay inside their source Note Root. Relative targets resolve from the source Note's folder; root-relative targets use the nearest source ancestor containing an existing regular file, with the Note Root as the final fallback. Remote and `file:` targets remain disabled.
-- Note Roots are the sole Exo-authorized filesystem surface; explicit Command cwd choices do not create another root class.
-- `.exo/` contains derived indexes, invocation/review records, artifacts, caches, and provenance references—not canonical knowledge. When the Workspace root is in Git, it must be ignored; Exo warns rather than rewriting `.gitignore`.
-- One Workspace Canvas hosts Note, Terminal, Preview, Graph, and Diff panes.
-- One focused Connections surface exposes Outline, Links, Graph, and earned Activity.
-
-## Folder structure and indexes
-
-The current Folder model is:
-
-- A Folder path gives each Note a primary structural home.
-- An optional user-owned `index.md` is the Folder Index. It may contain the Folder's title, description, frontmatter/properties, links, typed relationships, and organization guidance.
-- Double-clicking a Folder opens a Folder Overview composed from the Folder Index when present plus derived children and local graph context.
-- The Explorer will hide `index.md` only as a duplicate child row. The underlying file will remain ordinary, revealable, editable Markdown.
-- Viewing a Folder never writes to it. The Overview provides the explicit authoring action that may create `index.md`; no create-on-navigation behavior is implied here.
-- Folder defaults and the nearest Folder Index chain are inherited guidance, not automatic child-note mutations. Explicit Note properties override defaults.
-- Tags and typed relationships express additional membership beyond the primary path.
-
-This produces useful structure through normal organization without a mandatory
-schema or ontology database. One optional user-owned Ontology selected from the
-root `ontology.yaml` or flat `ontologies/*.yaml` library may interpret these
-facts across the Workspace; it does not replace Folder Indexes or become
-another canonical store.
-
-## Note Root Formats and Workspace Ontology
-
-Every Note Root is first projected by a Format. **Generic Markdown** is the
-zero-configuration default: one resolved Markdown file becomes one Concept,
-headings only label or structure it, authored links connect existing file
-Concepts, and tags are shared tag Concepts. Frontmatter remains lossless;
-`type: project` is an open classification of that same Note, not a separate
-node or edge.
-
-Permissive **OKF 0.1** is a built-in interoperability Format for an existing
-OKF workspace. It is not selected automatically and is not a public format
-setting today. Under that external convention, `index.md` and `log.md` remain
-openable/searchable/editable Notes but do not enter the Concept graph. See
-`note-root-formats.md` for the exact boundary.
-
-An explicitly kept source from `<Workspace Root>/ontology.yaml` or a direct
-`.yaml` child of `<Workspace Root>/ontologies/` applies after Format projection.
-Exactly one source—or Generic Markdown—may be active; sources are never merged.
-An Ontology may interpret open Concept Types, Property shapes, reference-valued
-Relations, and validation rules. A selected or user-edited source is a
-Candidate; only a separately reviewed Keep may persist its exact accepted
-source identity under `.exo/ontology` and publish a new graph generation.
-Candidate watcher events alone never invalidate the graph. The Ontology never
-changes Markdown or source document Relations. See `workspace-ontology.md` and
-ADRs 0006 and 0007.
-
-Optional discovery and maintenance remain separate operations. Discovery runs
-one trusted Claude or Codex Command against a disposable Markdown-only snapshot
-with provider-enforced read-only controls. It returns a schema-bound proposal;
-the Exo host alone may stage it as an inert Candidate, and Keep remains
-mandatory. The first maintenance Skill is user-owned Markdown and launches
-through the ordinary inline Invocation and Changeset review path with the exact
-active Ontology and graph snapshot identities attached.
-
-## Accepted graph direction
-
-The production implementation enforces this separation:
+## Canonical and derived data
 
 ```text
-canonical Markdown
-  → Note Root Format projection
-  → schema-agnostic Knowledge Graph
-  → explicitly kept Workspace Ontology interpretation
-  → Graph View projection
-  → deterministic layout
-  → renderer-independent scene
-  → WebGPU or Canvas pixels
+Markdown + frontmatter in a selected Note Root
+  → format projection
+  → WorkspaceGraph knowledge snapshot
+  → optional reviewed ontology interpretation
+  → Connections / compact graph topology
+  → WebGPU or Canvas presentation
 ```
 
-The Knowledge Graph preserves open Concept types, arbitrary frontmatter
-Properties, Relations, resolution, origin, and Evidence. Generic Markdown is
-the zero-configuration Format. Open Knowledge Format 0.1 is a built-in
-interoperability Format. A kept Workspace Ontology may interpret a Property as
-a Concept reference or declare validation rules, but unknown Properties and
-Types survive and remain usable. Relation origin is always `document`,
-`ontology`, or `inferred`: an Ontology explains a derived relation from
-existing Markdown; it cannot turn it into a document-authored fact.
+Markdown is canonical. `.exo/` holds local, rebuildable state: indexes,
+command-server discovery, invocation review evidence, accepted ontology state,
+and other runtime artifacts. It must never become a competing source of truth.
 
-Graph Views compile this cold semantic model into dense numeric topology and
-visual classes. Closed numeric node/edge kinds are allowed inside a compiled
-View for performance; they are not the ontology contract. Semantic similarity
-and inferred relationships remain versioned Derived Signals until accepted as
-Markdown changes.
+The basic objects are:
 
-`WorkspaceGraph` is now the single production graph boundary. It derives the
-schema-agnostic knowledge snapshot used by Connections and compiles the Graph
-Pane's hot path into compact typed topology. Labels, paths, Properties,
-Findings, and Relation Evidence remain cold and are fetched through bounded,
-snapshot-qualified lookup, summary, and index-detail reads. The former object
-Graph View IPC, unbounded concept-detail route, and standalone `GraphSnapshot`
-0.1/query modules have been removed. The Canvas and WebGPU renderers consume
-the same renderer-neutral scene and cannot invent graph semantics.
+- a **Workspace**: one user-selected main wiki plus saved settings, local
+  runtime state, commands, and trust decisions;
+- a **Note**: an included Markdown file;
+- a **Concept**: the graph identity projected from a Note;
+- a **Relation**: an evidenced connection with `document`, `ontology`, or
+  `inferred` origin;
+- an **Artifact Reference**: a Markdown link to local code or an attachment
+  that stays out of the Note/search/topology set.
 
-Two kinds of verification remain deliberately separate. Graph contract tests
-cover identity, resolution, Evidence, and profile conformance. The repo-local
-graph performance suite covers rendering, layout geometry, interaction, memory,
-resilience, and latency. Neither produces an unexplained universal quality
-score.
+Read [`knowledge-graph.md`](knowledge-graph.md) before changing graph shape,
+identity, evidence, or ontology behavior.
 
-Electron's normal hardware-acceleration policy is the production default so
-the Graph Pane can capability-detect WebGPU without unsafe Chromium flags. A
-diagnostic `EXO_DISABLE_GPU=1` launch may disable hardware acceleration, but it
-does not change feature lists or renderer semantics; Canvas remains the product
-fallback. Source and exact packaged evidence must compile the production graph
-shaders, submit a bounded draw, and record an explicit absence, adapter, device,
-shader, validation, or success outcome.
+## Runtime topology
+
+```text
+React renderer
+  ⇅ typed preload API
+Electron main process
+  ├─ WorkspaceRuntimeCoordinator
+  ├─ WorkspaceFiles / WorkspaceGraph / WorkspaceIndex
+  ├─ InvocationRunner
+  ├─ TerminalManager → node-pty
+  ├─ CommandServerLifecycle → loopback command server
+  └─ utility processes → QMD and cold graph work
+
+packages/core
+  ├─ workspace, Markdown, graph, ontology, search, invocation data models
+  └─ pure parsing, validation, persistence helpers, and shared protocol types
+
+packages/cli
+  ├─ `exo` JSON command surface
+  └─ read-only stdio MCP server
+```
+
+The renderer never reads files, launches processes, or imports Node-owned Core
+entry points directly. It uses typed preload APIs and browser-safe Core
+subpaths. Electron main owns operating-system authority; Core owns portable
+domain logic.
 
 ## Deep modules
 
-### `WorkspaceConfigStore`
+| Owner | Responsibility | Must not own |
+| --- | --- | --- |
+| `WorkspaceConfigStore` | settings, workspace registry, revisioned atomic writes, migrations | live runtime activation |
+| `WorkspaceRuntimeCoordinator` | swaps expensive workspace authority when roots change | unrelated appearance/layout saves |
+| `WorkspaceFiles` | canonical paths, Note Root containment, symlink policy, watchers | graph/search interpretation |
+| `WorkspaceGraph` | graph snapshots, evidence, backlinks, ontology review and local context | rendering or direct UI state |
+| `WorkspaceIndex` | provider selection, search health, sync, honest degradation | Note/graph identity |
+| `TerminalManager` | direct PTY lifecycle and bounded reload tail | provider-specific agent semantics |
+| `InvocationRunner` | command trust, process ownership, changesets, review, recovery | renderer UI decisions |
+| `WorkspaceCanvas` | pane tree, focus, split/move/close, layout persistence | filesystem or process access |
+| `CommandServerLifecycle` | local token-authenticated server discovery | search/graph semantics |
 
-Owns workspace configuration, revisions, unknown-key preservation, migration, and atomic persistence.
+When a change crosses two rows, start with the owner that already owns the
+invariant. Add a new abstraction only after two concrete call sites prove the
+same contract.
 
-### `WorkspaceRuntimeCoordinator`
+## Critical boundaries
 
-Owns atomic activation when Workspace authority changes. The settings effect
-planner keeps ordinary persistence out of this expensive path: layout,
-appearance, Commands, and unknown keys publish in place; terminal-default and
-index changes go only to those owners; only Workspace-root or Note-root changes
-replace the command server, watcher, graph scope, and invocation recovery
-scope. A degraded runtime cannot use the in-place path to impersonate repair.
+### Workspace and filesystem authority
 
-### `WorkspaceFiles`
+A Workspace has an explicit Note Root. No UI route, CLI convenience argument,
+or command cwd may widen Exo's read/write authority. The current onboarding
+experience configures one main wiki; Core remains defensive around persisted
+root lists for migration and command-line environments.
 
-Owns Note Root identity, path authorization, containment, symlink policy, absolute-path validation, and filesystem change events. Root-relative identities are a later interface-quality improvement, not a current shared IPC contract.
+The content policy narrows which Markdown files become Notes. Explorer, graph,
+Folder Overview, and index ingestion must share it. It is not a sandbox and it
+does not alter files.
 
-### `WorkspaceGraph`
+### Graph and ontology
 
-Owns the derived Knowledge Graph: Note/Concept identity, lossless Properties,
-Relation resolution and Evidence, backlinks, neighborhoods, graph context, and
-invalidation. Markdown is canonical; graph snapshots and Format/Ontology interpretations
-are derived. Folder Overview, Connections, and Graph Views consume this
-boundary rather than creating their own graph models. Connections receives a
-bounded Note-local context; the full Graph Pane receives string-free typed
-topology and fetches cold metadata only for inspected/focal Concepts.
+Formats read a Note Root; ontology interprets selected existing properties;
+views present derived topology. These are separate layers. An ontology may
+declare reference-valued properties and validation rules, but cannot mutate
+Markdown, execute code, configure agents, or control presentation. One source
+is active only after explicit review.
 
-### `WorkspaceIndex`
+Graph rendering receives compact numeric topology. It requests labels, paths,
+properties, findings, and evidence through bounded, snapshot-qualified cold
+reads. Canvas and WebGPU are equivalent renderers over that scene; neither may
+invent semantic facts.
 
-Owns search selection, health, rebuild, and visible degradation. Filesystem and QMD are the two concrete adapters. Providers own relevance, snippets, rank, and provider health; Exo owns authorization, canonical Note/Folder identity, graph truth, and result hydration.
+### Search and derived work
 
-### `TerminalService`
+Filename/path navigation must use loaded metadata. QMD search, embedding,
+index maintenance, graph rebuilds, and other expensive derived work run outside
+Electron main with cancellation and visible degradation. A foreground search
+never queues behind a maintenance writer; it uses bounded filesystem retrieval
+when necessary.
 
-Owns one direct `node-pty` lifecycle and byte-faithful transport. xterm owns the live screen and ordinary scrollback; only a bounded in-memory tail supports renderer reload and operator reads. App exit ends the PTY.
+See [`performance-contracts.md`](performance-contracts.md) and ADR 0008 for
+the protected latency budgets.
 
-### `InvocationRunner`
+### Commands and review
 
-Owns explicit Command authorization, launch, immutable run context, process ownership, exact Changeset capture, failure cleanup, review transactions, and invocation records.
+A configured Command is a provider-neutral local executable. Its trust is
+workspace-scoped and bound to the executable fingerprint. Invocation is always
+explicit. Exo snapshots and reviews changes inside Note Roots; a command may
+have broader same-user operating-system access, so Exo never claims to have
+reviewed external writes.
 
-### `WorkspaceCanvas`
+Inline invocations use a document envelope and a headless process. CLI
+`exo invoke` instead opens a visible terminal task. Both paths share command
+validation; only the inline path has document context and in-note review.
 
-Owns the single typed pane tree, focus, split/move/close behavior, and layout persistence.
+### Terminal
 
-### `CommandServerLifecycle`
+There is one production terminal runtime: xterm over direct `node-pty`. App
+exit ends PTYs. A bounded in-memory tail helps renderer reload but is not a
+durable transcript or terminal-restoration system. See
+[`terminal-runtime-decision.md`](terminal-runtime-decision.md).
 
-Owns the thin token-authenticated local command server and generation-safe discovery lifecycle. CLI and preload are adapters over the same domain modules.
+## Testing and change discipline
 
-## Inline invocation and Skills
+Start with the narrowest owner test. Then run:
 
-A configured Command is the provider-neutral executable identity. Claude, Codex, Pi, Guardian, and other tools use the same out-of-process path.
-
-The shipped composer invokes configured Commands with explicit, user-authored messages and current-document context. Graph discovery and contextual maintenance use user-owned Markdown Skills for bounded tasks; a Skill is instructions and data, never code, authority, auto-chaining, or a bypass around review.
-
-The initial loop is:
-
-```text
-select Note/context → invoke configured Command inline → inspect observed changes
+```sh
+pnpm ci:check
 ```
 
-The future Skill flow adds a reviewed, bounded proposal step; it is not claimed as shipped until its implementation and real-work dogfood land.
+Use Electron journeys for desktop-visible behavior; browser-only tests cannot
+prove preload IPC. Graph renderer work additionally uses
+[`../evals/graph/README.md`](../evals/graph/README.md). Public command-server
+routes, CLI flags, preload types, and shared protocol types are contracts:
+change their focused tests and docs in the same patch.
 
-## Retained feature and data-model coverage
-
-| Domain | Owner / durable boundary | User behavior | Evidence / canonical docs |
-| --- | --- | --- | --- |
-| Note Roots and files | `WorkspaceModel`, `WorkspaceFiles` | Exo reads and mutates only authorized Note Roots | containment tests; `../CONTEXT.md` |
-| Workspace settings | `WorkspaceConfigStore`, `WorkspaceRuntimeCoordinator`, settings effect planner | Settings preserve unowned/unknown data and configured Commands; only the affected runtime owner is rebound | settings/runtime tests |
-| Notes and properties | Markdown/frontmatter, `NoteDocument` | Source on disk remains canonical | note/Markdown tests; `../CONTEXT.md` |
-| Search and graph | `WorkspaceIndex`, `WorkspaceGraph` | Filesystem/QMD search and Connections expose derived context; Knowledge Graph 0.3 preserves open Properties, Relation origin, and Evidence while the Graph Pane uses compact topology plus bounded cold reads | search/graph/transport tests; [`workspace-ontology.md`](workspace-ontology.md) |
-| Canvas and panes | `WorkspaceCanvasLayoutSettings`, pane tree | Notes, Terminal, Preview, and Connections share one canvas | pane E2E; `../README.md` |
-| Terminal | `TerminalManager`, direct `node-pty`, xterm | Live terminal with bounded reload tail; no durable session history | terminal suite; `terminal-runtime-decision.md` |
-| Commands and invocation | `AgentCommand`, `InvocationRunner`, invocation records | Explicit inline invocation, headless document work, optional session handoff, observed-change review | invocation E2E; [`document-agent-protocol.md`](document-agent-protocol.md) |
-| Exo MCP discovery | `packages/cli/src/mcp-server.ts`, `provider-mcp-setup.ts` | Optional provider-owned MCP for tool-capable clients; caller cwd resolves scope, ambiguous scope refuses retrieval, and app retrieval is used only for that exact Workspace. Shell-capable clients keep the Exo CLI path. | MCP + provider-setup tests; [`provider-mcp-onboarding.md`](provider-mcp-onboarding.md) |
-| Command server and CLI | `command-protocol.ts`, `CommandServerLifecycle` | Resident-app commands plus app-off search/status | command-server tests; [`README.md`](../README.md) |
-
-This is the maintained pointer index. Current development work is visible in
-GitHub Issues and pull requests.
-
-## Extension boundary
-
-Use the lowest rung that works:
-
-1. Markdown/frontmatter and Folder Index conventions.
-2. Data-only configuration.
-3. External executables through configured Commands.
-4. Core-hosted trusted Preview panes.
-5. Typed providers only after two concrete implementations prove shared behavior.
-6. Out-of-process protocols only when isolation or external implementations earn them.
-7. Manifests/distribution only when lower rungs fail for real extensions.
-
-Search is the only earned typed provider seam. Folder ontology and graph management Skills are Markdown/config/Command behavior, not reasons to restore the old plugin platform.
-
-A future Plugin is an installable distribution bundle, not another deep module or provider interface. It may package proven Skills, ontology templates, Command templates, evals, and explicitly trusted external integrations; each component keeps its own execution and authority boundary.
-
-## Safety boundaries
-
-- Renderer code never accesses files or processes directly.
-- Note operations pass canonical-path authorization inside explicit Note Roots; root-relative IDs remain future quality work.
-- Folder Overview remains read-only until its explicit metadata authoring action.
-- Command trust is app-local, workspace-scoped, fingerprinted, and invalidated when executable fields change. A moved/copied Workspace fails closed and requires explicit re-authorization.
-- A Command can have an explicit cwd outside Note Roots, but observed-change review is authoritative only inside the Workspace's Note Roots; Exo never claims it reviewed external writes.
-- Human confirmation is required before invocation; agent-authored content cannot auto-chain execution.
-- Exo reports exact observed file state and review decisions; it does not infer
-  who authored bytes outside the explicit invocation/response envelopes.
-- Public CLI commands, command-server routes, and shared protocol types require the repository's architecture-review gate.
-
-See [`workspace-ontology.md`](workspace-ontology.md), [`../CONTEXT.md`](../CONTEXT.md),
-and [`adr/0002-folder-indexes-as-ontology.md`](adr/0002-folder-indexes-as-ontology.md)
-for the durable boundary and vocabulary. [`adr/0003-plugins-are-distribution-bundles.md`](adr/0003-plugins-are-distribution-bundles.md)
-records the distribution boundary.
+For persisted state ownership and recovery, read [`durable-state.md`](durable-state.md).

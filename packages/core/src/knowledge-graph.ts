@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import type { NoteRootFormatStatus } from "./note-root-format";
 
-export const KNOWLEDGE_GRAPH_VERSION = "0.3" as const;
+export const KNOWLEDGE_GRAPH_VERSION = "0.4" as const;
 
 export type KnowledgeGraphVersion = typeof KNOWLEDGE_GRAPH_VERSION;
 export type GraphPropertyValue = null | boolean | number | string | readonly GraphPropertyValue[] | GraphPropertyObject;
@@ -12,6 +12,21 @@ export type ConceptResolution = "resolved" | "unresolved" | "external";
 export type RelationOrigin = "document" | "ontology" | "inferred";
 export type RelationResolution = "resolved" | "unresolved" | "ambiguous" | "external";
 export type RelationFamily = "link" | "property-reference" | "tag-membership" | "hierarchy" | "semantic";
+export type ArtifactKind = "source-file" | "attachment";
+
+/**
+ * A durable Markdown reference to something that is not an included Note.
+ * Artifacts preserve the authored relationship without inventing a Concept,
+ * making a code file searchable as a Note, or inflating graph topology.
+ */
+export interface ArtifactReference {
+  id: string;
+  source: string;
+  target: string;
+  label: string;
+  kind: ArtifactKind;
+  evidence: readonly RelationEvidence[];
+}
 
 export interface GraphProducer {
   id: string;
@@ -74,6 +89,7 @@ export interface KnowledgeGraphSnapshot {
   scope: KnowledgeGraphScope;
   concepts: readonly ConceptNode[];
   relations: readonly RelationEdge[];
+  artifactReferences: readonly ArtifactReference[];
   findings: readonly GraphFinding[];
   activeFormat: NoteRootFormatStatus;
   activeOntology: ActiveOntologyStatus;
@@ -120,12 +136,13 @@ export function knowledgeGraphSnapshotId(
   scope: KnowledgeGraphScope,
   concepts: readonly ConceptNode[],
   relations: readonly RelationEdge[],
+  artifactReferences: readonly ArtifactReference[],
   findings: readonly GraphFinding[],
   format: NoteRootFormatStatus,
   ontology: ActiveOntologyStatus,
 ): string {
   const digest = createHash("sha256")
-    .update(JSON.stringify({ version: KNOWLEDGE_GRAPH_VERSION, scope, concepts, relations, findings, format, ontology }))
+    .update(JSON.stringify({ version: KNOWLEDGE_GRAPH_VERSION, scope, concepts, relations, artifactReferences, findings, format, ontology }))
     .digest("hex")
     .slice(0, 16);
   return `knowledge-graph:${KNOWLEDGE_GRAPH_VERSION}:${digest}`;

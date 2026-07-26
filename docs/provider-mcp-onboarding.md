@@ -9,9 +9,11 @@ the Exo CLI is for shell-capable clients. MCP is optional and does not replace
 the CLI. The onboarding screen installs MCP explicitly, then configures local
 CLI Commands for inline invocation.
 
-Shell-capable clients can use `exo status` and `exo search` directly. Search
-returns a bounded page of ranked paths and metadata; callers inspect a returned
-path with their own native filesystem tools. MCP
+Shell-capable clients can use `exo workspaces`, `exo status`, and `exo search`
+directly. `status` and `search` accept an explicit `--workspace
+<id|label|path>` selector. Search returns a bounded page of ranked paths and
+metadata; callers inspect a returned path with their own native filesystem
+tools. MCP
 clients receive the two read-only discovery tools below.
 
 ## What agents receive
@@ -47,8 +49,8 @@ codex mcp add exo -- exo mcp serve
 The provider owns its config and authentication. Exo owns the `exo mcp serve` process only. The local `exo` command must be installed and on `PATH` (or `EXO_CLI_PATH` can point at it); run `scripts/install-local` from the intended checkout to install or update its repo-backed shim. MCP setup never installs or replaces that CLI command.
 
 Exo does not install or maintain provider instruction files or Skills. Tool
-descriptions provide the local search-then-read rule. A future instruction
-template, if real dogfood earns it, will be copy-out only and remain user-owned.
+descriptions establish the local search-then-read rule; any provider-specific
+instructions remain the user's configuration.
 
 ## Boundary
 

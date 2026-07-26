@@ -6,7 +6,7 @@ import type { KnowledgeGraphSnapshot } from "../knowledge-graph";
 describe("graph integrity tracer", () => {
   it("reports separate evidenced dimensions and never fabricates an aggregate quality score", () => {
     const snapshot: KnowledgeGraphSnapshot = {
-      version: "0.3",
+      version: "0.4",
       snapshotId: "fixture",
       generatedAt: "2026-07-17T00:00:00.000Z",
       scope: { noteRootIds: ["notes"], paths: [] },
@@ -14,6 +14,7 @@ describe("graph integrity tracer", () => {
         { id: "a", label: "A", conceptTypes: [], properties: {}, resolution: "resolved", tags: [] },
         { id: "b", label: "B", conceptTypes: [], properties: {}, resolution: "resolved", tags: [] },
       ],
+      artifactReferences: [],
       relations: [
         { id: "resolved", source: "a", target: "b", family: "link", origin: "document", resolution: "resolved", directed: true, evidence: [{ kind: "source-span", noteId: "a", sourceRange: { from: 0, to: 5 } }] },
         { id: "broken", source: "a", target: "missing", family: "link", origin: "document", resolution: "unresolved", directed: true, evidence: [] },

@@ -1,0 +1,78 @@
+ontology_schema: 1
+id: exo-repository
+version: 1
+label: Exo repository
+
+types:
+  product-context:
+    label: Product context
+    paths:
+      - README.md
+      - docs/glossary.md
+
+  project-governance:
+    label: Project governance
+    paths:
+      - CODE_OF_CONDUCT.md
+      - CONTRIBUTING.md
+      - SECURITY.md
+
+  release-history:
+    label: Release history
+    paths:
+      - CHANGELOG.md
+
+  documentation-index:
+    label: Documentation index
+    paths:
+      - docs/README.md
+      - skills/README.md
+
+  architecture-contract:
+    label: Architecture contract
+    paths:
+      - docs/architecture.md
+      - docs/durable-state.md
+      - docs/performance-contracts.md
+      - docs/terminal-runtime-decision.md
+
+  product-contract:
+    label: Product contract
+    paths:
+      - docs/cli.md
+      - docs/document-agent-protocol.md
+      - docs/knowledge-graph.md
+      - docs/note-root-formats.md
+      - docs/provider-mcp-onboarding.md
+      - docs/search.md
+      - docs/troubleshooting.md
+      - docs/using-exo.md
+      - docs/workspace-ontology.md
+
+  decision-record:
+    label: Decision record
+    paths:
+      - docs/adr/**
+
+  module-guide:
+    label: Module guide
+    paths:
+      - AGENTS.md
+      - apps/**/AGENTS.md
+      - packages/**/AGENTS.md
+
+  repository-skill:
+    label: Repository skill
+    paths:
+      - skills/**/SKILL.md
+
+  benchmark-contract:
+    label: Benchmark contract
+    paths:
+      - evals/graph/**
+
+  test-fixture:
+    label: Test fixture
+    paths:
+      - fixtures/**/*.md
+      - packages/core/src/__tests__/fixtures/**/*.md

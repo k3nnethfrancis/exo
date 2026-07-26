@@ -35,7 +35,7 @@ xterm.js live surface
 
 The previous tmux-control-mode architecture is superseded for this branch. Do not rebuild it, preserve it as a hidden fallback, or treat tmux durability, restore snapshots, or terminal transcripts as V1 product requirements.
 
-Users who want tmux durability can run `tmux` inside a normal Exo terminal. Claude, Codex, Pi, Guardian, and similar tools should resume through their own session mechanisms. Exo records explicit invocations and reviewed file outcomes without interpreting provider semantics.
+Users who want tmux durability can run `tmux` inside a normal Exo terminal. External tools should resume through their own session mechanisms. Exo records explicit invocations and reviewed file outcomes without interpreting provider semantics.
 
 ## Ownership Rules
 
@@ -67,24 +67,24 @@ Before changing CLI commands/flags, command-server routes, or shared protocol ty
 
 - Delete tmux/session/transcript/recovery code when callers have moved; do not hide or freeze it.
 - Keep `TerminalManager` as a small facade over a direct pty runtime and bounded live-tail/diagnostics helpers.
-- Keep terminal launch command-oriented. Shell is a terminal substrate; Claude/Codex/Pi/Guardian-style launches are configured Commands.
+- Keep terminal launch command-oriented. Shell is a terminal substrate; external harnesses are configured Commands.
 - Avoid provider-specific readiness, prompt scanning, queued-send, or semantic-message logic in terminal core.
 - Add regression tests for the exact input behavior that changed.
 
 ## Required Checks
 
-For terminal runtime or renderer changes, run the focused terminal tests that remain after the direct-pty deletion pass. During the migration, update `pnpm terminal:check` to stop naming deleted tmux tests.
+For terminal runtime or renderer changes, run the focused terminal tests that cover the live direct-PTY surface.
 
 Before handoff of user-visible terminal work:
 
 ```bash
 pnpm --filter @exo/desktop typecheck
 pnpm --filter @exo/desktop test
-pnpm check:repo
+pnpm check
 pnpm --filter @exo/desktop build
 ```
 
-Run focused Playwright coverage for terminal input and configured Command launch. Run `pnpm terminal:check` only after confirming it names live direct-PTY tests.
+Run focused Playwright coverage for terminal input and configured Command launch. `pnpm terminal:check` runs the focused direct-PTY unit suite; use `pnpm test:e2e` for the full browser-visible suite.
 
 ## Manual QA
 
@@ -111,5 +111,3 @@ Stop and redesign if a change adds:
 - a hidden cap or timing value that affects user capability
 - broad refresh calls that mask layout/focus bugs
 - tests that pass without asserting visible terminal input behavior
-
--- Shoshin | 2026-07-09

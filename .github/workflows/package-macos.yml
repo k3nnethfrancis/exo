@@ -29,8 +29,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Repo checks
-        run: pnpm check:repo
+      - name: Validate source
+        run: pnpm check
 
       - name: Package macOS app
         run: pnpm dist:mac

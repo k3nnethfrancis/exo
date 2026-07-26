@@ -561,7 +561,7 @@ export class WorkspaceNotesService {
 
   private workspaceGraph(scope: WorkspaceNotesScope): WorkspaceGraph {
     const model = scope.model;
-    const modelKey = [path.resolve(model.workspaceRoot), path.resolve(scope.runtimeRoot), ...model.noteRoots
+    const modelKey = [path.resolve(model.workspaceRoot), path.resolve(scope.runtimeRoot), JSON.stringify(model.contentPolicy ?? null), ...model.noteRoots
       .map((root) => `${root.id}:${path.resolve(root.path)}`)
       .sort()]
       .join("\n");

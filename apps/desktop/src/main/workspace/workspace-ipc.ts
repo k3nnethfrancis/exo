@@ -1,5 +1,6 @@
 import { BrowserWindow, dialog, shell, type OpenDialogOptions } from "electron";
 import path from "node:path";
+import { stat } from "node:fs/promises";
 import {
   assertOntologyReviewGuard,
   assertWorkspaceOntologySelection,
@@ -24,7 +25,6 @@ export interface WorkspaceIpcHandlers {
   previewOntology: WorkspaceApi["previewOntology"];
   keepOntology: WorkspaceApi["keepOntology"];
   rejectOntology: WorkspaceApi["rejectOntology"];
-  getFolderIndexStatus: WorkspaceApi["getFolderIndexStatus"];
   getFolderOverview: WorkspaceApi["getFolderOverview"];
   ensureFolderIndex: WorkspaceApi["ensureFolderIndex"];
   launchAgentInvocation: WorkspaceApi["launchAgentInvocation"];
@@ -55,6 +55,7 @@ export interface WorkspaceIpcHandlers {
   getGraphConceptDetailByIndex: NotesApi["getGraphConceptDetailByIndex"];
   getMainWindow: () => BrowserWindow | null;
   getModel: () => WorkspaceModel;
+  inspectContentScope: WorkspaceApi["inspectContentScope"];
   getSettings: WorkspaceApi["getSettings"];
   getSetupState: WorkspaceApi["getSetupState"];
   markOnboardingComplete: WorkspaceApi["markOnboardingComplete"];
@@ -94,7 +95,6 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   );
   handleDesktopInvoke("workspace:ontology-keep", async (_event, guard) => handlers.keepOntology(assertOntologyReviewGuard(guard)));
   handleDesktopInvoke("workspace:ontology-reject", async (_event, guard) => handlers.rejectOntology(assertOntologyReviewGuard(guard)));
-  handleDesktopInvoke("workspace:get-folder-index-status", async () => handlers.getFolderIndexStatus());
   handleDesktopInvoke("workspace:get-folder-overview", async (_event, directoryPath) => {
     const authorizedDirectory = await workspaceFiles().existing(directoryPath);
     return handlers.getFolderOverview(authorizedDirectory);
@@ -179,6 +179,13 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
       return handlers.listTree(authorizedRootPath, options);
     },
   );
+  handleDesktopInvoke("workspace:inspect-content-scope", async (_event, rootPath) => {
+    const resolvedPath = path.resolve(rootPath);
+    if (!(await stat(resolvedPath)).isDirectory()) {
+      throw new Error("Choose a folder to inspect its Markdown scope.");
+    }
+    return handlers.inspectContentScope(resolvedPath);
+  });
   handleDesktopInvoke("workspace:search-notes", async (_event, query) => handlers.searchNotes(query));
   handleDesktopInvoke("workspace:search-workspace", async (_event, query) => handlers.searchWorkspace(query));
   handleDesktopInvoke(

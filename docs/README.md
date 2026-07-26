@@ -1,31 +1,25 @@
 # Exo documentation
 
-This directory contains current product and architecture contracts. Historical
-planning, reviews, agent coordination, and launch evidence stay out of the
-source repository.
+Exo has two documentation audiences: people using a Markdown workspace and people changing the software. Start with the document that matches your job; the deeper contracts are linked from there.
 
-Maintainers may use an ignored `docs/internal/` directory for active plans,
-ledgers, roadmaps, and scratch notes. Its contents are local-only and never
-define the public product contract.
+## Use Exo
 
-## Start here
+- [Using Exo](using-exo.md) — workspaces, Notes, navigation, panes, keyboard shortcuts, and daily work.
+- [Search](search.md) — immediate search, optional QMD indexing, and recovery.
+- [Knowledge graph](knowledge-graph.md) — what the graph represents and what it deliberately does not.
+- [Agent invocations](document-agent-protocol.md) — inline `@` requests, review, durable response blocks, and session handoff.
+- [CLI and MCP](cli.md) — shell commands, app-off behavior, and the bounded MCP server.
+- [Workspace ontology](workspace-ontology.md) — optional `ontology.yaml` interpretation and review.
+- [Note Root Formats](note-root-formats.md) — Generic Markdown and OKF 0.1 compatibility.
+- [Troubleshooting](troubleshooting.md) — first repairs for workspace scope, search, invocations, MCP, and CLI.
 
-1. [../README.md](../README.md) — product overview, setup, and CLI.
-2. [../CONTRIBUTING.md](../CONTRIBUTING.md) — local development and validation.
-3. [architecture.md](architecture.md) — package boundaries and runtime ownership.
-4. [../CONTEXT.md](../CONTEXT.md) — product glossary.
+## Contribute to Exo
 
-## Product contracts
+- [Architecture](architecture.md) — runtime topology, deep modules, boundaries, and reading order.
+- [Durable state](durable-state.md) — persistence owners and recovery rules.
+- [Performance contracts](performance-contracts.md) — protected latency budgets and focused gates.
+- [Terminal runtime](terminal-runtime-decision.md) — direct-PTY design constraints.
+- [Architecture decisions](adr/) — accepted decisions that remain live.
+- [Contributor skills](../skills/README.md) — reusable, provider-neutral working instructions.
 
-- [document-agent-protocol.md](document-agent-protocol.md) — durable invocation and response envelopes.
-- [note-root-formats.md](note-root-formats.md) — Generic Markdown and OKF compatibility.
-- [workspace-ontology.md](workspace-ontology.md) — reviewed, user-owned `ontology.yaml`.
-- [provider-mcp-onboarding.md](provider-mcp-onboarding.md) — bounded MCP and CLI access.
-- [terminal-runtime-decision.md](terminal-runtime-decision.md) — direct-PTY runtime contract.
-
-## Maintainer references
-
-- [durable-state.md](durable-state.md) — persisted state ownership and recovery.
-- [performance-contracts.md](performance-contracts.md) — measurable interaction budgets.
-- [adr/](adr/) — current architecture decisions.
-- [../skills/README.md](../skills/README.md) — reusable contributor and coding-agent Skills.
+The repository root has [setup](../README.md), [contributing](../CONTRIBUTING.md), and [agent guidance](../AGENTS.md). `docs/internal/`, when it exists locally, is ignored maintainer context; it is never public product documentation.

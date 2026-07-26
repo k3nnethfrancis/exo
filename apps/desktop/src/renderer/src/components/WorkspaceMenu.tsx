@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, CircleHelp, FilePlus2, Folder, Keyboard, Settings, SquareTerminal } from "lucide-react";
+import { ChevronLeft, CircleHelp, Folder, Keyboard, Settings, SquareTerminal } from "lucide-react";
 import { EXO_CLI_COMMANDS } from "@exo/core/operator-help";
 
 import { APP_KEYBINDINGS, isMacPlatform } from "../shellHelpModel";
@@ -7,12 +7,10 @@ import { APP_KEYBINDINGS, isMacPlatform } from "../shellHelpModel";
 interface WorkspaceMenuProps {
   collapsed: boolean;
   label: string;
-  missingFolderIndexCount: number;
-  onCreateMissingFolderIndexes: () => void;
   onOpenSettings: () => void;
 }
 
-export function WorkspaceMenu({ collapsed, label, missingFolderIndexCount, onCreateMissingFolderIndexes, onOpenSettings }: WorkspaceMenuProps) {
+export function WorkspaceMenu({ collapsed, label, onOpenSettings }: WorkspaceMenuProps) {
   const [open, setOpen] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -46,11 +44,6 @@ export function WorkspaceMenu({ collapsed, label, missingFolderIndexCount, onCre
           {showHelp ? <WorkspaceHelpPanel onBack={() => setShowHelp(false)} /> : (
             <>
               <div className="workspace-menu__header"><Folder size={14} aria-hidden="true" />{label}</div>
-              {missingFolderIndexCount > 0 ? (
-                <button className="workspace-menu__item" data-testid="workspace-menu-create-indexes" onClick={() => { setOpen(false); onCreateMissingFolderIndexes(); }} type="button">
-                  <FilePlus2 size={14} aria-hidden="true" />Create {missingFolderIndexCount} missing folder {missingFolderIndexCount === 1 ? "index" : "indexes"}
-                </button>
-              ) : null}
               <div className="workspace-menu__footer">
                 <button className="workspace-menu__item" data-testid="workspace-menu-settings" onClick={() => { setOpen(false); onOpenSettings(); }} type="button">
                   <Settings size={14} aria-hidden="true" />Settings

@@ -8,6 +8,7 @@ import type { IndexMode, LegacyWorkspaceLayoutSettings, WorkspaceCanvasLayoutSet
 import { normalizeAgentCommands, normalizeAgentInvocationPrompt } from "./agent-invocation";
 import { isPathWithinRoot } from "./path-containment";
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
+import { normalizeWorkspaceContentPolicy } from "./workspace-content-policy";
 import { normalizeMigrationMetadata } from "./workspace-migration";
 
 export { acknowledgeMainWikiMigration, pendingMainWikiMigration } from "./workspace-migration";
@@ -434,6 +435,7 @@ export function workspaceModelFromSettings(settings: WorkspaceSettings): Workspa
     })),
     indexedRoots: settings.indexedRoots,
     indexing: settings.indexing,
+    contentPolicy: normalizeWorkspaceContentPolicy(settings.contentPolicy),
     searchEngine: settings.searchEngine,
   };
 }
@@ -530,6 +532,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     agentCommands: normalizeAgentCommands(input.agentCommands),
     ...(agentInvocationPrompt ? { agentInvocationPrompt } : {}),
     indexedRoots,
+    contentPolicy: normalizeWorkspaceContentPolicy(input.contentPolicy),
     indexing,
     searchEngine,
     appearanceMode: input.appearanceMode === "light" || input.appearanceMode === "dark" || input.appearanceMode === "system" ? input.appearanceMode : DEFAULT_APPEARANCE_MODE,

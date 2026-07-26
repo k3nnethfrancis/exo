@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { AgentCommand, IndexStatus, TreeNode, WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
+import type { AgentCommand, IndexStatus, TreeNode, WorkspaceContentInspection, WorkspaceContentPolicy, WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
 import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "@exo/core/default-agent-command";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
+import { defaultWorkspaceContentPolicy } from "@exo/core/workspace-content-policy";
 
 import type {
   TerminalSessionInfo,
@@ -14,11 +15,13 @@ import { pathLabel } from "../workspaceTree";
 
 export interface OnboardingState {
   mode: "first-run" | "switch";
-  step: "select" | "configure" | "agents" | "mcp";
+  step: "select" | "configure" | "scope" | "agents" | "mcp";
   workspaces: WorkspaceRegistryEntry[];
   selectedWorkspaceId: string | null;
   notesFolder: string;
   defaultTerminalCwd: string;
+  contentPolicy: WorkspaceContentPolicy;
+  contentInspection: WorkspaceContentInspection | null;
   indexMode: WorkspaceSettings["indexing"]["mode"];
   searchEngine: "qmd" | "filesystem";
   exploreIndexSearchOnEnter: boolean;
@@ -91,6 +94,8 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
           selectedWorkspaceId: workspaces[0]?.id ?? null,
           notesFolder: "",
           defaultTerminalCwd: "",
+          contentPolicy: defaultWorkspaceContentPolicy(),
+          contentInspection: null,
           indexMode: "lexical",
           searchEngine: "qmd",
           exploreIndexSearchOnEnter: false,
@@ -168,17 +173,20 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       buttonLabel: "Use Notes Folder",
     });
     if (folders[0]) {
+      const notesFolder = folders[0];
       setOnboardingState((current) =>
         current
           ? {
               ...current,
-              notesFolder: folders[0],
-              defaultTerminalCwd: current.defaultTerminalCwd || defaultTerminalCwdForNotesFolder(folders[0]),
+              notesFolder,
+              defaultTerminalCwd: current.defaultTerminalCwd || defaultTerminalCwdForNotesFolder(notesFolder),
+              contentInspection: null,
               errorMessage: null,
               status: "idle",
             }
           : current,
       );
+      void inspectOnboardingContentScope(notesFolder);
     }
   }
 
@@ -211,6 +219,8 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       selectedWorkspaceId: workspaces.find((workspace) => workspace.notesFolder === current?.noteRoots[0])?.id ?? workspaces[0]?.id ?? null,
       notesFolder: current?.noteRoots[0] ?? "",
       defaultTerminalCwd: current?.defaultTerminalCwd ?? current?.noteRoots[0] ?? "",
+      contentPolicy: current?.contentPolicy ?? defaultWorkspaceContentPolicy(),
+      contentInspection: null,
       indexMode: current?.indexing.mode ?? "off",
       searchEngine: current?.searchEngine ?? (current?.indexing.enabled && current.indexing.mode !== "off" && current.indexedRoots.length > 0 ? "qmd" : "filesystem"),
       exploreIndexSearchOnEnter: current?.exploreIndexSearchOnEnter ?? false,
@@ -231,6 +241,8 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
             selectedWorkspaceId: null,
             notesFolder: "",
             defaultTerminalCwd: "",
+            contentPolicy: defaultWorkspaceContentPolicy(),
+            contentInspection: null,
             indexMode: "lexical",
             searchEngine: "qmd",
             exploreIndexSearchOnEnter: true,
@@ -283,6 +295,24 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     }
   }
 
+  async function inspectOnboardingContentScope(notesFolder: string) {
+    try {
+      const contentInspection = await window.exo.workspace.inspectContentScope(notesFolder);
+      setOnboardingState((current) =>
+        current?.notesFolder === notesFolder
+          ? {
+              ...current,
+              contentInspection,
+              contentPolicy: contentInspection.recommendedPolicy,
+            }
+          : current,
+      );
+    } catch {
+      // Scope inspection is a setup convenience. A selected folder remains
+      // usable even if a filesystem race makes classification unavailable.
+    }
+  }
+
   async function completeOnboarding() {
     const current = onboardingState;
     if (!current) {
@@ -322,6 +352,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         indexUpdateStrategy: current.indexUpdateStrategy,
         agentCommands: current.agentCommands,
         agentInvocationPrompt: current.agentInvocationPrompt,
+        contentPolicy: current.contentPolicy,
       };
       const saved = await window.exo.workspace.saveSettings({
         settings: nextSettings,

@@ -1,6 +1,6 @@
 # Terminal Runtime Decision
 
-Last updated: 2026-07-11
+Last reviewed: 2026-07-25
 
 ## Decision
 

@@ -1,4 +1,4 @@
-# Workspace Ontology foundation
+# Workspace ontology
 
 Exo recognizes user-owned Ontology sources at:
 

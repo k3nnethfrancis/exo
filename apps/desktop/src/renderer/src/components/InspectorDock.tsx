@@ -53,8 +53,9 @@ export function InspectorDock(props: InspectorDockProps) {
   const graphContext = buildNoteGraphContext(loadedGraphContext);
   const isMarkdown = document?.kind === "markdown";
   const backlinks = isMarkdown ? graphContext?.backlinks ?? [] : [];
-  const referenceLinks = isMarkdown ? graphContext?.outgoingLinks.filter((item) => item.resolution !== "external") ?? [] : [];
+  const referenceLinks = isMarkdown ? graphContext?.outgoingLinks.filter((item) => item.resolution !== "external" && item.resolution !== "artifact") ?? [] : [];
   const externalLinks = isMarkdown ? graphContext?.externalLinks ?? [] : [];
+  const artifactLinks = isMarkdown ? graphContext?.artifactLinks ?? [] : [];
   const tags = isMarkdown ? graphContext?.tags ?? [] : [];
   const outline = isMarkdown ? extractOutline(document?.body ?? "") : [];
   const tabs = useMemo<readonly { id: ConnectionTab; label: string }[]>(
@@ -79,7 +80,7 @@ export function InspectorDock(props: InspectorDockProps) {
       <header className="connections-rail__header">
         <div>
           <div className="connections-rail__title">Connections</div>
-          <div className="connections-rail__summary">{backlinks.length} back · {referenceLinks.length + externalLinks.length} links</div>
+          <div className="connections-rail__summary">{backlinks.length} back · {referenceLinks.length + externalLinks.length + artifactLinks.length} links</div>
         </div>
         <button aria-label="Close Connections" className="connections-rail__close" onClick={onToggle} title="Close Connections" type="button"><X size={15} /></button>
       </header>
@@ -116,7 +117,7 @@ export function InspectorDock(props: InspectorDockProps) {
           {activeTab === "outline" ? (
             <OutlineTab isMarkdown={isMarkdown} headings={outline} />
           ) : activeTab === "links" ? (
-            <LinksTab isMarkdown={isMarkdown} backlinks={backlinks} references={referenceLinks} externalLinks={externalLinks} tags={tags} activeTag={activeTag} tagResults={tagResults} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
+            <LinksTab isMarkdown={isMarkdown} backlinks={backlinks} references={referenceLinks} externalLinks={externalLinks} artifactLinks={artifactLinks} tags={tags} activeTag={activeTag} tagResults={tagResults} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} onOpenTag={onOpenTag} />
           ) : activeTab === "graph" ? (
             <GraphNeighborhoodView neighborhood={graphContext?.neighborhood ?? null} onOpenCanvas={onOpenGraphCanvas} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} />
           ) : activeTab === "history" ? (
@@ -147,6 +148,7 @@ function LinksTab(props: {
   backlinks: Array<{ label: string; target: string }>;
   references: Array<{ label: string; target: string }>;
   externalLinks: Array<{ label: string; target: string }>;
+  artifactLinks: Array<{ label: string; target: string }>;
   tags: string[];
   activeTag: string | null;
   tagResults: SearchResult[];
@@ -159,6 +161,7 @@ function LinksTab(props: {
     <ConnectionList title="Linked from" items={props.backlinks} onOpen={props.onOpenTarget} empty="No backlinks" />
     <ConnectionList title="Links to" items={props.references} onOpen={props.onOpenTarget} empty="No note links" />
     <ConnectionList title="External" items={props.externalLinks} onOpen={props.onOpenExternal} empty="No external links" external />
+    <ArtifactList items={props.artifactLinks} />
     <section className="connections-panel__section" data-testid="tags-panel">
       <div className="connections-panel__section-title">Tags</div>
       {props.tags.length ? <div className="tag-list">{props.tags.map((tag) => <button key={tag} className="tag-pill" onClick={() => props.onOpenTag(tag)} type="button">#{tag}</button>)}</div> : <div className="footer-empty">No tags</div>}
@@ -169,6 +172,10 @@ function LinksTab(props: {
 
 function ConnectionList(props: { title: string; items: Array<{ label: string; target: string }>; onOpen: (target: string) => void; empty: string; external?: boolean }) {
   return <section className="connections-panel__section"><div className="connections-panel__section-title">{props.title}</div>{props.items.length ? props.items.map((item) => <button key={`${item.label}-${item.target}`} className="footer-item" onClick={() => props.onOpen(item.target)} type="button">{item.label}{props.external ? <ExternalLink size={12} /> : null}</button>) : <div className="footer-empty">{props.empty}</div>}</section>;
+}
+
+function ArtifactList({ items }: { items: Array<{ label: string; target: string }> }) {
+  return <section className="connections-panel__section"><div className="connections-panel__section-title">Artifacts</div>{items.length ? items.map((item) => <div className="footer-item footer-item--static" key={`${item.label}-${item.target}`} title={item.target}>{item.label}</div>) : <div className="footer-empty">No code or attachments</div>}</section>;
 }
 
 function moveConnectionTab(event: KeyboardEvent<HTMLButtonElement>, index: number, tabs: readonly { id: ConnectionTab }[], setTab: (tab: ConnectionTab) => void) {

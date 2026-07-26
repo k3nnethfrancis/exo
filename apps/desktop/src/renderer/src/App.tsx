@@ -3,13 +3,13 @@ import { flushSync } from "react-dom";
 import { Check, Database, Folder, Search, ShieldCheck, SquareTerminal } from "lucide-react";
 import type {
   AgentCommand,
-  FolderIndexStatus,
   IndexStatus,
   InvocationSkillContext,
   WorkspaceModel,
   WorkspaceSettings,
 } from "@exo/core";
 import { acknowledgeMainWikiMigration, pendingMainWikiMigration } from "@exo/core/workspace-migration";
+import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@exo/core/workspace-content-policy";
 import type { InvocationActivityEvent } from "@exo/core/invocation-activity";
 
 import type { CliInstallationStatus, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
@@ -122,7 +122,6 @@ export function App() {
   const agentComposeNonceRef = useRef(0);
   const [invocationActivity, setInvocationActivity] = useState<InvocationActivityState | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
-  const [folderIndexStatus, setFolderIndexStatus] = useState<FolderIndexStatus | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
   const [colorThemeId, setColorThemeId] = useState<ColorThemeId>(DEFAULT_COLOR_THEME_ID);
   const [zoomSurface, setZoomSurface] = useState<ZoomSurface>("editor");
@@ -296,14 +295,6 @@ export function App() {
       graphInspection.inspect({ filePath: activeDocumentPath }, "editor");
     }
   }, [activeDocumentPath, graphInspection.inspect]);
-
-  useEffect(() => {
-    if (!workspaceModel) {
-      setFolderIndexStatus(null);
-      return;
-    }
-    void refreshFolderIndexStatus();
-  }, [workspaceModel]);
 
   useEffect(() => {
     return window.exo.workspace.onInvocationUpdated((record) => {
@@ -501,19 +492,6 @@ export function App() {
 
   async function reloadTreesForModel(model: WorkspaceModel) {
     await workspaceTrees.reloadTreesForModel(model);
-  }
-
-  async function refreshFolderIndexStatus() {
-    setFolderIndexStatus(await window.exo.workspace.getFolderIndexStatus());
-  }
-
-  async function createMissingFolderIndexes() {
-    const missing = folderIndexStatus?.missingIndexPaths ?? [];
-    for (const indexPath of missing) {
-      const directoryPath = indexPath.replace(/[\\/]index\.md$/, "");
-      await window.exo.workspace.ensureFolderIndex(directoryPath);
-    }
-    await Promise.all([reloadTrees(), refreshFolderIndexStatus()]);
   }
 
   async function refreshWorkspaceModel() {
@@ -1101,11 +1079,59 @@ export function App() {
                   className="toolbar-button toolbar-button--primary"
                   data-testid="onboarding-continue"
                   disabled={!onboardingState.notesFolder.trim() || onboardingState.status === "saving"}
-                  onClick={() => setOnboardingState((current) => current ? { ...current, step: "mcp", status: "idle", errorMessage: null } : current)}
+                  onClick={() => setOnboardingState((current) => current ? { ...current, step: "scope", status: "idle", errorMessage: null } : current)}
                   type="button"
                 >
-                  Continue to MCP
+                  Continue
                 </button>
+              </div>
+            </>
+          ) : onboardingState.step === "scope" ? (
+            <>
+              <div className="onboarding-card__body" data-testid="onboarding-card-body">
+                <h1 className="onboarding-card__title">Choose what becomes Notes</h1>
+                <p className="onboarding-card__copy">
+                  {onboardingState.contentInspection?.kind === "repository"
+                    ? "This folder looks like a code repository. Keep its notes useful without turning generated files into graph content."
+                    : "All Markdown in this folder can become Notes. You can refine this later in Workspace Settings."}
+                </p>
+                <div className="onboarding-scope-options" data-testid="onboarding-content-scope">
+                  <button
+                    aria-pressed={onboardingState.contentPolicy.excludedPaths.length > 0}
+                    className={`onboarding-scope-option${onboardingState.contentPolicy.excludedPaths.length > 0 ? " onboarding-scope-option--selected" : ""}`}
+                    data-testid="onboarding-content-scope-notes"
+                    onClick={() => setOnboardingState((current) => current ? {
+                      ...current,
+                      contentPolicy: repositoryWorkspaceContentPolicy(),
+                    } : current)}
+                    type="button"
+                  >
+                    <Folder aria-hidden="true" size={18} strokeWidth={1.8} />
+                    <span><strong>Markdown notes</strong><small>Notes and docs stay in scope. Code and generated folders stay out.</small></span>
+                    {onboardingState.contentPolicy.excludedPaths.length > 0 ? <Check aria-label="Selected" size={16} strokeWidth={2.2} /> : null}
+                  </button>
+                  <button
+                    aria-pressed={onboardingState.contentPolicy.excludedPaths.length === 0}
+                    className={`onboarding-scope-option${onboardingState.contentPolicy.excludedPaths.length === 0 ? " onboarding-scope-option--selected" : ""}`}
+                    data-testid="onboarding-content-scope-all"
+                    onClick={() => setOnboardingState((current) => current ? {
+                      ...current,
+                      contentPolicy: defaultWorkspaceContentPolicy(),
+                    } : current)}
+                    type="button"
+                  >
+                    <Database aria-hidden="true" size={18} strokeWidth={1.8} />
+                    <span><strong>All Markdown</strong><small>Every Markdown file below this folder becomes a Note.</small></span>
+                    {onboardingState.contentPolicy.excludedPaths.length === 0 ? <Check aria-label="Selected" size={16} strokeWidth={2.2} /> : null}
+                  </button>
+                </div>
+                {onboardingState.contentInspection?.signals.length ? (
+                  <div className="onboarding-section__hint">Detected: {onboardingState.contentInspection.signals.join(" · ")}</div>
+                ) : null}
+              </div>
+              <div className="onboarding-card__actions">
+                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "configure", errorMessage: null } : current)} type="button">Back</button>
+                <button className="toolbar-button toolbar-button--primary" onClick={() => setOnboardingState((current) => current ? { ...current, step: "mcp", errorMessage: null } : current)} type="button">Continue to tools</button>
               </div>
             </>
           ) : onboardingState.step === "agents" ? (
@@ -1263,7 +1289,7 @@ export function App() {
                 </div>
               </div>
               <div className="onboarding-card__actions">
-                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "configure", errorMessage: null } : current)} type="button">Back</button>
+                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "scope", errorMessage: null } : current)} type="button">Back</button>
                 <button className="toolbar-button toolbar-button--primary" onClick={() => setOnboardingState((current) => current ? { ...current, step: "agents", errorMessage: null } : current)} type="button">Set up CLI agents</button>
               </div>
             </>
@@ -1348,7 +1374,6 @@ export function App() {
       onOpenTitleSegment={(segment) => void openTitleSegment(segment)}
       onOpenFolder={(directoryPath) => canvasNavigation.openFolderOverview(directoryPath)}
       workspaceLabel={workspaceLabel}
-      missingFolderIndexCount={folderIndexStatus?.missingIndexPaths.length ?? 0}
       noteSections={noteSections}
       appearanceMode={appearanceMode}
       resolvedAppearance={resolvedAppearance}
@@ -1548,7 +1573,6 @@ export function App() {
       }} onToggle={toggleConnectionsSurface} onOpenGraphCanvas={openGraphCanvas} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exo.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
-      onCreateMissingFolderIndexes={() => void createMissingFolderIndexes()}
       connectionsOpen={isUtilityDestinationActive(utilityState, "connections")}
       onOpenConnections={openConnectionsSurface}
       onSearchQueryChange={(value) => {

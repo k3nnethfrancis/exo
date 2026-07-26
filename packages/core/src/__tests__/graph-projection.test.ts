@@ -100,7 +100,7 @@ describe("graph projection", () => {
 
 function fixtureSnapshot(): KnowledgeGraphSnapshot {
   return {
-    version: "0.3",
+    version: "0.4",
     snapshotId: "snapshot:fixture",
     generatedAt: "2026-07-17T00:00:00.000Z",
     scope: { workspaceRoot: "/Users/private/notes", noteRootIds: ["private"], paths: ["/Users/private/notes/a.md"] },
@@ -109,6 +109,7 @@ function fixtureSnapshot(): KnowledgeGraphSnapshot {
       { id: "note:private:a.md", label: "Private Alpha", filePath: "/Users/private/notes/a.md", conceptTypes: ["SensitiveOntologyType"], properties: {}, resolution: "resolved", tags: [] },
     ],
     relations: [{ id: "relation:private", source: "note:private:a.md", target: "note:private:b.md", family: "link", origin: "document", resolution: "resolved", directed: true, evidence: [] }],
+    artifactReferences: [],
     findings: [],
     activeFormat: { id: "generic-markdown", version: "1", label: "Generic Markdown", source: "built-in", state: "active" },
     activeOntology: { state: "generic" },

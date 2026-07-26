@@ -188,7 +188,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     if (!options?.force && hydratedSessionIdsRef.current.has(id) && (pendingTerminalDataRef.current[id]?.data.length ?? 0) > 0) {
       // A terminal may be marked hydrated before its xterm instance registers.
       // Flush pending appends directly once the matching generation is live;
-      // routine focus/tab changes must not reset or replay mounted terminal state.
+      // Ordinary focus or tab changes must not reset or replay mounted terminal state.
       const pendingEntry = pendingTerminalDataRef.current[id];
       if (pendingEntry && writeTerminalData(id, pendingEntry.generation, pendingEntry.data)) {
         delete pendingTerminalDataRef.current[id];

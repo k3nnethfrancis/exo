@@ -7,6 +7,8 @@ import {
   KNOWLEDGE_GRAPH_VERSION,
   graphPropertyRecord,
   knowledgeGraphSnapshotId,
+  type ArtifactKind,
+  type ArtifactReference,
   type ConceptNode,
   type GraphFinding,
   type KnowledgeGraphSnapshot,
@@ -54,9 +56,10 @@ import {
 } from "./graph-projection";
 import type { WorkspaceModel, NoteDocument } from "./types";
 import { listMarkdownFiles, WorkspaceFiles } from "./workspace";
+import { normalizeWorkspaceContentPolicy } from "./workspace-content-policy";
 
 export type NoteId = `note:${string}`;
-export type GraphResolution = "resolved" | "unresolved" | "ambiguous" | "external";
+export type GraphResolution = "resolved" | "unresolved" | "ambiguous" | "external" | "artifact";
 type ActiveNoteRootFormat = ReturnType<typeof noteRootFormat>;
 type AbsoluteMarkdownLinkBase = ActiveNoteRootFormat["absoluteMarkdownLinkBase"];
 
@@ -79,6 +82,7 @@ export interface WorkspaceGraphLink {
   target: string;
   label: string;
   resolution: GraphResolution;
+  artifactKind?: ArtifactKind;
   note?: WorkspaceGraphNote;
   sourceRange?: { from: number; to: number };
 }
@@ -181,6 +185,10 @@ export class WorkspaceGraph {
     if (/^https?:\/\//i.test(label)) {
       return { source: source?.note.id ?? this.idForPath(sourceFilePath), target: label, label, resolution: "external" };
     }
+    const artifactKind = artifactKindForTarget(label);
+    if (artifactKind) return {
+      source: source?.note.id ?? this.idForPath(sourceFilePath), target: label, label, resolution: "artifact", artifactKind,
+    };
     const resolved = this.resolveTarget(graph, source?.note, label);
     return {
       source: source?.note.id ?? this.idForPath(sourceFilePath),
@@ -266,6 +274,7 @@ export class WorkspaceGraph {
     const formatResolutionIndex = noteRootAbsoluteLinks ? resolutionIndex(graph) : null;
     const concepts = new Map<string, ConceptNode>();
     const relations: RelationEdge[] = [];
+    const artifactReferences: ArtifactReference[] = [];
     const findings: GraphFinding[] = [];
     const formatConcepts: ConceptNode[] = [];
 
@@ -297,6 +306,19 @@ export class WorkspaceGraph {
         ? this.linksFromGraph(graph, entry, formatResolutionIndex ?? undefined, format.absoluteMarkdownLinkBase)
         : epoch?.outgoingByConcept.get(entry.note.id) ?? [];
       outgoing.forEach((link) => {
+        if (link.resolution === "artifact") {
+          artifactReferences.push({
+            id: artifactReferenceId(entry.note.id, link.target),
+            source: entry.note.id,
+            target: link.target,
+            label: link.label || link.target,
+            kind: link.artifactKind ?? "attachment",
+            evidence: link.sourceRange
+              ? [{ kind: "source-span", noteId: entry.note.id, sourceRange: link.sourceRange, detail: link.target }]
+              : [],
+          });
+          return;
+        }
         // Format-excluded documents may organize a Note Root but cannot become
         // Concept endpoints, whether or not the target currently exists.
         if (link.resolution !== "external" && !format.includesConcept(link.note?.relativePath ?? link.target)) return;
@@ -396,6 +418,7 @@ export class WorkspaceGraph {
 
     const sortedConcepts = [...concepts.values()].sort(byId);
     const sortedRelations = relations.sort(byId);
+    const sortedArtifactReferences = artifactReferences.sort(byId);
     const scope = {
       workspaceRoot: this.model.workspaceRoot,
       noteRootIds: this.roots().map((root) => root.id).sort(),
@@ -413,6 +436,7 @@ export class WorkspaceGraph {
       scope,
       sortedConcepts,
       sortedRelations,
+      sortedArtifactReferences,
       allFindings,
       activeFormat,
       activeOntology,
@@ -424,6 +448,7 @@ export class WorkspaceGraph {
       scope,
       concepts: sortedConcepts,
       relations: sortedRelations,
+      artifactReferences: sortedArtifactReferences,
       findings: allFindings,
       activeFormat,
       activeOntology,
@@ -780,7 +805,10 @@ export class WorkspaceGraph {
 
   private async buildSnapshot(generation: number): Promise<Map<string, GraphEntry>> {
     const roots = this.roots();
-    const files = (await listMarkdownFiles(roots.map((root) => root.path))).map((filePath) => path.resolve(filePath)).sort();
+    const files = (await listMarkdownFiles(
+      roots.map((root) => root.path),
+      normalizeWorkspaceContentPolicy(this.model.contentPolicy),
+    )).map((filePath) => path.resolve(filePath)).sort();
     const authorized = new WorkspaceFiles(roots.map((root) => root.path));
     const graph = new Map<string, GraphEntry>();
     const readConcurrency = 32;
@@ -958,6 +986,8 @@ export class WorkspaceGraph {
   ): WorkspaceGraphLink {
     const clean = target.split("#")[0]?.split("?")[0]?.trim() ?? target.trim();
     if (/^https?:\/\//i.test(clean)) return { source: source.note.id, target: clean, label, resolution: "external", sourceRange };
+    const artifactKind = artifactKindForTarget(clean);
+    if (artifactKind) return { source: source.note.id, target: clean, label, resolution: "artifact", artifactKind, sourceRange };
     const resolved = this.resolveTarget(graph, source.note, clean, index, absoluteLinkBase);
     return { source: source.note.id, target: clean, label, resolution: resolved.status, note: resolved.note, sourceRange };
   }
@@ -968,7 +998,7 @@ export class WorkspaceGraph {
     target: string,
     index = resolutionIndex(graph),
     absoluteLinkBase: AbsoluteMarkdownLinkBase = "source-document",
-  ): { status: GraphResolution; note?: WorkspaceGraphNote } {
+  ): { status: Exclude<GraphResolution, "artifact">; note?: WorkspaceGraphNote } {
     if (absoluteLinkBase === "note-root" && source && target.startsWith("/")) {
       const root = this.roots().find((candidate) => candidate.id === source.rootId);
       if (!root) return { status: "unresolved" };
@@ -1285,15 +1315,33 @@ function contentRevision(content: string | Buffer): string {
 
 function graphSourceRevision(graph: ReadonlyMap<string, GraphEntry>): string {
   const hash = createHash("sha256");
-  for (const [filePath, entry] of [...graph.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+  for (const [filePath, entry] of [...graph.entries()].sort(([left], [right]) => compareCodeUnitPaths(left, right))) {
     hash.update(filePath).update("\0").update(entry.sourceRevision).update("\0");
   }
   return hash.digest("hex");
 }
 
+function compareCodeUnitPaths(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function conceptIdForLink(sourceId: string, target: string, resolution: GraphResolution): string {
   if (resolution === "external") return `external:${target}`;
+  if (resolution === "artifact") throw new Error("Artifact references do not have Concept identities.");
   return `unresolved:${encodeURIComponent(`${sourceId}:${target}`)}`;
+}
+
+function artifactReferenceId(sourceId: string, target: string): string {
+  return `artifact:${encodeURIComponent(sourceId)}:${encodeURIComponent(target)}`;
+}
+
+function artifactKindForTarget(target: string): ArtifactKind | null {
+  const extension = path.extname(target).toLowerCase();
+  if (!extension || extension === ".md" || extension === ".markdown" || extension === ".mdown") return null;
+  return new Set([
+    ".c", ".cc", ".cpp", ".cs", ".css", ".go", ".h", ".hpp", ".html", ".java", ".js", ".jsx",
+    ".kt", ".lua", ".m", ".php", ".py", ".rb", ".rs", ".sh", ".sql", ".swift", ".ts", ".tsx", ".vue",
+  ]).has(extension) ? "source-file" : "attachment";
 }
 
 function resolutionIndex(graph: ReadonlyMap<string, GraphEntry>): ResolutionIndex {

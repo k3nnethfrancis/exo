@@ -4,8 +4,8 @@ status: accepted
 
 # Keep an ontology library user-owned and activate one interpretation at a time
 
-**Implementation status: shipped on `dev`.** Settings and Graph enumerate the
-root source plus direct `ontologies/*.yaml` files, preview one selection, and
+**Implementation status: implemented.** Settings and Graph enumerate the root
+source plus direct `ontologies/*.yaml` files, preview one selection, and
 require explicit Keep before changing the active interpretation.
 
 The first Workspace Ontology foundation reads one user-owned

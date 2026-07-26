@@ -2,13 +2,19 @@
 status: accepted
 ---
 
-# Folder Indexes Provide The First Ontology Substrate
+# Folder Notes Provide The First Ontology Substrate
 
-Exo will use user-owned Folder structure plus optional `index.md` Folder Indexes as the first custom-ontology substrate instead of introducing an app-owned schema/profile database. A Folder gives Notes a primary structural home; its index may describe the collection, declare suggested properties and relationships, and guide graph-management Skills. The planned Folder Overview derives containment and context from that Markdown while tags and typed relationships preserve multiple membership.
+Exo uses user-owned Folder structure plus optional `index.md` Folder Notes as
+the first custom-ontology substrate instead of introducing an app-owned
+schema/profile database. A Folder gives Notes a primary structural home; its
+Folder Note may describe the collection, declare suggested properties and
+relationships, and guide graph-maintenance Skills. Folder Overview derives
+containment and context from that Markdown while tags and typed relationships
+preserve multiple membership.
 
-At acceptance this was a next-slice decision rather than shipped behavior.
-Folder Overview and explicit index creation subsequently shipped; existing
-folders remain untouched by viewing and `index.md` creation remains an explicit
-authoring action. ADR 0005 extends this decision with optional user-owned
-the optional reviewed Workspace Ontology while retaining the prohibition on an
-app-owned ontology database.
+Folder Overview and explicit Folder Note creation are implemented. Existing
+folders remain untouched by viewing and `index.md` creation remains a
+folder-scoped authoring action. Bulk creation is deliberately not a workspace
+action. ADRs 0006 and 0007 extend this decision with an optional, reviewed,
+user-owned Workspace Ontology while retaining the prohibition on an app-owned
+ontology database.

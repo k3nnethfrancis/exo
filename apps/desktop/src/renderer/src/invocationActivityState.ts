@@ -1,7 +1,4 @@
-import {
-  type AgentCommand,
-  type InvocationRecord,
-} from "@exo/core";
+import type { AgentCommand, InvocationRecord } from "@exo/core";
 import {
   invocationActivityLabel,
   type InvocationActivityEvent,

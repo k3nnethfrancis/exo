@@ -1,6 +1,6 @@
-# Exo Document-Agent Protocol
+# Agent invocation protocol
 
-**Status:** V1 envelope grammar and exact Changeset review shipped.
+**Status:** Current document-envelope and Changeset review contract.
 
 Exo keeps Markdown as the canonical user document. It adds two inert, XML-like
 envelopes so a human request and an agent's durable result can be identified
@@ -122,5 +122,3 @@ review controls.
   diff-review path.
 - No migration of users' legacy Markdown; raw source stays portable in every
   Markdown editor.
-
--- Exo | 2026-07-13

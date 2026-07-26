@@ -1,5 +1,4 @@
 import type {
-  FolderIndexStatus,
   IndexSearchResponse,
   IndexStatus,
   IndexSyncResult,
@@ -23,6 +22,5 @@ export interface WorkspaceIndexApi {
   searchWorkspace: (query: string) => Promise<WorkspaceSearchResults>;
   searchIndex: (query: string, options?: { limit?: number; forceMode?: "lexical" | "semantic" | "hybrid" }) => Promise<IndexSearchResponse>;
   searchTag: (tag: string) => Promise<SearchResult[]>;
-  getFolderIndexStatus: () => Promise<FolderIndexStatus>;
   onIndexSyncState: (callback: (event: IndexSyncStateEvent) => void) => () => void;
 }

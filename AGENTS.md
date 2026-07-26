@@ -6,7 +6,7 @@ This file is provider-neutral guidance for coding agents. `CLAUDE.md` is a compa
 
 1. [README.md](README.md) — supported product surface and setup.
 2. [CONTRIBUTING.md](CONTRIBUTING.md) — development and validation workflow.
-3. [CONTEXT.md](CONTEXT.md) — product vocabulary.
+3. [docs/glossary.md](docs/glossary.md) — product vocabulary.
 4. [docs/architecture.md](docs/architecture.md) — package boundaries and runtime ownership.
 5. [docs/README.md](docs/README.md) — current product and maintainer contracts.
 
@@ -20,11 +20,29 @@ documentation.
 - `apps/desktop` — Electron main process, preload, renderer, and shared API.
 - `packages/core` — Workspace, Markdown graph, search, invocations, and shared protocol types.
 - `packages/cli` — local CLI and MCP presentation.
-- `benchmarks/graphbench` — Exo's internal graph-rendering regression harness.
+- `evals/graph` — Exo's internal graph-rendering regression suite.
 - `skills` — reusable provider-neutral instructions for contributors and coding agents.
 - `scripts` and `.github/workflows` — build, installation, and CI.
 
 Subdirectory `AGENTS.md` files identify the closest source and test owner.
+
+## Progressive disclosure
+
+Read only the contract that owns the change, then its focused tests:
+
+- Markdown, filesystem authority, graph, search, ontology, or invocation data:
+  [`packages/core/AGENTS.md`](packages/core/AGENTS.md).
+- Electron lifecycle, watcher/index services, command server, invocation
+  execution, or terminals:
+  [`apps/desktop/src/main/AGENTS.md`](apps/desktop/src/main/AGENTS.md).
+- Editor, pane layout, graph interaction, or review presentation:
+  [`apps/desktop/src/renderer/src/AGENTS.md`](apps/desktop/src/renderer/src/AGENTS.md).
+- CLI, MCP, app-off fallback, or transport:
+  [`packages/cli/AGENTS.md`](packages/cli/AGENTS.md).
+
+For a cross-cutting proposal, read `docs/architecture.md` and the two relevant
+owners before adding a new seam. Do not use a broad `App.tsx` change to bypass
+an existing domain owner.
 
 ## Invariants
 
@@ -41,7 +59,6 @@ Subdirectory `AGENTS.md` files identify the closest source and test owner.
 ```bash
 pnpm ci:check
 pnpm check
-pnpm check:repo
 ```
 
 Use `pnpm dev` for source iteration, `pnpm dev:qa` for isolated source QA, and

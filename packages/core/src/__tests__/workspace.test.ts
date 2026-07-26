@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { createWorkspaceFile, listRootTree, renameWorkspacePath, resolveNotePath, resolveWorkspaceModel, searchNotes, searchWorkspace } from "../workspace";
+import { repositoryWorkspaceContentPolicy } from "../workspace-content-policy";
 
 const fixtureWorkspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/test-workspace");
 
@@ -87,6 +88,45 @@ describe("workspace", () => {
   it("lists markdown tree nodes", async () => {
     const nodes = await listRootTree(path.join(fixtureWorkspaceRoot, "notes/test-notes"), { markdownOnly: true });
     expect(nodes.some((node) => node.name === "focus-note.md")).toBe(true);
+  });
+
+  it("prunes excluded content paths from a Markdown tree", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-content-tree-"));
+    try {
+      await mkdir(path.join(root, "docs"), { recursive: true });
+      await mkdir(path.join(root, "release"), { recursive: true });
+      await writeFile(path.join(root, "docs", "readme.md"), "# Readme\n", "utf8");
+      await writeFile(path.join(root, "release", "generated.md"), "# Generated\n", "utf8");
+
+      const nodes = await listRootTree(root, { markdownOnly: true, excludedPaths: ["release/**"] });
+
+      expect(nodes.map((node) => node.name)).toEqual(["docs"]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps excluded Markdown out of filesystem search", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-content-search-"));
+    try {
+      await mkdir(path.join(root, "release"), { recursive: true });
+      await writeFile(path.join(root, "readme.md"), "# Readme\nneedle\n", "utf8");
+      await writeFile(path.join(root, "release", "generated.md"), "# Generated\nneedle\n", "utf8");
+      const workspace = {
+        workspaceRoot: root,
+        defaultTerminalCwd: root,
+        noteRoots: [{ id: "notes", label: "Notes", path: root }],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off" as const, backend: "qmd" as const },
+        contentPolicy: repositoryWorkspaceContentPolicy(),
+      };
+
+      await expect(searchNotes(workspace, "needle")).resolves.toMatchObject([
+        { filePath: path.join(root, "readme.md") },
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("can include empty directories in markdown-only trees", async () => {

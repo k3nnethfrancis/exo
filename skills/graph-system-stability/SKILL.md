@@ -12,10 +12,10 @@ view. Apply only the branch of this workflow relevant to the task.
 
 Read these current sources first:
 
-- `AGENTS.md` and `CONTEXT.md`
+- `AGENTS.md` and `docs/glossary.md`
 - `docs/architecture.md`
 - `docs/note-root-formats.md` and `docs/workspace-ontology.md`
-- `benchmarks/graphbench/contract.md`
+- `evals/graph/README.md`
 
 For layout, scene, renderer, gestures, or labels also read:
 
@@ -113,7 +113,7 @@ Markdown → Knowledge Graph → Graph projection → Layout → Scene → Rende
    old behavior.
 5. Run only the focused gates required by the affected layer, then broaden in
    proportion to integration risk.
-6. Update `CONTEXT.md` only for changed domain language and an ADR only for a
+6. Update `docs/glossary.md` only for changed domain language and an ADR only for a
    hard-to-reverse decision. Track follow-up work in GitHub Issues.
 7. Record benchmark results with exact fixtures and do not convert lab success
    into a production claim without packaged-app evidence.
@@ -137,9 +137,9 @@ resolution, Evidence, deterministic snapshots, and compatibility behavior.
 ### Spatial scene or renderer changes
 
 ```bash
-pnpm graphbench:test
-pnpm graphbench:smoke
-pnpm graphbench:resilience
+pnpm graph:eval:test
+pnpm graph:eval:smoke
+pnpm graph:eval:resilience
 ```
 
 Run only applicable tracks, but never substitute a render pass for a layout or

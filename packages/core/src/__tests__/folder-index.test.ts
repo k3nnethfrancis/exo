@@ -50,15 +50,22 @@ describe("folder indexes", () => {
     expect(await readFile(indexPath, "utf8")).toBe("# My authored title\n");
   });
 
-  it("reports nested missing indexes without writing files", async () => {
+  it("reports only Markdown-bearing folder note candidates without writing files", async () => {
     const root = await temporaryRoot();
     const noteRoot = path.join(root, "notes");
     const indexed = path.join(noteRoot, "indexed");
     const missing = path.join(noteRoot, "missing");
     const nestedMissing = path.join(missing, "nested");
     await mkdir(indexed, { recursive: true });
+    const sourceOnly = path.join(noteRoot, "source-only");
+    const ignoredBuild = path.join(noteRoot, "release", "generated");
     await mkdir(nestedMissing, { recursive: true });
+    await mkdir(sourceOnly, { recursive: true });
+    await mkdir(ignoredBuild, { recursive: true });
     await writeFile(path.join(indexed, "index.md"), "# Indexed\n", "utf8");
+    await writeFile(path.join(nestedMissing, "note.md"), "# Note\n", "utf8");
+    await writeFile(path.join(sourceOnly, "main.ts"), "export {};\n", "utf8");
+    await writeFile(path.join(ignoredBuild, "generated.md"), "# Generated\n", "utf8");
 
     const before = await snapshotFiles(noteRoot);
     const status = await inspectFolderIndexes([noteRoot]);

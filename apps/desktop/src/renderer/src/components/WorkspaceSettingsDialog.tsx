@@ -1,6 +1,7 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Bot, FolderOpen, Palette, Search, TerminalSquare, X } from "lucide-react";
 import type { AgentCommand, IndexStatus, WorkspaceSettings } from "@exo/core";
+import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@exo/core/workspace-content-policy";
 
 import type { AppearanceMode } from "../appearance";
 import { THEME_FAMILIES, normalizeColorThemeId } from "../theme/registry";
@@ -235,6 +236,40 @@ function WorkspaceSection({
           onRemove={() => setSettings((current) => (current ? { ...current, noteRoots: [], applyStatus: "idle", applyErrorMessage: null } : current))}
         />
       </div>
+      <div className="dialog-field dialog-field--section">
+        <div className="dialog-field__label">Content scope</div>
+        <div className="settings-control-row" role="group" aria-label="Content scope">
+          <button
+            aria-pressed={(settings.contentPolicy?.excludedPaths.length ?? 0) > 0}
+            className="toolbar-button"
+            data-testid="workspace-settings-content-scope-notes"
+            onClick={() => setSettings((current) => current ? {
+              ...current,
+              contentPolicy: repositoryWorkspaceContentPolicy(),
+              applyStatus: "idle",
+              applyErrorMessage: null,
+            } : current)}
+            type="button"
+          >
+            Markdown notes
+          </button>
+          <button
+            aria-pressed={(settings.contentPolicy?.excludedPaths.length ?? 0) === 0}
+            className="toolbar-button"
+            data-testid="workspace-settings-content-scope-all"
+            onClick={() => setSettings((current) => current ? {
+              ...current,
+              contentPolicy: defaultWorkspaceContentPolicy(),
+              applyStatus: "idle",
+              applyErrorMessage: null,
+            } : current)}
+            type="button"
+          >
+            All Markdown
+          </button>
+        </div>
+        <div className="onboarding-section__hint">Changes which Markdown files become Notes, graph concepts, and search documents.</div>
+      </div>
       <OntologyReviewRow />
     </>
   );
@@ -284,7 +319,11 @@ function IndexSection({
                 {(indexStatus?.indexedRoots.length ?? settings.indexedRoots.length) === 1 ? "" : "s"}
               </span>
               <span>{indexStatus?.documentCount ?? 0} docs</span>
-              <span>{waitingNotesCopy(indexStatus?.pendingEmbeddings ?? 0)}</span>
+              {(indexStatus?.mode ?? settings.indexMode) !== "lexical" ? (
+                <span>{waitingEmbeddingsCopy(indexStatus?.pendingEmbeddings ?? 0)}</span>
+              ) : (
+                <span>semantic off</span>
+              )}
             </div>
           </div>
           {statusCopy ? (
@@ -346,7 +385,7 @@ function IndexSection({
       </label>
       <div className="dialog-field dialog-field--section">
         <div className="dialog-field__header">
-          <span className="dialog-field__label">Manual sync</span>
+          <span className="dialog-field__label">Documents</span>
         </div>
         <div className="dialog-card__actions dialog-card__actions--split">
           <button
@@ -356,7 +395,7 @@ function IndexSection({
             onClick={() => void onRunIndexUpdate("syncing")}
             type="button"
           >
-            {indexBusy === "syncing" ? "Syncing..." : "Sync now"}
+            {indexBusy === "syncing" ? "Syncing..." : "Sync documents"}
           </button>
         </div>
       </div>
@@ -373,7 +412,7 @@ function IndexSection({
                 <span>{job.kind}</span>
                 <span>{formatDuration(job.durationMs)}</span>
                 <span>{formatRelativeTime(job.completedAt)}</span>
-                <span>{job.status === "failed" ? "failed" : `${job.pendingEmbeddings ?? 0} waiting`}</span>
+                <span>{job.status === "failed" ? "failed" : job.pendingEmbeddings === undefined ? "complete" : `${job.pendingEmbeddings} embeddings waiting`}</span>
               </div>
             ))}
           </div>
@@ -386,7 +425,7 @@ function IndexSection({
             onClick={() => void onRunIndexUpdate("updating")}
             type="button"
           >
-            {indexBusy === "updating" ? "Refreshing..." : "Refresh documents"}
+            {indexBusy === "updating" ? "Refreshing..." : "Reconcile documents"}
           </button>
           <button
             className="toolbar-button"
@@ -411,7 +450,9 @@ export function indexSettingsStatusCopy(
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"] = "on-save",
 ): { text: string; tone: "info" | "warn" | "error" } | null {
   if (indexBusy === "syncing") {
-    return { tone: "info", text: "Sync is refreshing documents and building pending embeddings. Status will refresh when it finishes." };
+    return indexStatus?.mode === "lexical"
+      ? { tone: "info", text: "Sync is reconciling included documents. Status will refresh when it finishes." }
+      : { tone: "info", text: "Sync is refreshing documents and building pending embeddings. Status will refresh when it finishes." };
   }
   if (indexBusy === "updating") {
     return { tone: "info", text: "Refreshing QMD notes. Embedding status will update when it finishes." };
@@ -438,25 +479,25 @@ export function indexSettingsStatusCopy(
     if (failedEmbeddingJob) {
       return {
         tone: "warn",
-        text: `${waitingNotesCopy(indexStatus.pendingEmbeddings)} after embedding failed; lexical search remains available. Build embeddings retries now.`,
+        text: `${waitingEmbeddingsCopy(indexStatus.pendingEmbeddings)} after embedding failed; lexical search remains available. Build embeddings retries now.`,
       };
     }
     if (indexUpdateStrategy === "manual") {
       return {
         tone: "warn",
-        text: `${waitingNotesCopy(indexStatus.pendingEmbeddings)}. Automatic updates are paused; lexical search remains available. Use Sync now or Build embeddings.`,
+        text: `${waitingEmbeddingsCopy(indexStatus.pendingEmbeddings)}. Automatic updates are paused; lexical search remains available. Use Sync now or Build embeddings.`,
       };
     }
     return {
       tone: "warn",
-      text: `${waitingNotesCopy(indexStatus.pendingEmbeddings)}. Small changes catch up automatically while Exo is idle; lexical search remains available. Build embeddings runs now.`,
+      text: `${waitingEmbeddingsCopy(indexStatus.pendingEmbeddings)}. Small changes catch up automatically while Exo is idle; lexical search remains available. Build embeddings runs now.`,
     };
   }
   return null;
 }
 
-function waitingNotesCopy(count: number): string {
-  return `${count} note${count === 1 ? "" : "s"} waiting`;
+function waitingEmbeddingsCopy(count: number): string {
+  return `${count} content embedding${count === 1 ? "" : "s"} waiting`;
 }
 
 function AppearanceSection({

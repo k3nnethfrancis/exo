@@ -1,5 +1,6 @@
 import type { AgentCommand } from "./agent-invocation";
 import type { WorkspaceGraphContext } from "./workspace-graph";
+import type { WorkspaceContentPolicy } from "./workspace-content-policy";
 
 export type DocumentKind = "markdown" | "text";
 export type ColorThemeId = "exo-neutral" | "exo-solar";
@@ -17,6 +18,8 @@ export interface WorkspaceModel {
   noteRoots: NoteRoot[];
   indexedRoots: IndexedRoot[];
   indexing: IndexingConfig;
+  /** Content scope shared by Explorer, graph, and search. Missing means generic Markdown scope. */
+  contentPolicy?: WorkspaceContentPolicy;
   /** The user's chosen search engine. Undefined preserves legacy model callers. */
   searchEngine?: SearchEngine;
 }
@@ -31,6 +34,8 @@ export interface WorkspaceSettings {
   /** Editable provider-neutral prompt template used for note invocations. */
   agentInvocationPrompt?: string;
   indexedRoots: IndexedRoot[];
+  /** Editable content scope. A repository recommendation may populate this during onboarding. */
+  contentPolicy?: WorkspaceContentPolicy;
   indexing: IndexingConfig;
   /** QMD configuration is retained when Simple search is selected. */
   searchEngine?: SearchEngine;

@@ -5,6 +5,7 @@ import path from "node:path";
 import type { IndexReadOptions, IndexSearchOptions, IndexUpdateOptions, SearchProvider, SearchProviderMetadata } from "../search-provider";
 import { readFilesystemDocument, searchFilesystem } from "./filesystem-provider";
 import { WorkspaceFiles } from "../workspace-files";
+import { normalizeWorkspaceContentPolicy } from "../workspace-content-policy";
 import type {
   IndexedRoot,
   IndexReadResponse,
@@ -661,7 +662,11 @@ async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise
   const qmd = await import("@tobilu/qmd");
   const collections = qmdCollectionIdentity(model.indexedRoots);
   await assertDistinctQmdPhysicalOwners(model.indexedRoots);
-  const collectionConfig = qmdCollectionConfig(model.indexedRoots, collections);
+  const collectionConfig = qmdCollectionConfig(
+    model.indexedRoots,
+    collections,
+    normalizeWorkspaceContentPolicy(model.contentPolicy).excludedPaths,
+  );
   const rootsNeedingReindex = await rootsNeedingQmdCollectionReindex(qmd, runtimeRoot, model.indexedRoots, collections);
   const hasPendingReindex = await hasPendingQmdCollectionReindex(runtimeRoot);
   if (rootsNeedingReindex.length > 0 && !hasPendingReindex) {
@@ -773,16 +778,17 @@ function qmdCollectionName(root: IndexedRoot): string {
 function qmdCollectionConfig(
   roots: IndexedRoot[],
   collections: QmdCollectionIdentity,
+  contentExclusions: readonly string[] = [],
 ): Record<string, { path: string; pattern: string; ignore: string[]; context: Record<string, string> }> {
-  const entries = roots.map((root) => [
+  const entries: Array<[string, { path: string; pattern: string; ignore: string[]; context: Record<string, string> }]> = roots.map((root) => [
     collections.nameFor(root),
     {
       path: root.path,
       pattern: root.pattern,
-      ignore: root.ignore,
+      ignore: [...new Set([...root.ignore, ...contentExclusions])],
       context: { "/": `${root.kind} root: ${root.label}` },
     },
-  ] as const);
+  ]);
   const rootsByName = new Map<string, IndexedRoot[]>();
   for (const [name, root] of entries.map(([name], index) => [name, roots[index]] as const)) {
     const group = rootsByName.get(name) ?? [];

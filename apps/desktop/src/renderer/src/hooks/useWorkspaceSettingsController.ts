@@ -6,6 +6,7 @@ import type {
 } from "@exo/core";
 import type { IndexSyncStateEvent, WorkspaceSettingsSaveOutcome } from "../../../shared/api";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
+import { normalizeWorkspaceContentPolicy } from "@exo/core/workspace-content-policy";
 import type { AppearanceMode } from "../appearance";
 import { normalizeColorThemeId } from "../theme/registry";
 import {
@@ -458,6 +459,7 @@ export function workspaceSettingsFromDialog(
     indexedRoots: settingsDialog.indexedRoots
       .filter((root) => Boolean(root.path.trim()))
       .map((root) => ({ ...root, path: root.path.trim(), ignore: [...root.ignore] })),
+    contentPolicy: normalizeWorkspaceContentPolicy(settingsDialog.contentPolicy),
     indexing: {
       enabled: settingsDialog.indexMode !== "off",
       mode: settingsDialog.indexMode,
@@ -475,6 +477,9 @@ export function workspaceSettingsFromDialog(
     indexedRoots: options.includeStructural
       ? structuralSettings.indexedRoots
       : currentSettings.indexedRoots,
+    contentPolicy: options.includeStructural
+      ? structuralSettings.contentPolicy
+      : currentSettings.contentPolicy,
     indexing: options.includeStructural
       ? structuralSettings.indexing
       : currentSettings.indexing,

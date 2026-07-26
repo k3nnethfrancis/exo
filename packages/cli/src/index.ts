@@ -5,6 +5,8 @@ import path from "node:path";
 import {
   filesystemSearchProvider,
   loadActiveWorkspaceSettings,
+  loadWorkspaceRegistry,
+  listWorkspaceRegistryEntries,
   resolveWorkspaceModel,
   workspaceEnvOverrides,
   workspaceModelFromSettings,
@@ -15,6 +17,7 @@ import {
   type ExoCommandSearchResponse,
   type ExoCommandStatusWithControlPlane,
   type ExoSpawnAgentCommandResponse,
+  type WorkspaceRegistryEntry,
 } from "@exo/core";
 import { EXO_CLI_USAGE } from "@exo/core/operator-help";
 import { AppClient, formatAppClientDiscoveryFailure } from "./app-client";
@@ -78,20 +81,28 @@ export async function runCli(argv: string[], options: {
     return 0;
   }
 
-  let client = await connectIfAvailable(env, connect);
-  if (command === "status") return print(client ? client.getStatus() : appOffStatus(env), stdout);
+  if (command === "workspaces") return print(listCliWorkspaces(env), stdout);
+  if (command === "status") {
+    const { values } = parseOptions([subcommand, ...args].filter((value): value is string => Boolean(value)));
+    const workspace = await resolveCliWorkspace(env, values.workspace);
+    if (values.workspace) return print(appOffStatus(workspace, env), stdout);
+    const client = await connectIfAvailable(env, connect);
+    return print(client ? client.getStatus() : appOffStatus(workspace, env), stdout);
+  }
   if (command === "search") {
     if (!subcommand) throw new Error("Usage: exo search <query> [--limit n]");
     const { positionals, values } = parseOptions([subcommand, ...args]);
     const query = positionals.join(" ");
     const limit = boundedSearchLimit(values.limit);
     const offset = parseSearchCursor(values.cursor, query);
-    const model = await resolveCliWorkspaceModel(env);
+    const workspace = await resolveCliWorkspace(env, values.workspace);
+    const client = values.workspace ? null : await connectIfAvailable(env, connect);
     const response = client
       ? await client.search(query, { limit, offset })
-      : await appOffSearch(env, query, { limit, offset });
-    return print(agentSearchResponse(model, response, { limit, offset }), stdout);
+      : await appOffSearch(workspace, query, { limit, offset });
+    return print(agentSearchResponse(workspace.model, response, { limit, offset }), stdout);
   }
+  let client = await connectIfAvailable(env, connect);
   if (!client) {
     client = await connectOrFail(env, stderr, connect);
     if (!client) return 1;
@@ -137,11 +148,6 @@ async function connectIfAvailable(env: NodeJS.ProcessEnv, connect: AppClientConn
   return connect(runtimeRoot, env);
 }
 
-async function appOffContext(env: NodeJS.ProcessEnv): Promise<{ model: WorkspaceModel; runtimeRoot: string }> {
-  const model = await resolveCliWorkspaceModel(env);
-  return { model, runtimeRoot: await resolveCliRuntimeRoot(env, model) };
-}
-
 async function resolveCliWorkspaceModel(env: NodeJS.ProcessEnv): Promise<WorkspaceModel> {
   if (workspaceEnvOverrides(env)) {
     return resolveWorkspaceModel(env);
@@ -157,12 +163,98 @@ async function resolveCliRuntimeRoot(env: NodeJS.ProcessEnv, model?: WorkspaceMo
   return path.join((model ?? await resolveCliWorkspaceModel(env)).workspaceRoot, ".exo");
 }
 
-async function appOffStatus(env: NodeJS.ProcessEnv): Promise<Record<string, unknown>> {
-  const { model, runtimeRoot } = await appOffContext(env);
+interface CliWorkspace {
+  model: WorkspaceModel;
+  id: string | null;
+  label: string | null;
+  active: boolean;
+}
+
+async function resolveCliWorkspace(env: NodeJS.ProcessEnv, selector?: string): Promise<CliWorkspace> {
+  if (workspaceEnvOverrides(env)) {
+    if (selector) {
+      throw new Error("`--workspace` cannot be combined with EXO workspace environment overrides.");
+    }
+    return { model: resolveWorkspaceModel(env), id: null, label: null, active: true };
+  }
+
+  const registry = await loadWorkspaceRegistry(env);
+  const entries = await listWorkspaceRegistryEntries(env);
+  if (!selector) {
+    const active = entries.find((entry) => entry.id === registry.activeWorkspaceId) ?? entries[0];
+    if (active) return cliWorkspaceFromEntry(active, true);
+    return { model: await resolveCliWorkspaceModel(env), id: null, label: null, active: true };
+  }
+
+  const normalizedSelector = selector.trim();
+  const selectorPath = path.resolve(normalizedSelector);
+  const matches = entries.filter((entry) =>
+    entry.id === normalizedSelector
+    || entry.label.toLocaleLowerCase() === normalizedSelector.toLocaleLowerCase()
+    || path.resolve(entry.notesFolder) === selectorPath
+    || path.resolve(entry.settings.workspaceRoot) === selectorPath,
+  );
+  if (matches.length === 0) {
+    const available = entries.map((entry) => `${entry.label} (${entry.id})`).join(", ") || "none";
+    throw new Error(`Unknown Exo Workspace: ${selector}. Available Workspaces: ${available}.`);
+  }
+  if (matches.length > 1) {
+    throw new Error(`Workspace selector is ambiguous: ${selector}. Use the Workspace id from \`exo workspaces\`.`);
+  }
+  const entry = matches[0]!;
+  return cliWorkspaceFromEntry(entry, entry.id === registry.activeWorkspaceId);
+}
+
+function cliWorkspaceFromEntry(entry: WorkspaceRegistryEntry, active: boolean): CliWorkspace {
+  return {
+    model: workspaceModelFromSettings(entry.settings),
+    id: entry.id,
+    label: entry.label,
+    active,
+  };
+}
+
+async function listCliWorkspaces(env: NodeJS.ProcessEnv): Promise<Record<string, unknown>> {
+  if (workspaceEnvOverrides(env)) {
+    const model = resolveWorkspaceModel(env);
+    return {
+      schema_version: "exo.workspaces.v1",
+      active_workspace_id: null,
+      workspaces: [{
+        id: null,
+        label: path.basename(model.workspaceRoot),
+        root: model.workspaceRoot,
+        note_roots: model.noteRoots.map((root) => root.path),
+        active: true,
+        source: "environment",
+      }],
+    };
+  }
+  const registry = await loadWorkspaceRegistry(env);
+  const entries = await listWorkspaceRegistryEntries(env);
+  return {
+    schema_version: "exo.workspaces.v1",
+    active_workspace_id: registry.activeWorkspaceId,
+    workspaces: entries.map((entry) => ({
+      id: entry.id,
+      label: entry.label,
+      root: entry.settings.workspaceRoot,
+      note_roots: entry.settings.noteRoots,
+      active: entry.id === registry.activeWorkspaceId,
+    })),
+  };
+}
+
+async function appOffStatus(workspace: CliWorkspace, env: NodeJS.ProcessEnv): Promise<Record<string, unknown>> {
+  const { model } = workspace;
+  const runtimeRoot = await resolveCliRuntimeRoot(env, model);
   return {
     ok: true,
     app: { available: false },
     workspace: {
+      id: workspace.id,
+      label: workspace.label,
+      active: workspace.active,
       root: model.workspaceRoot,
       noteRoots: model.noteRoots.map((root) => root.path),
     },
@@ -170,9 +262,13 @@ async function appOffStatus(env: NodeJS.ProcessEnv): Promise<Record<string, unkn
   };
 }
 
-async function appOffSearch(env: NodeJS.ProcessEnv, query: string, options: { limit: number; offset: number }): Promise<IndexSearchResponse> {
-  const { model, runtimeRoot } = await appOffContext(env);
-  return filesystemSearchProvider.search(model, runtimeRoot, query, options);
+async function appOffSearch(workspace: CliWorkspace, query: string, options: { limit: number; offset: number }): Promise<IndexSearchResponse> {
+  return filesystemSearchProvider.search(
+    workspace.model,
+    path.join(workspace.model.workspaceRoot, ".exo"),
+    query,
+    options,
+  );
 }
 
 async function startExoApp(
@@ -216,6 +312,7 @@ function help(): string {
   return [
     EXO_CLI_USAGE,
     "",
+    "Workspace selection: exo workspaces; status/search accept --workspace <id|label|path>.",
     "App-off: status and search use the configured workspace's filesystem roots.",
     "App-backed: show, index maintenance, open, and invoke require Exo to be running.",
     "Developer source QA: pnpm dev:qa",

@@ -1,399 +1,75 @@
-# Exo — open-source exograph (working name)
+# Exo
 
-**Build a graph you and your tools can hold in common.**
+> A local-first Markdown workspace that keeps your notes, graph, search, and agent-assisted changes in files you own.
 
-**Exo** is the current working name for an open-source, local-first reference implementation of an **exograph**: a user-owned, human-readable graph of artifacts, relationships, evidence, and history that people and machines can use together. The public project and CLI name remain unresolved; `exo` stays canonical until a replacement is chosen.
+Exo is an open-source desktop application for working with a Markdown wiki. It reads ordinary folders, maintains a live graph over their notes, searches them locally, and lets you explicitly ask configured local agents to make changes you can review.
 
-The category is broader than this application. The exograph should remain useful through ordinary files, interoperable with other tools, and independent of any model.
+Markdown and frontmatter stay canonical. Exo's indexes, layouts, invocation records, and review state live under `.exo/` as rebuildable local state.
 
-The launch product is:
+## What it does
 
-> **Open-source Markdown exograph + modular search + explicit command invocation + reviewable graph management.**
+- **Write and navigate** Markdown notes with folders, backlinks, tags, properties, daily notes, live preview, terminals, and web previews.
+- **Search and see connections** through immediate filename/path search or optional local lexical, semantic, and hybrid retrieval; inspect the same knowledge as a graph.
+- **Work with agents deliberately** through inline `@` invocations, local CLI commands, and an optional two-tool read-only MCP server. Agent changes are captured as a reviewable Changeset; saving a note never runs an agent.
 
-Notes remain the durable source of truth. `.exo/` stores derived indexes, invocation records, artifacts, and review/provenance state.
+Exo is macOS-first and currently an unsigned alpha. The product and CLI are still named `exo` while a permanent public name is chosen.
 
-The shipped product has replaced the old agent-cockpit direction with configured Commands that users invoke explicitly from Markdown. Exo records observed changes for review.
+## Start here
 
-## Why Exo Exists
+### Use Exo
 
-Your thinking, knowledge, projects, and context exceed what you can actively hold. Exo provides durable cognitive ground for capturing and resuming thought without handing the graph to a hosted service.
+Build and install the local unsigned app:
 
-Search helps recover context, but it is not the whole problem. Exo makes relationships among notes visible and useful through links, backlinks, tags, properties, relevant-context discovery, and a focused graph.
-
-Agents help maintain the exograph without becoming the product spine. A user explicitly invokes a configured Command inline; Exo shows observed Markdown changes for review. The included graph-maintenance Skill uses that same reviewed path.
-
-## How the graph begins
-
-An existing Markdown folder works without setup. Each resolved Markdown file is
-one graph Concept; its first H1 can label it, but a heading does not create a
-second node. Wikilinks and Markdown links connect those existing file Concepts,
-and tags create shared tag Concepts in the semantic graph. The spatial map
-intentionally suppresses tag hubs and groups tagged Notes instead, so a common
-tag cannot turn the view into a starburst. Frontmatter remains on its Note: for
-example, `type: project` classifies the Note rather than creating a separate
-`project` node or an edge.
-
-That baseline is **Generic Markdown**, Exo's zero-configuration Note Root
-Format. An optional, user-owned `ontology.yaml` can later interpret selected
-properties—for example, make `supports` into a typed reference relation or
-check that a project has expected fields—without changing the Markdown. It is
-reviewed before activation and stays separate from Graph View presentation.
-See [Note Root Formats](./docs/note-root-formats.md) and
-[Workspace Ontology](./docs/workspace-ontology.md) for the precise boundary.
-
-Folders are meaningful graph structure. Double-click a Folder to open its Overview: optional user-owned `index.md` metadata, direct children, and local graph context. Viewing never creates an index; creation is explicit. The raw `index.md` remains ordinary Markdown and is hidden only as a duplicate Explorer row. Paths provide a primary home while tags and relationships preserve multiple membership.
-
-Exo's accepted graph direction is schema-agnostic. Markdown remains canonical;
-an optional user-owned `ontology.yaml` interprets open Concept Types, Property
-shapes, reference Relations, and validation rules without changing Notes.
-Generic Markdown is the default Note Root Format. Permissive OKF 0.1 is an
-explicit interoperability format, not an automatic behavior change. Graph Views
-remain separate derived projections.
-Rendering/layout performance and knowledge utility are evaluated separately.
-
-Plugins are a later distribution concern, not the launch architecture. Skills author behavior, Commands/providers execute capabilities, and a future Plugin may package proven combinations for installation, versioning, updates, and sharing.
-
-## What Exo Is
-
-- A trustworthy, open-source, local-first Markdown workspace.
-- Modular Search with filesystem and QMD as the first two concrete implementations.
-- An actionable exograph with links, backlinks, tags, properties, relevant context, and focused graph views.
-- Provider-neutral configured Commands with explicit inline invocation and reviewable observed changes.
-- Review surfaces for accepting, editing, or rejecting proposed Markdown changes.
-- A mixed-pane workspace and CLI over the same deep modules.
-
-## What Exo Is Not
-
-Exo is not building:
-
-- a universal agent cockpit;
-- provider-specific agent management;
-- a Routine platform as the default product spine;
-- a general integration runtime;
-- a plugin marketplace as the near-term setup path;
-- a native Feed, trainer, model manager, or Guardian research environment in the launch product;
-- the Guardian research runtime or In Common Labs program;
-- automatic graph writing or automatic agent chaining;
-- line-perfect authorship.
-
-## What Works Today
-
-- Markdown notes with live-preview editing, properties/frontmatter, backlinks/tags/links, foldable lists, and table widgets.
-- Explicit Note Roots for all Exo-owned filesystem access.
-- Fast note filename/path search from the explorer search pane.
-- Optional QMD-backed notes indexing with lexical, semantic, and hybrid modes.
-- Index status, sync, and settings controls for selected note roots.
-- Editor and terminal panes with flat tabs, split behavior, and no-empty-leaves pruning.
-- Direct `node-pty` terminals rendered by xterm, with bounded in-memory replay for renderer reload and operator reads.
-- CLI control of the local workspace/runtime.
-
-## Project direction
-
-Exo is early and macOS-first. The public focus is a dependable Markdown
-workspace, local search, a legible graph, and explicit agent-assisted changes
-that remain under human review. Public bugs and feature requests belong in
-GitHub Issues; release history belongs in [CHANGELOG.md](CHANGELOG.md).
-
-## Graph performance gates
-
-[The graph performance suite](./benchmarks/graphbench/README.md) is Exo's
-repo-local engineering harness for interactive node-link rendering. It keeps
-fixed-coordinate rendering, native layout, product interaction, resilience,
-and incremental stability as separate regression gates.
-
-Run its contract tests or the 10,000-node smoke profile from this repository:
-
-```bash
-pnpm graphbench:test
-pnpm graphbench:smoke
-```
-
-The harness lives beside Exo's renderer so production behavior and regression
-evidence cannot silently diverge. Results are hardware-specific Exo engineering
-measurements, not a portable benchmark.
-
-## Current Status
-
-Exo is under active development and not yet a polished public binary release.
-
-- Supported today: source development and unsigned macOS packaging.
-- Coming later: first-class Windows and Linux support.
-- License: Apache-2.0.
-- Current alpha: `0.1.0-alpha.3`.
-- Not ready yet: signed/notarized macOS releases, Windows/Linux installers, and cross-platform terminal persistence.
-
-Before broad public binary release, Exo still needs signed/notarized macOS packaging and a clean release checklist from a fresh clone.
-
-## Quick Start
-
-There are two setup paths today:
-
-- Daily/user runtime: build the unsigned macOS app locally, install it into your user Applications folder, launch it, then point Exo at your notes folder.
-- Developer runtime: clone the repo, install dependencies, and run `pnpm dev` or `pnpm dev:qa` while changing source.
-
-The polished end-user path should eventually be a signed download or package-manager install. Until then, the local app install is the closest path to "install an app and choose my notes folder."
-
-Prerequisites:
-
-- Node.js 22 or newer.
-- pnpm 11.2.2. With Homebrew pnpm, run `pnpm --version` and upgrade if needed.
-
-If Corepack fails before install with a package-manager signature or key error, either update Node/Corepack or use your installed pnpm directly:
-
-```bash
-COREPACK_ENABLE_PROJECT_SPEC=0 pnpm install
-COREPACK_ENABLE_PROJECT_SPEC=0 pnpm dev:qa
-```
-
-The repo-backed `exo` launcher and `scripts/install-local` set `COREPACK_ENABLE_PROJECT_SPEC=0` automatically so local CLI commands do not trip stale Corepack key metadata.
-
-```bash
+```sh
 pnpm install
-pnpm dev:qa
+./scripts/install-mac-app --with-cli
 ```
 
-### Launch Modes
+Launch Exo from `~/Applications`, choose a main Markdown wiki, decide what Markdown becomes Notes, optionally install the MCP server, then configure the local agent commands you want available through `@`.
 
-Use the launch mode that matches the evidence you need:
+For the full workflow, read [Using Exo](docs/using-exo.md). For command-line and MCP access, read [CLI and MCP](docs/cli.md).
 
-| Command | Use For | Not Evidence For |
-| --- | --- | --- |
-| `pnpm dev` | Active Electron/Vite development and fast main/renderer iteration. | Installed-app or packaged-app behavior. |
-| `pnpm dev:qa` | Source QA with isolated `.exo-dev/` runtime and user-data paths while an installed Exo app remains usable. | Packaged resources, install paths, or first-run packaged app behavior. |
-| `pnpm app` | Source-built smoke test. It builds production bundles and launches Electron from the source tree. | Onboarding, app-support/user-data paths, packaged resources, native-module packaging, or terminal cwd defaults. |
-| `pnpm pack:mac` then `open release/mac-arm64/Exo.app` | Packaged-app QA for onboarding, first-run setup, app-support paths, packaged resources, native modules, and terminal cwd defaults. | Signed release artifact validation. |
-| `pnpm dist:mac` | Unsigned DMG/ZIP release artifact validation. | Fast development iteration. |
+### Develop Exo
 
-For onboarding or first-run bugs, validate with a packaged app, not only `pnpm dev`, `pnpm dev:qa`, or `pnpm app`. Missing first-run workspace settings must show onboarding; Exo must not silently choose a Note Root or default terminal cwd for the user.
+Prerequisites: Node.js 22+ and pnpm 11.2.2.
 
-Install a repo-backed local `exo` command:
-
-```bash
-./scripts/install-local
-```
-
-That script installs dependencies, builds Exo, and symlinks `bin/exo` into `~/.local/bin/exo` by default. Use `./scripts/install-local --dry-run` to preview actions.
-
-Install the local macOS app bundle:
-
-```bash
-./scripts/install-mac-app
-```
-
-This builds the unsigned `Exo.app` bundle and copies it into `~/Applications` by default so install does not require admin permissions. Launch that installed app for the stable resident Exo runtime: it owns the menu bar icon, hidden-window command server, watchers, and live terminal sessions. App exit ends terminal processes; Exo does not retain durable terminal transcripts. Use `./scripts/install-mac-app --system-app-dir` to install into `/Applications`, or `./scripts/install-mac-app --with-cli` when you also want the repo-backed CLI installed.
-
-When developing Exo while the installed app remains your daily workspace, use the isolated QA profile:
-
-```bash
-pnpm dev:qa
-```
-
-`pnpm dev:qa` runs the source app with `.exo-dev/` runtime and user-data paths so it does not overwrite the installed runtime's command-server discovery or settings.
-
-Run with remote debugging when inspecting the real Electron renderer:
-
-```bash
-pnpm --filter @exo/desktop dev -- --remote-debugging-port=9222
-```
-
-The browser at `localhost:5173` is not equivalent to the Electron app; it does not have the preload `window.exo` bridge.
-
-### Secured Networks And Native Builds
-
-Exo allows the native dependency build scripts it needs through `allowBuilds` in `pnpm-workspace.yaml`. If pnpm reports blocked builds after a dependency change, run `pnpm approve-builds` and commit the resulting `allowBuilds` updates instead of bypassing all scripts.
-
-Electron downloads its app binary during install, and `@electron/rebuild` may download headers while rebuilding native modules. On corporate networks with TLS inspection or download allow-lists, configure the trusted CA or Electron mirror explicitly before running install, for example:
-
-```bash
-export NODE_EXTRA_CA_CERTS=/path/to/corporate-ca.pem
-export ELECTRON_GET_USE_PROXY=1
-export ELECTRON_MIRROR=https://your-approved-electron-mirror/
+```sh
 pnpm install
-pnpm rebuild:native
+pnpm dev
 ```
 
-Avoid `NODE_TLS_REJECT_UNAUTHORIZED=0` except as a temporary local diagnostic; it disables TLS verification for the Node process.
+Use `pnpm dev:qa` when an installed app is also running: it isolates the development app's settings and runtime. Use `pnpm pack:mac` when validating packaged-app or first-run behavior.
 
-## Agent Commands
+See [Contributing](CONTRIBUTING.md) for validation and [Architecture](docs/architecture.md) for package boundaries.
 
-Type `@` in a Markdown editor, select a configured Command such as `@claude`, then write the transient multiline request. Command+Enter sends only after explicit confirmation; Exo launches the Command headlessly and shows observed changes for review. Saving a note never invokes a Command.
+## Core workflows
 
-CLI is the durable local integration surface.
+| Need | Start here |
+| --- | --- |
+| Open a folder, write notes, use links/tags/properties | [Using Exo](docs/using-exo.md) |
+| Understand Notes, Concepts, Relations, Evidence, and graph origins | [Knowledge graph](docs/knowledge-graph.md) |
+| Configure local search and understand index status | [Search](docs/search.md) |
+| Use `@claude`/`@codex`, review changes, or resume a session | [Agent invocations](docs/document-agent-protocol.md) |
+| Use Exo from a shell or tool-capable client | [CLI and MCP](docs/cli.md) |
+| Define or switch a workspace ontology | [Workspace ontology](docs/workspace-ontology.md) |
+| Recover from a setup, search, invocation, MCP, or CLI problem | [Troubleshooting](docs/troubleshooting.md) |
 
-## Skills
+## Repository map
 
-The repository includes reusable, provider-neutral [Markdown Skills](skills/README.md)
-for ontology design, graph and terminal changes, UI quality, and issue reports.
-They are reviewable instructions, not executable plugins or hidden authority.
+- `apps/desktop` — Electron main process, preload bridge, and React renderer.
+- `packages/core` — Markdown, workspace, graph, search, invocation, and shared protocol models.
+- `packages/cli` — the `exo` CLI and read-only MCP server.
+- `evals/graph` — internal graph-rendering regression evaluation.
+- `docs` — user guides and current technical contracts.
 
-## CLI
+## Validate a change
 
-The CLI is the compact shell-capable agent/operator surface: orient, search,
-hand off to the desktop, and explicitly invoke a configured Command. Search
-returns paths and metadata; callers use their own filesystem tools to inspect
-the returned files.
-
-Standalone workspace/runtime commands:
-
-```bash
-./bin/exo status
-./bin/exo search "query"
-./bin/exo index status
-./bin/exo index sync
-```
-
-The legacy `exo routines` CLI and Routine core/plugin substrate have been removed. The remaining activity/artifact primitives are provider-neutral helpers used by traces, proposals, and invocation records.
-
-Commands that drive a running Exo app:
-
-```bash
-./bin/exo open /path/to/file
-./bin/exo invoke @claude "review the workspace plan"
-```
-
-`exo invoke` is a workspace-level, visible-terminal task. It is deliberately
-distinct from note-native `@claude`, which carries document context and enters
-the document review flow.
-
-## Workspace Model
-
-Exo stores the active Workspace settings and its Workspace registry in its
-Electron user-data directory:
-
-- macOS default: `$HOME/Library/Application Support/@exo/desktop/workspace-settings.json`
-- override: `EXO_SETTINGS_PATH`
-
-First-run setup requires the user to choose a Workspace and its Note Roots. Exo does not silently persist a notes root or default Command cwd.
-
-### Re-run first-run onboarding
-
-Quit Exo completely first (including its menu-bar process), then clear the
-active Workspace settings. Deleting only `onboarding-state.json` is not enough:
-any valid `workspace-settings.json` causes Exo to open the existing Workspace
-instead of onboarding. A surviving registry is shown as explicit Workspace
-choices; it never silently reactivates one. Remove the registry and pending
-transaction too only when you want a completely empty Workspace picker.
-
-For the installed macOS app:
-
-```bash
-EXO_USER_DATA_PATH="$HOME/Library/Application Support/@exo/desktop"
-rm -f "$EXO_USER_DATA_PATH/onboarding-state.json"
-rm -f "$EXO_USER_DATA_PATH/workspace-settings.json"
-rm -f "$EXO_USER_DATA_PATH/workspace-registry.json"
-rm -f "$EXO_USER_DATA_PATH/workspace-settings-transaction.json"
-```
-
-Then launch Exo normally. This preserves your Markdown notes and the
-Workspace's `.exo/` derived data; it only removes the app's configured
-Workspace/onboarding state. To reset the isolated developer QA profile instead,
-use `EXO_USER_DATA_PATH="$PWD/.exo-dev/user-data"` from the repository root
-before running the same four removal commands. Do not use a process launched
-with `EXO_TEST=1` and `EXO_NOTE_ROOTS`: that explicit test fixture bypasses
-onboarding.
-
-Runtime files live under `.exo/` inside the workspace root:
-
-- `.exo/server.json` - command server discovery
-- `.exo/qmd/index.sqlite` - Exo-managed QMD notes index when indexing is enabled
-- `.exo/invocations/` - invocation records, clean bases, exact Changesets, and
-  compact content-addressed before/after snapshots required for restart-safe review
-- `.exo/artifacts/` - local generated artifacts when needed
-
-`.exo/` is derived local state, never canonical notes. Add `.exo/` to `.gitignore` when the Workspace root is in a Git repository; Exo warns about an unignored runtime directory rather than modifying your repository. Moving or copying a Workspace intentionally requires re-authorizing configured Commands.
-
-QMD is the default indexing provider for optional Exo-managed notes search. Live Explore typing remains fast filename/path search; indexed search is explicit through Enter in Explore when enabled and through CLI index/search tools. See [`docs/architecture.md`](docs/architecture.md) for the current system boundary.
-
-## Development Harness
-
-The canonical local/CI gate is:
-
-```bash
+```sh
 pnpm ci:check
 ```
 
-It runs:
+That runs unused-code checks, typechecks, tests, builds, and an install dry run. Graph changes also require the focused commands documented in [`evals/graph/README.md`](evals/graph/README.md).
 
-```bash
-pnpm check:repo
-pnpm check:unused
-pnpm typecheck
-pnpm test
-pnpm build
-./scripts/install-local --dry-run --skip-install --skip-build
-```
+## Status
 
-Focused checks:
-
-```bash
-pnpm --filter @exo/desktop typecheck
-pnpm --filter @exo/desktop test
-pnpm --filter @exo/cli typecheck
-pnpm --filter @exo/cli test
-pnpm --filter @exo/core test
-pnpm test:e2e
-pnpm test:visual
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development and validation guidance.
-
-## Stack
-
-- Electron, React, TypeScript, Vite
-- CodeMirror 6
-- xterm.js with direct `node-pty`; app exit ends the PTY, while renderer reload may replay only a bounded in-memory tail
-- pnpm workspaces
-- Vitest and Playwright
-
-## Repository Map
-
-- `apps/desktop` - Electron main/preload/renderer, settings, terminal supervision, and the local command server.
-- `packages/core` - Note Root workspace model, Markdown files, configured Commands, QMD adapter, and shared command protocol.
-- `packages/cli` - `bin/exo` command surface.
-- `docs` - current product and architecture contracts.
-- `benchmarks/graphbench` - Exo's internal graph-rendering regression harness.
-
-## Packaging
-
-Unsigned macOS app bundle:
-
-```bash
-pnpm pack:mac
-```
-
-This writes the installable local bundle to `release/mac-<arch>/Exo.app` after cleaning stale `release/mac*` app-output directories. If packaging fails, partial app bundles such as `release/mac-arm64/Electron.app` are removed before the command exits. Open this bundle directly when you need packaged-app evidence for onboarding, first-run setup, app-support/user-data paths, packaged resources, native modules, or terminal cwd defaults.
-
-Install that local bundle into `~/Applications`:
-
-```bash
-./scripts/install-mac-app
-```
-
-Unsigned macOS DMG and ZIP:
-
-```bash
-pnpm dist:mac
-```
-
-Artifacts are written to `release/`. Public binary releases should be signed and notarized before being presented as stable. Use this for release-artifact validation, not for fast source iteration.
-
-## Logs
-
-Main-process log:
-
-```bash
-tail -f "$HOME/Library/Application Support/@exo/desktop/exo-main.log"
-```
-
-macOS Electron crash reports:
-
-```bash
-ls "$HOME/Library/Logs/DiagnosticReports"/Electron-*.ips
-```
-
-## Documentation
-
-Start with [CONTRIBUTING.md](CONTRIBUTING.md) for local development and
-[docs/README.md](docs/README.md) for current product and architecture
-references. [AGENTS.md](AGENTS.md) is a provider-neutral map for coding
-agents; it carries the same public contracts as the contributor docs.
+Exo is early software, not a signed public binary release. The current alpha supports source development and unsigned macOS packaging; Windows and Linux are not yet supported release targets. See [CHANGELOG.md](CHANGELOG.md) for the current public change record and [SECURITY.md](SECURITY.md) for reporting.

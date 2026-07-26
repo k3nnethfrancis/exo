@@ -1,0 +1,14 @@
+{
+  "name": "@exo/graph-eval",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "smoke": "node run.mjs --profile smoke",
+    "standard": "node run.mjs --profile standard",
+    "mobile": "node run.mjs --profile mobile",
+    "resilience": "node run.mjs --profile resilience",
+    "incremental": "node run.mjs --profile incremental",
+    "test": "node test.mjs && node incremental-quality.test.mjs"
+  }
+}

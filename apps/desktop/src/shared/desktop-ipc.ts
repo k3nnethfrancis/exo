@@ -15,6 +15,7 @@ export interface DesktopInvokeHandlers {
   "workspace:activate-workspace": WorkspaceApi["activateWorkspace"];
   "workspace:save-settings": WorkspaceApi["saveSettings"];
   "workspace:select-folder": WorkspaceApi["selectFolder"];
+  "workspace:inspect-content-scope": WorkspaceApi["inspectContentScope"];
   "workspace:get-index-status": WorkspaceApi["getIndexStatus"];
   "workspace:ontology-preview": WorkspaceApi["previewOntology"];
   "workspace:ontology-keep": WorkspaceApi["keepOntology"];
@@ -48,7 +49,6 @@ export interface DesktopInvokeHandlers {
   "workspace:search-workspace": WorkspaceApi["searchWorkspace"];
   "workspace:search-index": WorkspaceApi["searchIndex"];
   "workspace:search-tag": WorkspaceApi["searchTag"];
-  "workspace:get-folder-index-status": WorkspaceApi["getFolderIndexStatus"];
   "workspace:get-folder-overview": WorkspaceApi["getFolderOverview"];
   "workspace:ensure-folder-index": WorkspaceApi["ensureFolderIndex"];
   "workspace:create-file": WorkspaceApi["createFile"];

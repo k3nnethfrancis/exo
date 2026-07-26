@@ -36,7 +36,7 @@ interface MockQmdStatus {
 let storeStatusOverride: MockQmdStatus | null = null;
 
 vi.mock("@tobilu/qmd", () => ({
-  createStore: vi.fn(async (options: { config?: { collections?: Record<string, { path: string }> } }) => {
+  createStore: vi.fn(async (options: { config?: { collections?: Record<string, { path: string; ignore?: string[] }> } }) => {
     if (createStoreError) {
       throw createStoreError;
     }
@@ -167,6 +167,22 @@ describe("QMD index adapter", () => {
     ]);
     expect(result.results.map((entry) => entry.filePath)).toEqual([path.join(root, "notes", "focus.md")]);
     expect(result.results.map((entry) => entry.filePath)).not.toContain(docPath);
+  });
+
+  it("applies Workspace Content Policy exclusions to every QMD collection", async () => {
+    const root = await fixtureRoot();
+    const notesPath = path.join(root, "notes");
+    const model = {
+      ...indexedModel(root, "lexical"),
+      contentPolicy: { excludedPaths: ["release/**"], sourceVisibility: false },
+    };
+
+    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+
+    const configuredStore = stores.find((store) => Object.keys(store.config.collections).length > 0)!;
+    const collection = Object.values(configuredStore.config.collections)
+      .find((entry) => entry.path === notesPath)!;
+    expect(collection.ignore).toContain("release/**");
   });
 
   it("routes lexical search through QMD collections", async () => {
@@ -1211,7 +1227,7 @@ function indexedModel(root: string, mode: "lexical" | "semantic" | "hybrid") {
 }
 
 class MockStore {
-  readonly config: { collections: Record<string, { path: string }> };
+  readonly config: { collections: Record<string, { path: string; ignore?: string[] }> };
   searchLexCalls: Array<{ query: string; collection?: string; limit?: number }> = [];
   searchVectorCalls: Array<{ query: string; collection?: string; limit?: number }> = [];
   searchCalls: Array<{ query?: string; collections?: string[]; limit?: number }> = [];
@@ -1222,7 +1238,7 @@ class MockStore {
   getDocumentBodyCalls = 0;
   visibleDocumentCollectionsBeforeUpdates: string[][] = [];
 
-  constructor(options: { config?: { collections?: Record<string, { path: string }> } }) {
+  constructor(options: { config?: { collections?: Record<string, { path: string; ignore?: string[] }> } }) {
     this.config = { collections: options.config?.collections ?? {} };
     if (options.config) {
       existingQmdCollections = Object.entries(this.config.collections).map(([name, collection]) => ({ name, pwd: collection.path }));

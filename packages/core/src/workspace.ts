@@ -11,6 +11,12 @@ import type {
   WorkspaceSearchResults,
 } from "./types";
 import { readWorkspaceDocument } from "./notes";
+import {
+  defaultWorkspaceContentPolicy,
+  isWorkspaceContentExcluded,
+  normalizeWorkspaceContentPolicy,
+  type WorkspaceContentPolicy,
+} from "./workspace-content-policy";
 
 export { WorkspaceFiles } from "./workspace-files";
 
@@ -151,14 +157,15 @@ export interface ListRootTreeOptions {
   markdownOnly?: boolean;
   maxDepth?: number;
   includeEmptyDirectories?: boolean;
+  excludedPaths?: string[];
 }
 
 export async function listRootTree(rootPath: string, options?: ListRootTreeOptions): Promise<TreeNode[]> {
   const maxDepth = options?.maxDepth ?? 4;
-  return listTreeRecursive(rootPath, options ?? {}, maxDepth, 0);
+  return listTreeRecursive(rootPath, options ?? {}, maxDepth, 0, rootPath);
 }
 
-async function listTreeRecursive(rootPath: string, options: ListRootTreeOptions, maxDepth: number, depth: number): Promise<TreeNode[]> {
+async function listTreeRecursive(rootPath: string, options: ListRootTreeOptions, maxDepth: number, depth: number, noteRootPath: string): Promise<TreeNode[]> {
   if (!(await pathExists(rootPath))) {
     return [];
   }
@@ -174,6 +181,7 @@ async function listTreeRecursive(rootPath: string, options: ListRootTreeOptions,
       return !markdownOnly && entry.isFile() && entry.name !== ".DS_Store";
     })
     .filter((entry) => entry.name !== "node_modules" && entry.name !== ".git")
+    .filter((entry) => !isWorkspaceContentExcluded(path.relative(noteRootPath, path.join(rootPath, entry.name)), contentPolicyFromOptions(options)))
     .sort((left, right) => {
       if (left.isDirectory() === right.isDirectory()) {
         return left.name.localeCompare(right.name);
@@ -188,7 +196,7 @@ async function listTreeRecursive(rootPath: string, options: ListRootTreeOptions,
 
       if (entry.isDirectory()) {
         const children =
-          depth >= maxDepth ? [] : await listTreeRecursive(entryPath, options, maxDepth, depth + 1);
+          depth >= maxDepth ? [] : await listTreeRecursive(entryPath, options, maxDepth, depth + 1, noteRootPath);
 
         if (markdownOnly && children.length === 0 && !options.includeEmptyDirectories) {
           return null;
@@ -234,7 +242,7 @@ export async function searchNotes(model: WorkspaceModel, query: string): Promise
   await findMatchingFiles(
     model.noteRoots.map((root) => root.path),
     async (filePath) => {
-      if (!/\.md(?:own)?$/i.test(filePath)) {
+      if (!isWorkspaceMarkdownContentFile(model, filePath)) {
         return false;
       }
       const relativePath = path.relative(model.workspaceRoot, filePath);
@@ -288,7 +296,7 @@ export async function searchTags(model: WorkspaceModel, query: string): Promise<
   await findMatchingFiles(
     model.noteRoots.map((root) => root.path),
     async (filePath) => {
-      if (!/\.md(?:own)?$/i.test(filePath)) {
+      if (!isWorkspaceMarkdownContentFile(model, filePath)) {
         return false;
       }
 
@@ -371,17 +379,17 @@ export function resolveNotePath(model: WorkspaceModel, target: string, cwd = pro
   throw new Error(`Note path not found inside configured note roots: ${target}`);
 }
 
-export async function listMarkdownFiles(rootPaths: string[]): Promise<string[]> {
-  const files = await Promise.all(rootPaths.map((rootPath) => collectMarkdownFiles(rootPath)));
+export async function listMarkdownFiles(rootPaths: string[], policy = defaultWorkspaceContentPolicy()): Promise<string[]> {
+  const files = await Promise.all(rootPaths.map((rootPath) => collectMarkdownFiles(rootPath, policy)));
   return files.flat();
 }
 
-async function collectMarkdownFiles(rootPath: string): Promise<string[]> {
-  const files = await collectFiles(rootPath, true);
+async function collectMarkdownFiles(rootPath: string, policy: WorkspaceContentPolicy): Promise<string[]> {
+  const files = await collectFiles(rootPath, true, rootPath, policy);
   return files.filter((filePath) => filePath.endsWith(".md"));
 }
 
-async function collectFiles(rootPath: string, markdownOnly = false): Promise<string[]> {
+async function collectFiles(rootPath: string, markdownOnly = false, contentRootPath = rootPath, policy = defaultWorkspaceContentPolicy()): Promise<string[]> {
   if (!(await pathExists(rootPath))) {
     return [];
   }
@@ -391,10 +399,11 @@ async function collectFiles(rootPath: string, markdownOnly = false): Promise<str
     entries
       .filter((entry) => !entry.name.startsWith("."))
       .filter((entry) => entry.name !== "node_modules" && entry.name !== ".git")
+      .filter((entry) => !isWorkspaceContentExcluded(path.relative(contentRootPath, path.join(rootPath, entry.name)), policy))
       .map(async (entry) => {
         const entryPath = path.join(rootPath, entry.name);
         if (entry.isDirectory()) {
-          return collectFiles(entryPath, markdownOnly);
+          return collectFiles(entryPath, markdownOnly, contentRootPath, policy);
         }
 
         if (markdownOnly) {
@@ -411,6 +420,18 @@ async function collectFiles(rootPath: string, markdownOnly = false): Promise<str
 export async function listFiles(rootPaths: string[]): Promise<string[]> {
   const files = await Promise.all(rootPaths.map((rootPath) => collectFiles(rootPath)));
   return files.flat();
+}
+
+function contentPolicyFromOptions(options: ListRootTreeOptions): WorkspaceContentPolicy {
+  return { excludedPaths: options.excludedPaths ?? [], sourceVisibility: false };
+}
+
+function isWorkspaceMarkdownContentFile(model: WorkspaceModel, filePath: string): boolean {
+  const root = model.noteRoots.find((candidate) => isWithin(candidate.path, filePath));
+  if (!root || !filePath.toLowerCase().endsWith(".md")) return false;
+  const relativePath = path.relative(path.resolve(root.path), path.resolve(filePath));
+  if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) return false;
+  return !isWorkspaceContentExcluded(relativePath, normalizeWorkspaceContentPolicy(model.contentPolicy));
 }
 
 async function findMatchingFiles(

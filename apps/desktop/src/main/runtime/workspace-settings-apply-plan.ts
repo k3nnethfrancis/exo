@@ -24,9 +24,11 @@ export function planWorkspaceSettingsApply(
     reactivateWorkspace: (
       previous.workspaceRoot !== next.workspaceRoot
       || !isDeepStrictEqual(previous.noteRoots, next.noteRoots)
+      || !isDeepStrictEqual(previous.contentPolicy, next.contentPolicy)
     ),
     rebindIndex: (
       !isDeepStrictEqual(previous.indexedRoots, next.indexedRoots)
+      || !isDeepStrictEqual(previous.contentPolicy, next.contentPolicy)
       || !isDeepStrictEqual(previous.indexing, next.indexing)
       || previous.searchEngine !== next.searchEngine
     ),

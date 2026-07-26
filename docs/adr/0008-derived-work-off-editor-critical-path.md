@@ -20,7 +20,7 @@ Editor-critical work is limited to committing the requested pane state and readi
 Derived modules follow three execution classes:
 
 1. **Immediate and cached:** pane selection, known path/title, open-document buffers, loaded tree data, filename catalog, cached Folder metadata.
-2. **Deferred enrichment:** Folder Index metadata/children, graph context, backlinks, attachment resolution, watcher-driven refresh, and other context that can arrive after the page is interactive. Repeated work is cached and watcher-invalidated.
+2. **Deferred enrichment:** Folder Note metadata/children, graph context, backlinks, attachment resolution, watcher-driven refresh, and other context that can arrive after the page is interactive. Repeated work is cached and watcher-invalidated.
 3. **Process-isolated:** QMD status/search/update/embed/sync and any future CPU-heavy graph rebuild, embedding, inference, or bulk corpus analysis. A Promise inside Electron main is not isolation; these operations must cross a worker, utility-process, child-process, or external-provider seam with cancellation, bounded output, and restart behavior hidden inside the module.
 
 QMD uses separate foreground and maintenance utility processes. Maintenance
@@ -55,7 +55,7 @@ The deep module for derived retrieval keeps the existing provider-neutral `Works
 
 ## Consequences
 
-The UI may briefly show path-derived titles or incomplete context before durable Folder Index metadata and graph enrichment arrive. This is preferable to blocking navigation. Derived data can be stale for a short interval after a filesystem event, but canonical Markdown never is.
+The UI may briefly show path-derived titles or incomplete context before durable Folder Note metadata and graph enrichment arrive. This is preferable to blocking navigation. Derived data can be stale for a short interval after a filesystem event, but canonical Markdown never is.
 
 QMD now runs through its SDK in utility processes. Exo carries a narrow patched
 QMD 2.5.3 package because the upstream SDK did not expose per-call document/time

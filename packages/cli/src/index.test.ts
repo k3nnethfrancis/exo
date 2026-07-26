@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  saveWorkspaceSettings,
+  type WorkspaceSettings,
   type ExoCommandIndexStatusResponse,
   type ExoCommandIndexSyncResponse,
   type ExoCommandSearchResponse,
@@ -180,6 +182,58 @@ describe("minimal Exo operator CLI", () => {
       await rm(workspaceRoot, { recursive: true, force: true });
     }
   });
+
+  it("lists saved Workspaces and searches a selected inactive Workspace without changing the active one", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-cli-workspaces-"));
+    const alpha = path.join(userDataPath, "alpha");
+    const beta = path.join(userDataPath, "beta");
+    await mkdir(alpha);
+    await mkdir(beta);
+    await writeFile(path.join(alpha, "alpha.md"), "# Alpha\n\nIndependent repository context.\n", "utf8");
+    await writeFile(path.join(beta, "beta.md"), "# Beta\n\nActive personal context.\n", "utf8");
+    const env = { ...process.env, EXO_USER_DATA_PATH: userDataPath };
+    await saveWorkspaceSettings(workspaceSettings(alpha), env);
+    await saveWorkspaceSettings(workspaceSettings(beta), env);
+    const run = async (argv: string[]) => {
+      let output = "";
+      await runCli(["node", "exo", ...argv], {
+        env,
+        stdout: { write: (text) => { output += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: async () => {
+          throw new Error("An explicitly selected Workspace must not use the active app client.");
+        },
+      });
+      return JSON.parse(output);
+    };
+
+    try {
+      const listed = await run(["workspaces"]);
+      expect(listed).toMatchObject({
+        schema_version: "exo.workspaces.v1",
+        workspaces: [
+          { label: "beta", active: true },
+          { label: "alpha", active: false },
+        ],
+      });
+
+      const status = await run(["status", "--workspace", "alpha"]);
+      expect(status).toMatchObject({
+        app: { available: false },
+        workspace: { label: "alpha", root: alpha, active: false },
+      });
+
+      const search = await run(["search", "repository context", "--workspace", "alpha"]);
+      expect(search).toMatchObject({
+        schema_version: "exo.search.v1",
+        scope: { workspace_root: alpha, note_roots: [alpha] },
+        retrieval: { provider: "filesystem" },
+        results: [{ path: path.join(alpha, "alpha.md") }],
+      });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
 });
 
 function statusResponse(): ExoCommandStatusWithControlPlane {
@@ -225,5 +279,22 @@ function spawnResponse(): ExoSpawnAgentCommandResponse {
     ok: true,
     invocation: { id: "inv-1", status: "running", handle: "review", createdAt: "2026-07-24T00:00:00.000Z" },
     terminal: { id: "term-1", title: "Review", cwd: "/workspace", kind: "shell", status: "running" },
+  };
+}
+
+function workspaceSettings(root: string): WorkspaceSettings {
+  return {
+    workspaceRoot: root,
+    defaultTerminalCwd: root,
+    noteRoots: [root],
+    indexedRoots: [],
+    indexing: { enabled: false, mode: "off", backend: "qmd" },
+    appearanceMode: "system",
+    colorThemeId: "exo-neutral",
+    editorFontSize: 15,
+    terminalFontSize: 13,
+    explorerScale: 1,
+    exploreIndexSearchOnEnter: false,
+    indexUpdateStrategy: "on-save",
   };
 }

@@ -10,6 +10,9 @@
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
+    "package:mac": "node scripts/pack-mac.mjs --mac dir",
+    "dist:mac": "node scripts/pack-mac.mjs --mac dmg zip",
+    "test:packaged:containment": "node scripts/run-packaged-containment.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check:unused": "tsc -p tsconfig.production.json --noEmit",
     "test": "vitest run src/main src/renderer/src",

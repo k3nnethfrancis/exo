@@ -18,6 +18,7 @@
     "./operator-help": "./src/operator-help.ts",
     "./terminal-settings": "./src/terminal-settings.ts",
     "./workspace-settings": "./src/workspace-settings.ts",
+    "./workspace-content-policy": "./src/workspace-content-policy.ts",
     "./workspace-migration": "./src/workspace-migration.ts"
   },
   "scripts": {

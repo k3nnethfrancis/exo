@@ -16,7 +16,6 @@ import { WorkspaceSearchField } from "./WorkspaceSearchField";
 interface ShellLayoutProps {
   titleSegments: WorkspaceBreadcrumbSegment[];
   workspaceLabel: string;
-  missingFolderIndexCount: number;
   noteSections: RootSection[];
   appearanceMode: AppearanceMode;
   resolvedAppearance: ResolvedAppearance;
@@ -47,7 +46,6 @@ interface ShellLayoutProps {
   revealExplorerPathRequest?: { path: string; nonce: number } | null;
   onAppearanceModeChange: (mode: AppearanceMode) => void;
   onOpenWorkspaceSettings: () => void;
-  onCreateMissingFolderIndexes: () => void;
   connectionsOpen: boolean;
   onOpenConnections: () => void;
   onSearchQueryChange: (value: string) => void;
@@ -168,7 +166,7 @@ export function ShellLayout(props: ShellLayoutProps) {
         </div>
       </aside>
       </div>
-      <WorkspaceMenu collapsed={props.sidebarCollapsed} label={props.workspaceLabel} missingFolderIndexCount={props.missingFolderIndexCount} onCreateMissingFolderIndexes={props.onCreateMissingFolderIndexes} onOpenSettings={props.onOpenWorkspaceSettings} />
+      <WorkspaceMenu collapsed={props.sidebarCollapsed} label={props.workspaceLabel} onOpenSettings={props.onOpenWorkspaceSettings} />
     </div>
   );
 }

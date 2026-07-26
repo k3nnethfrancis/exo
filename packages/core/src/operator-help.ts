@@ -11,6 +11,7 @@ export interface ExoCliCommandHelp {
 export const EXO_CLI_COMMANDS: readonly ExoCliCommandHelp[] = [
   { usageToken: "[start]", syntax: "exo start", label: "Open app" },
   { usageToken: "show", syntax: "exo show", label: "Show window" },
+  { usageToken: "workspaces", syntax: "exo workspaces", label: "List workspaces" },
   { usageToken: "status", syntax: "exo status", label: "Workspace status" },
   { usageToken: "search", syntax: "exo search <query>", label: "Search notes" },
   { usageToken: "index [status|sync]", syntax: "exo index [status|sync]", label: "Index" },

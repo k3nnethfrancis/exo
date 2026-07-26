@@ -1,4 +1,5 @@
 import type { WorkspaceSettings } from "@exo/core";
+import { normalizeWorkspaceContentPolicy } from "@exo/core/workspace-content-policy";
 import {
   DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS as CORE_DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS,
   DEFAULT_TERMINAL_SCROLLBACK_LINES,
@@ -32,6 +33,7 @@ export function workspaceSettingsStructuralDraftKey(settings: WorkspaceSettingsD
     defaultTerminalCwd: settings.defaultTerminalCwd,
     noteRoots: settings.noteRoots,
     indexedRoots: settings.indexedRoots.map(indexedRootStructuralKey),
+    contentPolicy: normalizeWorkspaceContentPolicy(settings.contentPolicy),
     indexMode: settings.indexMode,
     searchEngine: settings.searchEngine,
   });
@@ -43,6 +45,7 @@ export function workspaceSettingsStructuralKeyFromSettings(settings: WorkspaceSe
     defaultTerminalCwd: settings.defaultTerminalCwd,
     noteRoots: settings.noteRoots,
     indexedRoots: settings.indexedRoots.map(indexedRootStructuralKey),
+    contentPolicy: normalizeWorkspaceContentPolicy(settings.contentPolicy),
     indexMode: settings.indexing.mode,
     searchEngine: settings.searchEngine ?? (settings.indexing.enabled && settings.indexing.mode !== "off" && settings.indexedRoots.length > 0 ? "qmd" : "filesystem"),
   });
@@ -52,13 +55,14 @@ export function workspaceSettingsStructuralDraftFromSettings(
   settings: WorkspaceSettings,
 ): Pick<
   WorkspaceSettingsDialogState,
-  "workspaceRoot" | "defaultTerminalCwd" | "noteRoots" | "indexedRoots" | "indexMode" | "searchEngine"
+  "workspaceRoot" | "defaultTerminalCwd" | "noteRoots" | "indexedRoots" | "contentPolicy" | "indexMode" | "searchEngine"
 > {
   return {
     workspaceRoot: settings.workspaceRoot,
     defaultTerminalCwd: settings.defaultTerminalCwd,
     noteRoots: [...settings.noteRoots],
     indexedRoots: settings.indexedRoots.map((root) => ({ ...root, ignore: [...root.ignore] })),
+    contentPolicy: normalizeWorkspaceContentPolicy(settings.contentPolicy),
     indexMode: settings.indexing.mode,
     searchEngine: settings.searchEngine
       ?? (settings.indexing.enabled && settings.indexing.mode !== "off" && settings.indexedRoots.length > 0 ? "qmd" : "filesystem"),

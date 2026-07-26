@@ -22,7 +22,7 @@ export interface RendererGraphLink {
   target: string;
   kind: "wikilink" | "markdownLink";
   resolution: WorkspaceGraphContext["outgoing"][number]["resolution"];
-  nodeKind: "note" | "external" | "unresolved";
+  nodeKind: "note" | "external" | "unresolved" | "artifact";
 }
 
 export interface RendererGraphBacklink {
@@ -44,6 +44,7 @@ export interface RendererNoteGraphContext {
   properties: Record<string, unknown>;
   unresolvedLinks: RendererGraphLink[];
   externalLinks: RendererGraphLink[];
+  artifactLinks: RendererGraphLink[];
   neighborhood: RendererGraphNeighborhood;
 }
 
@@ -104,7 +105,7 @@ export function buildNoteGraphContext(
     target: link.target,
     kind: link.target.startsWith("http") ? "markdownLink" : "wikilink",
     resolution: link.resolution,
-    nodeKind: link.note ? "note" : link.resolution === "external" ? "external" : "unresolved",
+    nodeKind: link.note ? "note" : link.resolution === "external" ? "external" : link.resolution === "artifact" ? "artifact" : "unresolved",
   });
   const outgoingLinks = graph.outgoing.map(toLink);
   const backlinks = graph.backlinks.map((link) => ({ label: link.label, target: link.target }));
@@ -116,7 +117,9 @@ export function buildNoteGraphContext(
     target: link.note?.id ?? `${link.resolution}:${link.target}`,
     kind: link.target.startsWith("http") ? "markdownLink" as const : "wikilink" as const,
   });
-  const outgoingEdges = graph.outgoing.map((link, index) => edgeForLink(link, index, note.id));
+  const outgoingEdges = graph.outgoing
+    .filter((link) => link.resolution !== "artifact")
+    .map((link, index) => edgeForLink(link, index, note.id));
   const backlinkEdges = graph.backlinks.map((link, index) => ({
     id: `back:${index}:${link.source}`,
     label: link.label,
@@ -140,6 +143,7 @@ export function buildNoteGraphContext(
     properties: graph.note.frontmatter,
     unresolvedLinks: outgoingLinks.filter((item) => item.resolution === "unresolved" || item.resolution === "ambiguous"),
     externalLinks: outgoingLinks.filter((item) => item.resolution === "external"),
+    artifactLinks: outgoingLinks.filter((item) => item.resolution === "artifact"),
     neighborhood: {
       focusPath: note.filePath,
       nodes: neighborhoodNodes,
@@ -155,7 +159,7 @@ export function buildGraphReferences(graphContext: RendererNoteGraphContext | nu
   return {
     backlinks: uniqueGraphReferenceTargets(graphContext.backlinks),
     references: uniqueGraphReferenceTargets(graphContext.outgoingLinks
-      .filter((item) => item.resolution !== "external")
+      .filter((item) => item.resolution !== "external" && item.resolution !== "artifact")
       .map((item) => ({ label: item.label, target: item.target }))),
   };
 }

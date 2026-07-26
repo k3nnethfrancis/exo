@@ -57,6 +57,9 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ### Changed
 
+- Reorganizes public documentation around separate user and contributor paths,
+  adds focused guides for daily use, search, graph behavior, CLI/MCP, and
+  troubleshooting, and removes superseded pre-refactor release material.
 - Draws the Connections neighborhood through the same deterministic scene,
   focal-label, presentation-compiler, and Canvas contracts as the full Graph
   Pane instead of maintaining a separate circular SVG renderer.
@@ -191,87 +194,6 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 - Removes legacy terminal/browser layout restoration that lacks stable session/tab identities.
 - Removes the duplicate Explorer search surface and dead Preview control.
-
-### Superseded pre-refactor draft material
-
-The following historical draft was written before the note-native simplification. It is retained temporarily for audit context only; it does not describe the current product or release scope.
-
-### Historical additions
-
-- Adds metadata-only plugin manifests in `@exo/core`: `exo.plugin.json` discovery, strict validation, plugin source/trust metadata, duplicate-safe plugin/capability registration, and tests.
-- Adds internal plugin seams for built-in QMD search providers and shell/Claude/Codex agent harnesses, while preserving existing desktop, CLI, MCP, and command-server behavior.
-- Adds core Routine, Run, artifact, trace, evaluation-result, routine-store, and manual executor primitives that future routine/template, trace collector, eval runner, and exporter plugins can build on.
-- Adds plugin-declared routine templates that can be instantiated into concrete user/workspace Routine definitions without executing plugin code.
-- Adds a bundled dev `graph-health.template` routine plugin manifest.
-- Adds a permissioned surface policy for desktop, CLI, MCP, command-server, and internal capability exposure.
-- Adds optional Streamable HTTP MCP transport for remote-only MCP hosts while keeping stdio as the default local transport.
-- Adds tmux-backed terminal persistence with Exo-owned tmux sessions, node-pty attach bridges, session registry reattach, power-resume recovery, reconnect affordances, tmux history sizing, and deterministic terminal QA coverage.
-- Adds Agent Config skill inventory/editing, skill file-tree controls, Git-backed skill sources, and provider-independent agent instruction management outside Workspace Settings.
-- Adds renderer theme registry support, top-bar Exograph branding, installed-app/menu-bar icon updates, and UI polish for settings, explorer, editor chrome, project Markdown rendering, and Plugin Manager density.
-- Adds Plugin Manager and profile settings foundations: plugin inventory/detail views, local plugin directories, enablement state, plugin-owned settings state, readiness filters, profile customize/copy/preview flows, active profile status, and tool-surface descriptors.
-- Adds profile/proposal infrastructure for template apply proposals, proposal review contracts, native review/apply UI, recovery manifests, and rollback CLI support.
-- Adds semantic trace contracts, trace store hygiene, trace cleanup commands, and Claude/Pi trace capture hooks.
-- Adds Project Knowledge Sync profile metadata, terminal monitor mode, `Cmd+T` new-terminal shortcut, stable smoke coverage, and monitor-mode QA coverage.
-- Adds staged onboarding profile setup, profile-choice surfacing in settings, agent instruction sync flow foundations, and GitHub-first Exo issue submission skill updates.
-- Adds dynamic Exograph agent-context generation that includes active workspace roots, notes/project roots, indexed-search mode guidance, and MCP/CLI surface guidance before applying the managed global instruction block.
-- Adds a typed control-plane catalog for MCP/CLI/Desktop/Internal surfaces and MCP exposure profiles (`dev`, `everyday`, `off`, and `custom`) so local agent tool access can be narrowed without changing the default Exo-on-Exo surface.
-
-### Changed
-
-- Makes bare `exo` and `exo start` the end-user launcher for the resident packaged app, moves MCP autostart defaults from `exo dev` to `exo start`, and leaves `exo dev` as a deprecated source-QA shortcut.
-- Reopens and supersedes the alpha.3 direct-pty-only terminal decision: Exo core terminals now use tmux for persistence and sleep/relaunch resilience, with node-pty retained as the live attach/render bridge.
-- Makes terminal scrollback a numeric setting and applies it to both renderer/live buffers and tmux history instead of coarse `full` / `custom` labels.
-- Stops live terminal hydration from resetting xterm and replaying stale scrollback over active agent output.
-- Keeps Guardian Angel out of Exo core. GA is treated as a downstream/reference plugin workload that should use generic Exo plugin primitives.
-- Reframes OKF, LM Wiki, Shoshin profiles, feed/scheduler concepts, and routines as optional exograph/plugin architecture directions rather than hardwired folder/schema requirements.
-- Splits Workspace Settings from Agent Config and Plugin/Profile configuration so agent instructions, skills, harnesses, plugins, and profile state each have clearer ownership.
-- Stages onboarding as workspace basics, plugin choices, agent context, and profile review instead of a single settings-like form; unavailable harnesses are hidden and QMD is treated as an optional search-provider plugin after workspace load.
-- Reorders profile onboarding to Plugins -> Agent Context -> Profile, removes starter routine and bulk skill setup panes from first-run setup, and keeps skill management in Agent Config.
-- Makes onboarding configuration trustworthy: Agent Context now previews the actual global and active-notes `AGENTS.md` / `CLAUDE.md` files, Exograph context apply refreshes visible file previews, instruction-file sync is labeled as an overwrite-from-selected-file action with confirmation, Skills onboarding installs/enables bundled Exo skills through the shared Agent Config skill service, and onboarding Profile setup exposes direct profile name/config editing with immediate save.
-- Treats shell as terminal substrate in user-facing setup surfaces: shell remains a core terminal tool for compatibility and CLI/MCP use, but it is hidden from agent-harness/profile/routine selection lists that expect a promptable agent.
-- Adds a routine execution-kind contract so current routines are explicitly agent-prompt routines, reserves shell-command routines for future work, and removes shell from prompt-routine default harness choices.
-- Removes generated file/folder tree snapshots from managed Exograph agent context; future live directory and index navigation should be handled through explicit scoped tools instead of stale prompt text.
-- Simplifies Plugin Manager around optional capability lifecycle: core is summarized as always-on context, core rows are hidden from plugin inventory/category filters, and routine-template rows explain that scheduling/running belongs in a future Routine Manager.
-- Documents the onboarding versus Settings ownership boundary and reframes Settings search as core search plus the QMD advanced provider with Plugin Manager as the provider lifecycle surface.
-- Treats the default Exograph profile as the baseline product configuration rather than a user-selected preset.
-- Routes agent launches by harness id, removes renderer `ManagedAgentKind` residue, and hardens harness descriptors for installed and source runtimes.
-- Persists Pi harness configuration, gates Pi launch on backend readiness, and can auto-start the configured Pi backend before launch.
-- Clarifies official/local plugin inventory, external contract status rules, public-contract review guardrails, proposal review flow, and core-versus-plugin boundaries in docs and skills.
-- Consolidates active Exo trackers to root `issues.md` and `tasks.md`, with docs reserved for durable architecture/product references.
-- Moves project change indicators into the explorer tree, reduces folder/editor chrome weight, and keeps project Markdown files on the Markdown renderer path.
-- Wires MCP tool registration through the control-plane catalog, keeps `dev` as the default full tool surface, fails closed on invalid explicit exposure profiles, and warns when custom MCP tool allow-lists contain unknown tool names.
-
-### Fixed
-
-- Fixes markdown editor cursor preservation across clean-file refreshes and improves live-preview editing so Enter continues bullets/numbered lists, empty list items exit cleanly, normal cursor navigation and line-boundary selection avoid hidden list markers, and Tab/Enter exits `[[wikilinks]]` without adding whitespace.
-- Fixes markdown task-list continuation so Enter from `- [ ]` / `- [x]` creates a new unchecked task item, while empty task items exit cleanly.
-- Adds existing-note suggestions while typing `[[wikilinks]]`, capped to three matches, with Enter selecting the first match and no popup when no note matches.
-- Fixes wikilink completion edge cases where popups were clipped by the editor surface, completion required repeated Enter presses, and first-line wikilinks prevented inserting a line above them.
-- Fixes generated graph references so the read-only backlinks/references section does not inherit list indentation or become an editable cursor target.
-- Tightens terminal resize handoff between xterm and the tmux/node-pty bridge to reduce split-pane prompt rendering drift during active Claude/Codex typing.
-- Fixes fresh packaged startup when no workspace registry exists by loading the active workspace/onboarding path instead of falling back to `/`.
-- Simplifies first-run onboarding so the initial path is notes-folder selection instead of a confusing non-working workspace button.
-- Fixes dependency/setup friction from blocked `fast-uri` and package-wide `picomatch` overrides.
-- Narrows and then adjusts the default explorer pane width, improves pane-to-terminal focus behavior, and adds terminal bottom inset so terminal status lines are not clipped by the bottom bar.
-- Fixes stale/blank managed agent terminal starts and improves Claude/Codex terminal startup handling.
-- Fixes Markdown list outdent behavior in the editor.
-- Fixes terminal Unicode stream corruption, tmux UTF-8 decoding, parity handling, scrollback bridge behavior, renderer write batching, hydration/replay drift, blank panes after reload, generated-input artifacts, pane identity in monitor mode, runtime registry isolation, and Codex MCP restart coverage.
-- Fixes terminal input/render regressions where a broken default user tmux server could make Exo terminals unavailable, stale hydration could mask unhealthy panes as restoring, tab activation could force xterm replay, missing Unicode width rules could corrupt Claude-style TUI glyphs, and xterm custom glyph drawing could corrupt wide TUI lines despite byte-correct tmux tails.
-- Fixes preview pane target replacement, preview clipping, and preview-triggered terminal replay/focus regressions.
-- Fixes packaged/onboarding startup paths so missing workspace state reaches onboarding before synthetic workspace defaults or terminal transcript initialization.
-- Fixes interrupted first-run onboarding so saved workspace settings do not imply profile setup completion and reloads resume setup.
-- Fixes a fresh-onboarding blank screen caused by terminal Unicode addon initialization during the workspace-to-profile handoff, and keeps terminal bootstrap failures from blocking the workspace shell.
-- Fixes plugin manager layout overlap, settings modal spacing, index settings status copy, and stale MCP/integration diagnostics.
-- Fixes Electron e2e terminal fixture isolation by running tests against a test-specific tmux server name instead of the developer's active tmux server state.
-- Fixes mac packaging collector stalls and documents launch-mode/setup expectations for packaged, installed, source, and MCP contexts.
-
-### Removed
-
-- Removes Guardian Angel-specific capability/code/docs from Exo core after the plugin boundary was clarified.
-- Keeps plugin entrypoint execution, Plugin Manager UI, plugin-owned CLI/MCP tools, marketplace/package loading, and permission grants out of this release until the manifest/trust model survives real use.
-- Removes the terminal attach-copy header button, agent config tab from Workspace Settings, legacy plugin kind aliases, and renderer-managed harness kind leftovers.
-- Removes the legacy `exo routines` CLI surface and the onboarding routine/standard-skills setup panes from the note-native Exograph branch.
-- Removes the MCP package and setup surface from the note-native Exograph branch: `packages/mcp`, `exo integrations`, MCP capability surfaces, MCP profile config templates, MCP public-contract guard slices, and hidden Codex MCP launch injection are gone. CLI remains the local integration surface.
 
 ## 0.1.0-alpha.3 - 2026-05-31
 

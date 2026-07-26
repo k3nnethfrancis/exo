@@ -3,7 +3,7 @@ import type { FolderIndexResult, FolderOverview, TreeNode } from "@exo/core";
 export interface WorkspaceFilesystemApi {
   listTree: (
     rootPath: string,
-    options?: { markdownOnly?: boolean; maxDepth?: number; includeEmptyDirectories?: boolean },
+    options?: { markdownOnly?: boolean; maxDepth?: number; includeEmptyDirectories?: boolean; excludedPaths?: string[] },
   ) => Promise<TreeNode[]>;
   getFolderOverview: (directoryPath: string) => Promise<FolderOverview>;
   ensureFolderIndex: (directoryPath: string) => Promise<FolderIndexResult>;

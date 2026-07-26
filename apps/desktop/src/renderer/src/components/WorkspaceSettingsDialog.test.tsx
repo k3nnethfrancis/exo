@@ -73,6 +73,27 @@ describe("workspace settings footer copy", () => {
     expect(html).toContain("Unavailable");
   });
 
+  it("keeps Markdown scope editable from Workspace settings", () => {
+    const html = renderToStaticMarkup(
+      <WorkspaceSettingsDialog
+        indexBusy={null}
+        indexStatus={null}
+        onChooseFolder={() => {}}
+        onClose={() => {}}
+        onOpenWorkspaceSwitcher={() => {}}
+        onRunIndexUpdate={() => {}}
+        onSave={() => {}}
+        settings={workspaceSettingsDialogFixture({ section: "workspace" })}
+        setSettings={() => {}}
+        structuralDraftKey={workspaceSettingsStructuralDraftKey}
+      />,
+    );
+
+    expect(html).toContain("Content scope");
+    expect(html).toContain("Markdown notes");
+    expect(html).toContain("All Markdown");
+  });
+
   it("explains pending embeddings after a failed sync instead of only saying pending", () => {
     const copy = indexSettingsStatusCopy(indexStatusFixture({
       pendingEmbeddings: 12,
@@ -92,7 +113,7 @@ describe("workspace settings footer copy", () => {
       ],
     }), null);
 
-    expect(copy?.text).toContain("12 notes waiting after embedding failed");
+    expect(copy?.text).toContain("12 content embeddings waiting after embedding failed");
     expect(copy?.text).toContain("Build embeddings");
     expect(copy?.text).toContain("lexical search remains available");
     expect(copy?.text).not.toContain("ready");
@@ -100,6 +121,7 @@ describe("workspace settings footer copy", () => {
 
   it("shows in-progress index action status before a fresh status arrives", () => {
     expect(indexSettingsStatusCopy(null, "syncing")?.text).toContain("Status will refresh when it finishes");
+    expect(indexSettingsStatusCopy(indexStatusFixture({ mode: "lexical" }), "syncing")?.text).toBe("Sync is reconciling included documents. Status will refresh when it finishes.");
     expect(indexSettingsStatusCopy(indexStatusFixture(), "updating")?.text).toContain("Embedding status will update");
     expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).toContain("semantic embeddings");
     expect(indexSettingsStatusCopy(indexStatusFixture(), "embedding")?.text).toContain("QMD");
@@ -111,11 +133,11 @@ describe("workspace settings footer copy", () => {
     const automatic = indexSettingsStatusCopy(pending, null, "on-save")?.text;
     const manual = indexSettingsStatusCopy(pending, null, "manual")?.text;
 
-    expect(automatic).toContain("3 notes waiting");
+    expect(automatic).toContain("3 content embeddings waiting");
     expect(automatic).toContain("catch up automatically while Exo is idle");
     expect(automatic).toContain("lexical search remains available");
     expect(automatic).toContain("Build embeddings runs now");
-    expect(manual).toContain("3 notes waiting");
+    expect(manual).toContain("3 content embeddings waiting");
     expect(manual).toContain("Automatic updates are paused");
     expect(manual).toContain("lexical search remains available");
     expect(manual).toContain("Sync now or Build embeddings");
@@ -171,7 +193,7 @@ describe("workspace settings footer copy", () => {
       />,
     );
 
-    expect(html).toContain("3 notes waiting");
+    expect(html).toContain("3 content embeddings waiting");
     expect(html).toContain("catch up automatically while Exo is idle");
     expect(html).toContain("Search engine");
     expect(html).toContain("QMD retrieval");
@@ -199,7 +221,28 @@ describe("workspace settings footer copy", () => {
 
     expect(html).toContain("Simple search is active");
     expect(html).not.toContain("Search maintenance");
-    expect(html).not.toContain("Sync now");
+    expect(html).not.toContain("Sync documents");
+  });
+
+  it("does not present an embedding backlog as document work in lexical mode", () => {
+    const html = renderToStaticMarkup(
+      <WorkspaceSettingsDialog
+        indexBusy={null}
+        indexStatus={indexStatusFixture({ mode: "lexical", pendingEmbeddings: 303 })}
+        onChooseFolder={() => {}}
+        onClose={() => {}}
+        onOpenWorkspaceSwitcher={() => {}}
+        onRunIndexUpdate={() => {}}
+        onSave={() => {}}
+        settings={workspaceSettingsDialogFixture({ section: "index", indexMode: "lexical", searchEngine: "qmd" })}
+        setSettings={() => {}}
+        structuralDraftKey={workspaceSettingsStructuralDraftKey}
+      />,
+    );
+
+    expect(html).toContain("semantic off");
+    expect(html).not.toContain("303 content embeddings waiting");
+    expect(html).not.toContain("303 notes waiting");
   });
 });
 

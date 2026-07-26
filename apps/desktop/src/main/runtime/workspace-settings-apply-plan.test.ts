@@ -46,6 +46,19 @@ describe("planWorkspaceSettingsApply", () => {
     });
   });
 
+  it("rebuilds derived Workspace owners when content scope changes", () => {
+    const previous = settings();
+    expect(planWorkspaceSettingsApply(previous, {
+      ...previous,
+      contentPolicy: { excludedPaths: ["release/**"], sourceVisibility: false },
+    })).toEqual({
+      reactivateWorkspace: true,
+      rebindIndex: true,
+      updateIndexPolicy: false,
+      updateTerminalDefault: false,
+    });
+  });
+
   it.each([
     ["no-op", (settings: WorkspaceSettings) => ({ ...settings })],
     ["layout", (settings: WorkspaceSettings) => ({

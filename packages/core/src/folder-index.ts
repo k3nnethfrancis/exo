@@ -4,17 +4,25 @@ import path from "node:path";
 const FOLDER_INDEX_NAME = "index.md";
 const IGNORED_FOLDER_NAMES = new Set([
   ".git",
+  ".cache",
   ".exo",
   ".exo-dev",
   ".next",
   ".nuxt",
+  ".pnpm-store",
   ".turbo",
   ".venv",
+  "__pycache__",
+  "artifacts",
   "build",
   "coverage",
   "dist",
   "node_modules",
+  "out",
+  "release",
   "target",
+  "tmp",
+  "vendor",
 ]);
 
 export interface FolderIndexResult {
@@ -73,8 +81,27 @@ export async function inspectFolderIndexes(noteRoots: readonly string[]): Promis
   let folderCount = 0;
   let indexedCount = 0;
 
-  async function visit(directoryPath: string): Promise<void> {
+  /**
+   * A Folder Note is useful only where Markdown lives below the folder. This
+   * inspection is intentionally read-only; callers must still ask to create
+   * one folder note at a time.
+   */
+  async function visit(directoryPath: string): Promise<boolean> {
     const entries = await sortedEntries(directoryPath);
+    const hasMarkdownHere = entries.some((entry) => entry.isFile() && entry.name.endsWith(".md"));
+    let hasMarkdownBelow = hasMarkdownHere;
+
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith(".") || IGNORED_FOLDER_NAMES.has(entry.name)) {
+        continue;
+      }
+      hasMarkdownBelow = (await visit(path.join(directoryPath, entry.name))) || hasMarkdownBelow;
+    }
+
+    if (!hasMarkdownBelow) {
+      return false;
+    }
+
     const hasIndex = entries.some((entry) => entry.isFile() && entry.name === FOLDER_INDEX_NAME);
     folderCount += 1;
     if (hasIndex) {
@@ -82,13 +109,7 @@ export async function inspectFolderIndexes(noteRoots: readonly string[]): Promis
     } else {
       missingIndexPaths.push(path.join(directoryPath, FOLDER_INDEX_NAME));
     }
-
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name.startsWith(".") || IGNORED_FOLDER_NAMES.has(entry.name)) {
-        continue;
-      }
-      await visit(path.join(directoryPath, entry.name));
-    }
+    return true;
   }
 
   for (const noteRoot of noteRoots) {
@@ -101,7 +122,7 @@ export async function inspectFolderIndexes(noteRoots: readonly string[]): Promis
     }
   }
 
-  return { folderCount, indexedCount, missingIndexPaths };
+  return { folderCount, indexedCount, missingIndexPaths: missingIndexPaths.sort((left, right) => left.localeCompare(right)) };
 }
 
 async function sortedEntries(directoryPath: string) {

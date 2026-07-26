@@ -1,18 +1,80 @@
 import { writeFileSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { GRAPH_CONCEPT_SUMMARY_MAX_BYTES } from "../graph-projection";
 import { NOTE_ROOT_FORMAT_ID } from "../note-root-format";
 import { WorkspaceGraph, workspaceNoteId } from "../workspace-graph";
+import { repositoryWorkspaceContentPolicy } from "../workspace-content-policy";
 import { WorkspaceOntologyStore } from "../workspace-ontology";
 import type { WorkspaceModel } from "../types";
 
 const roots: string[] = [];
+const mixedRepositoryFixture = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "repository-workspace");
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
 
 describe("WorkspaceGraph", () => {
+  it("does not project Markdown beneath excluded repository paths", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-policy-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(path.join(notes, "release"), { recursive: true });
+    await writeFile(path.join(notes, "readme.md"), "# Readme\n");
+    await writeFile(path.join(notes, "release", "generated.md"), "# Generated\n");
+
+    const graph = new WorkspaceGraph({ ...model(workspace, notes), contentPolicy: repositoryWorkspaceContentPolicy() });
+
+    await expect(graph.rebuild()).resolves.toMatchObject({ noteCount: 1 });
+    await expect(graph.contextForNote(path.join(notes, "release", "generated.md"))).resolves.toBeNull();
+  });
+
+  it("keeps code and attachment links as evidenced Artifact references, not graph Notes", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-artifacts-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(path.join(notes, "src"), { recursive: true });
+    const sourcePath = path.join(notes, "overview.md");
+    await writeFile(sourcePath, "# Overview\n\n[Runtime](src/runtime.ts)\n[Diagram](assets/graph.png)\n[[missing]]\n");
+    await writeFile(path.join(notes, "src", "runtime.ts"), "export const runtime = true;\n");
+
+    const graph = new WorkspaceGraph(model(workspace, notes));
+    const [snapshot, context, topology] = await Promise.all([
+      graph.knowledgeSnapshot(),
+      graph.contextForNote(sourcePath),
+      graph.graphTopology(),
+    ]);
+
+    expect(snapshot.concepts.map((concept) => concept.label)).toEqual(["Overview", "missing"]);
+    expect(snapshot.concepts.map((concept) => concept.label)).not.toContain("Runtime");
+    expect(snapshot.relations).toHaveLength(1);
+    expect(snapshot.relations[0]).toMatchObject({ resolution: "unresolved", target: expect.stringContaining("missing") });
+    expect(snapshot.artifactReferences).toEqual([
+      expect.objectContaining({ source: "note:notes:overview.md", target: "assets/graph.png", kind: "attachment" }),
+      expect.objectContaining({ source: "note:notes:overview.md", target: "src/runtime.ts", kind: "source-file" }),
+    ]);
+    expect(context?.outgoing.map((link) => link.resolution)).toEqual(["unresolved", "artifact", "artifact"]);
+    expect(topology.nodeCount).toBe(2); // the unresolved authored link remains inspectable; Artifacts do not enter topology.
+  });
+
+  it("keeps Explorer/graph content policy truthful in the reusable mixed repository fixture", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-mixed-repository-"));
+    roots.push(workspace);
+    await cp(mixedRepositoryFixture, workspace, { recursive: true });
+    await mkdir(path.join(workspace, "release"));
+    await writeFile(path.join(workspace, "release", "generated.md"), "# Generated\n");
+
+    const snapshot = await new WorkspaceGraph({
+      ...model(workspace, workspace),
+      contentPolicy: repositoryWorkspaceContentPolicy(),
+    }).knowledgeSnapshot();
+
+    expect(snapshot.concepts.map((concept) => concept.relativePath).filter(Boolean)).toEqual(["docs/guide.md", "readme.md"]);
+    expect(snapshot.artifactReferences).toContainEqual(expect.objectContaining({ target: "src/runtime.ts", kind: "source-file" }));
+    expect(snapshot.concepts.map((concept) => concept.relativePath)).not.toContain("release/generated.md");
+  });
+
   it("rejects structural Format injection at construction", () => {
     expect(() => new WorkspaceGraph(model("/workspace", "/workspace/notes"), {
       noteRootFormat: {
@@ -169,7 +231,7 @@ describe("WorkspaceGraph", () => {
     const second = await graph.knowledgeSnapshot();
     const metric = snapshot.concepts.find((concept) => concept.label === "Activation");
 
-    expect(snapshot.version).toBe("0.3");
+    expect(snapshot.version).toBe("0.4");
     expect(snapshot.snapshotId).toBe(second.snapshotId);
     expect(metric).toMatchObject({
       conceptTypes: ["Metric", "NorthStar"],
@@ -625,6 +687,30 @@ describe("WorkspaceGraph", () => {
       guard: { baseSnapshotId: "not-pending" },
     });
     expect(await graph.status()).toEqual({ state: "stale", noteCount: 0, edgeCount: 0 });
+  });
+
+  it("previews Ontology effects for repository-style mixed-case paths", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-repository-paths-"));
+    roots.push(workspace);
+    await writeFile(path.join(workspace, "README.md"), "# Product\n");
+    await writeFile(path.join(workspace, "apps.md"), "# Apps\n");
+    await writeFile(path.join(workspace, "ontology.yaml"), [
+      "ontology_schema: 1",
+      "id: repository",
+      "version: 1",
+      "types:",
+      "  product-context:",
+      "    paths: [README.md]",
+    ].join("\n"));
+
+    const graph = new WorkspaceGraph(model(workspace, workspace), {
+      runtimeRoot: path.join(workspace, ".exo-test"),
+    });
+
+    await expect(graph.previewOntology()).resolves.toMatchObject({
+      active: { state: "generic" },
+      candidate: { state: "valid", id: "repository" },
+    });
   });
 
   it("switches one reviewed library Ontology at a time and can return to Generic", async () => {
