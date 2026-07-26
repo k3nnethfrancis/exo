@@ -1,6 +1,6 @@
 import type { TreeNode } from "@exo/core";
 
-export function treeLoadKey(rootKind: "notes" | "projects", directoryPath: string): string {
+export function treeLoadKey(rootKind: "notes", directoryPath: string): string {
   return `${rootKind}:${directoryPath}`;
 }
 
