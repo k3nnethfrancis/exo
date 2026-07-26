@@ -1468,61 +1468,6 @@ button svg,
   background: var(--surface-1);
 }
 
-.footer-dock {
-  min-width: 0;
-  min-height: 36px;
-  position: relative;
-  background: var(--panel-strong);
-  box-shadow: 0 -1px 0 var(--divider);
-  overflow: visible;
-}
-
-.footer-panel {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0;
-  min-height: 0;
-  overflow: hidden;
-  background: var(--panel-strong);
-}
-
-.footer-panel--subagents {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.footer-panel__section {
-  min-height: 148px;
-  background: var(--panel-strong);
-  padding: 12px 14px 14px;
-  display: grid;
-  align-content: start;
-  gap: 8px;
-  border-right: 1px solid var(--divider);
-  overflow: auto;
-}
-
-.footer-panel__section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.footer-panel__actions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.footer-panel__section:last-child {
-  border-right: 0;
-}
-
-.footer-panel__section--subagents {
-  gap: 10px;
-}
-
 .footer-item {
   display: flex;
   align-items: center;
@@ -2031,55 +1976,6 @@ button svg,
 
 .invocation-history__resume:hover,
 .invocation-history__resume:focus-visible { background: var(--surface-2); color: var(--text); }
-
-.subagent-list {
-  display: grid;
-  gap: 10px;
-}
-
-.subagent-card {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border-radius: 12px;
-  background: var(--surface-2);
-  border: 1px solid var(--surface-border);
-  text-align: left;
-}
-
-.subagent-card--active {
-  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
-}
-
-.subagent-card__title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.subagent-card__title {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 650;
-}
-
-.subagent-card__meta,
-.subagent-card__preview {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.subagent-card__preview {
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
 
 .tag-pill {
   background: var(--tag);
@@ -3850,13 +3746,5 @@ select.dialog-card__input {
 @media (max-width: 1200px) {
   .shell {
     grid-template-columns: 280px 1fr;
-  }
-
-  .footer-panel {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .footer-panel--subagents {
-    grid-template-columns: minmax(0, 1fr);
   }
 }

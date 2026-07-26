@@ -105,14 +105,14 @@ describe("terminal session sync", () => {
         title: "Shell",
         status: "running",
         health: "unhealthy",
-        healthDetail: "Unable to find live tmux pane.",
+        healthDetail: "Terminal process is unavailable.",
       }),
     ];
 
     expect(summarizeTerminalStatusLine(sessions, "term-shell", new Set(["term-shell"]))).toEqual({
       label: "Terminal unavailable",
       tone: "error",
-      title: "Shell: Unable to find live tmux pane.",
+      title: "Shell: Terminal process is unavailable.",
       busy: false,
       sessionId: "term-shell",
     });

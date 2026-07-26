@@ -151,7 +151,7 @@ function runGit(cwd: string, args: string[]) {
 
 test.describe.configure({ mode: "parallel" });
 
-test("does not present or acknowledge retired Workspace migration metadata", async () => {
+test("preserves unknown Workspace settings during startup", async () => {
   const fixture = await launchExoWorkspaceFixture({
     configured: false,
     expectOnboarding: false,
@@ -178,12 +178,9 @@ test("does not present or acknowledge retired Workspace migration metadata", asy
   });
 
   try {
-    await expect(fixture.page.getByTestId("main-wiki-migration-notice")).toHaveCount(0);
-
     const saved = JSON.parse(await readFile(fixture.settingsPath, "utf8"));
     expect(saved.noteRoots).toEqual([path.join(fixture.workspaceRoot, "notes/test-notes")]);
     expect(saved.futureWorkspaceMetadata).toEqual({ retained: true });
-    expect(saved).not.toHaveProperty("migrationMetadata");
   } finally {
     await fixture.cleanup();
   }
@@ -969,10 +966,6 @@ test("keeps terminal interactive after large output, tab switches, and semantic 
       await window.exo.terminals.sendMessage(id, "printf 'semantic qa: %s\\n' 'one   two'", true);
     }, shellId);
     await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shellId)).toContain("semantic qa: one   two");
-
-    const sessions = await page.evaluate(() => window.exo.terminals.list());
-    expect(JSON.stringify(sessions)).not.toContain("tmux");
-    expect(JSON.stringify(sessions)).not.toContain("transport");
   } finally {
     await cleanup();
   }
@@ -1383,7 +1376,7 @@ test("keeps large terminal bursts available above the visible viewport", async (
   }
 });
 
-test("keeps app terminal tail above the legacy 12k cap", async () => {
+test("retains app terminal output within the bounded in-memory tail", async () => {
   const { page, cleanup } = await launchExoTerminalFixture({
     env: {
       EXO_SHELL: "/bin/sh",

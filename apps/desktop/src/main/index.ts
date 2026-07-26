@@ -642,9 +642,6 @@ app.whenReady().then(async () => {
   workspaceSettings = loadedWorkspaceSettings?.settings ?? null;
   workspaceSettingsRevision = loadedWorkspaceSettings?.revision ?? null;
   onboardingState = await readOnboardingStateStore(app.getPath("userData"));
-  if (workspaceSettings) {
-    applyWorkspaceSettings(workspaceSettings);
-  }
   workspaceSetupComplete = workspaceSettings !== null || operatorWorkspaceSetupComplete;
   workspaceModel = workspaceSettings ? workspaceModelFromSettings(workspaceSettings) : workspaceSetupComplete ? resolveWorkspaceModel() : createFirstRunWorkspaceModel();
   if (workspaceSetupComplete) {
@@ -652,9 +649,6 @@ app.whenReady().then(async () => {
   } else {
     applyOnboardingRuntimeEnv();
     applyWorkspaceSettings(null);
-  }
-  if (workspaceSettings && !isForcedTheme(forcedTheme)) {
-    nativeTheme.themeSource = workspaceSettings.appearanceMode;
   }
   if (workspaceSetupComplete) {
     const savedWorkspaceSettings = await workspaceConfig.patch(loadedWorkspaceSettings?.revision ?? null, workspaceSettings ?? workspaceSettingsFromModel(workspaceModel));

@@ -8,6 +8,6 @@ export const exoAdapter = Object.freeze({
   url(baseUrl, track, { presentationProfile = 'evaluation-v1' } = {}) {
     const staticLayout = track === 'layout' || track === 'incremental' ? '' : '&layout=static';
     const labels = track === 'product' ? '1' : '0';
-    return `${baseUrl}/evals/graph/public/harness/stellar.html?benchmark=1&profile=${encodeURIComponent(presentationProfile)}&topology=/__graph_eval_fixture__.json${staticLayout}&labels=${labels}`;
+    return `${baseUrl}/evals/graph/public/harness/stellar.html?profile=${encodeURIComponent(presentationProfile)}&topology=/__graph_eval_fixture__.json${staticLayout}&labels=${labels}`;
   },
 });
