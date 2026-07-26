@@ -26,8 +26,8 @@ Choose the first approach because it preserves ordinary Markdown portability.
   responding `agent` handle.
 - The live editor hides only the envelope lines and renders their contents as
   page-native tinted prose. Raw Markdown exposes the exact source.
-- Pre-protocol invocation envelopes without an `id` retain live rendering but
-  cannot be launched again as a new V1 protocol invocation.
+- Invocation envelopes without an `id` remain inert, render-only user-authored
+  Markdown. They cannot identify, launch, or be removed as a V1 invocation.
 - Malformed or unpaired markup is ordinary visible Markdown, never executable
   protocol state.
 
@@ -120,7 +120,7 @@ review controls.
 - No generic tag language, nested workflow engine, or provider-specific markup.
 - No claim that a response block is accepted or trustworthy without the normal
   diff-review path.
-- No migration of users' legacy Markdown; raw source stays portable in every
-  Markdown editor.
+- No rewriting of user-authored Markdown envelopes; raw source stays portable
+  in every Markdown editor.
 
 -- Exo | 2026-07-13

@@ -365,6 +365,20 @@ describe("agent invocation model", () => {
     ]);
   });
 
+  it("renders an id-less source envelope but never treats it as an executable V1 invocation", () => {
+    const document = '<exo-invocation agent="claude" status="sent">\n@claude preserved source\n</exo-invocation>';
+
+    expect(findDocumentAgentEnvelopes(document)).toEqual([
+      expect.objectContaining({ kind: "invocation", agent: "claude", status: "sent" }),
+    ]);
+    expect(findDocumentAgentEnvelopes(document)[0]).not.toHaveProperty("id");
+    expect(removeDocumentAgentInvocation(
+      document,
+      "11111111-1111-4111-8111-111111111111",
+      "claude",
+    )).toBeNull();
+  });
+
   it("derives the clean base by removing only the exact invocation envelope", () => {
     const invocationId = "11111111-1111-4111-8111-111111111111";
     const before = "# Note\n\nHuman work before\n\n";
