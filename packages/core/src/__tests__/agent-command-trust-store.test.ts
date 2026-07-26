@@ -41,7 +41,6 @@ describe("agent command trust store", () => {
       { ...command, cwdPolicy: "note_dir" as const },
       { ...command, handle: "claude-alt" },
       { ...command, id: "claude-alt" },
-      { ...command, promptDelivery: "argv" as const },
       { ...command, version: command.version + 1 },
     ];
     for (const changed of changedCommands) {

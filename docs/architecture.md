@@ -126,7 +126,8 @@ shader, validation, or success outcome.
 
 ### `WorkspaceConfigStore`
 
-Owns workspace configuration, revisions, unknown-key preservation, migration, and atomic persistence.
+Owns canonical workspace configuration, revisions, unknown-key preservation,
+unsupported-format rejection, and atomic persistence.
 
 ### `WorkspaceRuntimeCoordinator`
 

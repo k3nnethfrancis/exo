@@ -9,7 +9,7 @@ export function WorkspaceRuntimeApplyNotice(props: WorkspaceRuntimeApplyNoticePr
   return (
     <aside
       aria-label="Workspace settings need attention"
-      className="workspace-migration-notice workspace-runtime-apply-notice"
+      className="workspace-settings-notice workspace-runtime-apply-notice"
       data-testid="workspace-runtime-apply-notice"
       role="alert"
     >

@@ -4,20 +4,19 @@ import { chmod, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/pro
 import os from "node:os";
 import path from "node:path";
 
-import type { IndexMode, LegacyWorkspaceLayoutSettings, WorkspaceCanvasLayoutSettings, WorkspaceLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
-import { normalizeAgentCommands, normalizeAgentInvocationPrompt } from "./agent-invocation";
+import type { IndexMode, WorkspaceCanvasLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
+import { normalizeAgentCommand, normalizeAgentCommands, normalizeAgentInvocationPrompt } from "./agent-invocation";
 import { isPathWithinRoot } from "./path-containment";
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
-import { normalizeMigrationMetadata } from "./workspace-migration";
-
-export { acknowledgeMainWikiMigration, pendingMainWikiMigration } from "./workspace-migration";
 
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
 export const DEFAULT_COLOR_THEME_ID: WorkspaceSettings["colorThemeId"] = "exo-neutral";
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
 export const DEFAULT_EXPLORER_SCALE = 1;
-export const RETIRED_TERMINAL_SETTINGS_KEYS = [
+const UNSUPPORTED_WORKSPACE_SETTINGS_KEYS = [
+  "migrationMetadata",
+  "projectRoots",
   "terminalHistoryLines",
   "terminalTranscriptRetention",
   "terminalTranscriptRetentionDays",
@@ -72,28 +71,28 @@ export function resolveWorkspaceSettingsTransactionPath(env: NodeJS.ProcessEnv =
 export async function loadWorkspaceSettings(env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceSettings | null> {
   await recoverWorkspaceSettingsTransaction(env);
   const settings = await loadWorkspaceSettingsFile(env);
-  const retiredNoteRoots = await legacyAdditionalNoteRootsInPersistence(env);
-  const droppedProjectRoots = await legacyProjectRootsInPersistence(env);
-  const droppedTerminalSettings = await retiredTerminalSettingsInPersistence(env);
   const requiresIndexedRootMigration = await duplicateIndexedRootPathsInPersistence(env);
-  const requiresIdentityMigration = settings ? await workspaceRegistryRequiresIdentityMigration(env, settings) : false;
-  if (settings && (requiresIdentityMigration || requiresIndexedRootMigration)) {
-    await migrateWorkspaceSettingsPersistence(settings, env);
-  } else if (settings && (retiredNoteRoots.length > 0 || droppedProjectRoots.length > 0 || droppedTerminalSettings.length > 0)) {
-    // Reuse the existing two-file transaction so primary settings and registry
-    // snapshots lose the retired authorization atomically.
+  if (settings) {
+    // Validate every persisted registry entry against the same canonical
+    // parser before Desktop can select or rewrite it.
+    await loadWorkspaceRegistryFile(env, settings);
+  }
+  if (settings && requiresIndexedRootMigration) {
     await saveWorkspaceSettings(settings, env);
   }
   return settings;
 }
 
 async function loadWorkspaceSettingsFile(env: NodeJS.ProcessEnv): Promise<WorkspaceSettings | null> {
+  let parsed: unknown;
   try {
     const raw = await readFile(resolveWorkspaceSettingsPath(env), "utf8");
-    return normalizeWorkspaceSettings(JSON.parse(raw) as Partial<WorkspaceSettings>);
+    parsed = JSON.parse(raw);
   } catch {
     return null;
   }
+  assertSupportedWorkspaceSettings(parsed);
+  return normalizeWorkspaceSettings(parsed as Partial<WorkspaceSettings>);
 }
 
 export function workspaceSettingsRevision(settings: WorkspaceSettings | null): WorkspaceSettingsRevision {
@@ -140,22 +139,12 @@ export async function loadWorkspaceRegistry(env: NodeJS.ProcessEnv = process.env
   await recoverWorkspaceSettingsTransaction(env);
   const settings = await loadWorkspaceSettingsFile(env);
   const registry = await loadWorkspaceRegistryFile(env, settings ?? undefined);
-  if (
-    await workspaceRegistryRequiresIdentityMigration(env, settings ?? undefined)
-    || await duplicateIndexedRootPathsInPersistence(env)
-  ) {
+  if (await duplicateIndexedRootPathsInPersistence(env)) {
     const activeSettings = settings ?? registry.workspaces.find((entry) => entry.id === registry.activeWorkspaceId)?.settings;
     if (activeSettings) {
-      await migrateWorkspaceSettingsPersistence(activeSettings, env);
+      await saveWorkspaceSettings(activeSettings, env);
       return loadWorkspaceRegistryFile(env, activeSettings);
     }
-  }
-  if (
-    (await legacyAdditionalNoteRootsInPersistence(env)).length > 0 ||
-    (await legacyProjectRootsInPersistence(env)).length > 0 ||
-    (await retiredTerminalSettingsInPersistence(env)).length > 0
-  ) {
-    await writeJsonAtomically(resolveWorkspaceRegistryPath(env), registry);
   }
   return registry;
 }
@@ -258,84 +247,9 @@ function normalizeWorkspaceRegistry(value: unknown, activeSettings?: WorkspaceSe
   };
 }
 
-async function workspaceRegistryRequiresIdentityMigration(env: NodeJS.ProcessEnv, activeSettings?: WorkspaceSettings): Promise<boolean> {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8"));
-  } catch {
-    return false;
-  }
-  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as Partial<WorkspaceRegistry>).workspaces)) {
-    return false;
-  }
-  const rawRegistry = parsed as Partial<WorkspaceRegistry>;
-  const rawWorkspaces = rawRegistry.workspaces;
-  if (!rawWorkspaces) {
-    return false;
-  }
-  const normalized = normalizeWorkspaceRegistry(parsed, activeSettings);
-  if (normalized.workspaces.length === 0) {
-    return false;
-  }
-  if (activeSettings) {
-    const selectedIdentityKey = workspaceIdentityFromSettings(activeSettings);
-    const selectedNotesFolder = notesFolderFromSettings(activeSettings);
-    const activeEntry = normalized.workspaces.find((entry) => entry.id === normalized.activeWorkspaceId);
-    if (
-      activeEntry
-      && workspaceIdentityFromSettings(activeEntry.settings) === selectedIdentityKey
-      && (
-        activeEntry.notesFolder !== selectedNotesFolder
-        || notesFolderFromSettings(activeEntry.settings) !== selectedNotesFolder
-      )
-    ) {
-      return true;
-    }
-  }
-  const seenIdentityKeys = new Set<string>();
-  for (const value of rawWorkspaces) {
-    const entry = normalizeRegistryEntry(value);
-    if (!entry) {
-      return true;
-    }
-    const rawEntry = value as Partial<WorkspaceRegistryEntry>;
-    const persistedId = typeof rawEntry.id === "string" ? rawEntry.id.trim() || null : null;
-    const persistedNotesFolder = typeof rawEntry.notesFolder === "string" ? rawEntry.notesFolder.trim() || null : null;
-    const identityKey = workspaceIdentityFromSettings(entry.settings);
-    if (persistedId !== entry.id || persistedNotesFolder !== entry.notesFolder || seenIdentityKeys.has(identityKey)) {
-      return true;
-    }
-    seenIdentityKeys.add(identityKey);
-  }
-  const persistedActiveId = typeof rawRegistry.activeWorkspaceId === "string" ? rawRegistry.activeWorkspaceId : null;
-  return persistedActiveId !== normalized.activeWorkspaceId;
-}
-
-async function migrateWorkspaceSettingsPersistence(settings: WorkspaceSettings, env: NodeJS.ProcessEnv): Promise<void> {
-  let persistedRegistry: unknown;
-  try {
-    persistedRegistry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8"));
-  } catch {
-    await writeJsonAtomically(resolveWorkspaceSettingsPath(env), settings);
-    return;
-  }
-  let registry = normalizeWorkspaceRegistry(persistedRegistry, settings);
-  const activeIdentityKey = workspaceIdentityFromSettings(settings);
-  const activeIndex = registry.workspaces.findIndex((entry) => workspaceIdentityFromSettings(entry.settings) === activeIdentityKey);
-  if (activeIndex !== -1) {
-    const activeEntry = registry.workspaces[activeIndex];
-    registry = {
-      activeWorkspaceId: activeEntry.id,
-      workspaces: registry.workspaces.map((entry, index) => index === activeIndex
-        ? { ...entry, notesFolder: notesFolderFromSettings(settings), settings }
-        : entry),
-    };
-  }
-  await commitWorkspaceSettingsTransaction({ version: 1, settings, registry }, env);
-}
-
 function parseWorkspaceSettingsTransaction(raw: string): WorkspaceSettingsTransaction {
   const parsed = JSON.parse(raw) as Partial<WorkspaceSettingsTransaction>;
+  assertSupportedWorkspaceSettings(parsed.settings);
   const settings = normalizeWorkspaceSettings(parsed.settings);
   if (parsed.version !== 1 || !settings) {
     throw new Error("Workspace settings transaction is invalid.");
@@ -438,13 +352,9 @@ export function workspaceModelFromSettings(settings: WorkspaceSettings): Workspa
   };
 }
 
-/**
- * Normalizes durable user settings while deliberately deleting the retired
- * `projectRoots` and retired terminal tuning keys. Unknown keys remain intact
- * so a newer Exo does not lose unrelated data when opened by this build.
- */
+/** Normalizes the canonical pre-launch Workspace settings shape. */
 export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | null | undefined): WorkspaceSettings | null {
-  if (!input) {
+  if (!input || unsupportedWorkspaceSettingsReason(input)) {
     return null;
   }
 
@@ -453,12 +363,7 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
   const configuredNoteRoots = Array.isArray(input.noteRoots)
     ? input.noteRoots.map((entry) => (typeof entry === "string" && entry.trim() ? lexicalNotesFolder(entry) : "")).filter(Boolean)
     : [];
-  // A Workspace has one authoritative wiki in this release.  Older builds
-  // could persist multiple note roots; retain the explicitly selected first
-  // root and leave the other folders untouched on disk.  Keeping this rule at
-  // the persistence boundary ensures the app, CLI, MCP, and index all agree.
-  const noteRoots = configuredNoteRoots.slice(0, 1);
-  const retiredNoteRoots = configuredNoteRoots.slice(1);
+  const noteRoots = configuredNoteRoots;
   const configuredIndexedRoots = Array.isArray(input.indexedRoots)
     ? input.indexedRoots.reduce<WorkspaceSettings["indexedRoots"]>((roots, entry, index) => {
         if (!entry || typeof entry !== "object" || typeof entry.path !== "string" || !entry.path.trim()) {
@@ -501,29 +406,8 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
   }
   const agentInvocationPrompt = normalizeAgentInvocationPrompt(input.agentInvocationPrompt);
 
-  // A newer Exo may own settings this build does not recognize yet. These
-  // named keys are retired product surfaces and must not survive a rewrite.
-  const {
-    projectRoots: _removedProjectRoots,
-    terminalHistoryLines: _removedTerminalHistoryLines,
-    terminalTranscriptRetention: _removedTerminalTranscriptRetention,
-    terminalTranscriptRetentionDays: _removedTerminalTranscriptRetentionDays,
-    terminalInputCoalesceMs: _removedTerminalInputCoalesceMs,
-    terminalAgentStartupGraceMs: _removedTerminalAgentStartupGraceMs,
-    terminalAgentSubmitDelayMs: _removedTerminalAgentSubmitDelayMs,
-    terminalInitialColumns: _removedTerminalInitialColumns,
-    terminalInitialRows: _removedTerminalInitialRows,
-    terminalMinimumColumns: _removedTerminalMinimumColumns,
-    terminalMinimumRows: _removedTerminalMinimumRows,
-    terminalReadTailChars: _removedTerminalReadTailChars,
-    terminalMaxReadTailChars: _removedTerminalMaxReadTailChars,
-    terminalUnresponsiveThresholdMs: _removedTerminalUnresponsiveThresholdMs,
-    terminalIdleThresholdMs: _removedTerminalIdleThresholdMs,
-    ...preservedInput
-  } = input as Partial<WorkspaceSettings> & Record<string, unknown>;
-  const migrationMetadata = normalizeMigrationMetadata(preservedInput.migrationMetadata, retiredNoteRoots);
   return {
-    ...preservedInput,
+    ...input,
     workspaceRoot,
     defaultTerminalCwd,
     noteRoots,
@@ -540,137 +424,46 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     exploreIndexSearchOnEnter: typeof input.exploreIndexSearchOnEnter === "boolean" ? input.exploreIndexSearchOnEnter : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0,
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
     layout: normalizeWorkspaceLayout(input.layout),
-    ...(migrationMetadata ? { migrationMetadata } : {}),
   };
 }
 
-/** Paths dropped by the Note-Root-only settings migration. Kept separate from
- * normalization so the desktop main process can make the migration visible
- * without retaining the deleted field in its public model. */
-export function legacyProjectRootsFromSettings(input: unknown): string[] {
-  if (!input || typeof input !== "object") {
-    return [];
+function assertSupportedWorkspaceSettings(input: unknown): void {
+  const reason = unsupportedWorkspaceSettingsReason(input);
+  if (reason) {
+    throw new Error(`Workspace settings use an unsupported pre-launch format (${reason}).`);
   }
-  const value = (input as { projectRoots?: unknown }).projectRoots;
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0).map((entry) => entry.trim());
 }
 
-/** Extra note roots belong to older multi-wiki Workspaces. The first root is
- * retained as the main wiki; remaining roots are recorded for the one-time
- * migration notice before the durable settings snapshot is rewritten. */
-export function legacyAdditionalNoteRootsFromSettings(input: unknown): string[] {
-  if (!input || typeof input !== "object") {
-    return [];
-  }
-  const value = (input as { noteRoots?: unknown }).noteRoots;
-  if (!Array.isArray(value)) {
-    return [];
-  }
-  return value
-    .slice(1)
-    .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
-    .map((entry) => entry.trim());
-}
-
-export async function legacyAdditionalNoteRootsInPersistence(env: NodeJS.ProcessEnv): Promise<string[]> {
-  const paths = new Set<string>();
-  const collect = (value: unknown) => {
-    for (const targetPath of legacyAdditionalNoteRootsFromSettings(value)) {
-      paths.add(targetPath);
-    }
-  };
-  try {
-    collect(JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8")));
-  } catch {
-    // Missing/corrupt settings already follow the normal load path.
-  }
-  try {
-    const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as { workspaces?: unknown };
-    if (Array.isArray(registry.workspaces)) {
-      for (const workspace of registry.workspaces) {
-        if (workspace && typeof workspace === "object") {
-          collect((workspace as { settings?: unknown }).settings);
-        }
-      }
-    }
-  } catch {
-    // A registry is optional during first-run onboarding.
-  }
-  return [...paths];
-}
-
-export async function legacyProjectRootsInPersistence(env: NodeJS.ProcessEnv): Promise<string[]> {
-  const paths = new Set<string>();
-  const collect = (value: unknown) => {
-    for (const targetPath of legacyProjectRootsFromSettings(value)) {
-      paths.add(targetPath);
-    }
-  };
-  try {
-    collect(JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8")));
-  } catch {
-    // Missing/corrupt settings already follow the normal load path.
-  }
-  try {
-    const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as { workspaces?: unknown };
-    if (Array.isArray(registry.workspaces)) {
-      for (const workspace of registry.workspaces) {
-        if (workspace && typeof workspace === "object") {
-          collect((workspace as { settings?: unknown }).settings);
-        }
-      }
-    }
-  } catch {
-    // A registry is optional during first-run onboarding.
-  }
-  return [...paths];
-}
-
-/** Named compatibility migration: these former implementation knobs are not
- * settings and must be removed while unknown future fields remain intact. */
-export function retiredTerminalSettingsFromSettings(input: unknown): string[] {
-  if (!input || typeof input !== "object") {
-    return [];
+function unsupportedWorkspaceSettingsReason(input: unknown): string | null {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return null;
   }
   const candidate = input as Record<string, unknown>;
-  return RETIRED_TERMINAL_SETTINGS_KEYS.filter((key) => Object.hasOwn(candidate, key));
-}
-
-export async function retiredTerminalSettingsInPersistence(env: NodeJS.ProcessEnv): Promise<string[]> {
-  const keys = new Set<string>();
-  const collect = (value: unknown) => {
-    for (const key of retiredTerminalSettingsFromSettings(value)) {
-      keys.add(key);
-    }
-  };
-  const collectRegistry = (value: unknown) => {
-    if (!value || typeof value !== "object") {
-      return;
-    }
-    const workspaces = (value as { workspaces?: unknown }).workspaces;
-    if (!Array.isArray(workspaces)) {
-      return;
-    }
-    for (const workspace of workspaces) {
-      if (workspace && typeof workspace === "object") {
-        collect((workspace as { settings?: unknown }).settings);
-      }
-    }
-  };
-  try {
-    collect(JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8")));
-  } catch {
-    // Missing/corrupt settings already follow the normal load path.
+  const unsupportedKey = UNSUPPORTED_WORKSPACE_SETTINGS_KEYS.find((key) => Object.hasOwn(candidate, key));
+  if (unsupportedKey) {
+    return unsupportedKey;
   }
-  try {
-    collectRegistry(JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")));
-  } catch {
-    // Missing/corrupt registry already follows the normal load path.
+  if (Array.isArray(candidate.noteRoots) && candidate.noteRoots.length > 1) {
+    return "multiple noteRoots";
   }
-  return [...keys];
+  if (
+    Array.isArray(candidate.agentCommands)
+    && candidate.agentCommands.some((command, index) => !normalizeAgentCommand(command, `agent-command-${index + 1}`))
+  ) {
+    return "unsupported agentCommands";
+  }
+  const layout = candidate.layout;
+  if (layout && typeof layout === "object" && !Array.isArray(layout)) {
+    const layoutCandidate = layout as Record<string, unknown>;
+    if (
+      layoutCandidate.version === 2
+      || Object.hasOwn(layoutCandidate, "editorTree")
+      || Object.hasOwn(layoutCandidate, "terminalTree")
+    ) {
+      return "pre-canvas layout";
+    }
+  }
+  return null;
 }
 
 function hasDuplicateIndexedRootPaths(value: unknown): boolean {
@@ -743,14 +536,19 @@ function normalizeRegistryEntry(value: unknown): WorkspaceRegistryEntry | null {
     return null;
   }
   const candidate = value as Partial<WorkspaceRegistryEntry>;
+  assertSupportedWorkspaceSettings(candidate.settings);
   const settings = normalizeWorkspaceSettings(candidate.settings);
   if (!settings) {
     return null;
   }
   const notesFolder = notesFolderFromSettings(settings);
+  const id = workspaceIdForNotesFolder(notesFolder);
+  if (candidate.id !== id || candidate.notesFolder !== notesFolder) {
+    throw new Error("Workspace registry uses an unsupported pre-launch identity.");
+  }
   return {
     ...candidate,
-    id: workspaceIdForNotesFolder(notesFolder),
+    id,
     label: typeof candidate.label === "string" && candidate.label.trim() ? candidate.label.trim() : path.basename(notesFolder) || notesFolder,
     notesFolder,
     settings,
@@ -810,8 +608,6 @@ function clampSettingsNumber(value: unknown, fallback: number, min: number, max:
 }
 
 const DEFAULT_SIDEBAR_WIDTH = 175;
-const PREVIOUS_DEFAULT_SIDEBAR_WIDTH = 140;
-const OLD_DEFAULT_SIDEBAR_WIDTH = 260;
 const MIN_SIDEBAR_WIDTH = 140;
 const MAX_SIDEBAR_WIDTH = 800;
 const DEFAULT_UTILITY_WIDTH = 430;
@@ -819,37 +615,14 @@ const MIN_UTILITY_WIDTH = 320;
 const MAX_UTILITY_WIDTH = 900;
 
 function normalizeSidebarWidth(value: unknown): number {
-  if (value === OLD_DEFAULT_SIDEBAR_WIDTH || value === PREVIOUS_DEFAULT_SIDEBAR_WIDTH) {
-    return DEFAULT_SIDEBAR_WIDTH;
-  }
   return clampSettingsNumber(value, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH);
 }
 
-function normalizeWorkspaceLayout(input: unknown): WorkspaceLayoutSettings | undefined {
+function normalizeWorkspaceLayout(input: unknown): WorkspaceCanvasLayoutSettings | undefined {
   if (!input || typeof input !== "object") {
     return undefined;
   }
-  const canvasLayout = normalizeWorkspaceCanvasLayout(input);
-  if (canvasLayout) {
-    return canvasLayout;
-  }
-  const candidate = input as Partial<LegacyWorkspaceLayoutSettings>;
-  const editorTree = normalizePaneNode(candidate.editorTree, 0);
-  const terminalTree = normalizePaneNode(candidate.terminalTree, 0);
-  if (!editorTree || !terminalTree || !hasLeafKind(editorTree, "editor") || !hasLeafKind(terminalTree, "terminal")) {
-    return undefined;
-  }
-  return {
-    editorTree,
-    terminalTree,
-    terminalCollapsed: Boolean(candidate.terminalCollapsed),
-    terminalMonitorMode: Boolean(candidate.terminalMonitorMode),
-    sidePanesFlipped: Boolean(candidate.sidePanesFlipped),
-    zoneSplitRatio: clampSettingsNumber(candidate.zoneSplitRatio, 0.6, 0.15, 0.85),
-    sidebarCollapsed: Boolean(candidate.sidebarCollapsed),
-    sidebarWidth: normalizeSidebarWidth(candidate.sidebarWidth),
-    inspectorCollapsed: typeof candidate.inspectorCollapsed === "boolean" ? candidate.inspectorCollapsed : true,
-  };
+  return normalizeWorkspaceCanvasLayout(input) ?? undefined;
 }
 
 function normalizeWorkspaceCanvasLayout(input: unknown): WorkspaceCanvasLayoutSettings | null {
@@ -857,7 +630,7 @@ function normalizeWorkspaceCanvasLayout(input: unknown): WorkspaceCanvasLayoutSe
     return null;
   }
   const candidate = input as Omit<Partial<WorkspaceCanvasLayoutSettings>, "version"> & { version?: unknown };
-  if (candidate.version !== 2 && candidate.version !== 3) {
+  if (candidate.version !== 3) {
     return null;
   }
   const canvas = normalizePaneNode(candidate.canvas, 0);

@@ -15,7 +15,6 @@ describe("workspace terminal settings", () => {
       workspaceRoot: "/tmp/exo-test/workspace",
       defaultTerminalCwd: "/tmp/exo-test/workspace",
       noteRoots: ["/tmp/exo-test/workspace/notes"],
-      projectRoots: [],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
     });
@@ -30,13 +29,12 @@ describe("workspace terminal settings", () => {
     }
   });
 
-  it("drops retired terminal tuning without changing internal runtime defaults", () => {
+  it("rejects retired terminal tuning instead of applying internal defaults to it", () => {
     const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
     const settings = store.normalize({
       workspaceRoot: "/tmp/exo-test/workspace",
       defaultTerminalCwd: "/tmp/exo-test/workspace",
       noteRoots: ["/tmp/exo-test/workspace/notes"],
-      projectRoots: [],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
       terminalHistoryLines: 24_000,
@@ -44,13 +42,6 @@ describe("workspace terminal settings", () => {
       terminalTranscriptRetentionDays: 30,
     });
 
-    expect(settings).not.toBeNull();
-    expect(resolveSettingsTerminalRuntime(settings!)).toMatchObject({
-      scrollbackLines: 100_000,
-      readTailChars: 20_000,
-    });
-    for (const key of ["terminalHistoryLines", "terminalTranscriptRetention", "terminalTranscriptRetentionDays"]) {
-      expect(settings).not.toHaveProperty(key);
-    }
+    expect(settings).toBeNull();
   });
 });
