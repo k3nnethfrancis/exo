@@ -1,5 +1,5 @@
 import { writeFileSync } from "node:fs";
-import { cp, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,7 +9,8 @@ import { NOTE_ROOT_FORMAT_ID } from "../note-root-format";
 import { WorkspaceGraph, workspaceNoteId } from "../workspace-graph";
 import { repositoryWorkspaceContentPolicy } from "../workspace-content-policy";
 import { WorkspaceOntologyStore } from "../workspace-ontology";
-import type { WorkspaceModel } from "../types";
+import { listMarkdownFiles, listRootTree, searchNotes } from "../workspace";
+import type { TreeNode, WorkspaceModel } from "../types";
 
 const roots: string[] = [];
 const mixedRepositoryFixture = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures", "repository-workspace");
@@ -58,21 +59,55 @@ describe("WorkspaceGraph", () => {
     expect(topology.nodeCount).toBe(2); // the unresolved authored link remains inspectable; Artifacts do not enter topology.
   });
 
-  it("keeps Explorer/graph content policy truthful in the reusable mixed repository fixture", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-mixed-repository-"));
-    roots.push(workspace);
-    await cp(mixedRepositoryFixture, workspace, { recursive: true });
-    await mkdir(path.join(workspace, "release"));
-    await writeFile(path.join(workspace, "release", "generated.md"), "# Generated\n");
+  it("keeps one included Markdown set across Explorer, filesystem search, and graph projection", async () => {
+    const policy = {
+      ...repositoryWorkspaceContentPolicy(),
+      excludedPaths: [...repositoryWorkspaceContentPolicy().excludedPaths, "generated-docs/**"],
+    };
+    const workspaceModel = {
+      ...model(mixedRepositoryFixture, mixedRepositoryFixture),
+      contentPolicy: policy,
+    };
+    const graph = new WorkspaceGraph(workspaceModel);
+    const [tree, markdownFiles, searchResults, snapshot, topology] = await Promise.all([
+      listRootTree(mixedRepositoryFixture, { markdownOnly: true, excludedPaths: policy.excludedPaths }),
+      listMarkdownFiles([mixedRepositoryFixture], policy),
+      searchNotes(workspaceModel, "scope proof"),
+      graph.knowledgeSnapshot(),
+      graph.graphTopology(),
+    ]);
+    const expectedMarkdown = [
+      "docs/guide.md",
+      "docs/index.md",
+      "docs/reference.md",
+      "readme.md",
+      "tests/fixtures/expected.md",
+    ];
 
-    const snapshot = await new WorkspaceGraph({
-      ...model(workspace, workspace),
-      contentPolicy: repositoryWorkspaceContentPolicy(),
-    }).knowledgeSnapshot();
+    expect(relativeTreeMarkdown(tree)).toEqual(expectedMarkdown);
+    expect(relativeMarkdownPaths(markdownFiles)).toEqual(expectedMarkdown);
+    expect(relativeMarkdownPaths(searchResults.map((result) => result.filePath))).toEqual(expectedMarkdown);
+    expect(snapshot.concepts.map((concept) => concept.relativePath).filter(Boolean)).toEqual(expectedMarkdown);
 
-    expect(snapshot.concepts.map((concept) => concept.relativePath).filter(Boolean)).toEqual(["docs/guide.md", "readme.md"]);
-    expect(snapshot.artifactReferences).toContainEqual(expect.objectContaining({ target: "src/runtime.ts", kind: "source-file" }));
-    expect(snapshot.concepts.map((concept) => concept.relativePath)).not.toContain("release/generated.md");
+    expect(snapshot.artifactReferences).toEqual([
+      expect.objectContaining({ target: "../assets/architecture.svg", kind: "attachment" }),
+      expect.objectContaining({ target: "../src/runtime.ts", kind: "source-file" }),
+    ]);
+    expect(snapshot.relations).toContainEqual(expect.objectContaining({ resolution: "unresolved", label: "missing-note" }));
+    expect(snapshot.relations).toContainEqual(expect.objectContaining({
+      resolution: "external",
+      target: "external:https://exo.md",
+    }));
+    expect(topology.nodeCount).toBe(snapshot.concepts.length);
+
+    for (const excludedPath of [
+      "build/generated.md",
+      "generated-docs/api.md",
+      "vendor/dependency/readme.md",
+    ]) {
+      expect(relativeMarkdownPaths(markdownFiles)).not.toContain(excludedPath);
+      expect(snapshot.concepts.map((concept) => concept.relativePath)).not.toContain(excludedPath);
+    }
   });
 
   it("rejects structural Format injection at construction", () => {
@@ -755,4 +790,25 @@ describe("WorkspaceGraph", () => {
 
 function model(workspaceRoot: string, notes: string): WorkspaceModel {
   return { workspaceRoot, defaultTerminalCwd: workspaceRoot, noteRoots: [{ id: "notes", label: "Notes", path: notes }], indexedRoots: [], indexing: { enabled: false, mode: "off", backend: "qmd" } };
+}
+
+function relativeMarkdownPaths(filePaths: readonly string[]): string[] {
+  return filePaths
+    .map((filePath) => path.relative(mixedRepositoryFixture, filePath).replaceAll(path.sep, "/").toLowerCase())
+    .sort();
+}
+
+function relativeTreeMarkdown(nodes: readonly TreeNode[]): string[] {
+  const filePaths: string[] = [];
+  const visit = (entries: readonly TreeNode[]) => {
+    for (const entry of entries) {
+      if (entry.kind === "file") {
+        filePaths.push(entry.path);
+      } else {
+        visit(entry.children ?? []);
+      }
+    }
+  };
+  visit(nodes);
+  return relativeMarkdownPaths(filePaths);
 }

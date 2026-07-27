@@ -8,6 +8,7 @@ import {
   listFiles,
   ensureFolderIndex,
   listMarkdownFiles,
+  normalizeWorkspaceContentPolicy,
   readWorkspaceDocument,
   type SearchResult,
   type FolderOverview,
@@ -185,7 +186,10 @@ export class WorkspaceNotesService {
     }
 
     const model = scope.model;
-    const files = this.noteFileCache ?? await listMarkdownFiles(this.noteRootPaths(scope));
+    const files = this.noteFileCache ?? await listMarkdownFiles(
+      this.noteRootPaths(scope),
+      normalizeWorkspaceContentPolicy(model.contentPolicy),
+    );
     this.assertCurrentScope(scope);
     this.noteFileCache = files;
     const notes = files
@@ -217,7 +221,10 @@ export class WorkspaceNotesService {
   async searchTag(tag: string): Promise<SearchResult[]> {
     const scope = this.scope;
     const normalized = tag.replace(/^#/, "");
-    const files = await listMarkdownFiles(this.noteRootPaths(scope));
+    const files = await listMarkdownFiles(
+      this.noteRootPaths(scope),
+      normalizeWorkspaceContentPolicy(scope.model.contentPolicy),
+    );
     const results: Array<SearchResult | null> = await Promise.all(
       files.map(async (filePath) => {
         const document = await readWorkspaceDocument(filePath);
@@ -266,7 +273,10 @@ export class WorkspaceNotesService {
     }
 
     const normalizedTarget = path.basename(target, ".md").toLowerCase();
-    const noteFiles = await listMarkdownFiles(this.noteRootPaths(scope));
+    const noteFiles = await listMarkdownFiles(
+      this.noteRootPaths(scope),
+      normalizeWorkspaceContentPolicy(scope.model.contentPolicy),
+    );
     this.assertCurrentScope(scope);
     return noteFiles.find((filePath) => path.basename(filePath, ".md").toLowerCase() === normalizedTarget) ?? null;
   }
@@ -331,7 +341,10 @@ export class WorkspaceNotesService {
 
     const model = scope.model;
     const sourceRoot = model.noteRoots.find((root) => isPathWithin(root.path, sourceFilePath));
-    const noteFiles = await listMarkdownFiles(this.noteRootPaths(scope));
+    const noteFiles = await listMarkdownFiles(
+      this.noteRootPaths(scope),
+      normalizeWorkspaceContentPolicy(model.contentPolicy),
+    );
     this.assertCurrentScope(scope);
     const suggestions = noteFiles
       .map((filePath) => {

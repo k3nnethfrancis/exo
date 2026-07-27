@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
-import type { WorkspaceModel } from "@exo/core";
+import { repositoryWorkspaceContentPolicy, type WorkspaceModel } from "@exo/core";
 import type { DerivedIndexClient } from "../indexing/derived-index-process";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 
@@ -32,6 +32,30 @@ describe("WorkspaceNotesService", () => {
     await expect(service.searchTag("daily")).resolves.toEqual([
       expect.objectContaining({ title: "Focus", snippet: "#daily", kind: "tag" }),
     ]);
+  });
+
+  it("keeps policy-excluded Markdown out of Workspace search and link suggestions", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-notes-policy-"));
+    const noteRoot = path.join(workspaceRoot, "notes");
+    await mkdir(path.join(noteRoot, "release"), { recursive: true });
+    const sourcePath = path.join(noteRoot, "source.md");
+    await writeFile(sourcePath, "# Source\n", "utf8");
+    await writeFile(
+      path.join(noteRoot, "release", "generated.md"),
+      "---\ntags: [generated]\n---\n# Generated\n",
+      "utf8",
+    );
+    const model: WorkspaceModel = {
+      ...workspaceModel(workspaceRoot, noteRoot),
+      contentPolicy: repositoryWorkspaceContentPolicy(),
+    };
+    const service = new WorkspaceNotesService({ getWorkspaceModel: () => model });
+
+    await expect(service.searchFilenames("generated")).resolves.toEqual({ notes: [], tags: [] });
+    await expect(service.searchTag("generated")).resolves.toEqual([]);
+    await expect(service.suggestTargets(sourcePath, "generated")).resolves.toEqual([]);
+
+    await rm(workspaceRoot, { recursive: true, force: true });
   });
 
   it("resolves relative targets before falling back to note basename search", async () => {

@@ -1,3 +1,5 @@
 # Fixture repository
 
-Read the [[docs/guide]] and inspect the [runtime](src/runtime.ts).
+Scope proof for a repository Workspace.
+
+Read the [[docs/guide]].

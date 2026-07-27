@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { qmdSearchProvider } from "../search-providers/qmd-provider";
 import { createIndexedRoot, resolveWorkspaceModel } from "../workspace";
+import { repositoryWorkspaceContentPolicy } from "../workspace-content-policy";
 import { WorkspaceFiles } from "../workspace-files";
 
 const { readFileMock } = vi.hoisted(() => ({ readFileMock: vi.fn() }));
@@ -169,9 +170,13 @@ describe("QMD index adapter", () => {
   it("applies Workspace Content Policy exclusions to every QMD collection", async () => {
     const root = await fixtureRoot();
     const notesPath = path.join(root, "notes");
+    const repositoryPolicy = repositoryWorkspaceContentPolicy();
     const model = {
       ...indexedModel(root, "lexical"),
-      contentPolicy: { excludedPaths: ["release/**"], sourceVisibility: false },
+      contentPolicy: {
+        ...repositoryPolicy,
+        excludedPaths: [...repositoryPolicy.excludedPaths, "generated-docs/**"],
+      },
     };
 
     await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
@@ -179,7 +184,11 @@ describe("QMD index adapter", () => {
     const configuredStore = stores.find((store) => Object.keys(store.config.collections).length > 0)!;
     const collection = Object.values(configuredStore.config.collections)
       .find((entry) => entry.path === notesPath)!;
-    expect(collection.ignore).toContain("release/**");
+    expect(collection.ignore).toEqual(expect.arrayContaining([
+      "build/**",
+      "generated-docs/**",
+      "vendor/**",
+    ]));
   });
 
   it("routes lexical search through QMD collections", async () => {
