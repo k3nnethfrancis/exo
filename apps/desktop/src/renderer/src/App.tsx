@@ -108,7 +108,6 @@ export function App() {
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter, qmdSelected: qmdSearchSelected });
   const graphInspection = useInspectedConcept();
   const [onboardingMcp, setOnboardingMcp] = useState({
-    providers: ["claude", "codex"] as Array<"claude" | "codex">,
     status: "idle" as "idle" | "saving" | "done" | "error",
     results: [] as ProviderMcpSetupResult[],
     errorMessage: null as string | null,
@@ -178,6 +177,7 @@ export function App() {
   } = workspaceBootstrap;
   useEffect(() => {
     if (onboardingState?.step !== "mcp") return;
+    setOnboardingMcp({ status: "idle", results: [], errorMessage: null });
     let cancelled = false;
     void window.exo.workspace.getCliInstallationStatus()
       .then((status) => { if (!cancelled) setCliInstallation(status); })
@@ -945,7 +945,29 @@ export function App() {
           <div className="onboarding-card__eyebrow">
             {onboardingState.mode === "first-run" ? "Set up Exo" : "Switch workspace"}
           </div>
-          {onboardingState.step === "select" ? (
+          {onboardingState.step === "recovery" ? (
+            <>
+              <div className="onboarding-card__body" data-testid="onboarding-recovery">
+                <h1 className="onboarding-card__title">Setup progress needs recovery</h1>
+                <p className="onboarding-card__copy">
+                  {onboardingState.errorMessage ?? "Exo could not read the saved setup progress."}
+                </p>
+                <p className="onboarding-section__hint">
+                  Restarting setup replaces only the saved setup draft. It does not delete your notes or provider-owned MCP configuration.
+                </p>
+              </div>
+              <div className="onboarding-card__actions">
+                <button
+                  className="toolbar-button toolbar-button--primary"
+                  data-testid="onboarding-restart-setup"
+                  onClick={() => void workspaceBootstrap.resetMalformedOnboardingProgress()}
+                  type="button"
+                >
+                  Restart setup
+                </button>
+              </div>
+            </>
+          ) : onboardingState.step === "select" ? (
             <>
               <div className="onboarding-card__body" data-testid="onboarding-card-body">
                 <h1 className="onboarding-card__title">Choose a wiki</h1>
@@ -959,11 +981,10 @@ export function App() {
                         className={`workspace-picker__item${workspace.id === onboardingState.selectedWorkspaceId ? " workspace-picker__item--selected" : ""}`}
                         data-testid="workspace-picker-item"
                         key={workspace.id}
-                        onClick={() =>
-                          setOnboardingState((current) =>
-                            current ? { ...current, selectedWorkspaceId: workspace.id, status: "idle", errorMessage: null } : current,
-                          )
-                        }
+                        onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
+                          ...current,
+                          selectedWorkspaceId: workspace.id,
+                        }))}
                         type="button"
                       >
                         <span className="workspace-picker__name">{workspace.label}</span>
@@ -1030,11 +1051,10 @@ export function App() {
                       emptyLabel="No main wiki selected."
                       paths={onboardingState.notesFolder ? [onboardingState.notesFolder] : []}
                       testId="onboarding-notes-folder"
-                      onRemove={() =>
-                        setOnboardingState((current) =>
-                          current ? { ...current, notesFolder: "", status: "idle", errorMessage: null } : current,
-                        )
-                      }
+                      onRemove={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
+                        ...current,
+                        notesFolder: "",
+                      }))}
                     />
                   </div>
                   <details className="onboarding-section onboarding-section--advanced">
@@ -1052,11 +1072,10 @@ export function App() {
                       emptyLabel={onboardingState.notesFolder ? "Defaults to the parent of your notes folder." : "Defaults after you choose notes."}
                       paths={onboardingState.defaultTerminalCwd ? [onboardingState.defaultTerminalCwd] : []}
                       testId="onboarding-terminal-folder"
-                      onRemove={() =>
-                        setOnboardingState((current) =>
-                          current ? { ...current, defaultTerminalCwd: "", status: "idle", errorMessage: null } : current,
-                        )
-                      }
+                      onRemove={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
+                        ...current,
+                        defaultTerminalCwd: "",
+                      }))}
                     />
                   </details>
                 </div>
@@ -1065,11 +1084,10 @@ export function App() {
                 {onboardingState.workspaces.length > 0 || onboardingState.mode === "switch" ? (
                   <button
                     className="toolbar-button"
-                    onClick={() =>
-                      setOnboardingState((current) =>
-                        current ? { ...current, step: "select", status: "idle", errorMessage: null } : current,
-                      )
-                    }
+                    onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
+                      ...current,
+                      step: "select",
+                    }))}
                     type="button"
                   >
                     Back
@@ -1079,7 +1097,10 @@ export function App() {
                   className="toolbar-button toolbar-button--primary"
                   data-testid="onboarding-continue"
                   disabled={!onboardingState.notesFolder.trim() || onboardingState.status === "saving"}
-                  onClick={() => setOnboardingState((current) => current ? { ...current, step: "scope", status: "idle", errorMessage: null } : current)}
+                  onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
+                    ...current,
+                    step: "scope",
+                  }))}
                   type="button"
                 >
                   Continue
@@ -1100,10 +1121,10 @@ export function App() {
                     aria-pressed={onboardingState.contentPolicy.excludedPaths.length > 0}
                     className={`onboarding-scope-option${onboardingState.contentPolicy.excludedPaths.length > 0 ? " onboarding-scope-option--selected" : ""}`}
                     data-testid="onboarding-content-scope-notes"
-                    onClick={() => setOnboardingState((current) => current ? {
+                    onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
                       ...current,
                       contentPolicy: repositoryWorkspaceContentPolicy(),
-                    } : current)}
+                    }))}
                     type="button"
                   >
                     <Folder aria-hidden="true" size={18} strokeWidth={1.8} />
@@ -1114,10 +1135,10 @@ export function App() {
                     aria-pressed={onboardingState.contentPolicy.excludedPaths.length === 0}
                     className={`onboarding-scope-option${onboardingState.contentPolicy.excludedPaths.length === 0 ? " onboarding-scope-option--selected" : ""}`}
                     data-testid="onboarding-content-scope-all"
-                    onClick={() => setOnboardingState((current) => current ? {
+                    onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
                       ...current,
                       contentPolicy: defaultWorkspaceContentPolicy(),
-                    } : current)}
+                    }))}
                     type="button"
                   >
                     <Database aria-hidden="true" size={18} strokeWidth={1.8} />
@@ -1130,8 +1151,8 @@ export function App() {
                 ) : null}
               </div>
               <div className="onboarding-card__actions">
-                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "configure", errorMessage: null } : current)} type="button">Back</button>
-                <button className="toolbar-button toolbar-button--primary" onClick={() => setOnboardingState((current) => current ? { ...current, step: "mcp", errorMessage: null } : current)} type="button">Continue to tools</button>
+                <button className="toolbar-button" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "configure" }))} type="button">Back</button>
+                <button className="toolbar-button toolbar-button--primary" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "mcp" }))} type="button">Continue to tools</button>
               </div>
             </>
           ) : onboardingState.step === "agents" ? (
@@ -1148,10 +1169,10 @@ export function App() {
                         <input
                         checked={command.enabled}
                         type="checkbox"
-                        onChange={(event) => setOnboardingState((current) => current ? {
+                        onChange={(event) => void workspaceBootstrap.confirmOnboardingChange((current) => ({
                           ...current,
                           agentCommands: current.agentCommands.map((entry) => entry.id === command.id ? { ...entry, enabled: event.target.checked } : entry),
-                        } : current)}
+                        }))}
                         />
                         <span className="sr-only">Enable {command.label}</span>
                       </label>
@@ -1164,6 +1185,7 @@ export function App() {
                           spellCheck={false}
                           type="text"
                           value={command.command}
+                          onBlur={() => void workspaceBootstrap.persistCurrentOnboardingState()}
                           onChange={(event) => setOnboardingState((current) => current ? {
                             ...current,
                             agentCommands: current.agentCommands.map((entry) => entry.id === command.id ? { ...entry, command: event.target.value } : entry),
@@ -1174,12 +1196,12 @@ export function App() {
                             <input
                               checked={command.continuityPolicy === "continuous"}
                               type="checkbox"
-                              onChange={(event) => setOnboardingState((current) => current ? {
+                              onChange={(event) => void workspaceBootstrap.confirmOnboardingChange((current) => ({
                                 ...current,
                                 agentCommands: current.agentCommands.map((entry) => entry.id === command.id
                                   ? { ...entry, continuityPolicy: event.target.checked ? "continuous" : "fresh" }
                                   : entry),
-                              } : current)}
+                              }))}
                             />
                             <span>Keep context</span>
                           </label>
@@ -1197,14 +1219,17 @@ export function App() {
                 <details className="agent-invocation-prompt-disclosure">
                   <summary>Advanced</summary>
                   <AgentInvocationPromptEditor
-                    onSave={(agentInvocationPrompt) => setOnboardingState((current) => current ? { ...current, agentInvocationPrompt, status: "idle", errorMessage: null } : current)}
+                    onSave={(agentInvocationPrompt) => void workspaceBootstrap.confirmOnboardingChange((current) => ({
+                      ...current,
+                      agentInvocationPrompt,
+                    }))}
                     testId="onboarding-invocation-prompt"
                     value={onboardingState.agentInvocationPrompt}
                   />
                 </details>
               </div>
               <div className="onboarding-card__actions">
-                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "mcp", errorMessage: null } : current)} type="button">Back</button>
+                <button className="toolbar-button" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "mcp" }))} type="button">Back</button>
                 <button className="toolbar-button toolbar-button--primary" disabled={onboardingState.status === "saving"} onClick={() => void workspaceBootstrap.completeOnboarding()} type="button">{onboardingState.status === "saving" ? "Opening…" : "Open Exo"}</button>
               </div>
             </>
@@ -1225,14 +1250,18 @@ export function App() {
                       <div className="onboarding-provider-menu__title">Install in</div>
                       {(["claude", "codex"] as const).map((provider) => (
                         <button
-                          aria-pressed={onboardingMcp.providers.includes(provider)}
-                          className={`onboarding-provider-menu__item ${onboardingMcp.providers.includes(provider) ? "onboarding-provider-menu__item--active" : ""}`}
+                          aria-pressed={onboardingState.selectedMcpProviders.includes(provider)}
+                          className={`onboarding-provider-menu__item ${onboardingState.selectedMcpProviders.includes(provider) ? "onboarding-provider-menu__item--active" : ""}`}
                           key={provider}
-                          onClick={() => setOnboardingMcp((current) => ({
-                            ...current,
-                            providers: current.providers.includes(provider) ? current.providers.filter((entry) => entry !== provider) : [...current.providers, provider],
-                            status: "idle", errorMessage: null, results: [],
-                          }))}
+                          onClick={() => {
+                            setOnboardingMcp({ status: "idle", results: [], errorMessage: null });
+                            void workspaceBootstrap.confirmOnboardingChange((current) => ({
+                              ...current,
+                              selectedMcpProviders: current.selectedMcpProviders.includes(provider)
+                                ? current.selectedMcpProviders.filter((entry) => entry !== provider)
+                                : [...current.selectedMcpProviders, provider],
+                            }));
+                          }}
                           type="button"
                         >
                           <AgentIcon kind={provider} size={16} />
@@ -1240,7 +1269,7 @@ export function App() {
                             <span>{provider === "claude" ? "Claude" : "Codex"}</span>
                             <small>{provider === "claude" ? "claude mcp add" : "codex mcp add"}</small>
                           </span>
-                          {onboardingMcp.providers.includes(provider) ? <Check aria-label="Selected" size={15} strokeWidth={2.2} /> : null}
+                          {onboardingState.selectedMcpProviders.includes(provider) ? <Check aria-label="Selected" size={15} strokeWidth={2.2} /> : null}
                         </button>
                       ))}
                     </div>
@@ -1257,10 +1286,11 @@ export function App() {
                       </li>
                     </ul>
                     <div className="onboarding-card__actions onboarding-card__actions--inline">
-                      <button className="toolbar-button" disabled={onboardingMcp.providers.length === 0 || onboardingMcp.status === "saving"} onClick={() => void (async () => {
+                      <button className="toolbar-button" disabled={onboardingState.selectedMcpProviders.length === 0 || onboardingMcp.status === "saving"} onClick={() => void (async () => {
                         setOnboardingMcp((current) => ({ ...current, status: "saving", errorMessage: null, results: [] }));
                         try {
-                          const results = await window.exo.workspace.configureProviderMcp({ providers: onboardingMcp.providers });
+                          await workspaceBootstrap.persistCurrentOnboardingState();
+                          const results = await window.exo.workspace.configureProviderMcp({ providers: onboardingState.selectedMcpProviders });
                           setOnboardingMcp((current) => ({ ...current, status: results.every((result) => result.ok) ? "done" : "error", results, errorMessage: results.some((result) => !result.ok) ? "MCP setup needs attention." : null }));
                         } catch (error) {
                           setOnboardingMcp((current) => ({ ...current, status: "error", errorMessage: error instanceof Error ? error.message : String(error), results: [] }));
@@ -1289,12 +1319,12 @@ export function App() {
                 </div>
               </div>
               <div className="onboarding-card__actions">
-                <button className="toolbar-button" onClick={() => setOnboardingState((current) => current ? { ...current, step: "scope", errorMessage: null } : current)} type="button">Back</button>
-                <button className="toolbar-button toolbar-button--primary" onClick={() => setOnboardingState((current) => current ? { ...current, step: "agents", errorMessage: null } : current)} type="button">Set up CLI agents</button>
+                <button className="toolbar-button" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "scope" }))} type="button">Back</button>
+                <button className="toolbar-button toolbar-button--primary" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "agents" }))} type="button">Set up CLI agents</button>
               </div>
             </>
           )}
-          {onboardingState.errorMessage ? (
+          {onboardingState.step !== "recovery" && onboardingState.errorMessage ? (
             <div className="dialog-card__status dialog-card__status--error">{onboardingState.errorMessage}</div>
           ) : null}
         </div>

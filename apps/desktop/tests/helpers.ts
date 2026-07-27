@@ -209,6 +209,7 @@ interface RelaunchExoFixtureOptions {
   configured?: boolean;
   workspaceRootEnv?: boolean;
   runtimeRootEnv?: boolean;
+  expectOnboarding?: boolean;
   stripEnvironment?: readonly string[];
 }
 
@@ -275,6 +276,19 @@ async function relaunchExoFixtureForJourney(
     env: launchEnv,
   });
   const page = electronApp.windows()[0] ?? await electronApp.firstWindow();
+  if (options?.expectOnboarding) {
+    await expect(page.getByTestId("onboarding")).toBeVisible();
+    return {
+      electronApp,
+      page,
+      cleanup: async () => {
+        await electronApp.close().catch(() => {});
+        await rm(path.dirname(previous.settingsPath), { recursive: true, force: true });
+        await rm(userDataRoot, { recursive: true, force: true });
+        await rm(previous.homeRoot, { recursive: true, force: true });
+      },
+    };
+  }
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.locator('[data-testid="editor-panel"], [data-testid="editor-empty"]')).toBeVisible();
   if (openTerminalSurface) {

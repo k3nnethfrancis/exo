@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test, type Locator, type Page } from "@playwright/test";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -60,8 +60,181 @@ test("opens valid persisted settings without a fixture Workspace bypass", async 
 
   await expect(page.getByTestId("onboarding")).toHaveCount(0);
   await expect(page.getByTestId("sidebar")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.exo.workspace.getSetupState())).toMatchObject({
+    complete: true,
+    onboardingComplete: true,
+    onboarding: { status: "not-started" },
+  });
 
   await cleanup();
+});
+
+test("resumes the exact confirmed draft across reload and relaunch at every setup page", async () => {
+  const first = await launchExoWorkspaceFixture({
+    configured: false,
+    mutable: true,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    selectFolderPath: (workspaceRoot) => path.join(workspaceRoot, "notes", "test-notes"),
+  });
+  const noteRoot = path.join(first.workspaceRoot, "notes", "test-notes");
+  const prompt = "Resume {{message}} from {{working_note}} with {{protocol}}.";
+  let activeApp = first.electronApp;
+  let activePage = first.page;
+
+  await activePage.getByTestId("onboarding-choose-notes").click();
+  await expect(activePage.getByTestId("onboarding-notes-folder")).toContainText(noteRoot);
+  await expect(readOptional(first.settingsPath)).resolves.toBeNull();
+  await expect(pathExists(path.join(noteRoot, ".exo"))).resolves.toBe(false);
+  await activePage.reload();
+  await expect(activePage.getByRole("heading", { name: "Choose your main wiki" })).toBeVisible();
+  await expect(activePage.getByTestId("onboarding-notes-folder")).toContainText(noteRoot);
+
+  await activeApp.close();
+  let resumed = await relaunchExoWorkspaceFixture(first, {
+    configured: false,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    expectOnboarding: true,
+  });
+  activeApp = resumed.electronApp;
+  activePage = resumed.page;
+  await expect(activePage.getByRole("heading", { name: "Choose your main wiki" })).toBeVisible();
+  await expect(activePage.getByTestId("onboarding-notes-folder")).toContainText(noteRoot);
+
+  await activePage.getByTestId("onboarding-continue").click();
+  await expect(activePage.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+  await activePage.getByTestId("onboarding-content-scope-notes").click();
+  await activePage.reload();
+  await expect(activePage.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+  await expect(activePage.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
+
+  await activeApp.close();
+  resumed = await relaunchExoWorkspaceFixture(first, {
+    configured: false,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    expectOnboarding: true,
+  });
+  activeApp = resumed.electronApp;
+  activePage = resumed.page;
+  await expect(activePage.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+  await expect(activePage.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
+
+  await activePage.getByRole("button", { name: "Continue to tools" }).click();
+  await expect(activePage.getByRole("heading", { name: "Agent access" })).toBeVisible();
+  await activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" }).click();
+  await activePage.reload();
+  await expect(activePage.getByRole("heading", { name: "Agent access" })).toBeVisible();
+  await expect(activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Claude" })).toHaveAttribute("aria-pressed", "true");
+  await expect(activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" })).toHaveAttribute("aria-pressed", "false");
+  await expect(activePage.getByText(/Added Exo MCP|already installed/)).toHaveCount(0);
+
+  await activeApp.close();
+  resumed = await relaunchExoWorkspaceFixture(first, {
+    configured: false,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    expectOnboarding: true,
+  });
+  activeApp = resumed.electronApp;
+  activePage = resumed.page;
+  await expect(activePage.getByRole("heading", { name: "Agent access" })).toBeVisible();
+  await expect(activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" })).toHaveAttribute("aria-pressed", "false");
+
+  await activePage.getByRole("button", { name: "Set up CLI agents" }).click();
+  const claudeInput = activePage.getByRole("textbox", { name: "Claude command" });
+  await claudeInput.fill(customClaudeCommand);
+  await claudeInput.press("Tab");
+  await activePage.locator(".agent-invocation-prompt-disclosure > summary").click();
+  await activePage.getByTestId("onboarding-invocation-prompt-edit").click();
+  await activePage.getByTestId("onboarding-invocation-prompt-input").fill(prompt);
+  await activePage.getByTestId("onboarding-invocation-prompt-save").click();
+  await activePage.reload();
+  await expect(activePage.getByRole("heading", { name: "Set up agents" })).toBeVisible();
+  await expect(activePage.getByRole("textbox", { name: "Claude command" })).toHaveValue(customClaudeCommand);
+  await expect(activePage.getByTestId("onboarding-invocation-prompt")).toContainText(prompt);
+  await expect(readOptional(first.settingsPath)).resolves.toBeNull();
+  await expect(pathExists(path.join(noteRoot, ".exo"))).resolves.toBe(false);
+
+  await activeApp.close();
+  resumed = await relaunchExoWorkspaceFixture(first, {
+    configured: false,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    expectOnboarding: true,
+  });
+  activeApp = resumed.electronApp;
+  activePage = resumed.page;
+  await expect(activePage.getByRole("heading", { name: "Set up agents" })).toBeVisible();
+  await expect(activePage.getByRole("textbox", { name: "Claude command" })).toHaveValue(customClaudeCommand);
+  await expect(activePage.getByTestId("onboarding-invocation-prompt")).toContainText(prompt);
+
+  await activeApp.close();
+  await first.cleanup();
+});
+
+test("saved settings cannot bypass an explicit in-progress draft", async () => {
+  const first = await launchExoWorkspaceFixture({
+    configured: false,
+    mutable: true,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    selectFolderPath: (workspaceRoot) => path.join(workspaceRoot, "notes", "test-notes"),
+  });
+  const noteRoot = path.join(first.workspaceRoot, "notes", "test-notes");
+
+  await continueToAgents(first.page);
+  await first.page.getByRole("textbox", { name: "Claude command" }).fill(customClaudeCommand);
+  await first.page.getByRole("textbox", { name: "Claude command" }).press("Tab");
+  await first.page.evaluate(async (settings) => {
+    const snapshot = await window.exo.workspace.getSettings();
+    await window.exo.workspace.saveSettings({ settings, expectedRevision: snapshot.revision });
+  }, workspaceSettings(noteRoot));
+
+  await expect(readOptional(first.settingsPath)).resolves.not.toBeNull();
+  await first.page.reload();
+  await expect(first.page.getByRole("heading", { name: "Set up agents" })).toBeVisible();
+  await expect(first.page.getByTestId("sidebar")).toHaveCount(0);
+  await expect(first.page.getByRole("textbox", { name: "Claude command" })).toHaveValue(customClaudeCommand);
+  await first.electronApp.close();
+
+  const restarted = await relaunchExoWorkspaceFixture(first, {
+    configured: false,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    expectOnboarding: true,
+  });
+  await expect(restarted.page.getByRole("heading", { name: "Set up agents" })).toBeVisible();
+  await expect(restarted.page.getByTestId("sidebar")).toHaveCount(0);
+  await restarted.electronApp.close();
+  await first.cleanup();
+});
+
+test("shows non-destructive recovery for malformed progress", async () => {
+  let malformed = "";
+  const fixture = await launchExoWorkspaceFixture({
+    configured: false,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    prepareSettings: async ({ settingsPath, userDataRoot, workspaceRoot }) => {
+      await saveWorkspaceSettings(workspaceSettings(path.join(workspaceRoot, "notes", "test-notes")), {
+        EXO_SETTINGS_PATH: settingsPath,
+        EXO_USER_DATA_PATH: userDataRoot,
+      });
+      malformed = path.join(userDataRoot, "onboarding-state.json");
+      await writeFile(malformed, "{ truncated", "utf8");
+    },
+  });
+
+  await expect(fixture.page.getByTestId("onboarding-recovery")).toContainText("Setup progress needs recovery");
+  await expect(fixture.page.getByTestId("sidebar")).toHaveCount(0);
+  await expect(readFile(malformed, "utf8")).resolves.toBe("{ truncated");
+  await fixture.page.getByTestId("onboarding-restart-setup").click();
+  await expect(fixture.page.getByRole("heading", { name: "Choose a wiki" })).toBeVisible();
+  await expect.poll(async () => JSON.parse(await readFile(malformed, "utf8"))).toMatchObject({ status: "not-started" });
+
+  await fixture.cleanup();
 });
 
 test("a cancelled folder choice leaves first-run state empty and writes nothing", async () => {
@@ -416,6 +589,23 @@ async function readOptional(filePath: string): Promise<string | null> {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await stat(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+async function continueToAgents(page: import("@playwright/test").Page): Promise<void> {
+  await page.getByTestId("onboarding-choose-notes").click();
+  await page.getByTestId("onboarding-continue").click();
+  await page.getByRole("button", { name: "Continue to tools" }).click();
+  await page.getByRole("button", { name: "Set up CLI agents" }).click();
 }
 
 async function readCommandDiscovery(runtimeRoot: string): Promise<{ port: number; token: string }> {

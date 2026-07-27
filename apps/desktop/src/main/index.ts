@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   createFolderWithIndex,
   DEFAULT_APPEARANCE_MODE,
+  beginOnboardingProgress,
   createWorkspaceFile,
   deleteWorkspacePath,
   listRootTree,
@@ -14,7 +15,6 @@ import {
   inspectWorkspaceContent,
   WorkspaceOntologyStore,
   markOnboardingComplete,
-  markOnboardingWorkspaceBasicsSaved,
   readOnboardingStateStore,
   readWorkspaceDocument,
   renameWorkspacePath,
@@ -23,6 +23,7 @@ import {
   workspaceModelFromSettings,
   writeOnboardingStateStore,
   type OnboardingStateStore,
+  type OnboardingProgressDraft,
   type OntologyReviewGuard,
   type WorkspaceModel,
   type WorkspaceSettings,
@@ -48,7 +49,7 @@ import { resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace/workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace/workspace-watchers";
 import { WorkspaceRuntimeCoordinator } from "./runtime/workspace-runtime-coordinator";
-import { hasOperatorWorkspaceSetup } from "./workspace/workspace-setup-gate";
+import { hasOperatorWorkspaceSetup, workspaceSetupDecision, type WorkspaceSetupDecision } from "./workspace/workspace-setup-gate";
 import { configureGpuStartup } from "./gpu-startup-policy";
 import { runStandaloneGraphGpuProbe } from "./gpu-probe-runner";
 import {
@@ -87,6 +88,9 @@ let workspaceConfig: WorkspaceConfigStore;
 let workspaceSetupComplete = false;
 let operatorWorkspaceSetupComplete = false;
 let onboardingState: OnboardingStateStore = emptyOnboardingStateStore();
+let onboardingRecovery: WorkspaceSetupDecision["onboardingRecovery"] = null;
+let legacyOnboardingComplete = false;
+let onboardingStateWrite: Promise<void> = Promise.resolve();
 let onboardingRuntimeRoot: string | null = null;
 let terminalManager: TerminalManager;
 let workspaceWatcherService: WorkspaceWatcherService;
@@ -444,12 +448,15 @@ function registerIpcHandlers() {
     getModel: () => workspaceModel,
     getSettings: async () => currentSnapshot(),
     getSetupState: async () => ({
-      complete: workspaceSetupComplete,
+      complete: rendererWorkspaceSetupComplete(),
       onboardingComplete: onboardingComplete(),
       onboarding: onboardingState,
+      onboardingRecovery,
       settingsPath: path.join(app.getPath("userData"), "workspace-settings.json"),
     }),
     inspectContentScope: (rootPath) => inspectWorkspaceContent(rootPath),
+    saveOnboardingProgress: (draft) => saveWorkspaceOnboardingProgress(draft),
+    resetOnboardingProgress: () => resetWorkspaceOnboardingProgress(),
     markOnboardingComplete: () => completeWorkspaceOnboarding(),
     listTree: listRootTree,
     listWorkspaces: () => workspaceConfig.listWorkspaces(),
@@ -485,20 +492,54 @@ function registerIpcHandlers() {
 }
 
 function onboardingComplete(): boolean {
-  return onboardingState.status === "complete" || operatorWorkspaceSetupComplete;
+  return onboardingState.status === "complete" || operatorWorkspaceSetupComplete || legacyOnboardingComplete;
+}
+
+function rendererWorkspaceSetupComplete(): boolean {
+  if (operatorWorkspaceSetupComplete) return true;
+  if (onboardingRecovery || onboardingState.status === "in-progress" || onboardingState.status === "not-started") {
+    return legacyOnboardingComplete && workspaceSettings !== null;
+  }
+  return workspaceSettings !== null;
 }
 
 async function writeWorkspaceOnboardingState(nextState: OnboardingStateStore): Promise<OnboardingStateStore> {
-  onboardingState = nextState;
-  await writeOnboardingStateStore(app.getPath("userData"), onboardingState);
-  return onboardingState;
+  const operation = onboardingStateWrite.then(async () => {
+    await writeOnboardingStateStore(app.getPath("userData"), nextState);
+    onboardingState = nextState;
+  });
+  onboardingStateWrite = operation.catch(() => undefined);
+  await operation;
+  return nextState;
+}
+
+async function saveWorkspaceOnboardingProgress(draft: OnboardingProgressDraft): Promise<OnboardingStateStore> {
+  if (onboardingRecovery) {
+    throw new Error("Restart setup before saving new progress.");
+  }
+  const saved = await writeWorkspaceOnboardingState(beginOnboardingProgress(onboardingState, draft));
+  legacyOnboardingComplete = false;
+  return saved;
+}
+
+async function resetWorkspaceOnboardingProgress(): Promise<OnboardingStateStore> {
+  const reset = emptyOnboardingStateStore();
+  await writeWorkspaceOnboardingState(reset);
+  onboardingRecovery = null;
+  legacyOnboardingComplete = false;
+  return reset;
 }
 
 async function completeWorkspaceOnboarding(): Promise<OnboardingStateStore> {
-  const base = onboardingState.workspaceBasicsSaved
-    ? onboardingState
-    : markOnboardingWorkspaceBasicsSaved(onboardingState);
-  return writeWorkspaceOnboardingState(markOnboardingComplete(base));
+  if (onboardingRecovery) {
+    throw new Error("Restart setup before completing onboarding.");
+  }
+  if (!workspaceSettings) {
+    throw new Error("Workspace settings must be saved before onboarding can complete.");
+  }
+  const completed = await writeWorkspaceOnboardingState(markOnboardingComplete(onboardingState));
+  legacyOnboardingComplete = false;
+  return completed;
 }
 
 function resolveSourceProjectRoot(): string | undefined {
@@ -641,8 +682,16 @@ app.whenReady().then(async () => {
   const loadedWorkspaceSettings = await workspaceConfig.load();
   workspaceSettings = loadedWorkspaceSettings?.settings ?? null;
   workspaceSettingsRevision = loadedWorkspaceSettings?.revision ?? null;
-  onboardingState = await readOnboardingStateStore(app.getPath("userData"));
-  workspaceSetupComplete = workspaceSettings !== null || operatorWorkspaceSetupComplete;
+  const onboardingRead = await readOnboardingStateStore(app.getPath("userData"));
+  onboardingState = onboardingRead.state;
+  const setupDecision = workspaceSetupDecision({
+    hasWorkspaceSettings: workspaceSettings !== null,
+    onboarding: onboardingRead,
+    operatorSetupComplete: operatorWorkspaceSetupComplete,
+  });
+  onboardingRecovery = setupDecision.onboardingRecovery;
+  legacyOnboardingComplete = onboardingRead.kind === "missing" && workspaceSettings !== null;
+  workspaceSetupComplete = setupDecision.complete;
   workspaceModel = workspaceSettings ? workspaceModelFromSettings(workspaceSettings) : workspaceSetupComplete ? resolveWorkspaceModel() : createFirstRunWorkspaceModel();
   if (workspaceSetupComplete) {
     applyWorkspaceSettings(workspaceSettings ?? workspaceSettingsFromModel(workspaceModel));

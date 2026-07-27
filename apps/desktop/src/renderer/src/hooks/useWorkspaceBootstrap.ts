@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import type { AgentCommand, IndexStatus, TreeNode, WorkspaceContentInspection, WorkspaceContentPolicy, WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
+import type {
+  AgentCommand,
+  IndexStatus,
+  OnboardingMcpProvider,
+  OnboardingProgressDraft,
+  TreeNode,
+  WorkspaceContentInspection,
+  WorkspaceContentPolicy,
+  WorkspaceModel,
+  WorkspaceSettings,
+  WorkspaceSettingsRevision,
+} from "@exo/core";
 import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "@exo/core/default-agent-command";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
 import { defaultWorkspaceContentPolicy } from "@exo/core/workspace-content-policy";
@@ -15,7 +26,7 @@ import { pathLabel } from "../workspaceTree";
 
 export interface OnboardingState {
   mode: "first-run" | "switch";
-  step: "select" | "configure" | "scope" | "agents" | "mcp";
+  step: OnboardingProgressDraft["step"] | "recovery";
   workspaces: WorkspaceRegistryEntry[];
   selectedWorkspaceId: string | null;
   notesFolder: string;
@@ -28,6 +39,7 @@ export interface OnboardingState {
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
   agentCommands: AgentCommand[];
   agentInvocationPrompt: string;
+  selectedMcpProviders: OnboardingMcpProvider[];
   status: "idle" | "saving" | "error";
   errorMessage: string | null;
 }
@@ -87,24 +99,20 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
 
       if (!setupState.complete) {
         setWorkspaceModel(model);
-        setOnboardingState({
-          mode: "first-run",
-          step: workspaces.length > 0 ? "select" : "configure",
-          workspaces,
-          selectedWorkspaceId: workspaces[0]?.id ?? null,
-          notesFolder: "",
-          defaultTerminalCwd: "",
-          contentPolicy: defaultWorkspaceContentPolicy(),
-          contentInspection: null,
-          indexMode: "lexical",
-          searchEngine: "qmd",
-          exploreIndexSearchOnEnter: false,
-          indexUpdateStrategy: settings.indexUpdateStrategy,
-          agentCommands: settings.agentCommands && settings.agentCommands.length > 0 ? settings.agentCommands : defaultOnboardingAgentCommands(),
-          agentInvocationPrompt: settings.agentInvocationPrompt ?? DEFAULT_AGENT_INVOCATION_PROMPT,
-          status: "idle",
-          errorMessage: null,
-        });
+        const initialState = setupState.onboardingRecovery
+          ? {
+              ...defaultFirstRunOnboardingState(settings, workspaces),
+              step: "recovery" as const,
+              status: "error" as const,
+              errorMessage: setupState.onboardingRecovery.message,
+            }
+          : setupState.onboarding.status === "in-progress" && setupState.onboarding.draft
+            ? onboardingStateFromDraft(setupState.onboarding.draft, workspaces)
+            : defaultFirstRunOnboardingState(settings, workspaces);
+        setOnboardingState(initialState);
+        if (initialState.step !== "recovery" && initialState.notesFolder) {
+          void inspectOnboardingContentScope(initialState.notesFolder, false);
+        }
         return;
       }
 
@@ -167,6 +175,55 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     };
   }, []);
 
+  async function persistOnboardingState(current: OnboardingState): Promise<void> {
+    if (current.mode !== "first-run" || current.step === "recovery") return;
+    await window.exo.workspace.saveOnboardingProgress(onboardingDraftFromState(current));
+  }
+
+  async function confirmOnboardingChange(update: (current: OnboardingState) => OnboardingState): Promise<void> {
+    const current = onboardingState;
+    if (!current) return;
+    const next = update(current);
+    setOnboardingState({ ...next, status: "idle", errorMessage: null });
+    try {
+      await persistOnboardingState(next);
+    } catch (error) {
+      setOnboardingState({
+        ...next,
+        status: "error",
+        errorMessage: error instanceof Error ? error.message : "Unable to save setup progress.",
+      });
+    }
+  }
+
+  async function persistCurrentOnboardingState(): Promise<void> {
+    const current = onboardingState;
+    if (!current) return;
+    try {
+      await persistOnboardingState(current);
+    } catch (error) {
+      setOnboardingState({
+        ...current,
+        status: "error",
+        errorMessage: error instanceof Error ? error.message : "Unable to save setup progress.",
+      });
+      throw error;
+    }
+  }
+
+  async function resetMalformedOnboardingProgress() {
+    try {
+      await window.exo.workspace.resetOnboardingProgress();
+      window.location.reload();
+    } catch (error) {
+      setOnboardingState((current) => current ? {
+        ...current,
+        status: "error",
+        errorMessage: error instanceof Error ? error.message : "Unable to restart setup.",
+      } : current);
+    }
+  }
+
   async function selectNotesFolderForOnboarding() {
     const folders = await window.exo.workspace.selectFolder({
       title: "Choose your notes folder",
@@ -174,19 +231,13 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     });
     if (folders[0]) {
       const notesFolder = folders[0];
-      setOnboardingState((current) =>
-        current
-          ? {
-              ...current,
-              notesFolder,
-              defaultTerminalCwd: current.defaultTerminalCwd || defaultTerminalCwdForNotesFolder(notesFolder),
-              contentInspection: null,
-              errorMessage: null,
-              status: "idle",
-            }
-          : current,
-      );
-      void inspectOnboardingContentScope(notesFolder);
+      await confirmOnboardingChange((current) => ({
+        ...current,
+        notesFolder,
+        defaultTerminalCwd: current.defaultTerminalCwd || defaultTerminalCwdForNotesFolder(notesFolder),
+        contentInspection: null,
+      }));
+      void inspectOnboardingContentScope(notesFolder, true);
     }
   }
 
@@ -196,16 +247,10 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       buttonLabel: "Use Terminal Folder",
     });
     if (folders[0]) {
-      setOnboardingState((current) =>
-        current
-          ? {
-              ...current,
-              defaultTerminalCwd: folders[0],
-              errorMessage: null,
-              status: "idle",
-            }
-          : current,
-      );
+      await confirmOnboardingChange((current) => ({
+        ...current,
+        defaultTerminalCwd: folders[0],
+      }));
     }
   }
 
@@ -227,33 +272,29 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       indexUpdateStrategy: current?.indexUpdateStrategy ?? "on-save",
       agentCommands: current?.agentCommands ?? defaultOnboardingAgentCommands(),
       agentInvocationPrompt: current?.agentInvocationPrompt ?? DEFAULT_AGENT_INVOCATION_PROMPT,
+      selectedMcpProviders: ["claude", "codex"],
       status: "idle",
       errorMessage: null,
     });
   }
 
   function startNewWorkspaceSetup() {
-    setOnboardingState((current) =>
-      current
-        ? {
-            ...current,
-            step: "configure",
-            selectedWorkspaceId: null,
-            notesFolder: "",
-            defaultTerminalCwd: "",
-            contentPolicy: defaultWorkspaceContentPolicy(),
-            contentInspection: null,
-            indexMode: "lexical",
-            searchEngine: "qmd",
-            exploreIndexSearchOnEnter: true,
-            indexUpdateStrategy: "on-save",
-            agentCommands: defaultOnboardingAgentCommands(),
-            agentInvocationPrompt: DEFAULT_AGENT_INVOCATION_PROMPT,
-            status: "idle",
-            errorMessage: null,
-          }
-        : current,
-    );
+    void confirmOnboardingChange((current) => ({
+      ...current,
+      step: "configure",
+      selectedWorkspaceId: null,
+      notesFolder: "",
+      defaultTerminalCwd: "",
+      contentPolicy: defaultWorkspaceContentPolicy(),
+      contentInspection: null,
+      indexMode: "lexical",
+      searchEngine: "qmd",
+      exploreIndexSearchOnEnter: true,
+      indexUpdateStrategy: "on-save",
+      agentCommands: defaultOnboardingAgentCommands(),
+      agentInvocationPrompt: DEFAULT_AGENT_INVOCATION_PROMPT,
+      selectedMcpProviders: ["claude", "codex"],
+    }));
   }
 
   async function activateSelectedWorkspace() {
@@ -266,6 +307,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     }
     setOnboardingState({ ...current, status: "saving", errorMessage: null });
     try {
+      await persistOnboardingState(current);
       const saved = await window.exo.workspace.activateWorkspace({
         workspaceId: current.selectedWorkspaceId,
         expectedRevision: workspaceSettingsRevisionRef.current,
@@ -295,7 +337,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     }
   }
 
-  async function inspectOnboardingContentScope(notesFolder: string) {
+  async function inspectOnboardingContentScope(notesFolder: string, applyRecommendation: boolean) {
     try {
       const contentInspection = await window.exo.workspace.inspectContentScope(notesFolder);
       setOnboardingState((current) =>
@@ -303,7 +345,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
           ? {
               ...current,
               contentInspection,
-              contentPolicy: contentInspection.recommendedPolicy,
+              contentPolicy: applyRecommendation ? contentInspection.recommendedPolicy : current.contentPolicy,
             }
           : current,
       );
@@ -326,6 +368,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
 
     setOnboardingState({ ...current, status: "saving", errorMessage: null });
     try {
+      await persistOnboardingState(current);
       const baseSnapshot = workspaceSettingsRef.current
         ? { settings: workspaceSettingsRef.current, revision: workspaceSettingsRevisionRef.current }
         : await window.exo.workspace.getSettings();
@@ -396,6 +439,9 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     workspaceSettingsRevisionRef,
     selectNotesFolderForOnboarding,
     selectDefaultTerminalForOnboarding,
+    confirmOnboardingChange,
+    persistCurrentOnboardingState,
+    resetMalformedOnboardingProgress,
     openWorkspaceSwitcher,
     startNewWorkspaceSetup,
     activateSelectedWorkspace,
@@ -430,4 +476,79 @@ export function onboardingRuntimeApplyDecision(
 
 export function defaultOnboardingAgentCommands(): AgentCommand[] {
   return [createDefaultClaudeAgentCommand(), createDefaultCodexAgentCommand()];
+}
+
+export function defaultFirstRunOnboardingState(
+  settings: WorkspaceSettings,
+  workspaces: WorkspaceRegistryEntry[],
+): OnboardingState {
+  return {
+    mode: "first-run",
+    step: workspaces.length > 0 ? "select" : "configure",
+    workspaces,
+    selectedWorkspaceId: workspaces[0]?.id ?? null,
+    notesFolder: "",
+    defaultTerminalCwd: "",
+    contentPolicy: defaultWorkspaceContentPolicy(),
+    contentInspection: null,
+    indexMode: "lexical",
+    searchEngine: "qmd",
+    exploreIndexSearchOnEnter: false,
+    indexUpdateStrategy: settings.indexUpdateStrategy,
+    agentCommands: settings.agentCommands && settings.agentCommands.length > 0
+      ? settings.agentCommands
+      : defaultOnboardingAgentCommands(),
+    agentInvocationPrompt: settings.agentInvocationPrompt ?? DEFAULT_AGENT_INVOCATION_PROMPT,
+    selectedMcpProviders: ["claude", "codex"],
+    status: "idle",
+    errorMessage: null,
+  };
+}
+
+export function onboardingStateFromDraft(
+  draft: OnboardingProgressDraft,
+  workspaces: WorkspaceRegistryEntry[],
+): OnboardingState {
+  return {
+    mode: "first-run",
+    step: draft.step,
+    workspaces,
+    selectedWorkspaceId: draft.selectedWorkspaceId,
+    notesFolder: draft.notesFolder,
+    defaultTerminalCwd: draft.defaultTerminalCwd,
+    contentPolicy: draft.contentPolicy,
+    contentInspection: null,
+    indexMode: draft.search.indexMode,
+    searchEngine: draft.search.searchEngine,
+    exploreIndexSearchOnEnter: draft.search.exploreIndexSearchOnEnter,
+    indexUpdateStrategy: draft.search.indexUpdateStrategy,
+    agentCommands: draft.agentCommands,
+    agentInvocationPrompt: draft.agentInvocationPrompt,
+    selectedMcpProviders: draft.selectedMcpProviders,
+    status: "idle",
+    errorMessage: null,
+  };
+}
+
+export function onboardingDraftFromState(state: OnboardingState): OnboardingProgressDraft {
+  if (state.step === "recovery") {
+    throw new Error("Malformed onboarding recovery cannot be persisted as progress.");
+  }
+  return {
+    version: 1,
+    step: state.step,
+    selectedWorkspaceId: state.selectedWorkspaceId,
+    notesFolder: state.notesFolder,
+    defaultTerminalCwd: state.defaultTerminalCwd,
+    contentPolicy: state.contentPolicy,
+    search: {
+      indexMode: state.indexMode,
+      searchEngine: state.searchEngine,
+      exploreIndexSearchOnEnter: state.exploreIndexSearchOnEnter,
+      indexUpdateStrategy: state.indexUpdateStrategy,
+    },
+    agentCommands: state.agentCommands,
+    agentInvocationPrompt: state.agentInvocationPrompt,
+    selectedMcpProviders: state.selectedMcpProviders,
+  };
 }

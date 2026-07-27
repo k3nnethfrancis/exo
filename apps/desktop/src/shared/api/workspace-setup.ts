@@ -1,5 +1,6 @@
 import type {
   OnboardingStateStore,
+  OnboardingProgressDraft,
   OntologyKeepResult,
   OntologyRejectResult,
   OntologyReviewGuard,
@@ -17,6 +18,7 @@ export interface WorkspaceSetupState {
   complete: boolean;
   onboardingComplete: boolean;
   onboarding: OnboardingStateStore;
+  onboardingRecovery: { kind: "malformed"; message: string } | null;
   settingsPath: string;
 }
 
@@ -34,6 +36,8 @@ export interface WorkspaceSetupApi {
   getModel: () => Promise<WorkspaceModel>;
   getSettings: () => Promise<WorkspaceSettingsSnapshot>;
   getSetupState: () => Promise<WorkspaceSetupState>;
+  saveOnboardingProgress: (draft: OnboardingProgressDraft) => Promise<OnboardingStateStore>;
+  resetOnboardingProgress: () => Promise<OnboardingStateStore>;
   markOnboardingComplete: () => Promise<OnboardingStateStore>;
   listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
   activateWorkspace: (input: { workspaceId: string; expectedRevision: WorkspaceSettingsSaveRequest["expectedRevision"] }) => Promise<WorkspaceSettingsSaveOutcome>;

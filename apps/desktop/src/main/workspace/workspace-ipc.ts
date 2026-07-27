@@ -54,6 +54,8 @@ export interface WorkspaceIpcHandlers {
   inspectContentScope: WorkspaceApi["inspectContentScope"];
   getSettings: WorkspaceApi["getSettings"];
   getSetupState: WorkspaceApi["getSetupState"];
+  saveOnboardingProgress: WorkspaceApi["saveOnboardingProgress"];
+  resetOnboardingProgress: WorkspaceApi["resetOnboardingProgress"];
   markOnboardingComplete: WorkspaceApi["markOnboardingComplete"];
   listTree: WorkspaceApi["listTree"];
   listWorkspaces: () => Promise<WorkspaceRegistryEntry[]>;
@@ -78,6 +80,8 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:get-model", async () => handlers.getModel());
   handleDesktopInvoke("workspace:get-settings", async () => handlers.getSettings());
   handleDesktopInvoke("workspace:get-setup-state", async () => handlers.getSetupState());
+  handleDesktopInvoke("workspace:save-onboarding-progress", async (_event, draft) => handlers.saveOnboardingProgress(draft));
+  handleDesktopInvoke("workspace:reset-onboarding-progress", async () => handlers.resetOnboardingProgress());
   handleDesktopInvoke("workspace:mark-onboarding-complete", async () => handlers.markOnboardingComplete());
   handleDesktopInvoke("workspace:list-workspaces", async () => handlers.listWorkspaces());
   handleDesktopInvoke("workspace:activate-workspace", async (_event, input) => handlers.activateWorkspace(input));
