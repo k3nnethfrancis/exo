@@ -549,6 +549,9 @@ test("completes and restarts the real packaged first-run journey", async () => {
   try {
     firstApp = await electron.launch({ executablePath, cwd: "/", env });
     const page = firstApp.windows()[0] ?? await firstApp.firstWindow();
+    await page.setViewportSize({ width: 700, height: 560 });
+    expect(await firstApp.evaluate(({ app }) => app.getPath("exe"))).toBe(executablePath);
+    expect(page.viewportSize()).toEqual({ width: 700, height: 560 });
     await expect(page.getByTestId("onboarding")).toContainText("Choose your main wiki");
     await page.screenshot({ path: path.join(evidenceRoot, "01-packaged-choose-wiki.png"), fullPage: true });
     await page.getByTestId("onboarding-choose-notes").click();
@@ -575,6 +578,9 @@ test("completes and restarts the real packaged first-run journey", async () => {
 
     restartedApp = await electron.launch({ executablePath, cwd: "/", env });
     const restartedPage = restartedApp.windows()[0] ?? await restartedApp.firstWindow();
+    await restartedPage.setViewportSize({ width: 700, height: 560 });
+    expect(await restartedApp.evaluate(({ app }) => app.getPath("exe"))).toBe(executablePath);
+    expect(restartedPage.viewportSize()).toEqual({ width: 700, height: 560 });
     await expect(restartedPage.getByTestId("onboarding")).toHaveCount(0);
     await expect(restartedPage.getByTestId("sidebar")).toBeVisible();
     await expect.poll(async () => restartedPage.evaluate(() => window.exo.workspace.getSettings()))

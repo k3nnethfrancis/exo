@@ -5,7 +5,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const defaultPackagingTimeoutMs = 20 * 60 * 1000;
 const defaultPackagingIdleTimeoutMs = 5 * 60 * 1000;
 

@@ -10,9 +10,15 @@ import {
   packagingFailureDiagnostic,
   packagingTimeoutDiagnostic,
   packMacTimeouts,
+  repoRoot,
   restoreLocalElectronRuntime,
   withElectronRuntimeRestore,
 } from './pack-mac.mjs';
+
+test('repoRoot resolves the workspace containing apps/desktop', () => {
+  assert.equal(existsSync(path.join(repoRoot, 'pnpm-workspace.yaml')), true);
+  assert.equal(existsSync(path.join(repoRoot, 'apps', 'desktop', 'package.json')), true);
+});
 
 test('macOutputDirectories returns only generated mac app output directories', () => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'exo-pack-mac-test-'));
