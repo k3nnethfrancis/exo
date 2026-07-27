@@ -1,7 +1,7 @@
 import { EditorState } from "@codemirror/state";
 import { describe, expect, it } from "vitest";
 
-import { shouldSuppressGeneratedTitleLine } from "./decorations";
+import { shouldRenderTaskPrefix, shouldSuppressGeneratedTitleLine } from "./decorations";
 import { visibleLineNumbers } from "./metadata";
 
 describe("markdown live preview title suppression", () => {
@@ -19,5 +19,13 @@ describe("markdown live preview viewport work", () => {
 
     expect(visibleLineNumbers(state.doc, [{ from: 0, to: 20 }])).toEqual([1, 2, 3]);
     expect(visibleLineNumbers(state.doc, [{ from: state.doc.length - 20, to: state.doc.length }])).toEqual([4_998, 4_999, 5_000]);
+  });
+});
+
+describe("markdown live preview task boundaries", () => {
+  it("keeps the task prefix rendered when the caret is at the start of task text", () => {
+    expect(shouldRenderTaskPrefix(6, 0, 6)).toBe(true);
+    expect(shouldRenderTaskPrefix(5, 0, 6)).toBe(false);
+    expect(shouldRenderTaskPrefix(7, 0, 6)).toBe(true);
   });
 });

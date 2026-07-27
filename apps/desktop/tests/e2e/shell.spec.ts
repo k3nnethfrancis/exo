@@ -598,6 +598,7 @@ test("creates, renames, and deletes notes from the explorer", async () => {
   const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
     prepareWorkspace: async (root) => {
       await mkdir(path.join(root, "notes/test-notes/mutation-dir"), { recursive: true });
+      await writeFile(path.join(root, "notes/test-notes/mutation-dir/existing.md"), "# Existing\n", "utf8");
     },
   });
   const notesRoot = path.join(workspaceRoot, "notes/test-notes");
@@ -620,11 +621,13 @@ test("creates, renames, and deletes notes from the explorer", async () => {
       page.evaluate(() => {
         const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
         const view = content?.cmView?.view;
-        return view ? { text: view.state.doc.toString(), selection: view.state.selection.main.head } : null;
+        if (!view) return null;
+        const text = view.state.doc.toString();
+        return { text, selection: view.state.selection.main.head, atAuthoringLine: view.state.selection.main.head === text.length };
       }),
     )
     .toEqual(expect.objectContaining({
-      selection: 3,
+      atAuthoringLine: true,
     }));
 
   await page.getByTestId("sidebar").getByRole("button", { name: "mutation-qa" }).click({ button: "right" });
@@ -671,6 +674,42 @@ test("handles global save and daily-note keybindings", async () => {
   await page.keyboard.press(`${modifier}+N`);
   await expect(page.getByTestId("editor-title")).toHaveText(dailyName);
   await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes", `${dailyName}.md`), "utf8")).toMatch(initialMarkdownNotePattern);
+  await expect.poll(() => page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    return Boolean(view && view.state.selection.main.head === view.state.doc.length);
+  })).toBe(true);
+
+  await cleanup();
+});
+
+test("preserves selection when opening and revisiting an existing H1-only note", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture({
+    mutable: true,
+    initialNoteLabel: null,
+    prepareWorkspace: async (workspaceRoot) => {
+      await writeFile(path.join(workspaceRoot, "notes/test-notes/untouched-heading.md"), "# Untouched Heading\n", "utf8");
+    },
+  });
+
+  const sidebar = page.getByTestId("sidebar");
+  await sidebar.getByRole("button", { name: "untouched-heading" }).click();
+  await expect.poll(() => page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    return content?.cmView?.view?.state.selection.main.head ?? -1;
+  })).toBe(0);
+
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) throw new Error("Unable to resolve CodeMirror view");
+    view.dispatch({ selection: { anchor: 5 } });
+  });
+  await sidebar.getByRole("button", { name: "untouched-heading" }).click();
+  await expect.poll(() => page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    return content?.cmView?.view?.state.selection.main.head ?? -1;
+  })).toBe(5);
 
   await cleanup();
 });

@@ -49,6 +49,7 @@ interface UseWorkspaceMutationsOptions {
   remapOpenPaths: (sourcePath: string, nextPath: string) => void;
   removeDeletedPaths: (targetPath: string) => void;
   revealExplorerPath: (path: string) => void;
+  requestGeneratedTitleSelection: (filePath: string) => void;
 }
 
 export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
@@ -79,6 +80,9 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     const nextPath = await window.exo.workspace.createFile(
       joinPath(directoryPath, ensureDefaultExtension(name, directoryPath, noteRootPaths)),
     );
+    if (nextPath.toLowerCase().endsWith(".md")) {
+      options.requestGeneratedTitleSelection(nextPath);
+    }
     await options.reloadTrees();
     await options.openFile(nextPath, options.editorFocusedLeafId);
   }

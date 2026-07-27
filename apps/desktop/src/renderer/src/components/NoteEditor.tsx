@@ -104,9 +104,17 @@ interface NoteEditorProps {
   isNoteDocument: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
   scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
+  initialSelectionRequest?: EditorInitialSelectionRequest | null;
+  onInitialSelectionRequestHandled?: (nonce: number) => void;
   agentComposeRequest?: AgentComposeRequest | null;
   onAgentComposeRequestHandled?: (nonce: number) => void;
   onDiagnosticContext: (context: EditorFaultContext) => void;
+}
+
+export interface EditorInitialSelectionRequest {
+  filePath: string;
+  kind: "generated-title";
+  nonce: number;
 }
 
 const STANDARD_NOTE_PROPERTY_KEYS = ["title", "date", "tags"] as const;
@@ -140,6 +148,8 @@ export function NoteEditor(props: NoteEditorProps) {
     isNoteDocument,
     revealLineRequest,
     scrollRestoreRequest,
+    initialSelectionRequest,
+    onInitialSelectionRequestHandled,
     agentComposeRequest,
     onAgentComposeRequestHandled,
     onDiagnosticContext,
@@ -151,7 +161,6 @@ export function NoteEditor(props: NoteEditorProps) {
   const pendingDocumentSyncRef = useRef<{ filePath: string; body: string } | null>(null);
   const scrollTopByPathRef = useRef<Map<string, number>>(new Map());
   const selectionByPathRef = useRef<Map<string, { anchor: number; head: number }>>(new Map());
-  const seededAuthoringPathsRef = useRef<Set<string>>(new Set());
   const restoringScrollRef = useRef(false);
   const processedRevealLineNonceRef = useRef<number | null>(null);
   const processedScrollRestoreNonceRef = useRef<number | null>(null);
@@ -762,20 +771,28 @@ export function NoteEditor(props: NoteEditorProps) {
         if (pendingSync?.filePath === documentPath && view.state.doc.toString() === pendingSync.body) {
           pendingDocumentSyncRef.current = null;
         }
-        if (!document || !useMarkdownEditing || rawMarkdownMode || seededAuthoringPathsRef.current.has(document.filePath)) {
+        if (
+          !document
+          || !useMarkdownEditing
+          || rawMarkdownMode
+          || initialSelectionRequest?.filePath !== document.filePath
+          || initialSelectionRequest.kind !== "generated-title"
+        ) {
           return;
         }
         const initialPosition = initialMarkdownAuthoringPosition(document.body);
-        if (initialPosition === null || view.state.doc.toString() !== document.body) {
+        if (view.state.doc.toString() !== document.body) {
           return;
         }
-        seededAuthoringPathsRef.current.add(document.filePath);
-        const position = clampPosition(initialPosition, view.state.doc.length);
-        view.dispatch({ selection: EditorSelection.cursor(position) });
-        selectionByPathRef.current.set(document.filePath, { anchor: position, head: position });
-        view.focus();
+        if (initialPosition !== null) {
+          const position = clampPosition(initialPosition, view.state.doc.length);
+          view.dispatch({ selection: EditorSelection.cursor(position) });
+          selectionByPathRef.current.set(document.filePath, { anchor: position, head: position });
+          view.focus();
+        }
+        onInitialSelectionRequestHandled?.(initialSelectionRequest.nonce);
       },
-    [document, documentPath, rawMarkdownMode, useMarkdownEditing],
+    [document, documentPath, initialSelectionRequest, onInitialSelectionRequestHandled, rawMarkdownMode, useMarkdownEditing],
   );
 
   useLayoutEffect(() => {
@@ -1234,13 +1251,14 @@ export function firstChangedOffset(before: string, after: string): number {
   return index;
 }
 
-function initialMarkdownAuthoringPosition(body: string): number | null {
-  // NoteDocument.body deliberately excludes frontmatter. A body containing only
-  // the generated H1 is the untouched authoring state for a new Markdown note.
+export function initialMarkdownAuthoringPosition(body: string): number | null {
+  // Creation provenance is carried by EditorInitialSelectionRequest. This
+  // content check only verifies that the expected generated-H1 template is
+  // still untouched before placing the caret on its trailing blank line.
   if (!/^\n?# [^\n]+\n$/.test(body)) {
     return null;
   }
-  return body.indexOf("# ") + 2;
+  return body.length;
 }
 
 function getAgentCompletionContext(doc: { lineAt: (position: number) => { from: number; text: string }; sliceString: (from: number, to: number) => string }, position: number): {

@@ -265,7 +265,7 @@ function decorateLine(
     const checkboxCharPos = lineFrom + task[1].length + 1;
     const prefixEnd = lineFrom + task[0].length;
     out.push({ from: lineFrom, to: lineFrom, decoration: Decoration.line({ class: `exo-md-line exo-md-line--task${isChecked ? " exo-md-line--task-done" : ""}` }) });
-    if (!cursorWithin(cursorPos, lineFrom, prefixEnd)) {
+    if (shouldRenderTaskPrefix(cursorPos, lineFrom, prefixEnd)) {
       out.push({
         from: lineFrom,
         to: prefixEnd,
@@ -354,6 +354,10 @@ function decorateLine(
       out.push({ from: lineFrom, to: lineFrom + text.length, decoration: concealDecoration });
     }
   }
+}
+
+export function shouldRenderTaskPrefix(cursorPos: number, lineFrom: number, prefixEnd: number): boolean {
+  return cursorPos < lineFrom || cursorPos >= prefixEnd;
 }
 
 function isThematicBreak(text: string) {

@@ -3,6 +3,7 @@ import { EditorState } from "@codemirror/state";
 
 import {
   firstChangedOffset,
+  initialMarkdownAuthoringPosition,
   nextSuggestionIndex,
   normalizeFrontmatterPropertyKey,
   shouldUseMarkdownRenderer,
@@ -17,6 +18,13 @@ describe("invocation review positioning", () => {
 });
 
 describe("editor document mode", () => {
+  it("places generated-title authoring at the blank line after the H1", () => {
+    const generatedBody = "\n# New note\n";
+    expect(initialMarkdownAuthoringPosition(generatedBody)).toBe(generatedBody.length);
+    expect(initialMarkdownAuthoringPosition("# Explicit title\n\nAuthored content.\n")).toBeNull();
+    expect(initialMarkdownAuthoringPosition("Explicit non-H1 content\n")).toBeNull();
+  });
+
   it("uses the markdown renderer for markdown documents from any root", () => {
     expect(shouldUseMarkdownRenderer({ kind: "markdown" })).toBe(true);
     expect(shouldUseMarkdownRenderer({ kind: "text" })).toBe(false);

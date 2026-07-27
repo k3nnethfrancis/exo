@@ -10,7 +10,7 @@ import { ChromeTab } from "./Chrome";
 import { getDocumentDisplayTitle } from "./documentDisplay";
 import { EditorFaultBoundary } from "./EditorFaultBoundary";
 import type { EditorFaultContext } from "./editorFaultDiagnostics";
-import { NoteEditor } from "./NoteEditor";
+import { NoteEditor, type EditorInitialSelectionRequest } from "./NoteEditor";
 import { FolderOverviewPane } from "./FolderOverviewPane";
 import type { InlineAgentDraft } from "./inlineAgentComposer";
 
@@ -70,6 +70,8 @@ interface EditorPaneProps {
   compact: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
   scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
+  initialSelectionRequest?: EditorInitialSelectionRequest | null;
+  onInitialSelectionRequestHandled?: (nonce: number) => void;
   agentComposeRequest?: AgentComposeRequest | null;
   onAgentComposeRequestHandled?: (nonce: number) => void;
   isNoteDocument: (filePath: string) => boolean;
@@ -111,6 +113,8 @@ export function EditorPane(props: EditorPaneProps) {
     compact,
     revealLineRequest,
     scrollRestoreRequest,
+    initialSelectionRequest,
+    onInitialSelectionRequestHandled,
     agentComposeRequest,
     onAgentComposeRequestHandled,
     isNoteDocument,
@@ -220,6 +224,8 @@ export function EditorPane(props: EditorPaneProps) {
         isNoteDocument={activeDocument ? isNoteDocument(activeDocument.filePath) : false}
         revealLineRequest={revealLineRequest}
         scrollRestoreRequest={scrollRestoreRequest}
+        initialSelectionRequest={initialSelectionRequest}
+        onInitialSelectionRequestHandled={onInitialSelectionRequestHandled}
         agentComposeRequest={agentComposeRequest?.filePath === activeDocument?.filePath ? agentComposeRequest : null}
         onAgentComposeRequestHandled={onAgentComposeRequestHandled}
         onDiagnosticContext={updateFaultContext}

@@ -15,6 +15,7 @@ import type { CliInstallationStatus, ProviderMcpSetupResult, TerminalSessionInfo
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type AgentComposeRequest, type EditorPaneState } from "./components/EditorPane";
+import type { EditorInitialSelectionRequest } from "./components/NoteEditor";
 import { BrowserPane } from "./components/BrowserPane";
 import { InspectorDock } from "./components/InspectorDock";
 import { GraphPane } from "./components/GraphPane";
@@ -118,6 +119,8 @@ export function App() {
   const [pendingInvocationAuthorization, setPendingInvocationAuthorization] = useState<PendingInvocationAuthorization | null>(null);
   const [agentComposeRequest, setAgentComposeRequest] = useState<AgentComposeRequest | null>(null);
   const agentComposeNonceRef = useRef(0);
+  const [editorInitialSelectionRequest, setEditorInitialSelectionRequest] = useState<EditorInitialSelectionRequest | null>(null);
+  const editorInitialSelectionNonceRef = useRef(0);
   const [invocationActivity, setInvocationActivity] = useState<InvocationActivityState | null>(null);
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
@@ -243,6 +246,7 @@ export function App() {
     remapOpenPaths: canvasNavigation.remapOpenPaths,
     removeDeletedPaths: canvasNavigation.removeDeletedPaths,
     revealExplorerPath: (path) => setRevealExplorerPathRequest({ path, nonce: Date.now() }),
+    requestGeneratedTitleSelection,
   });
   const { dialog: workspaceDialog, setDialog: setWorkspaceDialog } = workspaceMutations;
   const dragManager = usePaneDropOrchestration({
@@ -706,6 +710,9 @@ export function App() {
       : await window.exo.notes.resolveTarget(activeDocumentPath, `${target}.md`);
 
     const ensured = resolved ?? await window.exo.notes.ensureTarget(activeDocumentPath, target);
+    if (!resolved) {
+      requestGeneratedTitleSelection(ensured);
+    }
     await reloadTrees();
     await canvasNavigation.openFile(ensured, focusedPaneId);
   }
@@ -905,10 +912,20 @@ export function App() {
       await window.exo.notes.read(dailyPath);
     } catch {
       await window.exo.workspace.createFile(dailyPath);
+      requestGeneratedTitleSelection(dailyPath);
       await reloadTrees();
     }
 
     await openDailyFile(dailyPath);
+  }
+
+  function requestGeneratedTitleSelection(filePath: string) {
+    editorInitialSelectionNonceRef.current += 1;
+    setEditorInitialSelectionRequest({
+      filePath,
+      kind: "generated-title",
+      nonce: editorInitialSelectionNonceRef.current,
+    });
   }
 
   if (!workspaceModel) {
@@ -1539,6 +1556,10 @@ export function App() {
               compact={compactEditorChrome}
               revealLineRequest={canvasNavigation.editorRevealLineRequest}
               scrollRestoreRequest={editorScrollRestoreRequest}
+              initialSelectionRequest={editorInitialSelectionRequest}
+              onInitialSelectionRequestHandled={(nonce) => {
+                setEditorInitialSelectionRequest((current) => current?.nonce === nonce ? null : current);
+              }}
               agentComposeRequest={agentComposeRequest}
               onAgentComposeRequestHandled={(nonce) => {
                 setAgentComposeRequest((current) => current?.nonce === nonce ? null : current);

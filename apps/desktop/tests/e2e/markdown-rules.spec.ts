@@ -127,12 +127,28 @@ test("continues and exits markdown task list items in live preview", async () =>
 
   await page.getByRole("button", { name: /task-list-edit-test/i }).first().click();
   await page.locator(".cm-content").click();
-  await page.evaluate(() => {
+  const taskTextStart = await page.evaluate(() => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
     const view = content?.cmView?.view;
     if (!view) {
       throw new Error("Unable to resolve CodeMirror view");
     }
+    const text = view.state.doc.toString();
+    const textStart = text.indexOf("- [x] follow up") + "- [x] ".length;
+    view.dispatch({ selection: { anchor: textStart } });
+    view.focus();
+    return textStart;
+  });
+  await expect(page.locator(".exo-md-checkbox")).toHaveCount(1);
+  await expect.poll(() => page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    return content?.cmView?.view?.state.selection.main.head ?? -1;
+  })).toBe(taskTextStart);
+
+  await page.evaluate(() => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) throw new Error("Unable to resolve CodeMirror view");
     const target = view.state.doc.toString().indexOf("- [x] follow up") + "- [x] follow up".length;
     view.dispatch({ selection: { anchor: target } });
     view.focus();
@@ -147,6 +163,7 @@ test("continues and exits markdown task list items in live preview", async () =>
       }),
     )
     .toBe("# Task List Edit Test\n\n- [x] follow up\n- [ ] \n");
+  await expect(page.locator(".exo-md-checkbox")).toHaveCount(2);
 
   await page.keyboard.press("Enter");
   await expect
