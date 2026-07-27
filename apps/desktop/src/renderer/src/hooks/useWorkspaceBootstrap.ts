@@ -98,7 +98,9 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       currentOptions.applyWorkspaceSettings(settings);
       currentOptions.applyPersistedLayout(settings.layout);
 
-      if (!setupState.complete) {
+      const hasPersistedOnboarding = setupState.onboardingRecovery
+        || (setupState.onboarding.status === "in-progress" && setupState.onboarding.draft);
+      if (!setupState.complete || hasPersistedOnboarding) {
         setWorkspaceModel(model);
         const initialState = setupState.onboardingRecovery
           ? {
@@ -108,7 +110,11 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
               errorMessage: setupState.onboardingRecovery.message,
             }
           : setupState.onboarding.status === "in-progress" && setupState.onboarding.draft
-            ? onboardingStateFromDraft(setupState.onboarding.draft, workspaces)
+            ? onboardingStateFromDraft(
+                setupState.onboarding.draft,
+                workspaces,
+                setupState.complete ? "switch" : "first-run",
+              )
             : defaultFirstRunOnboardingState(settings, workspaces);
         setOnboardingState(initialState);
         if (initialState.step !== "recovery" && initialState.notesFolder) {
@@ -177,7 +183,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
   }, []);
 
   async function persistOnboardingState(current: OnboardingState): Promise<void> {
-    if (current.mode !== "first-run" || current.step === "recovery") return;
+    if (current.step === "recovery") return;
     await window.exo.workspace.saveOnboardingProgress(onboardingDraftFromState(current));
   }
 
@@ -513,9 +519,10 @@ export function defaultFirstRunOnboardingState(
 export function onboardingStateFromDraft(
   draft: OnboardingProgressDraft,
   workspaces: WorkspaceRegistryEntry[],
+  mode: OnboardingState["mode"] = "first-run",
 ): OnboardingState {
   return {
-    mode: "first-run",
+    mode,
     step: draft.step,
     workspaces,
     selectedWorkspaceId: draft.selectedWorkspaceId,

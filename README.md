@@ -31,7 +31,7 @@ For the full workflow, read [Using Exo](docs/using-exo.md). For command-line and
 
 ### Develop Exo
 
-Prerequisites: Node.js 22+ and pnpm 11.2.2.
+Prerequisites: Node.js 24 and pnpm 11.2.2.
 
 ```sh
 pnpm install

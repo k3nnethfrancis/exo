@@ -113,12 +113,12 @@ case "$(uname -m)" in
     ;;
 esac
 
-APP_SOURCE="$(find "$REPO_ROOT/release" -maxdepth 3 -path '*/Exo.app' -type d | sort | head -n 1)"
-if [ -z "$APP_SOURCE" ]; then
+APP_SOURCE="$REPO_ROOT/release/$RELEASE_ARCH/Exo.app"
+if [ ! -d "$APP_SOURCE" ]; then
   if [ "$DRY_RUN" -eq 1 ]; then
-    APP_SOURCE="$REPO_ROOT/release/$RELEASE_ARCH/Exo.app"
+    :
   else
-    echo "No packaged Exo.app found under $REPO_ROOT/release. Run pnpm pack:mac first." >&2
+    echo "No packaged Exo.app found for $RELEASE_ARCH at $APP_SOURCE. Run pnpm pack:mac on this Mac first." >&2
     exit 1
   fi
 fi
@@ -130,10 +130,10 @@ log "source: $APP_SOURCE"
 log "target: $APP_TARGET"
 
 run mkdir -p "$APP_DIR"
-if [ -e "$APP_TARGET" ]; then
-  run rm -rf "$APP_TARGET"
-fi
-if ! run cp -R "$APP_SOURCE" "$APP_TARGET"; then
+APP_STAGING="$APP_DIR/.Exo.app.install-$$"
+APP_BACKUP="$APP_DIR/.Exo.app.backup-$$"
+run rm -rf "$APP_STAGING" "$APP_BACKUP"
+if ! run cp -R "$APP_SOURCE" "$APP_STAGING"; then
   if [ "$APP_DIR" = "/Applications" ]; then
     cat >&2 <<'EOF'
 
@@ -147,6 +147,17 @@ EOF
   fi
   exit 1
 fi
+
+if [ -e "$APP_TARGET" ]; then
+  run mv "$APP_TARGET" "$APP_BACKUP"
+fi
+if ! run mv "$APP_STAGING" "$APP_TARGET"; then
+  if [ -e "$APP_BACKUP" ]; then
+    run mv "$APP_BACKUP" "$APP_TARGET" || true
+  fi
+  exit 1
+fi
+run rm -rf "$APP_BACKUP"
 
 if [ "$INSTALL_CLI" -eq 1 ]; then
   run "$REPO_ROOT/scripts/install-local" --skip-install --skip-build

@@ -216,6 +216,14 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
 
   function closeDialog() {
     const snapshot = dialog;
+    const commandError = snapshot ? agentCommandConfigurationError(snapshot.agentCommands) : null;
+    if (snapshot && commandError) {
+      // A command draft is local form state until it validates. Keep it in the
+      // dialog so Close never turns a fixable validation problem into a
+      // misleading runtime-recovery notice or silently discards the edit.
+      setDialog({ ...snapshot, saveStatus: "error", errorMessage: commandError });
+      return;
+    }
     if (snapshot && snapshot.saveStatus !== "saved" && snapshot.saveStatus !== "saving") {
       void saveDialog(snapshot, { includeStructural: false });
     }
@@ -287,6 +295,20 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
 
   async function saveDialog(settingsDialog = dialog, saveOptions = { includeStructural: false }) {
     if (!settingsDialog) {
+      return;
+    }
+
+    const commandError = agentCommandConfigurationError(settingsDialog.agentCommands);
+    if (commandError) {
+      const invalidDraftKey = saveOptions.includeStructural
+        ? workspaceSettingsStructuralDraftKey(settingsDialog)
+        : workspaceSettingsImmediateDraftKey(settingsDialog);
+      setDialog((current) =>
+        current
+        && (saveOptions.includeStructural ? workspaceSettingsStructuralDraftKey(current) : workspaceSettingsImmediateDraftKey(current)) === invalidDraftKey
+          ? { ...current, saveStatus: "error", errorMessage: commandError }
+          : current,
+      );
       return;
     }
 

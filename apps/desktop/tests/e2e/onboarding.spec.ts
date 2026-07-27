@@ -320,6 +320,51 @@ test("keeps MCP and CLI setup independent without touching real provider state",
   await cleanup();
 });
 
+test("resumes a new main wiki draft launched from an existing workspace", async () => {
+  const first = await launchExoWorkspaceFixture({
+    mutable: true,
+    configured: false,
+    expectOnboarding: false,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    selectFolderPath: (workspaceRoot) => path.join(workspaceRoot, "notes", "test-notes"),
+    prepareSettings: async ({ settingsPath, userDataRoot, workspaceRoot }) => {
+      await saveWorkspaceSettings(workspaceSettings(path.join(workspaceRoot, "notes", "test-notes")), {
+        EXO_SETTINGS_PATH: settingsPath,
+        EXO_USER_DATA_PATH: userDataRoot,
+      });
+    },
+  });
+  try {
+    await first.page.getByTestId("workspace-menu-toggle").click();
+    await first.page.getByTestId("workspace-menu-settings").click();
+    await first.page.getByRole("button", { name: "Switch workspace" }).click();
+    await first.page.getByTestId("workspace-picker-new").click();
+    await first.page.getByTestId("onboarding-choose-notes").click();
+    await first.page.getByTestId("onboarding-continue").click();
+    await expect(first.page.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+
+    await first.electronApp.close();
+    const resumed = await relaunchExoWorkspaceFixture(first, {
+      configured: false,
+      workspaceRootEnv: false,
+      runtimeRootEnv: false,
+      expectOnboarding: true,
+    });
+    try {
+      await expect(resumed.page.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+      await resumed.page.getByRole("button", { name: "Back" }).click();
+      await expect(resumed.page.getByTestId("onboarding-notes-folder"))
+        .toContainText(path.join(first.workspaceRoot, "notes", "test-notes"));
+    } finally {
+      await resumed.cleanup();
+    }
+  } catch (error) {
+    await first.cleanup();
+    throw error;
+  }
+});
+
 test("persists an explicit Note Root and edited recommended Commands across restart", async () => {
   const first = await launchExoWorkspaceFixture({
     configured: false,

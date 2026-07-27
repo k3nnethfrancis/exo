@@ -70,6 +70,13 @@ esac
   };
 }
 
+async function createPackagedApp(repo, architecture, marker) {
+  const appContents = path.join(repo, "release", architecture, "Exo.app", "Contents");
+  await mkdir(appContents, { recursive: true });
+  await writeFile(path.join(appContents, "marker"), marker, "utf8");
+  return path.dirname(appContents);
+}
+
 function runInstaller(fixture, args) {
   return new Promise((resolve, reject) => {
     const child = spawn(fixture.installer, args, {
@@ -170,6 +177,54 @@ test("mac app dry run remains non-mutating while reporting the CLI install hando
   assert.match(result.stdout, /\[dry-run\].*scripts\/install-local.*--skip-install.*--skip-build/);
   assert.equal(await readFile(path.join(appTarget, "marker"), "utf8"), "installed fixture app\n");
   assert.equal(await readlink(defaultTargetLauncher), priorLauncher);
+});
+
+test("mac app install uses the bundle for the current architecture when multiple builds exist", async () => {
+  const fixture = await createFixture();
+  const appDir = path.join(path.dirname(fixture.repo), "Applications");
+  await createPackagedApp(fixture.repo, "mac-arm64", "arm build\n");
+  await createPackagedApp(fixture.repo, "mac-x64", "intel build\n");
+
+  const result = await runInstaller(
+    { ...fixture, installer: fixture.macInstaller },
+    ["--skip-build", "--app-dir", appDir],
+  );
+
+  assert.equal(result.code, 0, result.stderr);
+  assert.match(result.stdout, /release\/mac-arm64\/Exo\.app/);
+  assert.equal(await readFile(path.join(appDir, "Exo.app", "Contents", "marker"), "utf8"), "arm build\n");
+});
+
+test("mac app install leaves a working app intact when staging the replacement fails", async () => {
+  const fixture = await createFixture();
+  const appDir = path.join(path.dirname(fixture.repo), "Applications");
+  const installedContents = path.join(appDir, "Exo.app", "Contents");
+  await createPackagedApp(fixture.repo, "mac-arm64", "new build\n");
+  await mkdir(installedContents, { recursive: true });
+  await writeFile(path.join(installedContents, "marker"), "existing build\n", "utf8");
+  await writeFile(path.join(fixture.tools, "cp"), "#!/usr/bin/env bash\nexit 1\n", "utf8");
+  await chmod(path.join(fixture.tools, "cp"), 0o755);
+
+  const result = await runInstaller(
+    { ...fixture, installer: fixture.macInstaller },
+    ["--skip-build", "--app-dir", appDir],
+  );
+
+  assert.notEqual(result.code, 0);
+  assert.equal(await readFile(path.join(installedContents, "marker"), "utf8"), "existing build\n");
+});
+
+test("mac app install rejects a stale bundle for another architecture", async () => {
+  const fixture = await createFixture();
+  await createPackagedApp(fixture.repo, "mac-x64", "intel build\n");
+
+  const result = await runInstaller(
+    { ...fixture, installer: fixture.macInstaller },
+    ["--skip-build", "--app-dir", path.join(path.dirname(fixture.repo), "Applications")],
+  );
+
+  assert.notEqual(result.code, 0);
+  assert.match(result.stderr, /No packaged Exo\.app found for mac-arm64/);
 });
 
 test("skip-build installs the repo-backed shim when the CLI artifact exists", async () => {

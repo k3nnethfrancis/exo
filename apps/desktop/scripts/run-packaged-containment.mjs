@@ -6,15 +6,16 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
-const packagedAppPath = path.join(
-  repoRoot,
-  'release',
-  `mac-${process.arch}`,
-  'Exo.app',
-  'Contents',
-  'MacOS',
-  'Exo',
-);
+function packagedExecutablePath(appPath) {
+  if (!appPath) {
+    return path.join(repoRoot, 'release', `mac-${process.arch}`, 'Exo.app', 'Contents', 'MacOS', 'Exo');
+  }
+  return appPath.endsWith('.app')
+    ? path.join(appPath, 'Contents', 'MacOS', 'Exo')
+    : appPath;
+}
+
+const packagedAppPath = packagedExecutablePath(process.env.EXO_PACKAGED_APP_PATH);
 
 if (!existsSync(packagedAppPath)) {
   console.error(`Packaged Exo was not found for ${process.arch}. Run pnpm pack:mac first.`);

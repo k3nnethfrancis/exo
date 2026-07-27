@@ -186,6 +186,55 @@ test("a disabled Claude command stays unavailable to inline completion", async (
   }
 });
 
+test("keeps an invalid existing Agent Command in Settings instead of discarding it on close", async () => {
+  const fixture = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
+      const noteRoot = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(settingsPath, JSON.stringify({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [noteRoot],
+        agentCommands: [createDefaultClaudeAgentCommand(), createDefaultCodexAgentCommand()],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        searchEngine: "filesystem",
+        appearanceMode: "system",
+        colorThemeId: "exo-neutral",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+      }, null, 2), "utf8");
+    },
+  });
+  try {
+    await fixture.page.getByTestId("workspace-menu-toggle").click();
+    await fixture.page.getByTestId("workspace-menu-settings").click();
+    await fixture.page.getByTestId("workspace-settings-tab-agents").click();
+
+    const configurator = fixture.page.getByTestId("workspace-settings-agents-config");
+    const claudeCommand = configurator.getByTestId("workspace-settings-agents-config-command-input-claude");
+    const persistedBefore = await persistedSettings(fixture.settingsPath);
+    await claudeCommand.fill("");
+    await fixture.page.getByTestId("workspace-settings-close").click();
+
+    await expect(fixture.page.getByTestId("workspace-settings-dialog")).toBeVisible();
+    await expect(fixture.page.locator(".dialog-card__status--error")).toContainText(/command/i);
+    await expect(fixture.page.getByLabel("Retry workspace settings")).toHaveCount(0);
+    expect((await persistedSettings(fixture.settingsPath)).agentCommands).toEqual(persistedBefore.agentCommands);
+
+    await claudeCommand.fill(String((persistedBefore.agentCommands as Array<{ id: string; command: string }>)
+      .find((command) => command.id === "claude")?.command));
+    await expect(fixture.page.getByTestId("workspace-settings-status")).toContainText("Settings saved.");
+    await fixture.page.getByTestId("workspace-settings-close").click();
+    await expect(fixture.page.getByTestId("workspace-settings-dialog")).toHaveCount(0);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 test("adds one Custom Command, removes it explicitly, and retains its History snapshot", async () => {
   const historyId = "historical-local-command";
   let notePath = "";
