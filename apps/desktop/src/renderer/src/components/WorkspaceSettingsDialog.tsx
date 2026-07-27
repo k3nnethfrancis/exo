@@ -11,6 +11,7 @@ import { selectWorkspaceSettingsSearchEngine } from "../workspaceSettingsModel";
 import { HelpTooltip } from "./HelpTooltip";
 import { PathList } from "./PathList";
 import { AgentInvocationPromptEditor } from "./AgentInvocationPromptEditor";
+import { AgentCommandConfigurator } from "./AgentCommandConfigurator";
 import { OntologyReviewRow } from "./OntologyReviewRow";
 
 interface WorkspaceSettingsDialogProps {
@@ -599,9 +600,17 @@ function AgentsSection({
 }: Pick<WorkspaceSettingsDialogProps, "settings" | "setSettings">) {
   return (
     <div className="agent-command-list" data-testid="workspace-settings-agents">
-      {settings.agentCommands.map((command) => (
-        <AgentCommandSection command={command} key={command.id} setSettings={setSettings} />
-      ))}
+      <AgentCommandConfigurator
+        commands={settings.agentCommands}
+        onChange={(agentCommands) => setSettings((current) => current ? {
+          ...current,
+          agentCommands,
+          saveStatus: "idle",
+          errorMessage: null,
+        } : current)}
+        testId="workspace-settings-agents-config"
+      />
+      <AgentCommandContinuityControls commands={settings.agentCommands} />
       <details className="agent-invocation-prompt-disclosure">
         <summary>Advanced</summary>
         <AgentInvocationPromptEditor
@@ -619,148 +628,56 @@ function AgentsSection({
   );
 }
 
-function AgentCommandSection({
-  command,
-  setSettings,
-}: { command: AgentCommand; setSettings: WorkspaceSettingsDialogProps["setSettings"] }) {
+function AgentCommandContinuityControls({ commands }: { commands: AgentCommand[] }) {
+  const continuousCommands = commands.filter((command) => command.adapter === "claude-code");
+  if (continuousCommands.length === 0) return null;
+  return (
+    <section className="agent-command-continuity-settings" aria-label="Saved command context">
+      <div className="dialog-field__label">Saved command context</div>
+      {continuousCommands.map((command) => <AgentCommandContinuityRow command={command} key={command.id} />)}
+    </section>
+  );
+}
+
+function AgentCommandContinuityRow({ command }: { command: AgentCommand }) {
   const [hasContext, setHasContext] = useState(false);
-  const [contextBusy, setContextBusy] = useState(false);
-  const [contextError, setContextError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
     void window.exo.workspace.getAgentCommandContinuity(command.id)
       .then((status) => {
         if (!active) return;
         setHasContext(status.hasHead);
-        setContextBusy(status.active);
+        setBusy(status.active);
       })
       .catch(() => undefined);
     return () => { active = false; };
   }, [command.id]);
-  const updateCommand = (patch: Partial<AgentCommand>) => {
-    setSettings((current) =>
-      current
-        ? {
-            ...current,
-            agentCommands: current.agentCommands.map((entry) => entry.id === command.id ? { ...entry, ...patch } : entry),
-            saveStatus: "idle",
-            errorMessage: null,
-          }
-        : current,
-    );
-  };
-  const updateCwdPolicy = (cwdPolicy: AgentCommand["cwdPolicy"]) => {
-    setSettings((current) =>
-      current
-        ? {
-            ...current,
-            agentCommands: current.agentCommands.map((entry) => entry.id === command.id
-              ? { ...entry, cwdPolicy, fixedCwd: cwdPolicy === "fixed" ? entry.fixedCwd || current.workspaceRoot : undefined }
-              : entry),
-            saveStatus: "idle",
-            errorMessage: null,
-          }
-        : current,
-    );
-  };
 
   return (
-    <section className="agent-command">
-      <div className="agent-command__header">
-        <div>
-          <strong>{command.label}</strong>
-          <span>@{command.handle}</span>
-        </div>
-        <label className="dialog-check dialog-check--inline">
-          <input
-            checked={command.enabled}
-            data-testid={`workspace-settings-agent-enabled-${command.id}`}
-            onChange={(event) => updateCommand({ enabled: event.target.checked })}
-            type="checkbox"
-          />
-          <span>Enabled</span>
-        </label>
-      </div>
-      <div className="dialog-form__grid agent-command__fields">
-        <div className="dialog-field agent-command__continuity">
-          <span className="dialog-field__label">Context</span>
-          {command.adapter === "claude-code" ? (
-            <div className="agent-command__continuity-controls">
-              <label className="dialog-check dialog-check--inline">
-                <input
-                  checked={command.continuityPolicy === "continuous"}
-                  data-testid={`workspace-settings-agent-continuity-${command.id}`}
-                  onChange={(event) => updateCommand({ continuityPolicy: event.target.checked ? "continuous" : "fresh" })}
-                  type="checkbox"
-                />
-                <span>Keep context</span>
-              </label>
-              {hasContext ? (
-                <button
-                  className="toolbar-button"
-                  disabled={contextBusy}
-                  onClick={() => {
-                    setContextBusy(true);
-                    setContextError(null);
-                    void window.exo.workspace.resetAgentCommandContinuity(command.id)
-                      .then(() => setHasContext(false))
-                      .catch((error) => setContextError(error instanceof Error ? error.message : String(error)))
-                      .finally(() => setContextBusy(false));
-                  }}
-                  type="button"
-                >
-                  Reset
-                </button>
-              ) : null}
-              {contextError ? <span className="dialog-field__error">{contextError}</span> : null}
-            </div>
-          ) : <span className="dialog-field__hint">Unavailable</span>}
-        </div>
-        <label className="dialog-field">
-          <span className="dialog-field__label">Name</span>
-          <input
-            className="dialog-card__input"
-            data-testid={`workspace-settings-agent-label-${command.id}`}
-            value={command.label}
-            onChange={(event) => updateCommand({ label: event.target.value })}
-          />
-        </label>
-        <label className="dialog-field">
-          <span className="dialog-field__label">Run from</span>
-          <select
-            className="dialog-card__input"
-            data-testid={`workspace-settings-agent-cwd-${command.id}`}
-            value={command.cwdPolicy}
-            onChange={(event) => updateCwdPolicy(event.target.value as AgentCommand["cwdPolicy"])}
-          >
-            <option value="workspace_root">Workspace</option>
-            <option value="note_dir">Note folder</option>
-            <option value="fixed">Fixed folder</option>
-          </select>
-        </label>
-        <label className="dialog-field agent-command__command">
-          <span className="dialog-field__label">Command</span>
-          <input
-            className="dialog-card__input"
-            data-testid={`workspace-settings-agent-command-${command.id}`}
-            spellCheck={false}
-            value={command.command}
-            onChange={(event) => updateCommand({ command: event.target.value })}
-          />
-        </label>
-        {command.cwdPolicy === "fixed" ? (
-          <label className="dialog-field agent-command__command">
-            <span className="dialog-field__label">Folder</span>
-            <input
-              className="dialog-card__input"
-              data-testid={`workspace-settings-agent-fixed-cwd-${command.id}`}
-              value={command.fixedCwd ?? ""}
-              onChange={(event) => updateCommand({ fixedCwd: event.target.value })}
-            />
-          </label>
-        ) : null}
-      </div>
-    </section>
+    <div className="agent-command-continuity-settings__row">
+      <span>@{command.handle}</span>
+      <span>{hasContext ? "Context saved" : "No saved context"}</span>
+      {hasContext ? (
+        <button
+          className="toolbar-button"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            setError(null);
+            void window.exo.workspace.resetAgentCommandContinuity(command.id)
+              .then(() => setHasContext(false))
+              .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
+              .finally(() => setBusy(false));
+          }}
+          type="button"
+        >
+          Reset
+        </button>
+      ) : null}
+      {error ? <span className="dialog-field__error">{error}</span> : null}
+    </div>
   );
 }
 

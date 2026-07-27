@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { IndexStatus } from "@exo/core";
+import {
+  createDefaultClaudeAgentCommand,
+  createDefaultCodexAgentCommand,
+  type IndexStatus,
+} from "@exo/core";
 
 import {
   WorkspaceSettingsDialog,
@@ -36,29 +40,7 @@ describe("workspace settings footer copy", () => {
         onSave={() => {}}
         settings={workspaceSettingsDialogFixture({
           section: "agents",
-          agentCommands: [{
-            id: "claude",
-            label: "Claude",
-            handle: "claude",
-            command: "claude -p",
-            adapter: "claude-code",
-            continuityPolicy: "continuous",
-            cwdPolicy: "workspace_root",
-            promptDelivery: "stdin",
-            version: 1,
-            enabled: true,
-          }, {
-            id: "codex",
-            label: "Codex",
-            handle: "codex",
-            command: "codex exec",
-            adapter: "codex-cli",
-            continuityPolicy: "fresh",
-            cwdPolicy: "workspace_root",
-            promptDelivery: "stdin",
-            version: 1,
-            enabled: true,
-          }],
+          agentCommands: [createDefaultClaudeAgentCommand(), createDefaultCodexAgentCommand()],
         })}
         setSettings={() => {}}
         structuralDraftKey={workspaceSettingsStructuralDraftKey}
@@ -70,7 +52,8 @@ describe("workspace settings footer copy", () => {
     expect(workspaceSettingsDialogIntroCopy("agents", false)).toBe("Configure the agents available from @ mentions.");
     expect(html).toContain("claude -p");
     expect(html).toContain("Keep context");
-    expect(html).toContain("Unavailable");
+    expect(html).toContain("Fresh each time");
+    expect(html).toContain("Add Custom");
   });
 
   it("keeps Markdown scope editable from Workspace settings", () => {

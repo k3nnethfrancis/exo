@@ -1,6 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
-import { readFile, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import {
+  agentCommandSnapshot,
+  createDefaultClaudeAgentCommand,
+  createDefaultCodexAgentCommand,
+  InvocationStore,
+} from "@exo/core";
 
 import { launchExoWorkspaceFixture, relaunchExoWorkspaceFixture } from "../helpers";
 
@@ -175,6 +181,127 @@ test("a disabled Claude command stays unavailable to inline completion", async (
     await fixture.page.keyboard.press("Meta+End");
     await fixture.page.keyboard.type("@claude");
     await expect(fixture.page.getByTestId("agent-suggestions")).toHaveCount(0);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("adds one Custom Command, removes it explicitly, and retains its History snapshot", async () => {
+  const historyId = "historical-local-command";
+  let notePath = "";
+  let markerPath = "";
+  const customCommand = {
+    ...createDefaultCodexAgentCommand(),
+    id: "custom",
+    label: "Local",
+    handle: "local",
+    command: "/bin/echo historical",
+    adapter: "generic" as const,
+  };
+  const fixture = await launchExoWorkspaceFixture({
+    mutable: true,
+    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
+      const noteRoot = path.join(workspaceRoot, "notes/test-notes");
+      notePath = path.join(noteRoot, "removed-command-history.md");
+      markerPath = path.join(workspaceRoot, "configuration-must-not-run");
+      await writeFile(notePath, "# Removed Command History\n", "utf8");
+      await new InvocationStore(workspaceRoot).writeRecord({
+        id: historyId,
+        workspaceRoot,
+        noteRoots: [noteRoot],
+        status: "failed",
+        context: "note",
+        taggedDocumentPath: notePath,
+        originalMentionText: "@local",
+        mentionProvenance: "human-authored",
+        message: "Historical request",
+        promptDelivery: "stdin",
+        command: agentCommandSnapshot(customCommand),
+        cwd: workspaceRoot,
+        createdAt: "2026-07-26T00:00:00.000Z",
+        endedAt: "2026-07-26T00:00:01.000Z",
+        failureReason: "Fixture failure.",
+        continuity: { policy: "fresh", outcome: "fresh" },
+      });
+      await writeFile(settingsPath, JSON.stringify({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [noteRoot],
+        agentCommands: [createDefaultClaudeAgentCommand(), createDefaultCodexAgentCommand()],
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        searchEngine: "filesystem",
+        appearanceMode: "system",
+        colorThemeId: "exo-neutral",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+      }, null, 2), "utf8");
+    },
+  });
+
+  try {
+    await fixture.page.getByTestId("workspace-menu-toggle").click();
+    await fixture.page.getByTestId("workspace-menu-settings").click();
+    await fixture.page.getByTestId("workspace-settings-tab-agents").click();
+    const configurator = fixture.page.getByTestId("workspace-settings-agents-config");
+    await expect(configurator.locator("#workspace-settings-agents-config-recommended-title")).toBeVisible();
+    await configurator.getByTestId("workspace-settings-agents-config-add-custom").click();
+    await configurator.getByRole("textbox", { name: "Custom command name" }).fill("Local");
+    await configurator.getByRole("textbox", { name: "Custom command handle" }).fill("claude");
+    await configurator.getByRole("textbox", { name: "Custom command executable and arguments" })
+      .fill(`/bin/sh -c 'touch "${markerPath}"'`);
+    await expect(configurator.getByTestId("workspace-settings-agents-config-custom-error"))
+      .toHaveText("@claude is already configured.");
+    await expect(configurator.getByTestId("workspace-settings-agents-config-confirm-custom")).toBeDisabled();
+    await configurator.getByRole("textbox", { name: "Custom command handle" }).fill("local");
+    await configurator.getByTestId("workspace-settings-agents-config-confirm-custom").click();
+    await expect(fixture.page.getByTestId("workspace-settings-status")).toHaveText("Settings saved.");
+    await expect.poll(async () => (await persistedSettings(fixture.settingsPath)).agentCommands)
+      .toEqual(expect.arrayContaining([expect.objectContaining({ id: "custom", handle: "local", label: "Local" })]));
+    await expect(access(markerPath)).rejects.toMatchObject({ code: "ENOENT" });
+
+    await configurator.getByTestId("workspace-settings-agents-config-remove-custom").click();
+    const confirmation = configurator.getByTestId("workspace-settings-agents-config-remove-confirmation-custom");
+    await expect(confirmation).toContainText("Invocation History stays available.");
+    expect(((await persistedSettings(fixture.settingsPath)).agentCommands as Array<{ id: string }>).some((entry) => entry.id === "custom"))
+      .toBe(true);
+    await configurator.getByTestId("workspace-settings-agents-config-confirm-remove-custom").click();
+    await expect(fixture.page.getByTestId("workspace-settings-status")).toHaveText("Settings saved.");
+    await expect.poll(async () => (await persistedSettings(fixture.settingsPath)).agentCommands)
+      .toEqual([
+        expect.objectContaining({ id: "claude" }),
+        expect.objectContaining({ id: "codex" }),
+      ]);
+    await expect(access(path.join(fixture.workspaceRoot, ".exo/invocations", historyId, "record.json"))).resolves.toBeUndefined();
+    await expect(access(markerPath)).rejects.toMatchObject({ code: "ENOENT" });
+
+    await expect.poll(() => fixture.page.evaluate((targetPath) =>
+      window.exo.workspace.listInvocationHistory(targetPath), notePath))
+      .toEqual([
+        expect.objectContaining({
+          invocationId: historyId,
+          command: { handle: "local", label: "Local" },
+          outcome: "failed",
+        }),
+      ]);
+    const removedError = await fixture.page.evaluate(async (targetPath) => {
+      try {
+        await window.exo.workspace.getAgentInvocationAuthorization({ handle: "local", documentPath: targetPath });
+        return null;
+      } catch (error) {
+        return error instanceof Error ? error.message : String(error);
+      }
+    }, notePath);
+    expect(removedError).toContain("No AgentCommand is configured for @local.");
+
+    await configurator.getByTestId("workspace-settings-agents-config-remove-codex").click();
+    await configurator.getByTestId("workspace-settings-agents-config-confirm-remove-codex").click();
+    await expect(configurator.getByTestId("workspace-settings-agents-config-add-codex")).toBeVisible();
+    await configurator.getByTestId("workspace-settings-agents-config-add-codex").click();
+    await expect(configurator.getByRole("textbox", { name: "Codex command" })).toHaveValue(/codex exec/);
   } finally {
     await fixture.cleanup();
   }

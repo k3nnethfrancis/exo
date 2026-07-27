@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./agent-command-configuration": "./src/agent-command-configuration.ts",
     "./agent-invocation-prompt": "./src/agent-invocation-prompt.ts",
     "./provider-session": "./src/provider-session.ts",
     "./default-agent-command": "./src/default-agent-command.ts",

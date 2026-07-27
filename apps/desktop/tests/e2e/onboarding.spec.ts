@@ -14,6 +14,7 @@ import { launchExoWorkspaceFixture, relaunchExoWorkspaceFixture } from "../helpe
 
 const customClaudeCommand = "/bin/echo claude-clean-state";
 const customCodexCommand = "/bin/echo codex-clean-state";
+const customLocalCommand = "/bin/echo local-clean-state";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 
 for (const activeFileState of ["missing", "invalid"] as const) {
@@ -340,6 +341,11 @@ test("persists an explicit Note Root and edited recommended Commands across rest
   expect((await claudeInput.boundingBox())?.width ?? 0).toBeGreaterThan(600);
   await claudeInput.fill(customClaudeCommand);
   await codexInput.fill(customCodexCommand);
+  await first.page.getByTestId("onboarding-agents-config-add-custom").click();
+  await first.page.getByRole("textbox", { name: "Custom command name" }).fill("Local");
+  await first.page.getByRole("textbox", { name: "Custom command handle" }).fill("local");
+  await first.page.getByRole("textbox", { name: "Custom command executable and arguments" }).fill(customLocalCommand);
+  await first.page.getByTestId("onboarding-agents-config-confirm-custom").click();
   await first.page.getByRole("button", { name: "Open Exo" }).click();
 
   await expect(first.page.getByTestId("sidebar")).toBeVisible();
@@ -350,7 +356,11 @@ test("persists an explicit Note Root and edited recommended Commands across rest
   });
   const firstSettings = JSON.parse(await readFile(first.settingsPath, "utf8")) as WorkspaceSettings;
   expect(firstSettings.noteRoots).toEqual([selectedNoteRoot]);
-  expect(firstSettings.agentCommands?.map((command) => command.command)).toEqual([customClaudeCommand, customCodexCommand]);
+  expect(firstSettings.agentCommands?.map((command) => command.command)).toEqual([
+    customClaudeCommand,
+    customCodexCommand,
+    customLocalCommand,
+  ]);
   await first.electronApp.close();
 
   const restarted = await relaunchExoWorkspaceFixture(first, {
@@ -364,12 +374,17 @@ test("persists an explicit Note Root and edited recommended Commands across rest
     .toMatchObject({
       settings: {
         noteRoots: [selectedNoteRoot],
-        agentCommands: [
-          expect.objectContaining({ handle: "claude", command: customClaudeCommand }),
-          expect.objectContaining({ handle: "codex", command: customCodexCommand }),
-        ],
-      },
-    });
+          agentCommands: [
+            expect.objectContaining({ handle: "claude", command: customClaudeCommand }),
+            expect.objectContaining({ handle: "codex", command: customCodexCommand }),
+            expect.objectContaining({ handle: "local", command: customLocalCommand }),
+          ],
+        },
+      });
+  await restarted.page.getByTestId("workspace-menu-toggle").click();
+  await restarted.page.getByTestId("workspace-menu-settings").click();
+  await restarted.page.getByTestId("workspace-settings-tab-agents").click();
+  await expect(restarted.page.getByTestId("workspace-settings-agents-config-command-custom")).toContainText("@local");
   await expect.poll(() => readCommandDiscovery(workspaceRuntimeRoot)).toMatchObject({
     port: expect.any(Number),
     token: expect.any(String),

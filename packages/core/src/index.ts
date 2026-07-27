@@ -15,6 +15,7 @@ export * from "./graph-projection";
 export * from "./graph-integrity";
 export * from "./workspace-graph";
 export * from "./agent-invocation";
+export * from "./agent-command-configuration";
 export * from "./provider-session";
 export * from "./document-agent-protocol";
 export * from "./agent-command-trust-store";

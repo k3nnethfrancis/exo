@@ -671,6 +671,33 @@ describe("index activity presentation", () => {
 });
 
 describe("workspace settings structural persistence", () => {
+  it("blocks malformed or colliding Command drafts before a Settings save", () => {
+    const claude = {
+      id: "claude",
+      label: "Claude",
+      handle: "claude",
+      command: "/bin/echo",
+      adapter: "generic" as const,
+      continuityPolicy: "fresh" as const,
+      cwdPolicy: "workspace_root" as const,
+      promptDelivery: "stdin" as const,
+      version: 1,
+      enabled: true,
+    };
+    const current = workspaceSettings();
+
+    expect(() => workspaceSettingsFromDialog(
+      workspaceSettingsDialogFixture({ agentCommands: [{ ...claude, command: "" }] }),
+      { includeStructural: false },
+      current,
+    )).toThrow("Command 1 is malformed");
+    expect(() => workspaceSettingsFromDialog(
+      workspaceSettingsDialogFixture({ agentCommands: [claude, { ...claude, id: "copy" }] }),
+      { includeStructural: false },
+      current,
+    )).toThrow("Command handle @claude is already configured");
+  });
+
   it("retains complete existing indexed roots while applying structural settings", () => {
     const root = {
       id: "research-docs",

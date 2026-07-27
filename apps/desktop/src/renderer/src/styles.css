@@ -2608,6 +2608,82 @@ select.dialog-card__input {
   gap: 10px;
 }
 
+.agent-command-configurator,
+.agent-command-group {
+  display: grid;
+  gap: 10px;
+}
+
+.agent-command-group + .agent-command-group {
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.agent-command-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agent-command-group__header > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.agent-command-group__header strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.agent-command-group__header span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-command-group__actions,
+.agent-command__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.agent-command__remove-confirmation {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--surface-border);
+}
+
+.agent-command__remove-confirmation > span {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-command-continuity-settings {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: 10px;
+}
+
+.agent-command-continuity-settings__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.agent-command-continuity-settings__row > :nth-child(2) {
+  margin-right: auto;
+}
+
 .agent-invocation-prompt {
   display: grid;
   gap: 8px;
@@ -2730,6 +2806,14 @@ select.dialog-card__input {
   color: var(--text);
   font-size: 13px;
   font-weight: 650;
+}
+
+.agent-command__header strong em {
+  margin-left: 7px;
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 550;
 }
 
 .agent-command__header span {

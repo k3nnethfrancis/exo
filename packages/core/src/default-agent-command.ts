@@ -1,4 +1,4 @@
-import type { AgentCommand } from "./agent-invocation";
+import type { AgentCommand } from "./agent-command-configuration";
 
 /** The built-in provider-neutral Command entry for a local Claude executable. */
 export function createDefaultClaudeAgentCommand(): AgentCommand {

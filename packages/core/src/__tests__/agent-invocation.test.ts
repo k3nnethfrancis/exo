@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  agentCommandConfigurationError,
   agentCommandExecutableFingerprint,
   createDefaultClaudeAgentCommand,
   createDefaultCodexAgentCommand,
@@ -183,6 +184,20 @@ describe("agent invocation model", () => {
       { ...createDefaultClaudeAgentCommand(), id: "claude-copy", command: "claude --dangerously-skip-permissions" },
       { ...createDefaultClaudeAgentCommand(), handle: "codex", command: "codex" },
     ])).toEqual([createDefaultClaudeAgentCommand()]);
+  });
+
+  it("validates complete Command configuration without silently dropping collisions", () => {
+    const claude = createDefaultClaudeAgentCommand();
+    expect(agentCommandConfigurationError([claude])).toBeNull();
+    expect(agentCommandConfigurationError([
+      claude,
+      { ...claude, id: "claude-copy", command: "claude --model opus" },
+    ])).toBe("Command handle @claude is already configured.");
+    expect(agentCommandConfigurationError([
+      claude,
+      { ...claude, handle: "other", command: "claude --model opus" },
+    ])).toBe('Command id "claude" is already configured.');
+    expect(agentCommandConfigurationError([{ ...claude, command: "" }])).toContain("Command 1 is malformed");
   });
 
   it("formats a note invocation with Exo workspace and referenced-note guidance", () => {

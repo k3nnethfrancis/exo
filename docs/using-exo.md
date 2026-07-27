@@ -54,7 +54,15 @@ The lower workspace menu also has the current keyboard and CLI reference.
 
 ## Ask an agent
 
-Configure local CLI commands in onboarding or **Settings → Agents**. In a Note, type `@`, select an enabled command, write the request inline, then press `⌘ Return` / `Ctrl Enter`. Exo asks for authorization when needed, runs the command headlessly, and shows changed files as a reviewable Changeset.
+Configure local CLI commands in onboarding or **Settings → Agents**. Claude and
+Codex begin as editable recommended templates; you can disable either, replace
+its executable and arguments, or add one provider-neutral Custom command with
+its own `@` handle. Removing a configuration requires confirmation and does not
+remove that command's existing Invocation History.
+
+In a Note, type `@`, select an enabled command, write the request inline, then
+press `⌘ Return` / `Ctrl Enter`. Exo asks for authorization when needed, runs
+the command headlessly, and shows changed files as a reviewable Changeset.
 
 The command is a native process with the permissions available to your local user account. Exo's review is authoritative only inside the workspace's Note Root. Saving or editing a Note never invokes a command automatically.
 

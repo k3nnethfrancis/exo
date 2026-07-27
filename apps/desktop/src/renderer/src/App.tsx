@@ -30,6 +30,7 @@ import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
 import { WorkspaceRuntimeApplyNotice } from "./components/WorkspaceRuntimeApplyNotice";
 import { AgentInvocationPromptEditor } from "./components/AgentInvocationPromptEditor";
+import { AgentCommandConfigurator } from "./components/AgentCommandConfigurator";
 import { AgentIcon } from "./components/AgentIcon";
 import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments, type OpenEditorDocument } from "./hooks/useOpenDocuments";
@@ -1164,56 +1165,17 @@ export function App() {
                 <p className="onboarding-card__copy">
                   Exo invokes agents through their installed local CLIs. These commands stay on this computer and can be edited later in Settings.
                 </p>
-                <div className="onboarding-agent-list">
-                  {onboardingState.agentCommands.map((command) => (
-                    <div className="onboarding-agent" key={command.id}>
-                      <label className="onboarding-agent__enabled">
-                        <input
-                        checked={command.enabled}
-                        type="checkbox"
-                        onChange={(event) => void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                          ...current,
-                          agentCommands: current.agentCommands.map((entry) => entry.id === command.id ? { ...entry, enabled: event.target.checked } : entry),
-                        }))}
-                        />
-                        <span className="sr-only">Enable {command.label}</span>
-                      </label>
-                      <span className="onboarding-agent__copy">
-                        <strong>{command.label} <em>Recommended</em></strong>
-                        <span>@{command.handle}</span>
-                        <input
-                          aria-label={`${command.label} command`}
-                          className="onboarding-agent__command"
-                          spellCheck={false}
-                          type="text"
-                          value={command.command}
-                          onBlur={() => void workspaceBootstrap.persistCurrentOnboardingState()}
-                          onChange={(event) => setOnboardingState((current) => current ? {
-                            ...current,
-                            agentCommands: current.agentCommands.map((entry) => entry.id === command.id ? { ...entry, command: event.target.value } : entry),
-                          } : current)}
-                        />
-                        {command.adapter === "claude-code" ? (
-                          <label className="dialog-check dialog-check--inline">
-                            <input
-                              checked={command.continuityPolicy === "continuous"}
-                              type="checkbox"
-                              onChange={(event) => void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                                ...current,
-                                agentCommands: current.agentCommands.map((entry) => entry.id === command.id
-                                  ? { ...entry, continuityPolicy: event.target.checked ? "continuous" : "fresh" }
-                                  : entry),
-                              }))}
-                            />
-                            <span>Keep context</span>
-                          </label>
-                        ) : (
-                          <span className="onboarding-agent__continuity-unavailable">Context unavailable</span>
-                        )}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+                <AgentCommandConfigurator
+                  commands={onboardingState.agentCommands}
+                  onChange={(agentCommands, change) => {
+                    if (change === "confirm") {
+                      void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, agentCommands }));
+                      return;
+                    }
+                    setOnboardingState((current) => current ? { ...current, agentCommands } : current);
+                  }}
+                  testId="onboarding-agents-config"
+                />
                 <div className="onboarding-section onboarding-section--summary">
                   <div className="dialog-field__label">How invocations run</div>
                   <div className="onboarding-section__hint">Messages are sent headlessly from the main wiki. Exo shows any document changes for review; it never grants a provider broader file access itself.</div>

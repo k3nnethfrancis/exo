@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { AgentCommandTrustStore, agentCommandExecutableFingerprint, createDefaultClaudeAgentCommand, formatDocumentAgentInvocation, formatDocumentAgentResponse, InvocationContinuityStore, InvocationStore, removeDocumentAgentInvocation, type WorkspaceSettings } from "@exo/core";
+import { AgentCommandTrustStore, agentCommandExecutableFingerprint, agentCommandSnapshot, createDefaultClaudeAgentCommand, formatDocumentAgentInvocation, formatDocumentAgentResponse, InvocationContinuityStore, InvocationStore, removeDocumentAgentInvocation, type WorkspaceSettings } from "@exo/core";
 
 import type { TerminalManager } from "../terminal/terminal-manager";
 import { commandForClaudeResume, commandForHeadlessInvocation, extractClaudeSessionId, InvocationRunner, InvocationRunnerError } from "./invocation-runner";
@@ -39,6 +39,61 @@ describe("InvocationRunner readiness parity", () => {
     await expect(runner.prepare({ context: "cli", handle: "claude", message: "test" })).rejects.toMatchObject({
       code: "disabled",
     } satisfies Partial<InvocationRunnerError>);
+  });
+
+  it("keeps historical snapshots readable after removal and rejects the removed handle for new work", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-removed-command-"));
+    temporaryRoots.push(root);
+    const notePath = path.join(root, "history.md");
+    await writeFile(notePath, "# History\n", "utf8");
+    const command = {
+      ...createDefaultClaudeAgentCommand(),
+      id: "custom",
+      label: "Local",
+      handle: "local",
+      command: "/bin/echo",
+      adapter: "generic" as const,
+      continuityPolicy: "fresh" as const,
+    };
+    let activeSettings = settings(root, command);
+    const runner = new InvocationRunner({
+      getWorkspaceSettings: () => activeSettings,
+      trustStateRoot: root,
+      terminalManager: new FakeTerminalManager() as unknown as TerminalManager,
+      workspaceWatcherService: { subscribe: () => () => undefined } as unknown as WorkspaceWatcherService,
+    });
+    await new InvocationStore(root).writeRecord({
+      id: "historical-local",
+      workspaceRoot: root,
+      noteRoots: [root],
+      status: "failed",
+      context: "note",
+      taggedDocumentPath: notePath,
+      originalMentionText: "@local",
+      mentionProvenance: "human-authored",
+      message: "Historical request",
+      promptDelivery: "stdin",
+      command: agentCommandSnapshot(command),
+      cwd: root,
+      createdAt: "2026-07-26T00:00:00.000Z",
+      endedAt: "2026-07-26T00:00:01.000Z",
+      failureReason: "Fixture failure.",
+      continuity: { policy: "fresh", outcome: "fresh" },
+    });
+
+    activeSettings = { ...activeSettings, agentCommands: [] };
+
+    await expect(runner.listHistoryForNote(notePath)).resolves.toEqual([
+      expect.objectContaining({
+        invocationId: "historical-local",
+        command: { handle: "local", label: "Local" },
+        outcome: "failed",
+      }),
+    ]);
+    await expect(runner.prepare({ context: "cli", handle: "local", message: "new work" })).rejects.toMatchObject({
+      code: "not-found",
+      message: "No AgentCommand is configured for @local.",
+    });
   });
 
   it("uses the same facts and cwd as prepare", async () => {

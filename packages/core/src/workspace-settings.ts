@@ -5,7 +5,11 @@ import os from "node:os";
 import path from "node:path";
 
 import type { IndexMode, WorkspaceCanvasLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
-import { normalizeAgentCommand, normalizeAgentCommands, normalizeAgentInvocationPrompt } from "./agent-invocation";
+import {
+  agentCommandConfigurationError,
+  normalizeAgentCommands,
+  normalizeAgentInvocationPrompt,
+} from "./agent-invocation";
 import { isPathWithinRoot } from "./path-containment";
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
 import { normalizeWorkspaceContentPolicy } from "./workspace-content-policy";
@@ -108,6 +112,7 @@ export function workspaceSettingsRevision(settings: WorkspaceSettings | null): W
 
 export async function saveWorkspaceSettings(settings: WorkspaceSettings, env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceSettings> {
   await recoverWorkspaceSettingsTransaction(env);
+  assertSupportedWorkspaceSettings(settings);
   const normalized = normalizeWorkspaceSettings(settings);
   if (!normalized) {
     throw new Error("Workspace settings are incomplete.");
@@ -449,11 +454,9 @@ function unsupportedWorkspaceSettingsReason(input: unknown): string | null {
   if (Array.isArray(candidate.noteRoots) && candidate.noteRoots.length > 1) {
     return "multiple noteRoots";
   }
-  if (
-    Array.isArray(candidate.agentCommands)
-    && candidate.agentCommands.some((command, index) => !normalizeAgentCommand(command, `agent-command-${index + 1}`))
-  ) {
-    return "unsupported agentCommands";
+  if (Object.hasOwn(candidate, "agentCommands")) {
+    const commandError = agentCommandConfigurationError(candidate.agentCommands);
+    if (commandError) return `unsupported agentCommands: ${commandError}`;
   }
   const layout = candidate.layout;
   if (layout && typeof layout === "object" && !Array.isArray(layout)) {

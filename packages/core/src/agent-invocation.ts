@@ -1,44 +1,41 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
 import { formatDocumentAgentResponse, isDocumentAgentProtocolId } from "./document-agent-protocol";
 import { normalizeInvocationChangeset, type InvocationChangeset } from "./invocation-changeset";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "./agent-invocation-prompt";
+import {
+  normalizeAgentCommand,
+  type AgentCommand,
+  type AgentCommandAdapter,
+  type AgentCommandCwdPolicy,
+  type AgentCommandPromptDelivery,
+  type InvocationContinuityPolicy,
+} from "./agent-command-configuration";
 export { DEFAULT_AGENT_INVOCATION_PROMPT } from "./agent-invocation-prompt";
 export { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "./default-agent-command";
-
-const AGENT_COMMAND_PROMPT_DELIVERIES = ["stdin"] as const;
-export const DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY: AgentCommandPromptDelivery = "stdin";
-const AGENT_COMMAND_CWD_POLICIES = ["workspace_root", "note_dir", "fixed"] as const;
-const AGENT_COMMAND_ADAPTERS = ["generic", "claude-code", "codex-cli"] as const;
-const AGENT_COMMAND_UNSUPPORTED_V1_FIELDS = ["env", "template", "promptTemplate"] as const;
+export {
+  agentCommandConfigurationError,
+  DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY,
+  normalizeAgentCommand,
+  normalizeAgentCommands,
+  normalizeAgentHandle,
+} from "./agent-command-configuration";
+export type {
+  AgentCommand,
+  AgentCommandAdapter,
+  AgentCommandCwdPolicy,
+  AgentCommandPromptDelivery,
+  InvocationContinuityPolicy,
+} from "./agent-command-configuration";
 export const NOTE_INVOCATION_SNAPSHOT_MAX_CHARACTERS = 24_000;
 const AGENT_INVOCATION_PROMPT_MAX_CHARACTERS = 40_000;
 
-export type AgentCommandPromptDelivery = (typeof AGENT_COMMAND_PROMPT_DELIVERIES)[number];
-export type AgentCommandCwdPolicy = (typeof AGENT_COMMAND_CWD_POLICIES)[number];
-export type AgentCommandAdapter = (typeof AGENT_COMMAND_ADAPTERS)[number];
-export type InvocationContinuityPolicy = "continuous" | "fresh";
 export type InvocationContinuityOutcome = "fresh" | "resumed" | "resume-failed" | "resume-failed-fresh";
 export type InvocationAuthorizationDecision =
   | { kind: "trusted" }
   | { kind: "run-once" }
   | { kind: "always-allow" };
-
-export interface AgentCommand {
-  id: string;
-  label: string;
-  handle: string;
-  command: string;
-  adapter: AgentCommandAdapter;
-  continuityPolicy: InvocationContinuityPolicy;
-  cwdPolicy: AgentCommandCwdPolicy;
-  fixedCwd?: string;
-  promptDelivery: AgentCommandPromptDelivery;
-  version: number;
-  enabled: boolean;
-}
 
 export type AgentCommandLaunchContext =
   | { kind: "cli"; workspaceRoot: string }
@@ -127,78 +124,6 @@ export interface InvocationRecord {
   skill?: InvocationSkillContext;
   /** Exact multi-file proposal derived from immutable launch/settled manifests. */
   changeset?: InvocationChangeset;
-}
-
-const AGENT_HANDLE_PATTERN = /^[a-z][a-z0-9_-]{1,31}$/;
-
-export function normalizeAgentHandle(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim().replace(/^@/, "").toLowerCase();
-  return AGENT_HANDLE_PATTERN.test(trimmed) ? trimmed : null;
-}
-
-export function normalizeAgentCommand(input: unknown, fallbackId?: string): AgentCommand | null {
-  if (!input || typeof input !== "object") {
-    return null;
-  }
-
-  const candidate = input as Partial<AgentCommand>;
-  if (hasUnsupportedAgentCommandV1Fields(candidate) || isUnsupportedPrelaunchAgentCommand(candidate)) {
-    return null;
-  }
-  const handle = normalizeAgentHandle(candidate.handle);
-  const command = normalizeAgentCommandString(candidate.command);
-  if (!handle || !command) {
-    return null;
-  }
-
-  const id = normalizeAgentCommandId(candidate.id, fallbackId ?? handle);
-  const label = normalizeRequiredString(candidate.label) ?? `@${handle}`;
-  const cwdPolicy = normalizeAgentCommandCwdPolicy(candidate.cwdPolicy);
-  const fixedCwd = cwdPolicy === "fixed" ? normalizeRequiredString(candidate.fixedCwd) : undefined;
-  if (cwdPolicy === "fixed" && !fixedCwd) {
-    return null;
-  }
-  const promptDelivery = normalizeConfiguredAgentCommandPromptDelivery(candidate.promptDelivery);
-  if (!promptDelivery) {
-    return null;
-  }
-
-  const adapter = normalizeAgentCommandAdapter(candidate.adapter, { ...candidate, command });
-  return {
-    id,
-    label,
-    handle,
-    command,
-    adapter,
-    continuityPolicy: normalizeCommandContinuityPolicy(candidate.continuityPolicy, adapter, candidate, command),
-    cwdPolicy,
-    ...(fixedCwd ? { fixedCwd } : {}),
-    promptDelivery,
-    version: normalizeAgentCommandVersion(candidate.version),
-    enabled: typeof candidate.enabled === "boolean" ? candidate.enabled : true,
-  };
-}
-
-export function normalizeAgentCommands(input: unknown): AgentCommand[] {
-  if (!Array.isArray(input)) {
-    return [];
-  }
-
-  const seenIds = new Set<string>();
-  const seenHandles = new Set<string>();
-  return input.reduce<AgentCommand[]>((commands, entry, index) => {
-    const command = normalizeAgentCommand(entry, `agent-command-${index + 1}`);
-    if (!command || seenIds.has(command.id) || seenHandles.has(command.handle)) {
-      return commands;
-    }
-    seenIds.add(command.id);
-    seenHandles.add(command.handle);
-    commands.push(command);
-    return commands;
-  }, []);
 }
 
 export function agentCommandSnapshot(command: AgentCommand): AgentCommandSnapshot {
@@ -558,83 +483,6 @@ function optionalProviderSessionId(value: unknown): { providerSessionId?: string
     : {};
 }
 
-function hasUnsupportedAgentCommandV1Fields(candidate: Record<string, unknown>): boolean {
-  return AGENT_COMMAND_UNSUPPORTED_V1_FIELDS.some((field) => field in candidate);
-}
-
-function normalizeAgentCommandId(value: unknown, fallback: string): string {
-  const trimmed = normalizeRequiredString(value) ?? fallback;
-  const normalized = trimmed.replace(/[^A-Za-z0-9_.-]/g, "-").replace(/^\.+$/, "-");
-  return normalized || fallback;
-}
-
-function isUnsupportedPrelaunchAgentCommand(candidate: Partial<AgentCommand>): boolean {
-  const isBuiltInIdentity = candidate.id === "claude" && candidate.handle === "claude" && candidate.label === "Claude";
-  const promptDelivery = (candidate as { promptDelivery?: unknown }).promptDelivery;
-  return promptDelivery === "terminalInputAfterLaunch"
-    || promptDelivery === "auto"
-    || promptDelivery === "argv"
-    || (isBuiltInIdentity && (
-      candidate.command === "claude"
-      || candidate.command === "claude -p"
-      || candidate.command === "claude -p --permission-mode acceptEdits"
-    ));
-}
-
-function normalizeAgentCommandAdapter(
-  value: unknown,
-  candidate: Partial<AgentCommand> & { command: string },
-): AgentCommandAdapter {
-  if (value === "claude-code" || value === "codex-cli" || value === "generic") {
-    return value;
-  }
-  const builtInIdentity = candidate.id === candidate.handle && candidate.label === capitalizeBuiltInLabel(candidate.handle);
-  if (builtInIdentity && candidate.handle === "claude" && candidate.command === createDefaultClaudeAgentCommand().command) {
-    return "claude-code";
-  }
-  if (builtInIdentity && candidate.handle === "codex" && candidate.command === createDefaultCodexAgentCommand().command) {
-    return "codex-cli";
-  }
-  return "generic";
-}
-
-function normalizeCommandContinuityPolicy(
-  value: unknown,
-  adapter: AgentCommandAdapter,
-  candidate: Partial<AgentCommand>,
-  command: string,
-): InvocationContinuityPolicy {
-  if (adapter !== "claude-code") {
-    return "fresh";
-  }
-  if (value === "continuous" || value === "fresh") {
-    return value;
-  }
-  const exactBuiltIn = candidate.id === candidate.handle &&
-    candidate.label === capitalizeBuiltInLabel(candidate.handle) &&
-    command === createDefaultClaudeAgentCommand().command;
-  return exactBuiltIn ? "continuous" : "fresh";
-}
-
-function capitalizeBuiltInLabel(handle: unknown): string | null {
-  return handle === "claude" ? "Claude" : handle === "codex" ? "Codex" : null;
-}
-
-function normalizeAgentCommandCwdPolicy(value: unknown): AgentCommandCwdPolicy {
-  return value === "note_dir" || value === "fixed" ? value : "workspace_root";
-}
-
-function normalizeConfiguredAgentCommandPromptDelivery(value: unknown): AgentCommandPromptDelivery | null {
-  return value === "stdin" || value === undefined
-    ? DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY
-    : null;
-}
-
-function normalizeAgentCommandVersion(value: unknown): number {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) ? Math.max(1, Math.floor(parsed)) : 1;
-}
-
 function normalizeInvocationStatus(value: unknown): InvocationStatus {
   if (value === "exited" || value === "process-exited") {
     return "process-exited";
@@ -668,9 +516,4 @@ function optionalIntegerField<Key extends string>(key: Key, value: unknown): { [
 
 function normalizeRequiredString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function normalizeAgentCommandString(value: unknown): string | null {
-  const normalized = normalizeRequiredString(value);
-  return normalized && !/[\r\n]/.test(normalized) ? normalized : null;
 }

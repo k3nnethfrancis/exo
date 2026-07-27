@@ -32,6 +32,9 @@ is installed and reachable by the desktop app. Exo asks for explicit trust when
 the executable or its fingerprint changes. It can review changes inside the
 workspace's Note Root, but it does not sandbox the native command.
 
+If a command was removed, its old History entries remain readable but new
+`@handle` requests are rejected until that handle is configured again.
+
 Inline requests run headlessly and must produce a linked response envelope or a
 reviewable file change. When a provider returns a resumable session, Exo exposes
 the terminal handoff after the run settles. Read [Agent invocations](document-agent-protocol.md)

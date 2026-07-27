@@ -436,6 +436,22 @@ describe("workspace settings registry", () => {
     }
   });
 
+  it("rejects duplicate or malformed Command configuration instead of dropping entries", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-command-validation-"));
+    const command = createDefaultClaudeAgentCommand();
+    const base = workspaceSettingsFor("/tmp/exo-command-validation/notes");
+
+    await expect(saveWorkspaceSettings({
+      ...base,
+      agentCommands: [command, { ...command, id: "claude-copy" }],
+    }, { EXO_USER_DATA_PATH: userDataPath })).rejects.toThrow("Command handle @claude is already configured");
+    await expect(saveWorkspaceSettings({
+      ...base,
+      agentCommands: [{ ...command, command: "" }],
+    }, { EXO_USER_DATA_PATH: userDataPath })).rejects.toThrow("Command 1 is malformed");
+    await rm(userDataPath, { recursive: true, force: true });
+  });
+
   it("preserves configured and future settings across load, edit, save, and reload", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-lossless-settings-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };

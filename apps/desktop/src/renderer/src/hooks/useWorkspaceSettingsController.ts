@@ -4,6 +4,7 @@ import type {
   WorkspaceSettings,
   WorkspaceSettingsRevision,
 } from "@exo/core";
+import { agentCommandConfigurationError } from "@exo/core/agent-command-configuration";
 import type { IndexSyncStateEvent, WorkspaceSettingsSaveOutcome } from "../../../shared/api";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
 import { normalizeWorkspaceContentPolicy } from "@exo/core/workspace-content-policy";
@@ -448,6 +449,10 @@ export function workspaceSettingsFromDialog(
 ): WorkspaceSettings {
   if (!currentSettings) {
     throw new Error("Workspace settings are unavailable. Close Settings and try again.");
+  }
+  const commandError = agentCommandConfigurationError(settingsDialog.agentCommands);
+  if (commandError) {
+    throw new Error(commandError);
   }
 
   const structuralSettings = {

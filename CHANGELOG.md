@@ -50,6 +50,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Renders contained Markdown image attachments in the live editor while preserving raw source editing at the caret.
 - Adds reviewable inline Command outcomes: exact tagged-note patch, Keep/Reject with dirty-buffer and disk-drift protection, and Claude **Resume in Shell** when the command returned a real session id.
 - Adds an **Agents** section to Workspace Settings for configuring the commands behind `@` mentions.
+- Unifies onboarding and Settings around an explicit configured-Command lifecycle: editable Claude/Codex recommendations, one Custom command, confirmed removal, and retained Invocation History.
 - Adds one shared right-side utility destination with mutually exclusive Preview, Terminal, and Connections views.
 - Adds centered workspace search with an anchored result popover, typed titlebar breadcrumbs, and explicit Folder Index creation/maintenance.
 - Adds a version-three mixed-pane layout format. Existing terminal and preview tabs can move into a canvas split while retaining their live session/tab identity.
