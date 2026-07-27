@@ -1,11 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { createWorkspaceFile, listRootTree, renameWorkspacePath, resolveNotePath, resolveWorkspaceModel, searchNotes, searchWorkspace } from "../workspace";
+import { createWorkspaceFile, listMarkdownFiles, listRootTree, renameWorkspacePath, resolveNotePath, resolveWorkspaceModel, searchNotes, searchWorkspace } from "../workspace";
 import { repositoryWorkspaceContentPolicy } from "../workspace-content-policy";
 
 const fixtureWorkspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../fixtures/test-workspace");
@@ -113,6 +113,34 @@ describe("workspace", () => {
       ]);
     } finally {
       await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("never follows nested Markdown symlinks outside a Note Root", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-note-search-symlink-"));
+    const outside = await mkdtemp(path.join(os.tmpdir(), "exo-note-search-outside-"));
+    try {
+      const notesRoot = path.join(root, "notes");
+      const escapedNote = path.join(outside, "outside.md");
+      await mkdir(notesRoot, { recursive: true });
+      await writeFile(path.join(notesRoot, "inside.md"), "# Inside\ninside needle\n", "utf8");
+      await writeFile(escapedNote, "# Outside\nTOP_SECRET_NEEDLE\n#private\n", "utf8");
+      await symlink(escapedNote, path.join(notesRoot, "outside-link.md"));
+
+      const workspace = resolveWorkspaceModel({
+        EXO_WORKSPACE_ROOT: root,
+        EXO_NOTE_ROOTS: notesRoot,
+      });
+
+      await expect(searchNotes(workspace, "TOP_SECRET_NEEDLE")).resolves.toEqual([]);
+      await expect(searchWorkspace(workspace, "private")).resolves.toEqual({ notes: [], tags: [] });
+      await expect(listMarkdownFiles([notesRoot])).resolves.toEqual([path.join(notesRoot, "inside.md")]);
+      await expect(listRootTree(notesRoot, { markdownOnly: true })).resolves.toEqual([
+        expect.objectContaining({ name: "inside.md", kind: "file" }),
+      ]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
     }
   });
 

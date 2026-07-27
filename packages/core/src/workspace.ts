@@ -180,6 +180,10 @@ async function listTreeRecursive(rootPath: string, options: ListRootTreeOptions,
 
       return !markdownOnly && entry.isFile() && entry.name !== ".DS_Store";
     })
+    // Nested links can silently retarget a Note Root at content outside the
+    // user's configured filesystem authority. Note-root aliases are resolved
+    // during setup; content enumeration never follows nested symlinks.
+    .filter((entry) => !entry.isSymbolicLink())
     .filter((entry) => entry.name !== "node_modules" && entry.name !== ".git")
     .filter((entry) => !isWorkspaceContentExcluded(path.relative(noteRootPath, path.join(rootPath, entry.name)), contentPolicyFromOptions(options)))
     .sort((left, right) => {
@@ -398,6 +402,7 @@ async function collectFiles(rootPath: string, markdownOnly = false, contentRootP
   const files = await Promise.all(
     entries
       .filter((entry) => !entry.name.startsWith("."))
+      .filter((entry) => !entry.isSymbolicLink())
       .filter((entry) => entry.name !== "node_modules" && entry.name !== ".git")
       .filter((entry) => !isWorkspaceContentExcluded(path.relative(contentRootPath, path.join(rootPath, entry.name)), policy))
       .map(async (entry) => {
@@ -466,6 +471,11 @@ async function findMatchingFiles(
         return;
       }
       if (entry.name.startsWith(".")) {
+        continue;
+      }
+      // Do not let filesystem search read through a nested link that points
+      // beyond the configured Note Root.
+      if (entry.isSymbolicLink()) {
         continue;
       }
       if (entry.isDirectory() && IGNORED_DIRECTORY_NAMES.has(entry.name)) {
