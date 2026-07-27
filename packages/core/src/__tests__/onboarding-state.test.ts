@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -14,6 +14,7 @@ import {
   validateOnboardingStateStore,
   writeOnboardingStateStore,
   type OnboardingProgressDraft,
+  type OnboardingStateStore,
 } from "../onboarding-state";
 
 const temporaryRoots: string[] = [];
@@ -50,6 +51,123 @@ describe("onboarding state", () => {
     })).toThrow("contentPolicy");
     expect(() => validateOnboardingProgressDraft({ ...draft(), agentCommands: [{ id: "broken" }] })).toThrow("agentCommands");
     expect(() => validateOnboardingProgressDraft({ ...draft(), selectedMcpProviders: ["claude", "other"] })).toThrow("selectedMcpProviders");
+  });
+
+  it("rejects non-canonical Commands and a second Custom Command in explicit drafts", () => {
+    const claude = createDefaultClaudeAgentCommand();
+    for (const nonCanonical of [
+      { ...claude, id: "???" },
+      { ...claude, handle: "@CLAUDE" },
+      { ...claude, adapter: "unknown" },
+      { ...claude, cwdPolicy: "unknown" },
+      { ...claude, version: "one" },
+      { ...claude, enabled: "yes" },
+    ]) {
+      expect(() => validateOnboardingProgressDraft({
+        ...draft(),
+        agentCommands: [nonCanonical],
+      })).toThrow("non-canonical");
+    }
+
+    const custom = {
+      ...createDefaultCodexAgentCommand(),
+      id: "custom",
+      label: "Local",
+      handle: "local",
+      command: "/bin/echo local",
+      adapter: "generic" as const,
+    };
+    expect(() => validateOnboardingProgressDraft({
+      ...draft(),
+      agentCommands: [
+        createDefaultClaudeAgentCommand(),
+        createDefaultCodexAgentCommand(),
+        custom,
+        { ...custom, id: "other", label: "Other", handle: "other" },
+      ],
+    })).toThrow("Only one Custom command can be configured");
+  });
+
+  it("does not write invalid explicit draft progress", async () => {
+    const root = await temporaryRoot();
+    const custom = {
+      ...createDefaultCodexAgentCommand(),
+      id: "custom",
+      label: "Local",
+      handle: "local",
+      command: "/bin/echo local",
+      adapter: "generic" as const,
+    };
+    const invalidDrafts = [
+      {
+        draft: {
+          ...draft(),
+          agentCommands: [{ ...createDefaultClaudeAgentCommand(), handle: "@CLAUDE" }],
+        },
+        error: "non-canonical handle",
+      },
+      {
+        draft: {
+          ...draft(),
+          agentCommands: [
+            custom,
+            { ...custom, id: "other", label: "Other", handle: "other" },
+          ],
+        },
+        error: "Only one Custom command can be configured",
+      },
+    ];
+
+    for (const invalid of invalidDrafts) {
+      await expect(writeOnboardingStateStore(root, {
+        version: 1,
+        status: "in-progress",
+        phase: "workspace",
+        workspaceBasicsSaved: false,
+        draft: invalid.draft,
+      } as OnboardingStateStore)).rejects.toThrow(invalid.error);
+      await expect(access(onboardingStatePath(root))).rejects.toMatchObject({ code: "ENOENT" });
+      expect(await readdir(root)).toEqual([]);
+    }
+  });
+
+  it("keeps legacy startup reads tolerant of canonicalizable Command fields", async () => {
+    const root = await temporaryRoot();
+    const legacyDraft = {
+      ...draft(),
+      agentCommands: [{
+        ...createDefaultClaudeAgentCommand(),
+        id: "???",
+        handle: "@CLAUDE",
+        adapter: "unknown",
+        cwdPolicy: "unknown",
+        version: "one",
+        enabled: "yes",
+      }],
+    };
+    await writeFile(onboardingStatePath(root), JSON.stringify({
+      version: 1,
+      status: "in-progress",
+      phase: "workspace",
+      workspaceBasicsSaved: false,
+      draft: legacyDraft,
+    }), "utf8");
+
+    await expect(readOnboardingStateStore(root)).resolves.toMatchObject({
+      kind: "valid",
+      state: {
+        draft: {
+          agentCommands: [{
+            id: "---",
+            handle: "claude",
+            adapter: "generic",
+            cwdPolicy: "workspace_root",
+            version: 1,
+            enabled: true,
+          }],
+        },
+      },
+    });
   });
 
   it("requires a draft for explicit in-progress state and removes it on completion", () => {

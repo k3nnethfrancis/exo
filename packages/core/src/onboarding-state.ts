@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import { chmod, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { normalizeAgentCommands, normalizeAgentInvocationPrompt, type AgentCommand } from "./agent-invocation";
+import {
+  agentCommandConfigurationError,
+  normalizeAgentCommands,
+  normalizeAgentInvocationPrompt,
+  type AgentCommand,
+} from "./agent-invocation";
 import type { IndexMode, IndexUpdateStrategy, SearchEngine } from "./types";
 import { normalizeWorkspaceContentPolicy, type WorkspaceContentPolicy } from "./workspace-content-policy";
 
@@ -64,7 +69,10 @@ export function emptyOnboardingStateStore(): OnboardingStateStore {
 export async function readOnboardingStateStore(userDataPath: string): Promise<OnboardingStateReadResult> {
   try {
     const raw = await readFile(onboardingStatePath(userDataPath), "utf8");
-    return { kind: "valid", state: validateOnboardingStateStore(JSON.parse(raw)) };
+    return {
+      kind: "valid",
+      state: validateOnboardingStateStore(JSON.parse(raw), { strictAgentCommands: false }),
+    };
   } catch (error) {
     if (isMissingFileError(error)) {
       return { kind: "missing", state: emptyOnboardingStateStore() };
@@ -141,7 +149,10 @@ export function markOnboardingComplete(store: OnboardingStateStore, now?: Onboar
   });
 }
 
-export function validateOnboardingStateStore(input: unknown): OnboardingStateStore {
+export function validateOnboardingStateStore(
+  input: unknown,
+  options: { strictAgentCommands?: boolean } = {},
+): OnboardingStateStore {
   if (!isRecord(input) || input.version !== 1) {
     throw new Error("Onboarding state store must be a version 1 object.");
   }
@@ -189,12 +200,15 @@ export function validateOnboardingStateStore(input: unknown): OnboardingStateSto
     status,
     phase,
     workspaceBasicsSaved,
-    draft: validateOnboardingProgressDraft(input.draft),
+    draft: validateOnboardingProgressDraft(input.draft, options),
     updatedAt: optionalIsoString(input, "updatedAt"),
   };
 }
 
-export function validateOnboardingProgressDraft(input: unknown): OnboardingProgressDraft {
+export function validateOnboardingProgressDraft(
+  input: unknown,
+  options: { strictAgentCommands?: boolean } = {},
+): OnboardingProgressDraft {
   if (!isRecord(input) || input.version !== 1) {
     throw new Error("Onboarding progress draft must be a version 1 object.");
   }
@@ -204,6 +218,12 @@ export function validateOnboardingProgressDraft(input: unknown): OnboardingProgr
   const contentPolicy = validateContentPolicy(input.contentPolicy);
   const contentPolicyChoice = requiredUnion(input, "contentPolicyChoice", ["recommended", "explicit"]);
   const search = validateSearchSettings(input.search);
+  if (options.strictAgentCommands !== false) {
+    const commandError = agentCommandConfigurationError(input.agentCommands);
+    if (commandError) {
+      throw new Error(`Onboarding progress field agentCommands is invalid: ${commandError}`);
+    }
+  }
   const agentCommands = normalizeAgentCommands(input.agentCommands);
   if (!Array.isArray(input.agentCommands) || agentCommands.length !== input.agentCommands.length) {
     throw new Error("Onboarding progress field agentCommands contains an invalid or duplicate Command.");
