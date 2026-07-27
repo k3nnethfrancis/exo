@@ -19,7 +19,7 @@ Builds Exo and installs the packaged macOS app bundle.
 Options:
   --app-dir <path>      Install Exo.app into this directory. Default: ~/Applications
   --system-app-dir      Install into /Applications.
-  --skip-build          Reuse the existing release/mac-*/Exo.app bundle.
+  --skip-build          Reuse existing app and, with --with-cli, CLI build artifacts.
   --with-cli            Also install the repo-backed exo CLI shim.
   --dry-run             Print actions without changing files.
   -h, --help            Show this help.

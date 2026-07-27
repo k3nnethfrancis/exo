@@ -17,6 +17,11 @@ From an Exo checkout:
 
 This builds Exo and installs a repo-backed `exo` launcher in `~/.local/bin` by default. `./scripts/install-mac-app --with-cli` installs the unsigned app and the same local launcher together.
 
+When using `--skip-build`, the CLI installer requires an existing non-empty
+`packages/cli/dist/index.cjs` build artifact. Build the CLI first with
+`pnpm --filter @exo/cli build`, or omit `--skip-build`; the installer refuses
+to replace an existing `exo` command when that artifact is missing or empty.
+
 ## Commands
 
 ```text
