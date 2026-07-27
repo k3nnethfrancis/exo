@@ -7,6 +7,7 @@ import path from "node:path";
 import type { IndexMode, WorkspaceCanvasLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
 import {
   agentCommandConfigurationError,
+  normalizeAgentCommand,
   normalizeAgentCommands,
   normalizeAgentInvocationPrompt,
 } from "./agent-invocation";
@@ -112,7 +113,7 @@ export function workspaceSettingsRevision(settings: WorkspaceSettings | null): W
 
 export async function saveWorkspaceSettings(settings: WorkspaceSettings, env: NodeJS.ProcessEnv = process.env): Promise<WorkspaceSettings> {
   await recoverWorkspaceSettingsTransaction(env);
-  assertSupportedWorkspaceSettings(settings);
+  assertSupportedWorkspaceSettings(settings, { strictAgentCommands: true });
   const normalized = normalizeWorkspaceSettings(settings);
   if (!normalized) {
     throw new Error("Workspace settings are incomplete.");
@@ -435,14 +436,20 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
   };
 }
 
-function assertSupportedWorkspaceSettings(input: unknown): void {
-  const reason = unsupportedWorkspaceSettingsReason(input);
+function assertSupportedWorkspaceSettings(
+  input: unknown,
+  options: { strictAgentCommands?: boolean } = {},
+): void {
+  const reason = unsupportedWorkspaceSettingsReason(input, options);
   if (reason) {
     throw new Error(`Workspace settings use an unsupported pre-launch format (${reason}).`);
   }
 }
 
-function unsupportedWorkspaceSettingsReason(input: unknown): string | null {
+function unsupportedWorkspaceSettingsReason(
+  input: unknown,
+  options: { strictAgentCommands?: boolean } = {},
+): string | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return null;
   }
@@ -455,8 +462,15 @@ function unsupportedWorkspaceSettingsReason(input: unknown): string | null {
     return "multiple noteRoots";
   }
   if (Object.hasOwn(candidate, "agentCommands")) {
-    const commandError = agentCommandConfigurationError(candidate.agentCommands);
-    if (commandError) return `unsupported agentCommands: ${commandError}`;
+    if (options.strictAgentCommands) {
+      const commandError = agentCommandConfigurationError(candidate.agentCommands);
+      if (commandError) return `unsupported agentCommands: ${commandError}`;
+    } else if (
+      Array.isArray(candidate.agentCommands)
+      && candidate.agentCommands.some((command, index) => !normalizeAgentCommand(command, `agent-command-${index + 1}`))
+    ) {
+      return "unsupported agentCommands";
+    }
   }
   const layout = candidate.layout;
   if (layout && typeof layout === "object" && !Array.isArray(layout)) {

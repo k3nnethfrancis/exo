@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { createDefaultClaudeAgentCommand } from "../agent-invocation";
+import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "../agent-invocation";
 import type { WorkspaceSettings } from "../types";
 import {
   loadWorkspaceSettings,
@@ -385,12 +385,12 @@ describe("workspace settings registry", () => {
     }
   });
 
-  it("normalizes and persists configured agent commands", async () => {
+  it("normalizes legacy configured agent commands while reading persisted settings", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-agent-commands-"));
     const env = { EXO_USER_DATA_PATH: userDataPath };
 
     try {
-      await saveWorkspaceSettings({
+      await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify({
         workspaceRoot: "/tmp/exo-agent/notes",
         defaultTerminalCwd: "/tmp/exo-agent",
         noteRoots: ["/tmp/exo-agent/notes"],
@@ -416,8 +416,12 @@ describe("workspace settings registry", () => {
             version: 0,
             enabled: true,
           },
+          {
+            ...createDefaultClaudeAgentCommand(),
+            id: "legacy-duplicate",
+          },
         ],
-      }, env);
+      }), { mode: 0o600 });
 
       await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({
         agentCommands: [{
@@ -439,17 +443,51 @@ describe("workspace settings registry", () => {
   it("rejects duplicate or malformed Command configuration instead of dropping entries", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-core-command-validation-"));
     const command = createDefaultClaudeAgentCommand();
+    const codex = createDefaultCodexAgentCommand();
+    const custom = {
+      ...codex,
+      id: "custom",
+      label: "Local",
+      handle: "local",
+      command: "/bin/echo local",
+      adapter: "generic" as const,
+    };
     const base = workspaceSettingsFor("/tmp/exo-command-validation/notes");
 
-    await expect(saveWorkspaceSettings({
-      ...base,
-      agentCommands: [command, { ...command, id: "claude-copy" }],
-    }, { EXO_USER_DATA_PATH: userDataPath })).rejects.toThrow("Command handle @claude is already configured");
-    await expect(saveWorkspaceSettings({
-      ...base,
-      agentCommands: [{ ...command, command: "" }],
-    }, { EXO_USER_DATA_PATH: userDataPath })).rejects.toThrow("Command 1 is malformed");
-    await rm(userDataPath, { recursive: true, force: true });
+    try {
+      await expect(saveWorkspaceSettings({
+        ...base,
+        agentCommands: [command, { ...command, id: "claude-copy" }],
+      }, { EXO_USER_DATA_PATH: userDataPath })).rejects.toThrow("Command handle @claude is already configured");
+      await expect(saveWorkspaceSettings({
+        ...base,
+        agentCommands: [{ ...command, command: "" }],
+      }, { EXO_USER_DATA_PATH: userDataPath })).rejects.toThrow("Command 1 is malformed");
+      for (const nonCanonical of [
+        { ...command, id: "???" },
+        { ...command, handle: "@CLAUDE" },
+        { ...command, adapter: "unknown" },
+        { ...command, cwdPolicy: "unknown" },
+        { ...command, version: "one" },
+        { ...command, enabled: "yes" },
+      ]) {
+        await expect(saveWorkspaceSettings({
+          ...base,
+          agentCommands: [nonCanonical],
+        } as WorkspaceSettings, { EXO_USER_DATA_PATH: userDataPath })).rejects.toThrow("non-canonical");
+      }
+      await expect(saveWorkspaceSettings({
+        ...base,
+        agentCommands: [
+          command,
+          codex,
+          custom,
+          { ...custom, id: "other", label: "Other", handle: "other" },
+        ],
+      }, { EXO_USER_DATA_PATH: userDataPath })).rejects.toThrow("Only one Custom command can be configured");
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
   });
 
   it("preserves configured and future settings across load, edit, save, and reload", async () => {

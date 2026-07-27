@@ -87,17 +87,53 @@ export function agentCommandConfigurationError(input: unknown): string | null {
 
   const seenIds = new Set<string>();
   const seenHandles = new Set<string>();
+  let customCommandCount = 0;
   for (const [index, entry] of input.entries()) {
-    const command = normalizeAgentCommand(entry, `agent-command-${index + 1}`);
-    if (!command) {
-      return `Command ${index + 1} is malformed. Check its handle, executable and arguments, and working folder.`;
-    }
+    const commandError = canonicalAgentCommandError(entry, index);
+    if (commandError) return commandError;
+    const command = entry as AgentCommand;
     if (seenIds.has(command.id)) return `Command id "${command.id}" is already configured.`;
     if (seenHandles.has(command.handle)) return `Command handle @${command.handle} is already configured.`;
     seenIds.add(command.id);
     seenHandles.add(command.handle);
+    if (!isRecommendedAgentCommand(command)) {
+      customCommandCount += 1;
+      if (customCommandCount > 1) return "Only one Custom command can be configured.";
+    }
   }
   return null;
+}
+
+function canonicalAgentCommandError(input: unknown, index: number): string | null {
+  const malformed = (field?: string) => field
+    ? `Command ${index + 1} has a non-canonical ${field}.`
+    : `Command ${index + 1} is malformed. Check its handle, executable and arguments, and working folder.`;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return malformed();
+
+  const candidate = input as Record<string, unknown>;
+  const command = normalizeAgentCommand(candidate, `agent-command-${index + 1}`);
+  if (!command) return malformed();
+  if (candidate.id !== command.id) return malformed("id");
+  if (candidate.label !== command.label) return malformed("label");
+  if (candidate.handle !== command.handle) return malformed("handle");
+  if (candidate.command !== command.command) return malformed("executable and arguments");
+  if (candidate.adapter !== command.adapter) return malformed("adapter");
+  if (candidate.continuityPolicy !== command.continuityPolicy) return malformed("continuity policy");
+  if (candidate.cwdPolicy !== command.cwdPolicy) return malformed("working-folder policy");
+  if (candidate.promptDelivery !== command.promptDelivery) return malformed("prompt delivery");
+  if (candidate.version !== command.version) return malformed("version");
+  if (candidate.enabled !== command.enabled) return malformed("enabled state");
+  if (command.cwdPolicy === "fixed") {
+    if (candidate.fixedCwd !== command.fixedCwd) return malformed("fixed working folder");
+  } else if (candidate.fixedCwd !== undefined) {
+    return malformed("fixed working folder");
+  }
+  return null;
+}
+
+function isRecommendedAgentCommand(command: AgentCommand): boolean {
+  return (command.id === "claude" && command.handle === "claude")
+    || (command.id === "codex" && command.handle === "codex");
 }
 
 function hasUnsupportedAgentCommandV1Fields(candidate: Record<string, unknown>): boolean {

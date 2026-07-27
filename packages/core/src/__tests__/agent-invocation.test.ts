@@ -188,6 +188,15 @@ describe("agent invocation model", () => {
 
   it("validates complete Command configuration without silently dropping collisions", () => {
     const claude = createDefaultClaudeAgentCommand();
+    const codex = createDefaultCodexAgentCommand();
+    const custom = {
+      ...codex,
+      id: "custom",
+      label: "Local",
+      handle: "local",
+      command: "/bin/echo local",
+      adapter: "generic" as const,
+    };
     expect(agentCommandConfigurationError([claude])).toBeNull();
     expect(agentCommandConfigurationError([
       claude,
@@ -198,6 +207,22 @@ describe("agent invocation model", () => {
       { ...claude, handle: "other", command: "claude --model opus" },
     ])).toBe('Command id "claude" is already configured.');
     expect(agentCommandConfigurationError([{ ...claude, command: "" }])).toContain("Command 1 is malformed");
+    expect(agentCommandConfigurationError([{ ...claude, id: "???" }])).toBe("Command 1 has a non-canonical id.");
+    expect(agentCommandConfigurationError([{ ...claude, handle: "@CLAUDE" }])).toBe("Command 1 has a non-canonical handle.");
+    expect(agentCommandConfigurationError([{ ...claude, adapter: "unknown" }])).toBe("Command 1 has a non-canonical adapter.");
+    expect(agentCommandConfigurationError([{ ...claude, cwdPolicy: "unknown" }])).toBe("Command 1 has a non-canonical working-folder policy.");
+    expect(agentCommandConfigurationError([{ ...claude, version: "one" }])).toBe("Command 1 has a non-canonical version.");
+    expect(agentCommandConfigurationError([{ ...claude, enabled: "yes" }])).toBe("Command 1 has a non-canonical enabled state.");
+    expect(agentCommandConfigurationError([
+      claude,
+      codex,
+      custom,
+      { ...custom, id: "other", label: "Other", handle: "other" },
+    ])).toBe("Only one Custom command can be configured.");
+    expect(agentCommandConfigurationError([
+      { ...claude, handle: "local" },
+      { ...custom, id: "other", handle: "other" },
+    ])).toBe("Only one Custom command can be configured.");
   });
 
   it("formats a note invocation with Exo workspace and referenced-note guidance", () => {
