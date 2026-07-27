@@ -1,6 +1,6 @@
 # Durable-state catalog
 
-Last reviewed against source on 2026-07-25. Markdown and
+Last reviewed against source on 2026-07-26. Markdown and
 frontmatter in authorized Note Roots are canonical user knowledge. Everything
 under `.exo/` is runtime state or review evidence, not accepted graph
 knowledge. This catalog names the remaining persisted artifacts so a maintainer
