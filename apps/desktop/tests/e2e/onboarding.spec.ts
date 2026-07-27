@@ -1,4 +1,4 @@
-import { _electron as electron, expect, test } from "@playwright/test";
+import { _electron as electron, expect, test, type Locator, type Page } from "@playwright/test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -95,6 +95,7 @@ test("keeps MCP and CLI setup independent without touching real provider state",
 
   await page.getByTestId("onboarding-choose-notes").click();
   await page.getByTestId("onboarding-continue").click();
+  await continueFromContentPolicy(page);
   await expect(page.getByRole("heading", { name: "Agent access" })).toBeVisible();
   await expect(page.getByText("MCP for tools. CLI for shells.")).toBeVisible();
   await expect(page.getByText("MCP setup never changes the CLI.")).toBeVisible();
@@ -125,6 +126,7 @@ test("persists an explicit Note Root and edited recommended Commands across rest
 
   await first.page.getByTestId("onboarding-choose-notes").click();
   await first.page.getByTestId("onboarding-continue").click();
+  await continueFromContentPolicy(first.page);
   await first.page.getByRole("button", { name: "Set up CLI agents" }).click();
   const claudeInput = first.page.getByRole("textbox", { name: "Claude command" });
   const codexInput = first.page.getByRole("textbox", { name: "Codex command" });
@@ -172,6 +174,128 @@ test("persists an explicit Note Root and edited recommended Commands across rest
   await first.cleanup();
 });
 
+test("recommends all Markdown for a generic wiki", async () => {
+  const { page, cleanup } = await launchExoWorkspaceFixture({
+    configured: false,
+    mutable: true,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    selectFolderPath: (workspaceRoot) => path.join(workspaceRoot, "notes", "test-notes"),
+  });
+
+  try {
+    await page.getByTestId("onboarding-choose-notes").click();
+    await page.getByTestId("onboarding-continue").click();
+
+    await expect(page.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+    await expect(page.getByText("All Markdown in this folder can become Notes.")).toBeVisible();
+    await expect(page.getByTestId("onboarding-content-scope-all")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "false");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("recommends repository-safe Notes while preserving a manual All Markdown override", async () => {
+  const first = await launchExoWorkspaceFixture({
+    configured: false,
+    mutable: true,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    prepareWorkspace: async (workspaceRoot) => {
+      const repositoryRoot = path.join(workspaceRoot, "repository-wiki");
+      await mkdir(repositoryRoot, { recursive: true });
+      await Promise.all([
+        writeFile(path.join(repositoryRoot, "README.md"), "# Repository wiki\n", "utf8"),
+        writeFile(path.join(repositoryRoot, "package.json"), "{\"name\":\"repository-wiki\"}\n", "utf8"),
+      ]);
+    },
+    selectFolderPath: (workspaceRoot) => path.join(workspaceRoot, "repository-wiki"),
+  });
+  const selectedNoteRoot = path.join(first.workspaceRoot, "repository-wiki");
+
+  try {
+    await first.page.getByTestId("onboarding-choose-notes").click();
+    await first.page.getByTestId("onboarding-continue").click();
+
+    await expect(first.page.getByText("This folder looks like a code repository.")).toBeVisible();
+    await expect(first.page.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
+    await expect(first.page.getByTestId("onboarding-content-scope-all")).toHaveAttribute("aria-pressed", "false");
+
+    await first.page.getByTestId("onboarding-content-scope-all").click();
+    await expect(first.page.getByTestId("onboarding-content-scope-all")).toHaveAttribute("aria-pressed", "true");
+    await expect(first.page.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "false");
+
+    await continueFromContentPolicy(first.page);
+    await first.page.getByRole("button", { name: "Set up CLI agents" }).click();
+    await first.page.getByRole("button", { name: "Open Exo" }).click();
+    await expect(first.page.getByTestId("sidebar")).toBeVisible();
+    await expect.poll(async () => first.page.evaluate(() => window.exo.workspace.getSettings()))
+      .toMatchObject({
+        settings: {
+          noteRoots: [selectedNoteRoot],
+          contentPolicy: { excludedPaths: [], sourceVisibility: false },
+        },
+      });
+  } finally {
+    await first.cleanup();
+  }
+});
+
+for (const viewport of [
+  { label: "desktop", width: 1200, height: 800, agentsScroll: false },
+  { label: "compact", width: 700, height: 560, agentsScroll: true },
+] as const) {
+  test(`keeps every onboarding page anchored with internal scrolling at the ${viewport.label} viewport`, async () => {
+    const { page, cleanup } = await launchExoWorkspaceFixture({
+      configured: false,
+      mutable: true,
+      workspaceRootEnv: false,
+      runtimeRootEnv: false,
+      selectFolderPath: (workspaceRoot) => path.join(workspaceRoot, "notes", "test-notes"),
+    });
+
+    try {
+      await page.setViewportSize({ width: viewport.width, height: viewport.height });
+      await page.getByTestId("onboarding-choose-notes").click();
+      const expectedGeometry = await onboardingGeometry(
+        page,
+        page.getByTestId("onboarding-continue"),
+      );
+
+      await page.getByTestId("onboarding-continue").click();
+      await expect(page.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+      await expectOnboardingGeometry(
+        page,
+        page.getByRole("button", { name: "Continue to tools" }),
+        expectedGeometry,
+      );
+
+      await page.getByRole("button", { name: "Continue to tools" }).click();
+      await expect(page.getByRole("heading", { name: "Agent access" })).toBeVisible();
+      await expectOnboardingGeometry(
+        page,
+        page.getByRole("button", { name: "Set up CLI agents" }),
+        expectedGeometry,
+      );
+      await expectInternalScroll(page.getByTestId("onboarding-card-body"));
+
+      await page.getByRole("button", { name: "Set up CLI agents" }).click();
+      await expect(page.getByRole("heading", { name: "Set up agents" })).toBeVisible();
+      await expectOnboardingGeometry(
+        page,
+        page.getByRole("button", { name: "Open Exo" }),
+        expectedGeometry,
+      );
+      if (viewport.agentsScroll) {
+        await expectInternalScroll(page.getByTestId("onboarding-card-body"));
+      }
+    } finally {
+      await cleanup();
+    }
+  });
+}
+
 test("completes and restarts the real packaged first-run journey", async () => {
   const appBundle = process.env.EXO_PACKAGED_APP_PATH;
   test.skip(!appBundle, "Set EXO_PACKAGED_APP_PATH to a built Exo.app to run packaged first-run proof.");
@@ -209,6 +333,8 @@ test("completes and restarts the real packaged first-run journey", async () => {
     await page.screenshot({ path: path.join(evidenceRoot, "01-packaged-choose-wiki.png"), fullPage: true });
     await page.getByTestId("onboarding-choose-notes").click();
     await page.getByTestId("onboarding-continue").click();
+    await expect(page.getByTestId("onboarding-content-scope-all")).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Continue to tools" }).click();
     await expect(page.getByRole("heading", { name: "Agent access" })).toBeVisible();
     await expect(page.locator(".onboarding-cli-installation")).not.toContainText("Contents/Resources");
     await page.screenshot({ path: path.join(evidenceRoot, "02-packaged-agent-access.png"), fullPage: true });
@@ -294,4 +420,55 @@ async function readOptional(filePath: string): Promise<string | null> {
 
 async function readCommandDiscovery(runtimeRoot: string): Promise<{ port: number; token: string }> {
   return JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number; token: string };
+}
+
+async function continueFromContentPolicy(page: Page): Promise<void> {
+  await expect(page.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+  await page.getByRole("button", { name: "Continue to tools" }).click();
+}
+
+interface OnboardingGeometry {
+  frame: { x: number; y: number; width: number; height: number };
+  primaryActionY: number;
+  primaryActionRightInset: number;
+}
+
+async function onboardingGeometry(page: Page, primaryAction: Locator): Promise<OnboardingGeometry> {
+  const [frame, action] = await Promise.all([
+    page.getByTestId("onboarding-card").boundingBox(),
+    primaryAction.boundingBox(),
+  ]);
+  expect(frame).not.toBeNull();
+  expect(action).not.toBeNull();
+  return {
+    frame: frame!,
+    primaryActionY: action!.y,
+    primaryActionRightInset: frame!.x + frame!.width - action!.x - action!.width,
+  };
+}
+
+async function expectOnboardingGeometry(
+  page: Page,
+  primaryAction: Locator,
+  expected: OnboardingGeometry,
+): Promise<void> {
+  const current = await onboardingGeometry(page, primaryAction);
+  for (const key of ["x", "y", "width", "height"] as const) {
+    expect(Math.abs(current.frame[key] - expected.frame[key])).toBeLessThanOrEqual(1);
+  }
+  expect(Math.abs(current.primaryActionY - expected.primaryActionY)).toBeLessThanOrEqual(1);
+  expect(Math.abs(current.primaryActionRightInset - expected.primaryActionRightInset)).toBeLessThanOrEqual(1);
+}
+
+async function expectInternalScroll(locator: Locator): Promise<void> {
+  const result = await locator.evaluate((element) => {
+    const maximum = element.scrollHeight - element.clientHeight;
+    element.scrollTop = maximum;
+    return { maximum, scrollTop: element.scrollTop };
+  });
+  expect(result.maximum).toBeGreaterThan(0);
+  expect(result.scrollTop).toBeGreaterThan(0);
+  await locator.evaluate((element) => {
+    element.scrollTop = 0;
+  });
 }

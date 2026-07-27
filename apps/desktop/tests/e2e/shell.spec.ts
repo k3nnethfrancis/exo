@@ -1225,13 +1225,14 @@ test("keeps workspace settings frame stable across tabs", async () => {
     },
   });
 
+  await page.setViewportSize({ width: 1200, height: 800 });
   await page.getByTestId("workspace-menu-toggle").click();
   await page.getByTestId("workspace-menu-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
   const settingsFrame = await page.getByTestId("workspace-settings-dialog").boundingBox();
   expect(settingsFrame).not.toBeNull();
 
-  for (const section of ["index", "appearance", "terminal", "workspace"]) {
+  for (const section of ["index", "appearance", "terminal", "agents", "workspace"]) {
     await page.getByTestId(`workspace-settings-tab-${section}`).click();
     await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
   }
@@ -1267,7 +1268,26 @@ test("stacks workspace settings cleanly in a narrow window", async () => {
   expect(panelBox).not.toBeNull();
   expect(dialogBox!.width).toBeLessThanOrEqual(676);
   expect(panelBox!.y).toBeGreaterThanOrEqual(navigationBox!.y + navigationBox!.height);
-  await expect(dialog.getByTestId("workspace-settings-tab-terminal")).toBeVisible();
+  const scrollingSections: string[] = [];
+  for (const section of ["workspace", "index", "appearance", "terminal", "agents"]) {
+    await dialog.getByTestId(`workspace-settings-tab-${section}`).click();
+    await expectStableOuterFrame(dialog, dialogBox!);
+    const overflow = await panel.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }));
+    if (overflow.scrollHeight > overflow.clientHeight) {
+      scrollingSections.push(section);
+      await panel.evaluate((element) => {
+        element.scrollTop = element.scrollHeight;
+      });
+      await expect.poll(() => panel.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+      await panel.evaluate((element) => {
+        element.scrollTop = 0;
+      });
+    }
+  }
+  expect(scrollingSections).toContain("workspace");
   await page.screenshot({ path: "/tmp/exo-workspace-settings-narrow.png", fullPage: false });
 
   await cleanup();
@@ -1410,6 +1430,7 @@ test("opens an existing notes folder from first-run setup", async () => {
   await expect(page.getByTestId("onboarding-terminal-folder")).toContainText(expectedTerminalCwd);
 
   await page.getByTestId("onboarding-continue").click();
+  await page.getByRole("button", { name: "Continue to tools" }).click();
   await page.getByRole("button", { name: "Set up CLI agents" }).click();
   await page.getByRole("button", { name: "Open Exo" }).click();
   await expect(page.getByTestId("sidebar")).toBeVisible();
