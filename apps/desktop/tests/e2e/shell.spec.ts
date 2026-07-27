@@ -245,6 +245,8 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
   });
 
   try {
+    const graphSourcePath = path.join(workspaceRoot, "notes/test-notes/graph-source.md");
+    const graphTargetPath = path.join(workspaceRoot, "notes/test-notes/graph-target.md");
     await page.getByTestId("editor-panel").hover();
     await page.getByTestId("open-note-graph").click();
     const graphPane = page.getByTestId("graph-pane");
@@ -269,6 +271,47 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
       return debug.__exoGraphSnapshot?.() ?? null;
     });
     expect(beforeFallback).not.toBeNull();
+
+    const graphBox = await graphCanvas.boundingBox();
+    expect(graphBox).not.toBeNull();
+    const zoomPoint = {
+      x: graphBox!.x + graphBox!.width / 2,
+      y: graphBox!.y + graphBox!.height / 2,
+    };
+    const sourceBeforeZoom = await projectedGraphNode(graphCanvas, graphSourcePath);
+    const targetBeforeZoom = await projectedGraphNode(graphCanvas, graphTargetPath);
+    const pairDistanceBeforeZoom = Math.hypot(
+      sourceBeforeZoom.x - targetBeforeZoom.x,
+      sourceBeforeZoom.y - targetBeforeZoom.y,
+    );
+    await graphCanvas.evaluate((canvas, point) => {
+      canvas.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        clientX: point.x,
+        clientY: point.y,
+        deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+        deltaX: 18,
+        deltaY: -120,
+      }));
+    }, zoomPoint);
+    const sourceAfterZoom = await projectedGraphNode(graphCanvas, graphSourcePath);
+    const targetAfterZoom = await projectedGraphNode(graphCanvas, graphTargetPath);
+    expect(Math.hypot(
+      sourceAfterZoom.x - targetAfterZoom.x,
+      sourceAfterZoom.y - targetAfterZoom.y,
+    )).toBeGreaterThan(pairDistanceBeforeZoom * 1.05);
+
+    await page.keyboard.down("Shift");
+    await page.mouse.move(zoomPoint.x, zoomPoint.y);
+    await page.mouse.down();
+    await page.mouse.move(zoomPoint.x + 36, zoomPoint.y + 24, { steps: 4 });
+    await page.mouse.up();
+    await page.keyboard.up("Shift");
+    const sourceAfterPan = await projectedGraphNode(graphCanvas, graphSourcePath);
+    expect(sourceAfterPan.x).toBeGreaterThan(sourceAfterZoom.x + 24);
+    expect(sourceAfterPan.y).toBeGreaterThan(sourceAfterZoom.y + 16);
+
     await graphCanvas.evaluate(async (canvas) => {
       const debug = canvas as HTMLCanvasElement & { __exoGraphForceCanvasFallback?: () => Promise<void> };
       await debug.__exoGraphForceCanvasFallback?.();
@@ -1005,6 +1048,52 @@ test("keeps terminal interactive after large output, tab switches, and semantic 
       await window.exo.terminals.sendMessage(id, "printf 'semantic qa: %s\\n' 'one   two'", true);
     }, shellId);
     await expect.poll(async () => page.evaluate((id) => window.exo.terminals.read(id), shellId)).toContain("semantic qa: one   two");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("hides and reopens the utility terminal without ending direct PTYs or losing tabs and tail", async () => {
+  const { page, cleanup } = await launchExoTerminalFixture({
+    env: {
+      EXO_SHELL: "/bin/sh",
+      EXO_SHELL_ARGS: "-lc,while IFS= read -r line; do printf 'alive:%s\\n' \"$line\"; done",
+    },
+  });
+
+  try {
+    await page.getByTestId("new-terminal").click();
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
+    const sessionIds = await page.evaluate(async () => (await window.exo.terminals.list()).map((session) => session.id));
+    expect(sessionIds).toHaveLength(2);
+    const activeSessionId = sessionIds.at(-1)!;
+
+    await page.evaluate(async ({ ids, activeId }) => {
+      await Promise.all(ids.map((id) => window.exo.terminals.sendMessage(id, `before-hide-${id}`, true)));
+      await window.exo.terminals.sendMessage(activeId, "active-before-hide", true);
+    }, { ids: sessionIds, activeId: activeSessionId });
+    await expect.poll(async () => page.evaluate(
+      async ({ ids }) => Promise.all(ids.map((id) => window.exo.terminals.read(id))),
+      { ids: sessionIds },
+    )).toEqual(sessionIds.map((id) => expect.stringContaining(`alive:before-hide-${id}`)));
+
+    await page.getByTestId("utility-pane-toggle").click();
+    await expect(page.getByTestId("utility-pane")).toBeHidden();
+    await page.evaluate(async (id) => {
+      await window.exo.terminals.sendMessage(id, "while-hidden", true);
+    }, activeSessionId);
+    await expect.poll(async () => page.evaluate(
+      (id) => window.exo.terminals.read(id),
+      activeSessionId,
+    )).toContain("alive:while-hidden");
+
+    await page.getByTestId("utility-pane-toggle").click();
+    await expect(page.getByTestId("utility-pane")).toBeVisible();
+    await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
+    await expect.poll(async () => page.evaluate(
+      async () => (await window.exo.terminals.list()).map((session) => session.id),
+    )).toEqual(sessionIds);
+    await expect(page.locator(".xterm-rows")).toContainText("alive:while-hidden");
   } finally {
     await cleanup();
   }

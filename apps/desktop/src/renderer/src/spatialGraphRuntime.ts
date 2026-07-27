@@ -195,9 +195,7 @@ export type GraphPointerMove =
   | { kind: "orbit" | "pan"; deltaX: number; deltaY: number }
   | { kind: "pinch-pan"; centerX: number; centerY: number; scale: number; panX: number; panY: number };
 
-export type SpatialGraphWheelIntent =
-  | { kind: "pan"; deltaX: number; deltaY: number }
-  | { kind: "zoom"; scale: number };
+export type SpatialGraphWheelIntent = { kind: "zoom"; scale: number };
 
 interface TrackedPointer extends GraphPointerSample {
   startX: number;
@@ -604,10 +602,7 @@ export function initialGraphSummaryIndexes(topology: GraphTopology, focalIndex =
   return focal >= 0 ? [focal, ...heap] : heap;
 }
 
-/**
- * Chromium exposes trackpad pinch as ctrl+wheel. Pixel-mode wheel without Ctrl
- * is the Mac two-finger pan path; discrete line/page wheels retain dolly.
- */
+/** Mouse wheels, trackpad scroll, and Chromium's ctrl+wheel pinch all zoom. */
 export function spatialGraphWheelIntent(input: {
   ctrlKey: boolean;
   deltaMode: number;
@@ -615,9 +610,6 @@ export function spatialGraphWheelIntent(input: {
   deltaY: number;
   viewportHeight: number;
 }): SpatialGraphWheelIntent {
-  if (!input.ctrlKey && input.deltaMode === 0) {
-    return { kind: "pan", deltaX: input.deltaX, deltaY: input.deltaY };
-  }
   const pixels = input.deltaMode === 1
     ? input.deltaY * 14
     : input.deltaMode === 2 ? input.deltaY * input.viewportHeight : input.deltaY;

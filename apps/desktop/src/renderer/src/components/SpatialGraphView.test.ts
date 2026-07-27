@@ -9,6 +9,7 @@ import type { GraphPresentationPlan } from "../graphPresentation";
 import type { GraphPixelRenderer, GraphPixelRendererMeasurement } from "../graphRendererHost";
 import type { GraphFrameDriver } from "../graphRenderScheduler";
 import type { GraphGpuRuntime, GraphWebGpuSurface } from "../graphWebGpuRenderer";
+import { pickGraphSceneNode } from "../graphSceneFoundation";
 import {
   GraphSnapshotRefreshCoordinator,
   SpatialGraphPointerSession,
@@ -294,6 +295,26 @@ describe("SpatialGraph runtime", () => {
     expect(transitions[0]).toMatchObject({ kind: "webgpu", reason: "boot", state: scene });
     expect(runtime.getScene()).toBe(scene);
 
+    runtime.focus(2, true);
+    runtime.zoomAt(610, 190, 1.35);
+    runtime.pan(24, 18);
+    runtime.setSelection(2);
+    frames.settle();
+    const interactedScene = runtime.getScene()!;
+    const interactedCamera = {
+      ...interactedScene.camera,
+      target: [...interactedScene.camera.target],
+    };
+    const pickedBeforeFallback = pickGraphSceneNode(
+      interactedScene.topology,
+      interactedScene.projection,
+      interactedScene.camera,
+      interactedScene.projection.nodes[2 * 4] ?? 0,
+      interactedScene.projection.nodes[2 * 4 + 1] ?? 0,
+    );
+    expect(pickedBeforeFallback).toBe(2);
+    expect(interactedScene.interaction.selected).toBe(2);
+
     const overlayOnlyArcs = context.arcs;
     gpu.failure?.(new Error("device lost"));
     expect(context.arcs).toBeGreaterThan(overlayOnlyArcs);
@@ -320,6 +341,15 @@ describe("SpatialGraph runtime", () => {
       rendererFallbacks: 1,
     });
     expect(runtime.getScene()).toBe(scene);
+    expect(runtime.getScene()!.camera).toEqual(interactedCamera);
+    expect(runtime.getScene()!.interaction.selected).toBe(2);
+    expect(pickGraphSceneNode(
+      runtime.getScene()!.topology,
+      runtime.getScene()!.projection,
+      runtime.getScene()!.camera,
+      runtime.getScene()!.projection.nodes[2 * 4] ?? 0,
+      runtime.getScene()!.projection.nodes[2 * 4 + 1] ?? 0,
+    )).toBe(2);
     expect(context.arcs).toBeGreaterThan(bootstrapArcs);
     frames.settle();
     expect(runtime.snapshot()).toMatchObject({ pendingFrame: false, moving: false });
@@ -453,9 +483,9 @@ describe("graph refresh and wheel policy", () => {
     coordinator.dispose();
   });
 
-  it("uses pixel trackpad wheels for pan and ctrl/discrete wheels for anchored zoom", () => {
+  it("uses mouse wheels, pixel trackpads, and pinch wheels for anchored zoom", () => {
     expect(spatialGraphWheelIntent({ ctrlKey: false, deltaMode: 0, deltaX: 12, deltaY: -4, viewportHeight: 800 }))
-      .toEqual({ kind: "pan", deltaX: 12, deltaY: -4 });
+      .toMatchObject({ kind: "zoom", scale: expect.any(Number) });
     expect(spatialGraphWheelIntent({ ctrlKey: true, deltaMode: 0, deltaX: 0, deltaY: -10, viewportHeight: 800 }).kind)
       .toBe("zoom");
     expect(spatialGraphWheelIntent({ ctrlKey: false, deltaMode: 1, deltaX: 0, deltaY: 3, viewportHeight: 800 }).kind)

@@ -575,8 +575,7 @@ export function SpatialGraphView({
       deltaY: event.deltaY,
       viewportHeight: scene.projection.viewport.height,
     });
-    if (intent.kind === "pan") runtimeRef.current?.pan(intent.deltaX, intent.deltaY);
-    else runtimeRef.current?.zoomAt(event.clientX - rect.left, event.clientY - rect.top, intent.scale);
+    runtimeRef.current?.zoomAt(event.clientX - rect.left, event.clientY - rect.top, intent.scale);
   }
 
   return (

@@ -303,6 +303,17 @@ describe("camera and controller transforms", () => {
     expect(camera).toEqual(DEFAULT_SCENE_CAMERA);
   });
 
+  it("maps direct-manipulation pan deltas to matching content motion on both axes", () => {
+    const camera: GraphCamera = { ...DEFAULT_SCENE_CAMERA, target: [0, 0, 0] };
+    const position = new Float32Array([0, 0, 0]);
+    const before = projectGraphScene(position, camera, viewport).nodes;
+    const panned = panGraphCamera(camera, 24, 18, viewport);
+    const after = projectGraphScene(position, panned, viewport).nodes;
+
+    expect(after[0]).toBeGreaterThan(before[0] ?? 0);
+    expect(after[1]).toBeGreaterThan(before[1] ?? 0);
+  });
+
   it("anchors adaptive zoom to the world point under the pointer", () => {
     const camera: GraphCamera = { ...DEFAULT_SCENE_CAMERA, target: [14, -20, 7] };
     const pointer = { x: 680, y: 145 };
