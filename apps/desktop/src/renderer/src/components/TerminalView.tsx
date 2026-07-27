@@ -5,8 +5,8 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { Terminal } from "xterm";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
-import type { ExoThemeVariant } from "../theme/types";
-import { exoXtermTheme } from "../theme/xterm";
+import type { StemThemeVariant } from "../theme/types";
+import { stemXtermTheme } from "../theme/xterm";
 import { TERMINAL_CUSTOM_GLYPHS, TERMINAL_FONT_FAMILY } from "./terminalFonts";
 import {
   initialTerminalHydrationViewState,
@@ -22,7 +22,7 @@ import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 const TERMINAL_RESIZE_DEBOUNCE_MS = 16;
 
 interface TerminalViewProps {
-  theme: ExoThemeVariant;
+  theme: StemThemeVariant;
   session: TerminalSessionInfo;
   focused: boolean;
   hydrationSnapshot: string;
@@ -90,7 +90,7 @@ export function TerminalView(props: TerminalViewProps) {
       cursorBlink: false,
       minimumContrastRatio: 4.5,
       scrollback: scrollbackLines,
-      theme: exoXtermTheme(theme),
+      theme: stemXtermTheme(theme),
     });
     const fitAddon = new FitAddon();
     const unicode11Addon = new Unicode11Addon();
@@ -183,7 +183,7 @@ export function TerminalView(props: TerminalViewProps) {
       event.preventDefault();
       event.stopPropagation();
 
-      const paths = window.exo.terminals.resolveDroppedFilePaths(Array.from(event.dataTransfer.files));
+      const paths = window.stem.terminals.resolveDroppedFilePaths(Array.from(event.dataTransfer.files));
       if (paths.length === 0) {
         return;
       }
@@ -271,7 +271,7 @@ export function TerminalView(props: TerminalViewProps) {
       return;
     }
 
-    terminal.options.theme = exoXtermTheme(theme);
+    terminal.options.theme = stemXtermTheme(theme);
   }, [theme]);
 
   useEffect(() => {
@@ -529,7 +529,7 @@ function focusTerminalElement(
   viewport: HTMLDivElement | null,
   terminal: Terminal,
 ) {
-  void window.exo.shell.focusWindow().catch(() => {});
+  void window.stem.shell.focusWindow().catch(() => {});
   window.focus();
   if (document.activeElement instanceof HTMLElement) {
     document.activeElement.blur();

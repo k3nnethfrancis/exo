@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { ExoCommandServerInfo } from "@exo/core";
+import type { StemCommandServerInfo } from "@stem/core";
 
 import { CommandServer } from "./command-server";
 
@@ -57,7 +57,7 @@ export class CommandServerLifecycle {
     };
   }
 
-  async refreshDiscovery(): Promise<ExoCommandServerInfo & { path: string }> {
+  async refreshDiscovery(): Promise<StemCommandServerInfo & { path: string }> {
     return this.enqueue(async () => {
       const server = this.server;
       const generation = this.generation;
@@ -151,7 +151,7 @@ export class CommandServerLifecycle {
     await this.removeOwnedDiscovery(token, generation);
   }
 
-  private async publishDiscovery(info: ExoCommandServerInfo, generation: number): Promise<void> {
+  private async publishDiscovery(info: StemCommandServerInfo, generation: number): Promise<void> {
     if (generation !== this.generation || this.server?.getServerInfo().token !== info.token) {
       throw new Error("Command server generation is no longer current.");
     }
@@ -181,7 +181,7 @@ export class CommandServerLifecycle {
   }
 }
 
-async function writeDiscoveryFile(discoveryPath: string, info: ExoCommandServerInfo): Promise<void> {
+async function writeDiscoveryFile(discoveryPath: string, info: StemCommandServerInfo): Promise<void> {
   const directory = path.dirname(discoveryPath);
   const temporaryPath = `${discoveryPath}.${process.pid}.${randomUUID()}.tmp`;
   const body = `${JSON.stringify(info, null, 2)}\n`;
@@ -212,7 +212,7 @@ async function writeDiscoveryFile(discoveryPath: string, info: ExoCommandServerI
   }
 }
 
-async function writePreparedDiscoveryFile(discoveryPath: string, info: ExoCommandServerInfo): Promise<void> {
+async function writePreparedDiscoveryFile(discoveryPath: string, info: StemCommandServerInfo): Promise<void> {
   const body = `${JSON.stringify(info, null, 2)}\n`;
   try {
     await writeFile(discoveryPath, body, { encoding: "utf8", mode: 0o600 });

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { WorkspaceModel } from "@exo/core";
+import type { WorkspaceModel } from "@stem/core";
 import type { WorkspaceSettingsSection } from "../../../shared/api";
 
 interface UseWorkspaceCommandHandlersOptions {
@@ -12,19 +12,19 @@ interface UseWorkspaceCommandHandlersOptions {
 
 export function useWorkspaceCommandHandlers(options: UseWorkspaceCommandHandlersOptions) {
   useEffect(() => {
-    return window.exo.workspace.onCommandOpenFile((filePath: string) => {
+    return window.stem.workspace.onCommandOpenFile((filePath: string) => {
       void options.openFile(filePath);
     });
   }, [options.openFile]);
 
   useEffect(() => {
-    return window.exo.workspace.onCommandOpenSettings((event) => {
+    return window.stem.workspace.onCommandOpenSettings((event) => {
       void options.openSettings(event.section);
     });
   }, [options.openSettings]);
 
   useEffect(() => {
-    const removeWorkspaceChangeListener = window.exo.workspace.onDidChange((event) => {
+    const removeWorkspaceChangeListener = window.stem.workspace.onDidChange((event) => {
       if (event.eventType === "rename" || !event.filePath) {
         void options.reloadTrees();
       }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import type { InvocationRecord } from "@exo/core";
+import type { InvocationRecord } from "@stem/core";
 
 import type { InvocationFileReviewPayload, InvocationHistoryItem } from "../../../shared/api";
 import {
@@ -148,14 +148,14 @@ export function useInvocationReviewController(options: InvocationReviewControlle
     setQueueState(options.workspaceKey ? beginInvocationReviewHydration() : EMPTY_INVOCATION_REVIEW_QUEUE);
     if (!options.workspaceKey) return;
     let cancelled = false;
-    void window.exo.workspace.listPendingInvocationReviews()
+    void window.stem.workspace.listPendingInvocationReviews()
       .then((items) => {
         if (cancelled || !workspaceIsCurrent(identity) || request !== hydrationRequestRef.current) return;
         setQueueState((current) => mergeInvocationReviewHydration(current, items));
       })
       .catch((error) => {
         if (cancelled || !workspaceIsCurrent(identity) || request !== hydrationRequestRef.current) return;
-        console.warn("[exo] failed to load pending invocation reviews", error);
+        console.warn("[stem] failed to load pending invocation reviews", error);
         setQueueState((current) => mergeInvocationReviewHydration(current, []));
       });
     return () => { cancelled = true; };
@@ -172,7 +172,7 @@ export function useInvocationReviewController(options: InvocationReviewControlle
     }
     if (decision.kind === "preserve") return;
     let cancelled = false;
-    void window.exo.workspace.listInvocationHistory(decision.filePath)
+    void window.stem.workspace.listInvocationHistory(decision.filePath)
       .then((items) => {
         if (!cancelled && workspaceIsCurrent(identity) && request === historyRequestRef.current) {
           setHistoryState(items);
@@ -197,14 +197,14 @@ export function useInvocationReviewController(options: InvocationReviewControlle
     };
     payloadRequestRef.current = request;
     let cancelled = false;
-    void window.exo.workspace.getInvocationFileReview({ invocationId: request.invocationId, changeId: request.changeId })
+    void window.stem.workspace.getInvocationFileReview({ invocationId: request.invocationId, changeId: request.changeId })
       .then((payload) => {
         if (cancelled || !workspaceIsCurrent(identity) || !payloadRequestRef.current || !invocationReviewPayloadRequestIsCurrent(request, payloadRequestRef.current)) return;
         setQueueState((current) => cacheInvocationFileReview(current, payload));
       })
       .catch((error) => {
         if (cancelled || !workspaceIsCurrent(identity) || !payloadRequestRef.current || !invocationReviewPayloadRequestIsCurrent(request, payloadRequestRef.current)) return;
-        console.warn("[exo] failed to load invocation file review", error);
+        console.warn("[stem] failed to load invocation file review", error);
         optionsRef.current.onReviewError(activeEntry.command, error);
       });
     return () => { cancelled = true; };
@@ -224,7 +224,7 @@ export function useInvocationReviewController(options: InvocationReviewControlle
     const document = options.historyDocument;
     if (!document || document.readOnly || record.taggedDocumentPath !== document.filePath) return;
     const request = ++historyRequestRef.current;
-    void window.exo.workspace.listInvocationHistory(record.taggedDocumentPath)
+    void window.stem.workspace.listInvocationHistory(record.taggedDocumentPath)
       .then((items) => {
         if (workspaceIsCurrent(identity) && request === historyRequestRef.current) {
           setHistoryState(items);
@@ -266,7 +266,7 @@ export function useInvocationReviewController(options: InvocationReviewControlle
           if (!workspaceIsCurrent(identity)) {
             return Promise.reject(new InvocationReviewWorkspaceChangedError());
           }
-          return window.exo.workspace.reviewInvocationFile({ invocationId: snapshot.invocationId, changeId: snapshot.changeId, action });
+          return window.stem.workspace.reviewInvocationFile({ invocationId: snapshot.invocationId, changeId: snapshot.changeId, action });
         },
       });
       if (!workspaceIsCurrent(identity)) return;
@@ -282,7 +282,7 @@ export function useInvocationReviewController(options: InvocationReviewControlle
     } catch (error) {
       if (workspaceIsCurrent(identity)) {
         optionsRef.current.onReviewError(entry.command, error);
-        const refreshed = await window.exo.workspace.getInvocationFileReview({ invocationId: snapshot.invocationId, changeId: snapshot.changeId }).catch(() => null);
+        const refreshed = await window.stem.workspace.getInvocationFileReview({ invocationId: snapshot.invocationId, changeId: snapshot.changeId }).catch(() => null);
         if (refreshed && workspaceIsCurrent(identity)) {
           setQueueState((current) => cacheInvocationFileReview(current, refreshed));
         }
@@ -308,7 +308,7 @@ export function useInvocationReviewController(options: InvocationReviewControlle
       const payloads: InvocationFileReviewPayload[] = [];
       for (const changeId of entry.changeIds) {
         if (!workspaceIsCurrent(identity)) return;
-        const payload = entry.payloads[changeId] ?? await window.exo.workspace.getInvocationFileReview({ invocationId: entry.invocationId, changeId });
+        const payload = entry.payloads[changeId] ?? await window.stem.workspace.getInvocationFileReview({ invocationId: entry.invocationId, changeId });
         if (!workspaceIsCurrent(identity)) return;
         if (!entry.payloads[changeId]) setQueueState((current) => cacheInvocationFileReview(current, payload));
         payloads.push(payload);
@@ -320,7 +320,7 @@ export function useInvocationReviewController(options: InvocationReviewControlle
       });
       await optionsRef.current.prepareDocumentsForReview(affectedOpenPaths);
       if (!workspaceIsCurrent(identity)) return;
-      const record = await window.exo.workspace.reviewInvocationAll({ invocationId: entry.invocationId, action });
+      const record = await window.stem.workspace.reviewInvocationAll({ invocationId: entry.invocationId, action });
       if (!workspaceIsCurrent(identity)) return;
       setQueueState((current) => applyInvocationReviewRecord(current, record));
       await optionsRef.current.reloadTrees();

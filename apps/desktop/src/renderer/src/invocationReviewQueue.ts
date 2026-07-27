@@ -1,4 +1,4 @@
-import type { InvocationRecord } from "@exo/core";
+import type { InvocationRecord } from "@stem/core";
 import type {
   InvocationFileReviewPayload,
   InvocationHistoryItem,
@@ -257,7 +257,7 @@ export function invocationReviewVirtualPath(payload: InvocationFileReviewPayload
   const sourcePath = invocationReviewSourcePath(payload);
   if (!sourcePath) return null;
   const name = sourcePath.split(/[\\/]/u).filter(Boolean).at(-1) ?? "File";
-  return `exo-review://${encodeURIComponent(payload.invocation.id)}/${encodeURIComponent(payload.change.id)}/${encodeURIComponent(name)}`;
+  return `stem-review://${encodeURIComponent(payload.invocation.id)}/${encodeURIComponent(payload.change.id)}/${encodeURIComponent(name)}`;
 }
 
 export function invocationReviewMatchesPath(

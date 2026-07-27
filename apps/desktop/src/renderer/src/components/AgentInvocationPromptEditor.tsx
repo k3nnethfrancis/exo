@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, Pencil, X } from "lucide-react";
-import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
+import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@stem/core/agent-invocation-prompt";
 
 interface AgentInvocationPromptEditorProps {
   value: string | undefined;
@@ -83,7 +83,7 @@ export function AgentInvocationPromptEditor({ value, onSave, testId }: AgentInvo
         <pre className="agent-invocation-prompt__preview">{effectiveValue}</pre>
       )}
       <div className="agent-invocation-prompt__hint">
-        Keep <code>{"{{message}}"}</code>, <code>{"{{working_note}}"}</code>, and <code>{"{{protocol}}"}</code> for full Exo context and review.
+        Keep <code>{"{{message}}"}</code>, <code>{"{{working_note}}"}</code>, and <code>{"{{protocol}}"}</code> for full Stem context and review.
       </div>
     </section>
   );

@@ -12,29 +12,29 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-status-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "stem-cli-status-"));
   roots.push(root);
   const bin = path.join(root, "path");
   const project = path.join(root, "project");
   await mkdir(path.join(project, "bin"), { recursive: true });
   await mkdir(bin, { recursive: true });
-  const source = path.join(project, "bin", "exo");
+  const source = path.join(project, "bin", "stem");
   await writeFile(source, "#!/usr/bin/env node\n", "utf8");
   await chmod(source, 0o755);
-  return { bin, project, root, source, command: path.join(bin, "exo") };
+  return { bin, project, root, source, command: path.join(bin, "stem") };
 }
 
 describe("CLI installation diagnosis", () => {
   it("does not mistake packaged resources for a source checkout", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-source-root-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-cli-source-root-"));
     roots.push(root);
-    const resources = path.join(root, "Exo.app", "Contents", "Resources");
+    const resources = path.join(root, "Stem.app", "Contents", "Resources");
     const project = path.join(root, "project");
     await mkdir(path.join(resources, "assets"), { recursive: true });
     await mkdir(path.join(project, "bin"), { recursive: true });
     await mkdir(path.join(project, "scripts"), { recursive: true });
     await writeFile(path.join(project, "package.json"), "{}\n", "utf8");
-    await writeFile(path.join(project, "bin", "exo"), "#!/bin/sh\n", "utf8");
+    await writeFile(path.join(project, "bin", "stem"), "#!/bin/sh\n", "utf8");
     await writeFile(path.join(project, "scripts", "install-local"), "#!/bin/sh\n", "utf8");
 
     expect(findSourceProjectRoot([resources])).toBeUndefined();
@@ -48,14 +48,14 @@ describe("CLI installation diagnosis", () => {
       .resolves.toMatchObject({ state: "current", commandPath: command, sourcePath: source });
   });
 
-  it("recognizes a legacy Exo shim", async () => {
+  it("recognizes a legacy Stem shim", async () => {
     const { bin, project, root, command } = await fixture();
-    const legacy = path.join(project, "legacy-exo");
+    const legacy = path.join(project, "legacy-stem");
     await writeFile(legacy, "require('packages/cli/dist/index.cjs');\n", "utf8");
     await chmod(legacy, 0o755);
     await symlink(legacy, command);
     await expect(inspectCliInstallation({ env: { PATH: bin, HOME: root }, sourceProjectRoot: project }))
-      .resolves.toMatchObject({ state: "legacy-exo" });
+      .resolves.toMatchObject({ state: "legacy-stem" });
   });
 
   it("recognizes a missing command", async () => {
@@ -66,16 +66,16 @@ describe("CLI installation diagnosis", () => {
 
   it("recognizes a dangling legacy checkout shim", async () => {
     const { bin, project, root, command } = await fixture();
-    await symlink(path.join(project, "old", "bin", "exo"), command);
+    await symlink(path.join(project, "old", "bin", "stem"), command);
     await expect(inspectCliInstallation({ env: { PATH: bin, HOME: root }, sourceProjectRoot: project }))
-      .resolves.toMatchObject({ state: "legacy-exo" });
+      .resolves.toMatchObject({ state: "legacy-stem" });
   });
 
-  it("does not claim a regular executable belongs to Exo", async () => {
+  it("does not claim a regular executable belongs to Stem", async () => {
     const { bin, project, root, command } = await fixture();
     await writeFile(command, "#!/bin/sh\n", "utf8");
     await chmod(command, 0o755);
     await expect(inspectCliInstallation({ env: { PATH: bin, HOME: root }, sourceProjectRoot: project }))
-      .resolves.toMatchObject({ state: "non-exo" });
+      .resolves.toMatchObject({ state: "non-stem" });
   });
 });

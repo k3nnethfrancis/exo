@@ -7,10 +7,10 @@ import { fileURLToPath } from "node:url";
 import {
   createDefaultClaudeAgentCommand,
   createDefaultCodexAgentCommand,
-} from "@exo/core/default-agent-command";
-import { saveWorkspaceSettings, type WorkspaceSettings } from "@exo/core";
+} from "@stem/core/default-agent-command";
+import { saveWorkspaceSettings, type WorkspaceSettings } from "@stem/core";
 
-import { launchExoWorkspaceFixture, relaunchExoWorkspaceFixture } from "../helpers";
+import { launchStemWorkspaceFixture, relaunchStemWorkspaceFixture } from "../helpers";
 
 const customClaudeCommand = "/bin/echo claude-clean-state";
 const customCodexCommand = "/bin/echo codex-clean-state";
@@ -19,15 +19,15 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 
 for (const activeFileState of ["missing", "invalid"] as const) {
   test(`shows onboarding when active settings are ${activeFileState} and a registry Workspace survives`, async () => {
-    const { page, cleanup } = await launchExoWorkspaceFixture({
+    const { page, cleanup } = await launchStemWorkspaceFixture({
       configured: false,
       cwd: "/",
       workspaceRootEnv: false,
       runtimeRootEnv: false,
       prepareSettings: async ({ settingsPath, userDataRoot, workspaceRoot }) => {
         await saveWorkspaceSettings(workspaceSettings(path.join(workspaceRoot, "notes", "test-notes")), {
-          EXO_SETTINGS_PATH: settingsPath,
-          EXO_USER_DATA_PATH: userDataRoot,
+          STEM_SETTINGS_PATH: settingsPath,
+          STEM_USER_DATA_PATH: userDataRoot,
         });
         if (activeFileState === "missing") {
           await rm(settingsPath);
@@ -46,22 +46,22 @@ for (const activeFileState of ["missing", "invalid"] as const) {
 }
 
 test("opens valid persisted settings without a fixture Workspace bypass", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     configured: false,
     expectOnboarding: false,
     workspaceRootEnv: false,
     runtimeRootEnv: false,
     prepareSettings: async ({ settingsPath, userDataRoot, workspaceRoot }) => {
       await saveWorkspaceSettings(workspaceSettings(path.join(workspaceRoot, "notes", "test-notes")), {
-        EXO_SETTINGS_PATH: settingsPath,
-        EXO_USER_DATA_PATH: userDataRoot,
+        STEM_SETTINGS_PATH: settingsPath,
+        STEM_USER_DATA_PATH: userDataRoot,
       });
     },
   });
 
   await expect(page.getByTestId("onboarding")).toHaveCount(0);
   await expect(page.getByTestId("sidebar")).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.exo.workspace.getSetupState())).toMatchObject({
+  await expect.poll(() => page.evaluate(() => window.stem.workspace.getSetupState())).toMatchObject({
     complete: true,
     onboardingComplete: true,
     onboarding: { status: "not-started" },
@@ -71,7 +71,7 @@ test("opens valid persisted settings without a fixture Workspace bypass", async 
 });
 
 test("resumes the exact confirmed draft across reload and relaunch at every setup page", async () => {
-  const first = await launchExoWorkspaceFixture({
+  const first = await launchStemWorkspaceFixture({
     configured: false,
     mutable: true,
     workspaceRootEnv: false,
@@ -91,13 +91,13 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   await activePage.getByTestId("onboarding-choose-notes").click();
   await expect(activePage.getByTestId("onboarding-notes-folder")).toContainText(noteRoot);
   await expect(readOptional(first.settingsPath)).resolves.toBeNull();
-  await expect(pathExists(path.join(noteRoot, ".exo"))).resolves.toBe(false);
+  await expect(pathExists(path.join(noteRoot, ".stem"))).resolves.toBe(false);
   await activePage.reload();
   await expect(activePage.getByRole("heading", { name: "Choose your main wiki" })).toBeVisible();
   await expect(activePage.getByTestId("onboarding-notes-folder")).toContainText(noteRoot);
 
   await activeApp.close();
-  let resumed = await relaunchExoWorkspaceFixture(first, {
+  let resumed = await relaunchStemWorkspaceFixture(first, {
     configured: false,
     workspaceRootEnv: false,
     runtimeRootEnv: false,
@@ -112,7 +112,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   await activePage.getByTestId("onboarding-continue").click();
   await expect(activePage.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
   await expect(activePage.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => activePage.evaluate(() => window.exo.workspace.getSetupState())).toMatchObject({
+  await expect.poll(() => activePage.evaluate(() => window.stem.workspace.getSetupState())).toMatchObject({
     onboarding: {
       draft: {
         contentPolicyChoice: "recommended",
@@ -125,7 +125,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   await expect(activePage.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
 
   await activeApp.close();
-  resumed = await relaunchExoWorkspaceFixture(first, {
+  resumed = await relaunchStemWorkspaceFixture(first, {
     configured: false,
     workspaceRootEnv: false,
     runtimeRootEnv: false,
@@ -139,7 +139,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   await activePage.getByTestId("onboarding-content-scope-all").click();
   await activePage.reload();
   await expect(activePage.getByTestId("onboarding-content-scope-all")).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => activePage.evaluate(() => window.exo.workspace.getSetupState())).toMatchObject({
+  await expect.poll(() => activePage.evaluate(() => window.stem.workspace.getSetupState())).toMatchObject({
     onboarding: {
       draft: {
         contentPolicyChoice: "explicit",
@@ -152,16 +152,16 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   await expect(activePage.getByRole("heading", { name: "Agent access" })).toBeVisible();
   await activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" }).click();
   await activePage.getByRole("button", { name: "Install MCP" }).click();
-  await expect(activePage.getByText("Added Exo MCP to Claude.")).toBeVisible();
-  await expect.poll(() => readOptional(path.join(first.homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nexo");
+  await expect(activePage.getByText("Added Stem MCP to Claude.")).toBeVisible();
+  await expect.poll(() => readOptional(path.join(first.homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nstem");
   await activePage.reload();
   await expect(activePage.getByRole("heading", { name: "Agent access" })).toBeVisible();
   await expect(activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Claude" })).toHaveAttribute("aria-pressed", "true");
   await expect(activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" })).toHaveAttribute("aria-pressed", "false");
-  await expect(activePage.getByText(/Added Exo MCP|already installed/)).toHaveCount(0);
+  await expect(activePage.getByText(/Added Stem MCP|already installed/)).toHaveCount(0);
 
   await activeApp.close();
-  resumed = await relaunchExoWorkspaceFixture(first, {
+  resumed = await relaunchStemWorkspaceFixture(first, {
     configured: false,
     workspaceRootEnv: false,
     runtimeRootEnv: false,
@@ -172,7 +172,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   activePage = resumed.page;
   await expect(activePage.getByRole("heading", { name: "Agent access" })).toBeVisible();
   await expect(activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" })).toHaveAttribute("aria-pressed", "false");
-  await expect(activePage.getByText(/Added Exo MCP|already installed/)).toHaveCount(0);
+  await expect(activePage.getByText(/Added Stem MCP|already installed/)).toHaveCount(0);
 
   await activePage.getByRole("button", { name: "Set up CLI agents" }).click();
   const claudeInput = activePage.getByRole("textbox", { name: "Claude command" });
@@ -187,10 +187,10 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   await expect(activePage.getByRole("textbox", { name: "Claude command" })).toHaveValue(customClaudeCommand);
   await expect(activePage.getByTestId("onboarding-invocation-prompt")).toContainText(prompt);
   await expect(readOptional(first.settingsPath)).resolves.toBeNull();
-  await expect(pathExists(path.join(noteRoot, ".exo"))).resolves.toBe(false);
+  await expect(pathExists(path.join(noteRoot, ".stem"))).resolves.toBe(false);
 
   await activeApp.close();
-  resumed = await relaunchExoWorkspaceFixture(first, {
+  resumed = await relaunchStemWorkspaceFixture(first, {
     configured: false,
     workspaceRootEnv: false,
     runtimeRootEnv: false,
@@ -208,7 +208,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
 });
 
 test("saved settings cannot bypass an explicit in-progress draft", async () => {
-  const first = await launchExoWorkspaceFixture({
+  const first = await launchStemWorkspaceFixture({
     configured: false,
     mutable: true,
     workspaceRootEnv: false,
@@ -221,8 +221,8 @@ test("saved settings cannot bypass an explicit in-progress draft", async () => {
   await first.page.getByRole("textbox", { name: "Claude command" }).fill(customClaudeCommand);
   await first.page.getByRole("textbox", { name: "Claude command" }).press("Tab");
   await first.page.evaluate(async (settings) => {
-    const snapshot = await window.exo.workspace.getSettings();
-    await window.exo.workspace.saveSettings({ settings, expectedRevision: snapshot.revision });
+    const snapshot = await window.stem.workspace.getSettings();
+    await window.stem.workspace.saveSettings({ settings, expectedRevision: snapshot.revision });
   }, workspaceSettings(noteRoot));
 
   await expect(readOptional(first.settingsPath)).resolves.not.toBeNull();
@@ -232,7 +232,7 @@ test("saved settings cannot bypass an explicit in-progress draft", async () => {
   await expect(first.page.getByRole("textbox", { name: "Claude command" })).toHaveValue(customClaudeCommand);
   await first.electronApp.close();
 
-  const restarted = await relaunchExoWorkspaceFixture(first, {
+  const restarted = await relaunchStemWorkspaceFixture(first, {
     configured: false,
     workspaceRootEnv: false,
     runtimeRootEnv: false,
@@ -246,14 +246,14 @@ test("saved settings cannot bypass an explicit in-progress draft", async () => {
 
 test("shows non-destructive recovery for malformed progress", async () => {
   let malformed = "";
-  const fixture = await launchExoWorkspaceFixture({
+  const fixture = await launchStemWorkspaceFixture({
     configured: false,
     workspaceRootEnv: false,
     runtimeRootEnv: false,
     prepareSettings: async ({ settingsPath, userDataRoot, workspaceRoot }) => {
       await saveWorkspaceSettings(workspaceSettings(path.join(workspaceRoot, "notes", "test-notes")), {
-        EXO_SETTINGS_PATH: settingsPath,
-        EXO_USER_DATA_PATH: userDataRoot,
+        STEM_SETTINGS_PATH: settingsPath,
+        STEM_USER_DATA_PATH: userDataRoot,
       });
       malformed = path.join(userDataRoot, "onboarding-state.json");
       await writeFile(malformed, "{ truncated", "utf8");
@@ -271,12 +271,12 @@ test("shows non-destructive recovery for malformed progress", async () => {
 });
 
 test("a cancelled folder choice leaves first-run state empty and writes nothing", async () => {
-  const { page, cleanup, settingsPath } = await launchExoWorkspaceFixture({
+  const { page, cleanup, settingsPath } = await launchStemWorkspaceFixture({
     configured: false,
     cwd: "/",
     workspaceRootEnv: false,
     runtimeRootEnv: false,
-    env: { EXO_TEST_SELECT_FOLDER_CANCEL: "1" },
+    env: { STEM_TEST_SELECT_FOLDER_CANCEL: "1" },
   });
 
   await page.getByTestId("onboarding-choose-notes").click();
@@ -289,7 +289,7 @@ test("a cancelled folder choice leaves first-run state empty and writes nothing"
 });
 
 test("keeps MCP and CLI setup independent without touching real provider state", async () => {
-  const { page, cleanup, homeRoot } = await launchExoWorkspaceFixture({
+  const { page, cleanup, homeRoot } = await launchStemWorkspaceFixture({
     configured: false,
     mutable: true,
     workspaceRootEnv: false,
@@ -313,15 +313,15 @@ test("keeps MCP and CLI setup independent without touching real provider state",
   await page.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" }).click();
   await page.getByRole("button", { name: "Install MCP" }).click();
 
-  await expect(page.getByText("Added Exo MCP to Claude.")).toBeVisible();
-  await expect.poll(() => readOptional(path.join(homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nexo");
+  await expect(page.getByText("Added Stem MCP to Claude.")).toBeVisible();
+  await expect.poll(() => readOptional(path.join(homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nstem");
   expect(await page.locator(".onboarding-cli-installation").innerText()).toBe(cliStateBefore);
 
   await cleanup();
 });
 
 test("resumes a new main wiki draft launched from an existing workspace", async () => {
-  const first = await launchExoWorkspaceFixture({
+  const first = await launchStemWorkspaceFixture({
     mutable: true,
     configured: false,
     expectOnboarding: false,
@@ -330,8 +330,8 @@ test("resumes a new main wiki draft launched from an existing workspace", async 
     selectFolderPath: (workspaceRoot) => path.join(workspaceRoot, "notes", "test-notes"),
     prepareSettings: async ({ settingsPath, userDataRoot, workspaceRoot }) => {
       await saveWorkspaceSettings(workspaceSettings(path.join(workspaceRoot, "notes", "test-notes")), {
-        EXO_SETTINGS_PATH: settingsPath,
-        EXO_USER_DATA_PATH: userDataRoot,
+        STEM_SETTINGS_PATH: settingsPath,
+        STEM_USER_DATA_PATH: userDataRoot,
       });
     },
   });
@@ -345,7 +345,7 @@ test("resumes a new main wiki draft launched from an existing workspace", async 
     await expect(first.page.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
 
     await first.electronApp.close();
-    const resumed = await relaunchExoWorkspaceFixture(first, {
+    const resumed = await relaunchStemWorkspaceFixture(first, {
       configured: false,
       workspaceRootEnv: false,
       runtimeRootEnv: false,
@@ -366,7 +366,7 @@ test("resumes a new main wiki draft launched from an existing workspace", async 
 });
 
 test("persists an explicit Note Root and edited recommended Commands across restart", async () => {
-  const first = await launchExoWorkspaceFixture({
+  const first = await launchStemWorkspaceFixture({
     configured: false,
     mutable: true,
     workspaceRootEnv: false,
@@ -391,10 +391,10 @@ test("persists an explicit Note Root and edited recommended Commands across rest
   await first.page.getByRole("textbox", { name: "Custom command handle" }).fill("local");
   await first.page.getByRole("textbox", { name: "Custom command executable and arguments" }).fill(customLocalCommand);
   await first.page.getByTestId("onboarding-agents-config-confirm-custom").click();
-  await first.page.getByRole("button", { name: "Open Exo" }).click();
+  await first.page.getByRole("button", { name: "Open Stem" }).click();
 
   await expect(first.page.getByTestId("sidebar")).toBeVisible();
-  const workspaceRuntimeRoot = path.join(selectedNoteRoot, ".exo");
+  const workspaceRuntimeRoot = path.join(selectedNoteRoot, ".stem");
   await expect.poll(() => readCommandDiscovery(workspaceRuntimeRoot)).toMatchObject({
     port: expect.any(Number),
     token: expect.any(String),
@@ -408,14 +408,14 @@ test("persists an explicit Note Root and edited recommended Commands across rest
   ]);
   await first.electronApp.close();
 
-  const restarted = await relaunchExoWorkspaceFixture(first, {
+  const restarted = await relaunchStemWorkspaceFixture(first, {
     configured: false,
     workspaceRootEnv: false,
     runtimeRootEnv: false,
   });
   await expect(restarted.page.getByTestId("onboarding")).toHaveCount(0);
   await expect(restarted.page.getByTestId("sidebar")).toBeVisible();
-  await expect.poll(async () => restarted.page.evaluate(() => window.exo.workspace.getSettings()))
+  await expect.poll(async () => restarted.page.evaluate(() => window.stem.workspace.getSettings()))
     .toMatchObject({
       settings: {
         noteRoots: [selectedNoteRoot],
@@ -440,7 +440,7 @@ test("persists an explicit Note Root and edited recommended Commands across rest
 });
 
 test("recommends all Markdown for a generic wiki", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     configured: false,
     mutable: true,
     workspaceRootEnv: false,
@@ -462,7 +462,7 @@ test("recommends all Markdown for a generic wiki", async () => {
 });
 
 test("recommends repository-safe Notes while preserving a manual All Markdown override", async () => {
-  const first = await launchExoWorkspaceFixture({
+  const first = await launchStemWorkspaceFixture({
     configured: false,
     mutable: true,
     workspaceRootEnv: false,
@@ -493,9 +493,9 @@ test("recommends repository-safe Notes while preserving a manual All Markdown ov
 
     await continueFromContentPolicy(first.page);
     await first.page.getByRole("button", { name: "Set up CLI agents" }).click();
-    await first.page.getByRole("button", { name: "Open Exo" }).click();
+    await first.page.getByRole("button", { name: "Open Stem" }).click();
     await expect(first.page.getByTestId("sidebar")).toBeVisible();
-    await expect.poll(async () => first.page.evaluate(() => window.exo.workspace.getSettings()))
+    await expect.poll(async () => first.page.evaluate(() => window.stem.workspace.getSettings()))
       .toMatchObject({
         settings: {
           noteRoots: [selectedNoteRoot],
@@ -512,7 +512,7 @@ for (const viewport of [
   { label: "compact", width: 700, height: 560, agentsScroll: true },
 ] as const) {
   test(`keeps every onboarding page anchored with internal scrolling at the ${viewport.label} viewport`, async () => {
-    const { page, cleanup } = await launchExoWorkspaceFixture({
+    const { page, cleanup } = await launchStemWorkspaceFixture({
       configured: false,
       mutable: true,
       workspaceRootEnv: false,
@@ -549,7 +549,7 @@ for (const viewport of [
       await expect(page.getByRole("heading", { name: "Set up agents" })).toBeVisible();
       await expectOnboardingGeometry(
         page,
-        page.getByRole("button", { name: "Open Exo" }),
+        page.getByRole("button", { name: "Open Stem" }),
         expectedGeometry,
       );
       if (viewport.agentsScroll) {
@@ -562,31 +562,31 @@ for (const viewport of [
 }
 
 test("completes and restarts the real packaged first-run journey", async () => {
-  const appBundle = process.env.EXO_PACKAGED_APP_PATH;
-  test.skip(!appBundle, "Set EXO_PACKAGED_APP_PATH to a built Exo.app to run packaged first-run proof.");
-  const root = await mkdtemp(path.join(os.tmpdir(), "exo-packaged-onboarding-"));
+  const appBundle = process.env.STEM_PACKAGED_APP_PATH;
+  test.skip(!appBundle, "Set STEM_PACKAGED_APP_PATH to a built Stem.app to run packaged first-run proof.");
+  const root = await mkdtemp(path.join(os.tmpdir(), "stem-packaged-onboarding-"));
   const userDataRoot = path.join(root, "user-data");
   const runtimeRoot = path.join(root, "runtime");
   const homeRoot = path.join(root, "home");
   const noteRoot = path.join(root, "wiki");
-  const evidenceRoot = process.env.EXO_GATE_A_EVIDENCE_DIR
+  const evidenceRoot = process.env.STEM_GATE_A_EVIDENCE_DIR
     ?? path.join(repoRoot, "artifacts", "gate-a-onboarding-package");
   await Promise.all([mkdir(userDataRoot, { recursive: true }), mkdir(runtimeRoot, { recursive: true }), mkdir(noteRoot, { recursive: true }), mkdir(evidenceRoot, { recursive: true })]);
   await writeFile(path.join(noteRoot, "welcome.md"), "# Welcome\n\nPackaged first-run fixture.\n", "utf8");
   await prepareFakeProviderHome(homeRoot);
   const executablePath = appBundle!.endsWith(".app")
-    ? path.join(appBundle!, "Contents", "MacOS", "Exo")
+    ? path.join(appBundle!, "Contents", "MacOS", "Stem")
     : appBundle!;
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     HOME: homeRoot,
     PATH: "/usr/bin:/bin",
-    EXO_TEST: "1",
-    EXO_USER_DATA_PATH: userDataRoot,
-    EXO_SETTINGS_PATH: path.join(userDataRoot, "workspace-settings.json"),
-    EXO_RUNTIME_ROOT: runtimeRoot,
-    EXO_TEST_SELECT_FOLDER_PATH: noteRoot,
-    EXO_FORCE_THEME: "light",
+    STEM_TEST: "1",
+    STEM_USER_DATA_PATH: userDataRoot,
+    STEM_SETTINGS_PATH: path.join(userDataRoot, "workspace-settings.json"),
+    STEM_RUNTIME_ROOT: runtimeRoot,
+    STEM_TEST_SELECT_FOLDER_PATH: noteRoot,
+    STEM_FORCE_THEME: "light",
   };
 
   let firstApp;
@@ -608,14 +608,14 @@ test("completes and restarts the real packaged first-run journey", async () => {
     await page.screenshot({ path: path.join(evidenceRoot, "02-packaged-agent-access.png"), fullPage: true });
     await page.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" }).click();
     await page.getByRole("button", { name: "Install MCP" }).click();
-    await expect(page.getByText("Added Exo MCP to Claude.")).toBeVisible();
-    await expect.poll(() => readOptional(path.join(homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nexo");
+    await expect(page.getByText("Added Stem MCP to Claude.")).toBeVisible();
+    await expect.poll(() => readOptional(path.join(homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nstem");
     await expect(readOptional(path.join(homeRoot, "codex-mcp.log"))).resolves.toBeNull();
     await page.getByRole("button", { name: "Set up CLI agents" }).click();
     await page.getByRole("textbox", { name: "Claude command" }).fill(customClaudeCommand);
     await page.getByRole("textbox", { name: "Codex command" }).fill(customCodexCommand);
     await page.screenshot({ path: path.join(evidenceRoot, "03-packaged-commands.png"), fullPage: true });
-    await page.getByRole("button", { name: "Open Exo" }).click();
+    await page.getByRole("button", { name: "Open Stem" }).click();
     await expect(page.getByTestId("sidebar")).toBeVisible();
     await page.screenshot({ path: path.join(evidenceRoot, "04-packaged-workspace.png"), fullPage: true });
     await firstApp.close();
@@ -628,7 +628,7 @@ test("completes and restarts the real packaged first-run journey", async () => {
     expect(restartedPage.viewportSize()).toEqual({ width: 700, height: 560 });
     await expect(restartedPage.getByTestId("onboarding")).toHaveCount(0);
     await expect(restartedPage.getByTestId("sidebar")).toBeVisible();
-    await expect.poll(async () => restartedPage.evaluate(() => window.exo.workspace.getSettings()))
+    await expect.poll(async () => restartedPage.evaluate(() => window.stem.workspace.getSettings()))
       .toMatchObject({
         settings: {
           noteRoots: [noteRoot],
@@ -655,7 +655,7 @@ function workspaceSettings(noteRoot: string): WorkspaceSettings {
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     searchEngine: "filesystem",
     appearanceMode: "system",
-    colorThemeId: "exo-neutral",
+    colorThemeId: "stem-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,
@@ -669,7 +669,7 @@ async function prepareFakeProviderHome(homeRoot: string): Promise<void> {
   const bin = path.join(homeRoot, ".local", "bin");
   await mkdir(bin, { recursive: true });
   await Promise.all([
-    writeExecutable(path.join(bin, "exo"), "#!/bin/sh\nexit 0\n"),
+    writeExecutable(path.join(bin, "stem"), "#!/bin/sh\nexit 0\n"),
     writeExecutable(path.join(bin, "claude"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/claude-mcp.log\"\n"),
     writeExecutable(path.join(bin, "codex"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/codex-mcp.log\"\n"),
   ]);

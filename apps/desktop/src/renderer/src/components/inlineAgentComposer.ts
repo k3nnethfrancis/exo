@@ -1,7 +1,7 @@
 import { Facet, Prec, StateEffect, StateField, type EditorState, type Extension, type Range, type Transaction } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, WidgetType, keymap } from "@codemirror/view";
-import type { InvocationSkillContext } from "@exo/core";
-import { findDocumentAgentEnvelopes, formatDocumentAgentInvocation } from "@exo/core/document-agent-protocol";
+import type { InvocationSkillContext } from "@stem/core";
+import { findDocumentAgentEnvelopes, formatDocumentAgentInvocation } from "@stem/core/document-agent-protocol";
 
 export interface InlineAgentDraft {
   protocolInvocationId: string;
@@ -120,9 +120,9 @@ function invocationProtocolSyntaxChanged(transaction: Transaction): boolean {
     const previousLine = transaction.startState.doc.lineAt(fromA).text;
     const removed = transaction.startState.doc.sliceString(fromA, toA);
     const added = inserted.toString();
-    changed = /<\/?exo-(?:invocation|agent-response)\b/.test(previousLine)
-      || /<\/?exo-(?:invocation|agent-response)\b/.test(removed)
-      || /<\/?exo-(?:invocation|agent-response)\b/.test(added);
+    changed = /<\/?stem-(?:invocation|agent-response)\b/.test(previousLine)
+      || /<\/?stem-(?:invocation|agent-response)\b/.test(removed)
+      || /<\/?stem-(?:invocation|agent-response)\b/.test(added);
   });
   return changed;
 }

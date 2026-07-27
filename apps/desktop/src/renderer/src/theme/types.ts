@@ -1,11 +1,11 @@
-import type { ColorThemeId } from "@exo/core";
+import type { ColorThemeId } from "@stem/core";
 import type { ResolvedAppearance } from "../appearance";
 
 export type { ColorThemeId };
 
 export type ThemeCssVariable = `--${string}`;
 
-export interface ExoSyntaxTheme {
+export interface StemSyntaxTheme {
   keyword: string;
   atom: string;
   string: string;
@@ -21,7 +21,7 @@ export interface ExoSyntaxTheme {
   meta: string;
 }
 
-export interface ExoTerminalTheme {
+export interface StemTerminalTheme {
   background: string;
   foreground: string;
   cursor: string;
@@ -45,18 +45,18 @@ export interface ExoTerminalTheme {
   brightWhite: string;
 }
 
-export interface ExoThemeVariant {
+export interface StemThemeVariant {
   id: string;
   appearance: ResolvedAppearance;
   colorScheme: "light" | "dark";
   css: Record<ThemeCssVariable, string>;
-  syntax: ExoSyntaxTheme;
-  terminal: ExoTerminalTheme;
+  syntax: StemSyntaxTheme;
+  terminal: StemTerminalTheme;
 }
 
-export interface ExoThemeFamily {
+export interface StemThemeFamily {
   id: ColorThemeId;
   label: string;
   description: string;
-  variants: Partial<Record<ResolvedAppearance, ExoThemeVariant>>;
+  variants: Partial<Record<ResolvedAppearance, StemThemeVariant>>;
 }

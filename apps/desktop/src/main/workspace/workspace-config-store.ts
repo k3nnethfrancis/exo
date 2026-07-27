@@ -16,7 +16,7 @@ import {
   type WorkspaceSettings,
   type WorkspaceSettingsRevision,
   type WorkspaceSettingsSnapshot,
-} from "@exo/core";
+} from "@stem/core";
 
 export interface WorkspaceConfigStoreOptions {
   userDataPath: string;
@@ -93,7 +93,7 @@ export class WorkspaceConfigStore {
   }
 
   private persistenceEnv(): NodeJS.ProcessEnv {
-    return { ...this.env, EXO_USER_DATA_PATH: this.options.userDataPath };
+    return { ...this.env, STEM_USER_DATA_PATH: this.options.userDataPath };
   }
 }
 

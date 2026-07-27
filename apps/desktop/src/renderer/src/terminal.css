@@ -76,7 +76,7 @@
   width: 26px;
   height: 26px;
   border-radius: 8px;
-  transition: background-color 140ms var(--exo-ease-out), color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
+  transition: background-color 140ms var(--stem-ease-out), color 140ms var(--stem-ease-out), transform 120ms var(--stem-ease-out);
 }
 
 .terminal-dock__header-button--active {
@@ -85,7 +85,7 @@
 }
 
 .terminal-dock__header-button:active {
-  transform: scale(var(--exo-press-scale));
+  transform: scale(var(--stem-press-scale));
 }
 
 .terminal-dock__footer {
@@ -127,7 +127,7 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background-color 140ms var(--exo-ease-out), color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
+  transition: background-color 140ms var(--stem-ease-out), color 140ms var(--stem-ease-out), transform 120ms var(--stem-ease-out);
 }
 
 .terminal-dock__new:hover {
@@ -136,7 +136,7 @@
 }
 
 .terminal-dock__new:active {
-  transform: scale(var(--exo-press-scale));
+  transform: scale(var(--stem-press-scale));
 }
 
 .terminal-dock__new:focus-visible {
@@ -269,7 +269,7 @@
 }
 
 .browser-pane__new:active {
-  transform: scale(var(--exo-press-scale));
+  transform: scale(var(--stem-press-scale));
 }
 
 .browser-tab {
@@ -306,7 +306,7 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background-color 140ms var(--exo-ease-out), color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
+  transition: background-color 140ms var(--stem-ease-out), color 140ms var(--stem-ease-out), transform 120ms var(--stem-ease-out);
 }
 
 .browser-pane__button:hover {
@@ -315,7 +315,7 @@
 }
 
 .browser-pane__button:active {
-  transform: scale(var(--exo-press-scale));
+  transform: scale(var(--stem-press-scale));
 }
 
 @media (prefers-reduced-motion: reduce) {

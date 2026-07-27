@@ -1,4 +1,4 @@
-import type { WorkspaceSettings } from "@exo/core";
+import type { WorkspaceSettings } from "@stem/core";
 
 /** Keep destination settings private until durable invocation recovery finishes. */
 export async function activateWorkspaceAfterRecovery<T>(

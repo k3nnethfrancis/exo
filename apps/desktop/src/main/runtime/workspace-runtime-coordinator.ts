@@ -1,4 +1,4 @@
-import type { WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
+import type { WorkspaceModel, WorkspaceSettings, WorkspaceSettingsRevision } from "@stem/core";
 
 import {
   planWorkspaceSettingsApply,

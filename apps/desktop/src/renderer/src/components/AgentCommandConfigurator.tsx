@@ -4,11 +4,11 @@ import {
   normalizeAgentCommand,
   normalizeAgentHandle,
   type AgentCommand,
-} from "@exo/core/agent-command-configuration";
+} from "@stem/core/agent-command-configuration";
 import {
   createDefaultClaudeAgentCommand,
   createDefaultCodexAgentCommand,
-} from "@exo/core/default-agent-command";
+} from "@stem/core/default-agent-command";
 
 export type AgentCommandConfigurationChange = "edit" | "confirm";
 

@@ -1,6 +1,6 @@
 import type { GraphPresentationPalette } from "./graphPresentation";
 
-/** Resolve Exo theme tokens once before the renderer-neutral presentation pass. */
+/** Resolve Stem theme tokens once before the renderer-neutral presentation pass. */
 export function resolveGraphPalette(element: Element): GraphPresentationPalette {
   const styles = getComputedStyle(element);
   const value = (name: string, fallback: string) => cssColorToRgba(styles.getPropertyValue(name).trim() || fallback);

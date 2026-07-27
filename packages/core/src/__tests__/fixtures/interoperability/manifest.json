@@ -8,7 +8,7 @@
       "specUrl": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/d44368c15e38e7c92481c5992e4f9b5b421a801d/okf/SPEC.md",
       "license": "Apache-2.0",
       "licenseUrl": "https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/d44368c15e38e7c92481c5992e4f9b5b421a801d/okf/LICENSE.md",
-      "notice": "Files are copied byte-for-byte. Exo selected a five-file subset and omitted all other bundle files.",
+      "notice": "Files are copied byte-for-byte. Stem selected a five-file subset and omitted all other bundle files.",
       "files": [
         {
           "sourcePath": "okf/bundles/crypto_bitcoin/index.md",

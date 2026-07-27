@@ -244,7 +244,7 @@ describe("Workspace ontology", () => {
 
   it("rejects activation-state symlinks instead of following them outside the runtime root", async () => {
     const { workspace, runtime, store } = await ontologyStore();
-    const outside = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-outside-"));
+    const outside = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-outside-"));
     roots.push(outside);
     await cp(path.join(fixtureRoot, "ontology.yaml"), path.join(workspace, "ontology.yaml"));
     await mkdir(runtime, { recursive: true });
@@ -257,7 +257,7 @@ describe("Workspace ontology", () => {
 
   it("does not follow a candidate symlink or read an oversized candidate", async () => {
     const { workspace, store } = await ontologyStore();
-    const outside = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-candidate-outside-"));
+    const outside = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-candidate-outside-"));
     roots.push(outside);
     const outsideFile = path.join(outside, "ontology.yaml");
     await writeFile(outsideFile, "ontology_schema: 1\nid: outside\nversion: 1\n");
@@ -313,7 +313,7 @@ describe("Workspace ontology", () => {
 
   it("never replaces a symlink while staging a discovered candidate", async () => {
     const { workspace, store } = await ontologyStore();
-    const outside = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-stage-outside-"));
+    const outside = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-stage-outside-"));
     roots.push(outside);
     const outsideFile = path.join(outside, "ontology.yaml");
     await writeFile(outsideFile, "ontology_schema: 1\nid: outside\nversion: 1\n");
@@ -389,10 +389,10 @@ describe("Workspace ontology", () => {
 });
 
 async function ontologyStore(): Promise<{ workspace: string; runtime: string; store: WorkspaceOntologyStore }> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-store-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-store-"));
   roots.push(root);
   const workspace = path.join(root, "workspace");
-  const runtime = path.join(root, ".exo");
+  const runtime = path.join(root, ".stem");
   await mkdir(workspace);
   return { workspace, runtime, store: new WorkspaceOntologyStore({ workspaceRoot: workspace, runtimeRoot: runtime }) };
 }

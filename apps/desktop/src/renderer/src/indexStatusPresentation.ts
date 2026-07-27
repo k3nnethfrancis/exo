@@ -1,4 +1,4 @@
-import type { IndexStatus } from "@exo/core";
+import type { IndexStatus } from "@stem/core";
 
 import type { IndexBusyState } from "./workspaceSettingsDialogTypes";
 

@@ -13,7 +13,7 @@ afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recur
 
 describe("Ontology maintenance Skill", () => {
   it("installs one user-owned copy without overwriting later edits", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-maintenance-skill-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-maintenance-skill-"));
     roots.push(root);
     const first = await ensureOntologyMaintenanceSkill(root);
     expect(first.path).toBe(path.join(root, "skills", "find-and-connect-relevant-context.md"));
@@ -26,8 +26,8 @@ describe("Ontology maintenance Skill", () => {
   });
 
   it("refuses a symlinked Skills directory", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-maintenance-skill-"));
-    const outside = await mkdtemp(path.join(os.tmpdir(), "exo-maintenance-skill-outside-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-maintenance-skill-"));
+    const outside = await mkdtemp(path.join(os.tmpdir(), "stem-maintenance-skill-outside-"));
     roots.push(root, outside);
     const { symlink } = await import("node:fs/promises");
     await symlink(outside, path.join(root, "skills"));
@@ -35,7 +35,7 @@ describe("Ontology maintenance Skill", () => {
   });
 
   it("parameterizes the same Skill with exact active ontology and graph identities", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-maintenance-skill-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-maintenance-skill-"));
     roots.push(root);
     await mkdir(path.join(root, "notes"));
     const skill = await ensureOntologyMaintenanceSkill(path.join(root, "notes"));

@@ -29,8 +29,8 @@ import {
   type InvocationActivityKind,
   type InvocationLaunchArtifacts,
   type InvocationWorkspaceManifest,
-} from "@exo/core";
-import { commandForClaudeResume as buildClaudeResumeCommand } from "@exo/core/provider-session";
+} from "@stem/core";
+import { commandForClaudeResume as buildClaudeResumeCommand } from "@stem/core/provider-session";
 
 import type { TerminalSessionInfo } from "../../shared/api";
 import type { AgentCommandContinuityStatus, AgentCommandLaunchFacts, AgentInvocationAuthorizationFacts } from "../../shared/api";
@@ -65,7 +65,7 @@ export interface InvocationRequest {
   mentionText?: string;
   documentFrontmatter?: Record<string, unknown>;
   documentBody?: string;
-  skill?: import("@exo/core").InvocationSkillContext;
+  skill?: import("@stem/core").InvocationSkillContext;
   message: string;
 }
 
@@ -247,7 +247,7 @@ export class InvocationRunner extends EventEmitter {
       const cleanBody = removeDocumentAgentInvocation(persisted.body, request.protocolInvocationId, command.handle);
       const bodyOffset = before.content.length - persisted.body.length;
       if (cleanBody === null || bodyOffset < 0 || before.content.slice(bodyOffset) !== persisted.body) {
-        throw new InvocationRunnerError("protocol-invalid", "Exo could not derive the exact saved document before this invocation.");
+        throw new InvocationRunnerError("protocol-invalid", "Stem could not derive the exact saved document before this invocation.");
       }
       cleanBaseContent = `${before.content.slice(0, bodyOffset)}${cleanBody}`;
       before = verified;
@@ -613,7 +613,7 @@ export class InvocationRunner extends EventEmitter {
     const prepared = await this.prepare({
       context: "cli",
       handle: facts.handle,
-      task: `Verify that @${facts.handle} can launch from Exo. Respond briefly, then remain available in this terminal.`,
+      task: `Verify that @${facts.handle} can launch from Stem. Respond briefly, then remain available in this terminal.`,
       message: `Test @${facts.handle} in terminal`,
     });
     if (prepared.pending.command.executableFingerprint !== expectedFingerprint) {
@@ -762,7 +762,7 @@ export class InvocationRunner extends EventEmitter {
         noteRoots: settings.noteRoots.map((root) => path.resolve(root)),
         reason: `Invocation recovery could not enumerate durable records: ${reason}`,
       });
-      console.error("[exo] invocation workspace recovery remains blocked", { workspaceRoot: settings.workspaceRoot, error });
+      console.error("[stem] invocation workspace recovery remains blocked", { workspaceRoot: settings.workspaceRoot, error });
       return;
     }
     const workspaceBlockReasons: string[] = [];
@@ -812,7 +812,7 @@ export class InvocationRunner extends EventEmitter {
         if (!ownership && requiresFromRecord) {
           existingSettled = await recordStore.readManifest(record.id, "settled");
           if (!existingSettled) {
-            throw new Error("Durable invocation process ownership is missing; Exo cannot prove the writer is dead.");
+            throw new Error("Durable invocation process ownership is missing; Stem cannot prove the writer is dead.");
           }
         }
         recovered = await this.reviewService(workspaceRoot).recoverJournal(record);
@@ -844,7 +844,7 @@ export class InvocationRunner extends EventEmitter {
         const reason = error instanceof Error ? error.message : String(error);
         workspaceBlockReasons.push(`Invocation ${record?.id ?? artifactId}: ${reason}`);
         if (!record) {
-          console.error("[exo] invocation artifact recovery remains blocked", {
+          console.error("[stem] invocation artifact recovery remains blocked", {
             workspaceRoot: settings.workspaceRoot,
             invocationId: artifactId,
             error,
@@ -861,7 +861,7 @@ export class InvocationRunner extends EventEmitter {
           await recordStore.writeRecord(blocked);
           this.emit("updated", blocked);
         } catch (persistenceError) {
-          console.error("[exo] invocation recovery state could not be persisted", {
+          console.error("[stem] invocation recovery state could not be persisted", {
             invocationId: record.id,
             error,
             persistenceError,
@@ -1265,7 +1265,7 @@ async function assertLaunchDocumentStillCurrent(
   if (!matchesPrepared || !matchesCleanBase || !matchesCurrent) {
     throw new InvocationRunnerError(
       "document-drift",
-      "The document changed while Exo prepared the invocation. The Command was not run; your edit was preserved.",
+      "The document changed while Stem prepared the invocation. The Command was not run; your edit was preserved.",
     );
   }
 }
@@ -1363,7 +1363,7 @@ function delay(milliseconds: number): Promise<void> {
 }
 
 function runtimeRootForWorkspace(workspaceRoot: string): string {
-  return process.env.EXO_RUNTIME_ROOT ?? path.join(workspaceRoot, ".exo");
+  return process.env.STEM_RUNTIME_ROOT ?? path.join(workspaceRoot, ".stem");
 }
 
 async function canonicalPathOrResolved(filePath: string): Promise<string> {

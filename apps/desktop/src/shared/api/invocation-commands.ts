@@ -6,13 +6,13 @@ import type {
   InvocationRecord,
   InvocationSkillContext,
   OntologyReviewState,
-} from "@exo/core";
+} from "@stem/core";
 
 import type { TerminalSessionInfo } from "./terminal";
 
 export interface LaunchAgentInvocationInput {
   handle: string;
-  /** UUID stored in the inert <exo-invocation> document envelope. */
+  /** UUID stored in the inert <stem-invocation> document envelope. */
   protocolInvocationId: string;
   documentPath: string;
   mentionText: string;
@@ -110,7 +110,7 @@ export interface AgentCommandContinuityStatus {
   active: boolean;
 }
 
-/** An explicit installation of Exo's read-only MCP server into provider-owned config. */
+/** An explicit installation of Stem's read-only MCP server into provider-owned config. */
 export interface ProviderMcpSetupInput {
   providers: Array<"claude" | "codex">;
 }
@@ -121,9 +121,9 @@ export interface ProviderMcpSetupResult {
   detail: string;
 }
 
-/** A read-only diagnosis of the `exo` command the desktop app can see. */
+/** A read-only diagnosis of the `stem` command the desktop app can see. */
 export interface CliInstallationStatus {
-  state: "current" | "legacy-exo" | "missing" | "non-exo" | "unavailable";
+  state: "current" | "legacy-stem" | "missing" | "non-stem" | "unavailable";
   /** The command found on PATH, when one is present. */
   commandPath?: string;
   /** The checkout command it should point to, when this app can identify one. */
@@ -132,7 +132,7 @@ export interface CliInstallationStatus {
   installCommand?: string;
 }
 
-/** A content-free renderer fault record, retained only in Exo's local main log. */
+/** A content-free renderer fault record, retained only in Stem's local main log. */
 export interface RendererEditorDiagnostic {
   kind: "editor-render-fault";
   occurredAt: string;

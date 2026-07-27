@@ -3,18 +3,18 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { mkdir } from "node:fs/promises";
 
 import {
-  EXO_COMMAND_ROUTES,
-  EXO_COMMAND_TOKEN_HEADER,
-  type ExoCommandBasicErrorResponse,
-  type ExoCommandOkResponse,
-  type ExoCommandServerInfo,
-  type ExoCommandStatusResponse,
-  type ExoSpawnAgentCommandResponse,
-  type ExoSpawnAgentCommandErrorResponse,
+  STEM_COMMAND_ROUTES,
+  STEM_COMMAND_TOKEN_HEADER,
+  type StemCommandBasicErrorResponse,
+  type StemCommandOkResponse,
+  type StemCommandServerInfo,
+  type StemCommandStatusResponse,
+  type StemSpawnAgentCommandResponse,
+  type StemSpawnAgentCommandErrorResponse,
   type IndexSearchResponse,
   type IndexSyncResult,
   type IndexStatus,
-} from "@exo/core";
+} from "@stem/core";
 
 import { InvocationRunnerError, type InvocationResult } from "../invocation/invocation-runner";
 
@@ -25,7 +25,7 @@ export interface CommandServerOptions {
   onIndexSearch: (query: string, options: { limit?: number; offset?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
   onIndexStatus: () => Promise<IndexStatus>;
   onIndexSync: () => Promise<IndexSyncResult>;
-  onGetStatus: () => ExoCommandStatusResponse;
+  onGetStatus: () => StemCommandStatusResponse;
   onSpawnAgentCommand: (input: { handle: string; task: string }) => Promise<InvocationResult>;
 }
 
@@ -77,7 +77,7 @@ export class CommandServer {
     return this.isListening() ? this.port : null;
   }
 
-  getServerInfo(): ExoCommandServerInfo {
+  getServerInfo(): StemCommandServerInfo {
     if (!this.isListening()) {
       throw new Error("Command server is not listening.");
     }
@@ -91,30 +91,30 @@ export class CommandServer {
 
     try {
       if (!isLoopbackRemote(req.socket.remoteAddress)) {
-        json(res, { error: "Command server only accepts loopback requests." } satisfies ExoCommandBasicErrorResponse, 403);
+        json(res, { error: "Command server only accepts loopback requests." } satisfies StemCommandBasicErrorResponse, 403);
         return;
       }
 
       if (!this.isAuthenticated(req)) {
-        json(res, { error: "Missing or invalid Exo command token." } satisfies ExoCommandBasicErrorResponse, 401);
+        json(res, { error: "Missing or invalid Stem command token." } satisfies StemCommandBasicErrorResponse, 401);
         return;
       }
 
-      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.status) {
+      if (method === "GET" && pathname === STEM_COMMAND_ROUTES.status) {
         json(res, this.options.onGetStatus());
         return;
       }
 
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.show) {
+      if (method === "POST" && pathname === STEM_COMMAND_ROUTES.show) {
         this.options.onShowWindow();
-        json(res, { ok: true } satisfies ExoCommandOkResponse);
+        json(res, { ok: true } satisfies StemCommandOkResponse);
         return;
       }
 
-      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.search) {
+      if (method === "GET" && pathname === STEM_COMMAND_ROUTES.search) {
         const query = url.searchParams.get("q") ?? "";
         if (!query) {
-          json(res, { error: "Missing query parameter ?q=" } satisfies ExoCommandBasicErrorResponse, 400);
+          json(res, { error: "Missing query parameter ?q=" } satisfies StemCommandBasicErrorResponse, 400);
           return;
         }
         const limit = parseOptionalNumber(url.searchParams.get("limit"));
@@ -130,41 +130,41 @@ export class CommandServer {
         return;
       }
 
-      if (method === "GET" && pathname === EXO_COMMAND_ROUTES.indexStatus) {
+      if (method === "GET" && pathname === STEM_COMMAND_ROUTES.indexStatus) {
         json(res, await this.options.onIndexStatus());
         return;
       }
 
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.indexSync) {
+      if (method === "POST" && pathname === STEM_COMMAND_ROUTES.indexSync) {
         json(res, await this.options.onIndexSync());
         return;
       }
 
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.open) {
+      if (method === "POST" && pathname === STEM_COMMAND_ROUTES.open) {
         const body = await readBody(req);
         const filePath = isRecord(body) && typeof body.path === "string" ? body.path : undefined;
         if (!filePath) {
-          json(res, { error: "Missing path in body" } satisfies ExoCommandBasicErrorResponse, 400);
+          json(res, { error: "Missing path in body" } satisfies StemCommandBasicErrorResponse, 400);
           return;
         }
         try {
           await this.options.onOpenFile(filePath);
         } catch (error) {
-          json(res, { error: error instanceof Error ? error.message : String(error) } satisfies ExoCommandBasicErrorResponse, 400);
+          json(res, { error: error instanceof Error ? error.message : String(error) } satisfies StemCommandBasicErrorResponse, 400);
           return;
         }
-        json(res, { ok: true } satisfies ExoCommandOkResponse);
+        json(res, { ok: true } satisfies StemCommandOkResponse);
         return;
       }
 
-      if (method === "POST" && pathname === EXO_COMMAND_ROUTES.spawnAgentCommand) {
+      if (method === "POST" && pathname === STEM_COMMAND_ROUTES.spawnAgentCommand) {
         const body = await readBody(req);
         const handle = isRecord(body) && typeof body.handle === "string" ? body.handle : undefined;
         const task = isRecord(body) && typeof body.task === "string" ? body.task : undefined;
         if (!handle || !task) {
           json(
             res,
-            { ok: false, code: "missing-agent-command-spawn-input", error: "Missing handle or task in body." } satisfies ExoSpawnAgentCommandErrorResponse,
+            { ok: false, code: "missing-agent-command-spawn-input", error: "Missing handle or task in body." } satisfies StemSpawnAgentCommandErrorResponse,
             400,
           );
           return;
@@ -191,12 +191,12 @@ export class CommandServer {
               status: result.terminal.status,
               ...(result.terminal.exitCode === undefined ? {} : { exitCode: result.terminal.exitCode }),
             },
-          } satisfies ExoSpawnAgentCommandResponse);
+          } satisfies StemSpawnAgentCommandResponse);
         } catch (error) {
           if (error instanceof InvocationRunnerError) {
             json(
               res,
-              { ok: false, code: error.code, error: error.message, ...error.details } satisfies ExoSpawnAgentCommandErrorResponse,
+              { ok: false, code: error.code, error: error.message, ...error.details } satisfies StemSpawnAgentCommandErrorResponse,
               error.code === "agent-command-untrusted" ? 403 : 400,
             );
             return;
@@ -206,15 +206,15 @@ export class CommandServer {
         return;
       }
 
-      json(res, { error: "Not found" } satisfies ExoCommandBasicErrorResponse, 404);
+      json(res, { error: "Not found" } satisfies StemCommandBasicErrorResponse, 404);
     } catch (error) {
       const status = error instanceof CommandServerHttpError ? error.status : 500;
-      json(res, { error: error instanceof Error ? error.message : String(error) } satisfies ExoCommandBasicErrorResponse, status);
+      json(res, { error: error instanceof Error ? error.message : String(error) } satisfies StemCommandBasicErrorResponse, status);
     }
   }
 
   private isAuthenticated(req: IncomingMessage): boolean {
-    const headerToken = req.headers[EXO_COMMAND_TOKEN_HEADER];
+    const headerToken = req.headers[STEM_COMMAND_TOKEN_HEADER];
     if (typeof headerToken === "string" && headerToken === this.token) {
       return true;
     }

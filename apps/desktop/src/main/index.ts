@@ -28,7 +28,7 @@ import {
   type WorkspaceModel,
   type WorkspaceSettings,
   type WorkspaceSettingsSaveRequest,
-} from "@exo/core";
+} from "@stem/core";
 
 import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import type { WorkspaceSettingsSaveOutcome } from "../shared/api";
@@ -67,8 +67,8 @@ const sourceProjectRoot = resolveSourceProjectRoot();
 const gpuStartupPolicy = configureGpuStartup(app, process.env);
 const BOOTSTRAP_WORKSPACE_GENERATION = 0;
 
-if (process.env.EXO_USER_DATA_PATH) {
-  app.setPath("userData", process.env.EXO_USER_DATA_PATH);
+if (process.env.STEM_USER_DATA_PATH) {
+  app.setPath("userData", process.env.STEM_USER_DATA_PATH);
 }
 
 process.on("uncaughtException", (error) => {
@@ -106,7 +106,7 @@ const singleInstanceLock = app.requestSingleInstanceLock(resolveSingleInstanceDa
 
 if (!singleInstanceLock) {
   console.error(
-    "[exo] another Exo instance is already running; this dev process will exit after asking the running app to focus and refresh command-server discovery.",
+    "[stem] another Stem instance is already running; this dev process will exit after asking the running app to focus and refresh command-server discovery.",
   );
   app.quit();
 }
@@ -142,7 +142,7 @@ function createCommandServer(runtimeRoot = resolveRuntimeRoot()) {
 
 async function refreshCommandServerDiscovery(reason: string): Promise<void> {
   if (!commandServerLifecycle.status().listening) {
-    console.warn(`[exo] command server was not listening during ${reason}; restarting it.`);
+    console.warn(`[stem] command server was not listening during ${reason}; restarting it.`);
     logMain("command server discovery refresh restarting server", { reason });
     await commandServerLifecycle.restart();
     return;
@@ -150,10 +150,10 @@ async function refreshCommandServerDiscovery(reason: string): Promise<void> {
 
   try {
     const info = await commandServerLifecycle.refreshDiscovery();
-    console.info(`[exo] command server discovery refreshed for ${reason}: ${info.path} (port ${info.port})`);
+    console.info(`[stem] command server discovery refreshed for ${reason}: ${info.path} (port ${info.port})`);
     logMain("command server discovery refreshed", { reason, path: info.path, port: info.port });
   } catch (error) {
-    console.error(`[exo] failed to refresh command server discovery for ${reason}:`, error);
+    console.error(`[stem] failed to refresh command server discovery for ${reason}:`, error);
     logMain("command server discovery refresh failed", { reason, error: serializeError(error) });
   }
 }
@@ -187,7 +187,7 @@ function logWorkspaceStartup(model: WorkspaceModel) {
     settingsPath: path.join(app.getPath("userData"), "workspace-settings.json"),
     hardwareAcceleration: gpuStartupPolicy,
   };
-  console.info("[exo] workspace startup", details);
+  console.info("[stem] workspace startup", details);
   logMain("workspace startup", details);
 }
 
@@ -240,7 +240,7 @@ function sendToRenderer<C extends DesktopEventChannel>(channel: C, payload: Desk
 
 function logMain(message: string, details?: unknown) {
   const line = `${new Date().toISOString()} ${message}${details === undefined ? "" : ` ${JSON.stringify(details)}`}\n`;
-  const logPath = path.join(app.getPath("userData"), "exo-main.log");
+  const logPath = path.join(app.getPath("userData"), "stem-main.log");
   appendFile(logPath, line, "utf8").catch(() => {});
 }
 
@@ -553,7 +553,7 @@ function resolveSourceProjectRoot(): string | undefined {
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {
-  if (!isForcedTheme(process.env.EXO_FORCE_THEME)) {
+  if (!isForcedTheme(process.env.STEM_FORCE_THEME)) {
     nativeTheme.themeSource = settings?.appearanceMode ?? DEFAULT_APPEARANCE_MODE;
   }
 }
@@ -627,18 +627,18 @@ async function switchWorkspace(workspaceId: string, expectedRevision: string | n
 }
 
 function applyOnboardingRuntimeEnv() {
-  if (process.env.EXO_RUNTIME_ROOT) {
+  if (process.env.STEM_RUNTIME_ROOT) {
     return;
   }
   onboardingRuntimeRoot = path.join(app.getPath("userData"), "onboarding-runtime");
 }
 
 app.whenReady().then(async () => {
-  if (process.env.EXO_GPU_PROBE_OUTPUT) {
+  if (process.env.STEM_GPU_PROBE_OUTPUT) {
     await runStandaloneGraphGpuProbe({
       app,
       currentDirectory,
-      outputPath: process.env.EXO_GPU_PROBE_OUTPUT,
+      outputPath: process.env.STEM_GPU_PROBE_OUTPUT,
       gpuStartupPolicy,
     });
     return;
@@ -658,7 +658,7 @@ app.whenReady().then(async () => {
     const refresh = Promise.resolve(workspaceNotesService?.handleWorkspaceChange(event));
     sendToRenderer("workspace:changed", event);
     void refresh.catch((error) => {
-      console.warn("[exo] incremental workspace refresh failed", error);
+      console.warn("[stem] incremental workspace refresh failed", error);
     });
   }, {
     onRuntimeError: ({ generation, rootPath, errorMessage }) => {
@@ -673,7 +673,7 @@ app.whenReady().then(async () => {
     },
   });
 
-  const forcedTheme = process.env.EXO_FORCE_THEME;
+  const forcedTheme = process.env.STEM_FORCE_THEME;
   if (isForcedTheme(forcedTheme)) {
     nativeTheme.themeSource = forcedTheme;
   }
@@ -773,7 +773,7 @@ app.whenReady().then(async () => {
     logMain,
   });
   workspaceRuntimeCoordinator = new WorkspaceRuntimeCoordinator({
-    runtimeRootFor: (settings) => process.env.EXO_RUNTIME_ROOT ?? path.join(settings.workspaceRoot, ".exo"),
+    runtimeRootFor: (settings) => process.env.STEM_RUNTIME_ROOT ?? path.join(settings.workspaceRoot, ".stem"),
     recoverInvocations: (candidate) => invocationRunner.recoverWorkspace(candidate.settings),
     modelFromSettings: workspaceModelFromSettings,
     prepareNoteRoots: (candidate) => ensureNoteRoots(candidate.model),
@@ -913,8 +913,8 @@ async function ensureNoteRoots(model: WorkspaceModel): Promise<void> {
 }
 
 function resolveRuntimeRoot(): string {
-  if (process.env.EXO_RUNTIME_ROOT) {
-    return process.env.EXO_RUNTIME_ROOT;
+  if (process.env.STEM_RUNTIME_ROOT) {
+    return process.env.STEM_RUNTIME_ROOT;
   }
 
   if (!workspaceSetupComplete && onboardingRuntimeRoot) {
@@ -922,10 +922,10 @@ function resolveRuntimeRoot(): string {
   }
 
   // Settings own the active workspace after startup. Falling back to the launch
-  // directory here made packaged Exo derive `/.exo`, because Electron launches
+  // directory here made packaged Stem derive `/.stem`, because Electron launches
   // the app from `/` rather than from the user's workspace.
   const workspaceRoot = workspaceSettings?.workspaceRoot ?? workspaceModel?.workspaceRoot ?? resolveWorkspaceModel().workspaceRoot;
-  return path.join(workspaceRoot, ".exo");
+  return path.join(workspaceRoot, ".stem");
 }
 
 app.on("before-quit", (event) => {
@@ -936,7 +936,7 @@ app.on("before-quit", (event) => {
     quitFlushStarted = true;
     void awaitInvocationAwareQuit({
       flushDirtyDocuments: () => mainWindow && !mainWindow.isDestroyed() && appLifecycle.isRendererReady()
-        ? mainWindow.webContents.executeJavaScript("globalThis.__exoFlushDirtyDocuments?.()", true)
+        ? mainWindow.webContents.executeJavaScript("globalThis.__stemFlushDirtyDocuments?.()", true)
         : Promise.resolve(),
       stopInvocations: async () => {
         await Promise.all([

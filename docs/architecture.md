@@ -1,6 +1,6 @@
 # Architecture
 
-Exo is a local Electron application over user-owned Markdown. This document is
+Stem is a local Electron application over user-owned Markdown. This document is
 the technical map for contributors: follow the boundaries below rather than
 adding convenience paths around them.
 
@@ -25,7 +25,7 @@ Markdown + frontmatter in a selected Note Root
   → WebGPU or Canvas presentation
 ```
 
-Markdown is canonical. `.exo/` holds local, rebuildable state: indexes,
+Markdown is canonical. `.stem/` holds local, rebuildable state: indexes,
 command-server discovery, invocation review evidence, accepted ontology state,
 and other runtime artifacts. It must never become a competing source of truth.
 
@@ -61,7 +61,7 @@ packages/core
   └─ pure parsing, validation, persistence helpers, and shared protocol types
 
 packages/cli
-  ├─ `exo` JSON command surface
+  ├─ `stem` JSON command surface
   └─ read-only stdio MCP server
 ```
 
@@ -93,7 +93,7 @@ same contract.
 ### Workspace and filesystem authority
 
 A Workspace has an explicit Note Root. No UI route, CLI convenience argument,
-or command cwd may widen Exo's read/write authority. The current onboarding
+or command cwd may widen Stem's read/write authority. The current onboarding
 experience configures one main wiki; Core remains defensive around persisted
 root lists for migration and command-line environments.
 
@@ -129,12 +129,12 @@ the protected latency budgets.
 
 A configured Command is a provider-neutral local executable. Its trust is
 workspace-scoped and bound to the executable fingerprint. Invocation is always
-explicit. Exo snapshots and reviews changes inside Note Roots; a command may
-have broader same-user operating-system access, so Exo never claims to have
+explicit. Stem snapshots and reviews changes inside Note Roots; a command may
+have broader same-user operating-system access, so Stem never claims to have
 reviewed external writes.
 
 Inline invocations use a document envelope and a headless process. CLI
-`exo invoke` instead opens a visible terminal task. Both paths share command
+`stem invoke` instead opens a visible terminal task. Both paths share command
 validation; only the inline path has document context and in-note review.
 
 ### Terminal

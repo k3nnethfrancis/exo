@@ -267,7 +267,7 @@ function draft(): OnboardingProgressDraft {
 }
 
 async function temporaryRoot(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "exo-onboarding-state-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "stem-onboarding-state-"));
   temporaryRoots.push(root);
   return root;
 }

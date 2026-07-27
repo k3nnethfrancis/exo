@@ -1,4 +1,4 @@
-import type { TreeNode } from "@exo/core";
+import type { TreeNode } from "@stem/core";
 
 import { collectLeaves, findNode, type PaneNode, type PaneNodeId } from "./hooks/usePaneTree";
 

@@ -8,7 +8,7 @@ import { _electron as electron, expect, type ElectronApplication, type Page } fr
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const fixtureRoot = path.join(repoRoot, "fixtures/test-workspace");
 const mutableFixtureExcludedNames = new Set([
-  ".exo",
+  ".stem",
   ".git",
   ".turbo",
   ".vite",
@@ -33,7 +33,7 @@ export async function copyMutableFixtureWorkspace(sourceRoot: string, targetRoot
   });
 }
 
-interface LaunchExoFixtureOptions {
+interface LaunchStemFixtureOptions {
   mutable?: boolean;
   env?: Record<string, string>;
   cwd?: string;
@@ -49,7 +49,7 @@ interface LaunchExoFixtureOptions {
   prepareSettings?: (input: { settingsPath: string; userDataRoot: string; workspaceRoot: string }) => Promise<void>;
 }
 
-interface ExoFixture {
+interface StemFixture {
   electronApp: ElectronApplication;
   page: Page;
   workspaceRoot: string;
@@ -59,30 +59,30 @@ interface ExoFixture {
   cleanup: () => Promise<void>;
 }
 
-export function launchExoTerminalFixture(options?: LaunchExoFixtureOptions): Promise<ExoFixture> {
-  return launchExoFixtureForJourney(options, true);
+export function launchStemTerminalFixture(options?: LaunchStemFixtureOptions): Promise<StemFixture> {
+  return launchStemFixtureForJourney(options, true);
 }
 
-export function launchExoWorkspaceFixture(options?: LaunchExoFixtureOptions): Promise<ExoFixture> {
-  return launchExoFixtureForJourney(options, false);
+export function launchStemWorkspaceFixture(options?: LaunchStemFixtureOptions): Promise<StemFixture> {
+  return launchStemFixtureForJourney(options, false);
 }
 
-async function launchExoFixtureForJourney(
-  options: LaunchExoFixtureOptions | undefined,
+async function launchStemFixtureForJourney(
+  options: LaunchStemFixtureOptions | undefined,
   openTerminalSurface: boolean,
-): Promise<ExoFixture> {
+): Promise<StemFixture> {
   let workspaceRoot = fixtureRoot;
   let tempRoot: string | null = null;
-  const settingsRoot = await mkdtemp(path.join(os.tmpdir(), "exo-settings-"));
+  const settingsRoot = await mkdtemp(path.join(os.tmpdir(), "stem-settings-"));
   const settingsPath = path.join(settingsRoot, "workspace-settings.json");
-  const userDataRoot = await mkdtemp(path.join(os.tmpdir(), "exo-userdata-"));
+  const userDataRoot = await mkdtemp(path.join(os.tmpdir(), "stem-userdata-"));
   const runtimeRoot = path.join(userDataRoot, "runtime");
-  const homeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-home-"));
+  const homeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-home-"));
   if (options?.prepareHome) {
     await options.prepareHome(homeRoot);
   }
   if (options?.mutable || options?.prepareWorkspace) {
-    tempRoot = await mkdtemp(path.join(os.tmpdir(), "exo-fixture-"));
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), "stem-fixture-"));
     workspaceRoot = path.join(tempRoot, "test-workspace");
     await copyMutableFixtureWorkspace(fixtureRoot, workspaceRoot);
   }
@@ -98,38 +98,38 @@ async function launchExoFixtureForJourney(
   const configured = options?.configured ?? true;
   const workspaceEnv = configured
     ? {
-        EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
+        STEM_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
       }
     : {};
 
   const launchEnv: NodeJS.ProcessEnv = {
     ...process.env,
-    EXO_TEST: "1",
-    EXO_WORKSPACE_ROOT: workspaceRoot,
-    EXO_DEFAULT_TERMINAL_CWD: workspaceRoot,
-    EXO_SETTINGS_PATH: settingsPath,
-    EXO_USER_DATA_PATH: userDataRoot,
-    EXO_RUNTIME_ROOT: runtimeRoot,
-    EXO_FORCE_THEME: "dark",
+    STEM_TEST: "1",
+    STEM_WORKSPACE_ROOT: workspaceRoot,
+    STEM_DEFAULT_TERMINAL_CWD: workspaceRoot,
+    STEM_SETTINGS_PATH: settingsPath,
+    STEM_USER_DATA_PATH: userDataRoot,
+    STEM_RUNTIME_ROOT: runtimeRoot,
+    STEM_FORCE_THEME: "dark",
     HOME: homeRoot,
-    EXO_SHELL: "/bin/sh",
-    EXO_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
-    ...(options?.selectFolderPath ? { EXO_TEST_SELECT_FOLDER_PATH: options.selectFolderPath(workspaceRoot) } : {}),
+    STEM_SHELL: "/bin/sh",
+    STEM_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
+    ...(options?.selectFolderPath ? { STEM_TEST_SELECT_FOLDER_PATH: options.selectFolderPath(workspaceRoot) } : {}),
     ...workspaceEnv,
     ...options?.env,
   };
   for (const name of options?.stripEnvironment ?? []) delete launchEnv[name];
 
   if (options?.workspaceRootEnv === false) {
-    delete launchEnv.EXO_WORKSPACE_ROOT;
-    delete launchEnv.EXO_DEFAULT_TERMINAL_CWD;
-    delete launchEnv.EXO_NOTE_ROOTS;
+    delete launchEnv.STEM_WORKSPACE_ROOT;
+    delete launchEnv.STEM_DEFAULT_TERMINAL_CWD;
+    delete launchEnv.STEM_NOTE_ROOTS;
   }
   if (options?.runtimeRootEnv === false) {
-    delete launchEnv.EXO_RUNTIME_ROOT;
+    delete launchEnv.STEM_RUNTIME_ROOT;
   }
 
-  const packagedAppPath = packagedExecutablePath(process.env.EXO_PACKAGED_APP_PATH);
+  const packagedAppPath = packagedExecutablePath(process.env.STEM_PACKAGED_APP_PATH);
   const electronApp = await electron.launch({
     ...(packagedAppPath ? { executablePath: packagedAppPath } : {}),
     args: packagedAppPath ? [] : [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
@@ -196,14 +196,14 @@ async function launchExoFixtureForJourney(
   };
 }
 
-interface RelaunchExoFixtureInput {
+interface RelaunchStemFixtureInput {
   workspaceRoot: string;
   settingsPath: string;
   runtimeRoot: string;
   homeRoot: string;
 }
 
-interface RelaunchExoFixtureOptions {
+interface RelaunchStemFixtureOptions {
   env?: Record<string, string>;
   cwd?: string;
   configured?: boolean;
@@ -213,62 +213,62 @@ interface RelaunchExoFixtureOptions {
   stripEnvironment?: readonly string[];
 }
 
-interface RelaunchedExoFixture {
+interface RelaunchedStemFixture {
   electronApp: ElectronApplication;
   page: Page;
   cleanup: () => Promise<void>;
 }
 
-export function relaunchExoTerminalFixture(
-  previous: RelaunchExoFixtureInput,
-  options?: RelaunchExoFixtureOptions,
-): Promise<RelaunchedExoFixture> {
-  return relaunchExoFixtureForJourney(previous, options, true);
+export function relaunchStemTerminalFixture(
+  previous: RelaunchStemFixtureInput,
+  options?: RelaunchStemFixtureOptions,
+): Promise<RelaunchedStemFixture> {
+  return relaunchStemFixtureForJourney(previous, options, true);
 }
 
-export function relaunchExoWorkspaceFixture(
-  previous: RelaunchExoFixtureInput,
-  options?: RelaunchExoFixtureOptions,
-): Promise<RelaunchedExoFixture> {
-  return relaunchExoFixtureForJourney(previous, options, false);
+export function relaunchStemWorkspaceFixture(
+  previous: RelaunchStemFixtureInput,
+  options?: RelaunchStemFixtureOptions,
+): Promise<RelaunchedStemFixture> {
+  return relaunchStemFixtureForJourney(previous, options, false);
 }
 
-async function relaunchExoFixtureForJourney(
-  previous: RelaunchExoFixtureInput,
-  options: RelaunchExoFixtureOptions | undefined,
+async function relaunchStemFixtureForJourney(
+  previous: RelaunchStemFixtureInput,
+  options: RelaunchStemFixtureOptions | undefined,
   openTerminalSurface: boolean,
-): Promise<RelaunchedExoFixture> {
+): Promise<RelaunchedStemFixture> {
   const userDataRoot = path.dirname(previous.runtimeRoot);
   const configured = options?.configured ?? true;
   const launchEnv: NodeJS.ProcessEnv = {
     ...process.env,
-    EXO_TEST: "1",
-    EXO_WORKSPACE_ROOT: previous.workspaceRoot,
-    EXO_DEFAULT_TERMINAL_CWD: previous.workspaceRoot,
-    EXO_SETTINGS_PATH: previous.settingsPath,
-    EXO_USER_DATA_PATH: userDataRoot,
-    EXO_RUNTIME_ROOT: previous.runtimeRoot,
-    EXO_FORCE_THEME: "dark",
+    STEM_TEST: "1",
+    STEM_WORKSPACE_ROOT: previous.workspaceRoot,
+    STEM_DEFAULT_TERMINAL_CWD: previous.workspaceRoot,
+    STEM_SETTINGS_PATH: previous.settingsPath,
+    STEM_USER_DATA_PATH: userDataRoot,
+    STEM_RUNTIME_ROOT: previous.runtimeRoot,
+    STEM_FORCE_THEME: "dark",
     HOME: previous.homeRoot,
     ...(configured ? {
-      EXO_NOTE_ROOTS: path.join(previous.workspaceRoot, "notes/test-notes"),
+      STEM_NOTE_ROOTS: path.join(previous.workspaceRoot, "notes/test-notes"),
     } : {}),
-    EXO_SHELL: "/bin/sh",
-    EXO_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
+    STEM_SHELL: "/bin/sh",
+    STEM_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
     ...options?.env,
   };
   for (const name of options?.stripEnvironment ?? []) delete launchEnv[name];
 
   if (options?.workspaceRootEnv === false) {
-    delete launchEnv.EXO_WORKSPACE_ROOT;
-    delete launchEnv.EXO_DEFAULT_TERMINAL_CWD;
-    delete launchEnv.EXO_NOTE_ROOTS;
+    delete launchEnv.STEM_WORKSPACE_ROOT;
+    delete launchEnv.STEM_DEFAULT_TERMINAL_CWD;
+    delete launchEnv.STEM_NOTE_ROOTS;
   }
   if (options?.runtimeRootEnv === false) {
-    delete launchEnv.EXO_RUNTIME_ROOT;
+    delete launchEnv.STEM_RUNTIME_ROOT;
   }
 
-  const packagedAppPath = packagedExecutablePath(process.env.EXO_PACKAGED_APP_PATH);
+  const packagedAppPath = packagedExecutablePath(process.env.STEM_PACKAGED_APP_PATH);
   const electronApp = await electron.launch({
     ...(packagedAppPath ? { executablePath: packagedAppPath } : {}),
     args: packagedAppPath ? [] : [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
@@ -313,6 +313,6 @@ async function relaunchExoFixtureForJourney(
 
 function packagedExecutablePath(appPath: string | undefined): string | undefined {
   return appPath?.endsWith(".app")
-    ? path.join(appPath, "Contents", "MacOS", "Exo")
+    ? path.join(appPath, "Contents", "MacOS", "Stem")
     : appPath;
 }

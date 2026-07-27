@@ -1,3 +1,3 @@
-import { exoAdapter } from './exo.mjs';
+import { stemAdapter } from './stem.mjs';
 
-export const ADAPTERS = Object.freeze({ exo: exoAdapter });
+export const ADAPTERS = Object.freeze({ stem: stemAdapter });

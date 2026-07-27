@@ -9,20 +9,20 @@ import type { WorkspaceChangeEvent } from "./workspace-watchers";
 afterEach(() => vi.useRealTimers());
 
 describe("workspace watcher filtering", () => {
-  const rootPath = "/workspace/exo";
+  const rootPath = "/workspace/stem";
 
   it("keeps source and note changes visible to the workspace", () => {
-    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/exo/src/App.tsx")).toBe(false);
-    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/exo/issues.md")).toBe(false);
+    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/src/App.tsx")).toBe(false);
+    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/issues.md")).toBe(false);
     expect(shouldIgnoreWorkspaceChange(rootPath, null)).toBe(false);
   });
 
   it("drops noisy generated and vendor changes before they churn the renderer", () => {
-    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/exo/.git/index")).toBe(true);
-    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/exo/node_modules/.vite/deps.ts")).toBe(true);
-    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/exo/.exo/server.json")).toBe(true);
-    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/exo/dist/index.js")).toBe(true);
-    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/exo/coverage/index.html")).toBe(true);
+    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/.git/index")).toBe(true);
+    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/node_modules/.vite/deps.ts")).toBe(true);
+    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/.stem/server.json")).toBe(true);
+    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/dist/index.js")).toBe(true);
+    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/coverage/index.html")).toBe(true);
   });
 });
 
@@ -35,21 +35,21 @@ describe("WorkspaceWatcherService subscriptions", () => {
     service.subscribe(second);
 
     queueForTest(service, {
-      rootPath: "/workspace/exo",
+      rootPath: "/workspace/stem",
       eventType: "change",
-      filePath: "/workspace/exo/issues.md",
+      filePath: "/workspace/stem/issues.md",
     });
     await vi.advanceTimersByTimeAsync(120);
 
     expect(first).toHaveBeenCalledWith({
-      rootPath: "/workspace/exo",
+      rootPath: "/workspace/stem",
       eventType: "change",
-      filePath: "/workspace/exo/issues.md",
+      filePath: "/workspace/stem/issues.md",
     });
     expect(second).toHaveBeenCalledWith({
-      rootPath: "/workspace/exo",
+      rootPath: "/workspace/stem",
       eventType: "change",
-      filePath: "/workspace/exo/issues.md",
+      filePath: "/workspace/stem/issues.md",
     });
     vi.useRealTimers();
   });
@@ -62,9 +62,9 @@ describe("WorkspaceWatcherService subscriptions", () => {
     unsubscribe();
 
     queueForTest(service, {
-      rootPath: "/workspace/exo",
+      rootPath: "/workspace/stem",
       eventType: "change",
-      filePath: "/workspace/exo/issues.md",
+      filePath: "/workspace/stem/issues.md",
     });
     await vi.advanceTimersByTimeAsync(120);
 
@@ -111,7 +111,7 @@ describe("WorkspaceWatcherService subscriptions", () => {
 
   it("keeps first-candidate callbacks hidden until generation one commits", async () => {
     vi.useFakeTimers();
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-watch-bootstrap-generation-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-watch-bootstrap-generation-"));
     const bootstrapRoot = path.join(root, "bootstrap");
     const candidateRoot = path.join(root, "candidate");
     await Promise.all([mkdir(bootstrapRoot), mkdir(candidateRoot)]);
@@ -140,7 +140,7 @@ describe("WorkspaceWatcherService subscriptions", () => {
 
   it("drops callbacks from aborted and superseded candidate generations", async () => {
     vi.useFakeTimers();
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-watch-superseded-generation-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-watch-superseded-generation-"));
     const bootstrapRoot = path.join(root, "bootstrap");
     const firstRoot = path.join(root, "first");
     const secondRoot = path.join(root, "second");
@@ -182,7 +182,7 @@ describe("WorkspaceWatcherService subscriptions", () => {
   });
 
   it("reports only late watcher errors from the active generation", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-watch-runtime-error-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-watch-runtime-error-"));
     const firstRoot = path.join(root, "first");
     const secondRoot = path.join(root, "second");
     await Promise.all([mkdir(firstRoot), mkdir(secondRoot)]);
@@ -212,7 +212,7 @@ describe("WorkspaceWatcherService subscriptions", () => {
   });
 
   it("observes the canonical ontology file outside a nested Note Root", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-watch-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-watch-"));
     const noteRoot = path.join(workspaceRoot, "notes");
     await mkdir(noteRoot);
     const event = new Promise<WorkspaceChangeEvent>((resolve, reject) => {

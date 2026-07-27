@@ -1,15 +1,15 @@
 ---
 name: deslopify-frontend
-description: Use before changing Exograph onboarding, settings, AgentCommand config, mention confirmation, graph context, or diff/attribution UI to keep screens dense, scannable, and low-prose.
+description: Use before changing Stem onboarding, settings, AgentCommand config, mention confirmation, graph context, or diff/attribution UI to keep screens dense, scannable, and low-prose.
 ---
 
 # Deslopify Frontend
 
-Use this before changing Exograph UI that configures or reviews the product: onboarding, settings, Agent Config as instruction-files/context/agent-commands, mention confirmation, graph context, terminal setup, and invocation diff/attribution.
+Use this before changing Stem UI that configures or reviews the product: onboarding, settings, Agent Config as instruction-files/context/agent-commands, mention confirmation, graph context, terminal setup, and invocation diff/attribution.
 
 ## Standard
 
-Exo UI should feel like a precise workstation, not a technical plan review. Screens should show the user's next decision as a control, not as a paragraph.
+Stem UI should feel like a precise workstation, not a technical plan review. Screens should show the user's next decision as a control, not as a paragraph.
 
 ## Rules
 
@@ -17,7 +17,7 @@ Exo UI should feel like a precise workstation, not a technical plan review. Scre
 - Prefer direct controls: toggles, checkboxes, segmented controls, icon buttons, menus, and status pills.
 - Put the most concrete choices first. In setup flows, show choices the user can understand now before abstract concepts or future permissions.
 - Use width before vertical scrolling on desktop. Avoid narrow tall modals for setup reviews.
-- Make unavailable choices visibly unavailable and non-selectable. Do not preselect a command, provider, or terminal dependency that Exo cannot detect as usable.
+- Make unavailable choices visibly unavailable and non-selectable. Do not preselect a command, provider, or terminal dependency that Stem cannot detect as usable.
 - Keep core features out of optional setup choice lists. Core can be summarized, but it should not look like something the user must enable.
 - Prefer explicit review later over silent apply now.
 - Verify the changed UI with screenshots or app QA, not just tests.
@@ -31,4 +31,4 @@ Exo UI should feel like a precise workstation, not a technical plan review. Scre
 - [ ] Did you remove prose that duplicates labels, status pills, or controls?
 - [ ] Did tests or QA cover the exact user-facing regression?
 
--- Exo | 2026-07-08
+-- Stem | 2026-07-08

@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createDefaultClaudeAgentCommand } from "@exo/core";
+import { createDefaultClaudeAgentCommand } from "@stem/core";
 
 import { bindResolvedExecutable, executableToken, inspectAgentCommandLaunchFacts } from "./agent-command-launch-facts";
 
@@ -15,7 +15,7 @@ afterEach(async () => {
 
 describe("agent command launch facts", () => {
   it("resolves an executable without running the configured command", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-command-facts-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-command-facts-"));
     temporaryRoots.push(root);
     const bin = path.join(root, "bin");
     const executable = path.join(bin, "fake-agent");
@@ -42,14 +42,14 @@ describe("agent command launch facts", () => {
   it("reports independent cwd and executable launch gates", async () => {
     const facts = await inspectAgentCommandLaunchFacts(
       { ...createDefaultClaudeAgentCommand(), command: "missing-agent" },
-      { kind: "cli", workspaceRoot: "/definitely/missing/exo-workspace" },
+      { kind: "cli", workspaceRoot: "/definitely/missing/stem-workspace" },
       { PATH: "" },
     );
     expect(facts).toMatchObject({ cwdReady: false, executableReady: false, launchable: false, block: "cwd-missing" });
   });
 
   it("finds a user-installed command from a minimal packaged-app PATH", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-command-facts-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-command-facts-"));
     temporaryRoots.push(root);
     const localBin = path.join(root, ".local", "bin");
     const executable = path.join(localBin, "claude");
@@ -72,7 +72,7 @@ describe("agent command launch facts", () => {
   });
 
   it("changes the launch fingerprint when a resolved executable is replaced in place", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-command-facts-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-command-facts-"));
     temporaryRoots.push(root);
     const executable = path.join(root, "agent");
     await writeFile(executable, "#!/bin/sh\nprintf first\n");
@@ -89,7 +89,7 @@ describe("agent command launch facts", () => {
   });
 
   it("binds the resolved executable path so a later PATH shadow cannot change the process launched", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-command-facts-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-command-facts-"));
     temporaryRoots.push(root);
     const first = path.join(root, "first-agent");
     const second = path.join(root, "second-agent");

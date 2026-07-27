@@ -18,7 +18,7 @@ afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root,
 
 describe("WorkspaceGraph", () => {
   it("does not project Markdown beneath excluded repository paths", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-policy-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-policy-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(path.join(notes, "release"), { recursive: true });
@@ -32,7 +32,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("keeps code and attachment links as evidenced Artifact references, not graph Notes", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-artifacts-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-artifacts-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(path.join(notes, "src"), { recursive: true });
@@ -96,7 +96,7 @@ describe("WorkspaceGraph", () => {
     expect(snapshot.relations).toContainEqual(expect.objectContaining({ resolution: "unresolved", label: "missing-note" }));
     expect(snapshot.relations).toContainEqual(expect.objectContaining({
       resolution: "external",
-      target: "external:https://exo.md",
+      target: "external:https://stem.md",
     }));
     expect(topology.nodeCount).toBe(snapshot.concepts.length);
 
@@ -127,7 +127,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("resolves root-relative links and refuses duplicate basename guessing", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(path.join(notes, "one"), { recursive: true });
@@ -145,7 +145,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("labels backlinks with the linking note title while preserving its target", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
@@ -166,7 +166,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("includes a backlink-only source in the target note neighborhood", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
@@ -191,7 +191,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("refreshes only the changed note in an existing snapshot", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
@@ -217,7 +217,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("applies a file refresh that arrives while a rebuild is in flight", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
@@ -239,7 +239,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("projects open concepts, lossless properties, authored evidence, and deterministic identity", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
@@ -286,7 +286,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("interprets OKF permissively while reporting its missing type requirement", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
@@ -304,10 +304,10 @@ describe("WorkspaceGraph", () => {
   });
 
   it("uses only an explicitly kept Ontology and ignores later candidate edits", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-ontology-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-ontology-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(workspace, ".exo-test");
+    const runtimeRoot = path.join(workspace, ".stem-test");
     await mkdir(notes);
     const sourcePath = path.join(notes, "source.md");
     const sourceBytes = "---\ntype: paper\nsupports: [missing]\n---\n# Source\n";
@@ -354,10 +354,10 @@ describe("WorkspaceGraph", () => {
     ["Generic Markdown", NOTE_ROOT_FORMAT_ID.genericMarkdown],
     ["OKF 0.1", NOTE_ROOT_FORMAT_ID.okf],
   ] as const)("preserves active Ontology, cache, and stale cold-read behavior for %s", async (_label, formatId) => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-format-parity-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-format-parity-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(workspace, ".exo-test");
+    const runtimeRoot = path.join(workspace, ".stem-test");
     await mkdir(notes);
     const sourcePath = path.join(notes, "source.md");
     await writeFile(sourcePath, "---\ntype: Claim\nsupports: target.md\n---\n# Source\n");
@@ -418,7 +418,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("preserves stable relation identity when a different link is inserted earlier", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
@@ -443,7 +443,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("rejects bounded concept detail from a stale graph epoch", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
@@ -461,7 +461,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("serves cold summaries and bounded evidenced detail by topology index", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
@@ -517,7 +517,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("reports an oversized cold summary explicitly without leaking it into topology", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
@@ -534,7 +534,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("looks up cold concept identity by id or normalized file path in one cached topology epoch", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     const folder = path.join(notes, "Folder");
@@ -572,7 +572,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("enforces the exact cold concept lookup payload byte cap", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-graph-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-graph-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
@@ -607,10 +607,10 @@ describe("WorkspaceGraph", () => {
   });
 
   it("stages reviewed Ontology effects, rejects stale Keeps, and publishes exactly the staged graph", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-review-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-review-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(workspace, ".exo-test");
+    const runtimeRoot = path.join(workspace, ".stem-test");
     await mkdir(notes, { recursive: true });
     const sourcePath = path.join(notes, "source.md");
     const initialNote = "---\ntype: paper\nsupports: [target]\n---\n# Source\n";
@@ -708,12 +708,12 @@ describe("WorkspaceGraph", () => {
   });
 
   it("keeps the common no-candidate Ontology preview off the graph build path", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-quiet-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-quiet-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
     await writeFile(path.join(notes, "note.md"), "# Note\n");
-    const graph = new WorkspaceGraph(model(workspace, notes), { runtimeRoot: path.join(workspace, ".exo-test") });
+    const graph = new WorkspaceGraph(model(workspace, notes), { runtimeRoot: path.join(workspace, ".stem-test") });
 
     expect(await graph.status()).toEqual({ state: "stale", noteCount: 0, edgeCount: 0 });
     await expect(graph.previewOntology()).resolves.toMatchObject({
@@ -725,7 +725,7 @@ describe("WorkspaceGraph", () => {
   });
 
   it("previews Ontology effects for repository-style mixed-case paths", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-repository-paths-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-repository-paths-"));
     roots.push(workspace);
     await writeFile(path.join(workspace, "README.md"), "# Product\n");
     await writeFile(path.join(workspace, "apps.md"), "# Apps\n");
@@ -739,7 +739,7 @@ describe("WorkspaceGraph", () => {
     ].join("\n"));
 
     const graph = new WorkspaceGraph(model(workspace, workspace), {
-      runtimeRoot: path.join(workspace, ".exo-test"),
+      runtimeRoot: path.join(workspace, ".stem-test"),
     });
 
     await expect(graph.previewOntology()).resolves.toMatchObject({
@@ -749,10 +749,10 @@ describe("WorkspaceGraph", () => {
   });
 
   it("switches one reviewed library Ontology at a time and can return to Generic", async () => {
-    const workspace = await mkdtemp(path.join(os.tmpdir(), "exo-ontology-library-"));
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-library-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(workspace, ".exo-test");
+    const runtimeRoot = path.join(workspace, ".stem-test");
     await mkdir(path.join(workspace, "ontologies"), { recursive: true });
     await mkdir(notes);
     await writeFile(path.join(notes, "note.md"), "---\ntype: project\n---\n# Note\n");

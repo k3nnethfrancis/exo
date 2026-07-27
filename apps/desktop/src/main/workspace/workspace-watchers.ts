@@ -1,7 +1,7 @@
 import path from "node:path";
 import { existsSync, watch, type FSWatcher } from "node:fs";
 
-import { isWorkspaceOntologyPath, type WorkspaceModel } from "@exo/core";
+import { isWorkspaceOntologyPath, type WorkspaceModel } from "@stem/core";
 
 export interface WorkspaceChangeEvent {
   rootPath: string;
@@ -31,8 +31,8 @@ export interface StagedWorkspaceWatchers {
 const IGNORED_WORKSPACE_PATH_SEGMENTS = new Set([
   ".DS_Store",
   ".cache",
-  ".exo",
-  ".exo-dev",
+  ".stem",
+  ".stem-dev",
   ".git",
   ".next",
   ".nuxt",
@@ -151,7 +151,7 @@ export class WorkspaceWatcherService {
         watcher.on("error", (error) => this.reportLateWatcherError(generation, workspaceRoot, error));
         watchers.push(watcher);
       } catch (error) {
-        console.warn("[exo] ontology watcher setup failed", {
+        console.warn("[stem] ontology watcher setup failed", {
           rootPath: workspaceRoot,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -163,7 +163,7 @@ export class WorkspaceWatcherService {
   private reportLateWatcherError(generation: number, rootPath: string, error: unknown): void {
     if (generation !== this.activeGeneration) return;
     const errorMessage = errorMessageFor(error);
-    console.warn("[exo] workspace watcher error", { rootPath, error: errorMessage });
+    console.warn("[stem] workspace watcher error", { rootPath, error: errorMessage });
     this.options.onRuntimeError?.({ generation, rootPath, errorMessage });
   }
 
@@ -228,7 +228,7 @@ function closeWatchers(watchers: FSWatcher[]): void {
     } catch (error) {
       // Closing an already-dead kernel watcher must never turn a committed
       // Workspace transition into a false failure after discovery is live.
-      console.warn("[exo] workspace watcher close failed", error);
+      console.warn("[stem] workspace watcher close failed", error);
     }
   }
 }

@@ -1,7 +1,7 @@
 import { performance } from "node:perf_hooks";
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
-import type { GraphTopology } from "@exo/core";
+import type { GraphTopology } from "@stem/core";
 
 import type { GraphCanvasContext, GraphCanvasSurface } from "../graphCanvasRenderer";
 import { cssColorToRgba } from "../graphPalette";

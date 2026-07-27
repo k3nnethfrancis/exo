@@ -2,7 +2,7 @@ import { test } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchExoWorkspaceFixture } from "../helpers";
+import { launchStemWorkspaceFixture } from "../helpers";
 
 test("table rendering does not crash on a note with multiple tables", async () => {
   const tableContent = `# Table Test
@@ -25,7 +25,7 @@ Between tables.
 End text.
 `;
 
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/table-test.md");
@@ -50,10 +50,10 @@ End text.
   console.log("[probe] page alive after table click:", stillAlive);
 
   // Check if our table widget rendered
-  const tableCount = await page.locator(".exo-md-table").count();
+  const tableCount = await page.locator(".stem-md-table").count();
   console.log("[probe] rendered tables:", tableCount);
 
-  await page.screenshot({ path: "/tmp/exo-tables.png", fullPage: false });
+  await page.screenshot({ path: "/tmp/stem-tables.png", fullPage: false });
 
   await cleanup();
 });

@@ -14,8 +14,8 @@ export const LIST_GEOMETRY: ListGeometry = {
 
 export function listGeometryStyleVariables(geometry: ListGeometry = LIST_GEOMETRY) {
   return [
-    `--exo-list-indent-step:${geometry.indentStep}px`,
-    `--exo-list-base-indent:${geometry.baseIndent}px`,
-    `--exo-list-marker-lane-width:${geometry.markerLaneWidth}px`,
+    `--stem-list-indent-step:${geometry.indentStep}px`,
+    `--stem-list-base-indent:${geometry.baseIndent}px`,
+    `--stem-list-marker-lane-width:${geometry.markerLaneWidth}px`,
   ].join(";");
 }

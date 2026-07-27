@@ -1,7 +1,7 @@
 # Graph evaluation
 
-This is Exo's internal, hardware-stamped regression suite for the graph scene.
-It measures Exo only. It is not a public cross-library benchmark or an AI
+This is Stem's internal, hardware-stamped regression suite for the graph scene.
+It measures Stem only. It is not a public cross-library benchmark or an AI
 evaluation.
 
 The runner uses deterministic synthetic topology and a frozen visual profile to

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { IndexStatus, WorkspaceModel, WorkspaceSettings } from "@exo/core";
+import type { IndexStatus, WorkspaceModel, WorkspaceSettings } from "@stem/core";
 import type { DerivedIndexClient } from "./derived-index-process";
 import type { AutoEmbeddingPolicy } from "./indexing-auto-scheduler";
 import { IndexingService, type IndexingServiceOptions } from "./indexing-service";
@@ -11,7 +11,7 @@ vi.mock("electron", () => ({
       if (name === "home") return "/Users/tester";
       if (name === "desktop") return "/Users/tester/Desktop";
       if (name === "documents") return "/Users/tester/Documents";
-      return "/tmp/exo-test";
+      return "/tmp/stem-test";
     },
   },
 }));
@@ -52,7 +52,7 @@ describe("IndexingService", () => {
     service.applySettings({
       model: workspaceModel(settings),
       settings: { ...settings, indexUpdateStrategy: "manual" },
-      runtimeRoot: "/workspace/.exo",
+      runtimeRoot: "/workspace/.stem",
     });
     service.applyCurrentAutomaticPolicy();
     service.scheduleForFile("/workspace/notes/daily.md", "note-save");
@@ -99,7 +99,7 @@ describe("IndexingService", () => {
 
     expect(maintenance.update).toHaveBeenCalledWith(
       expect.objectContaining({ indexing: expect.objectContaining({ mode: "hybrid" }) }),
-      "/workspace/.exo",
+      "/workspace/.stem",
       ["index-notes"],
       expect.anything(),
     );
@@ -135,7 +135,7 @@ describe("IndexingService", () => {
 
     expect(maintenance.embed).toHaveBeenCalledWith(
       expect.objectContaining({ indexing: expect.objectContaining({ mode: "hybrid" }) }),
-      "/workspace/.exo",
+      "/workspace/.stem",
       { maxDocuments: 4, maxDocsPerBatch: 1, maxDurationMs: 15_000 },
       expect.anything(),
     );
@@ -187,7 +187,7 @@ describe("IndexingService", () => {
     expect(maintenance.update).toHaveBeenCalledTimes(2);
     expect(maintenance.update).toHaveBeenLastCalledWith(
       expect.anything(),
-      "/workspace/.exo",
+      "/workspace/.stem",
       ["index-notes"],
       expect.anything(),
     );
@@ -215,12 +215,12 @@ describe("IndexingService", () => {
     service.activateWorkspace({
       model: workspaceModel(settingsB),
       settings: settingsB,
-      runtimeRoot: "/workspace-b/.exo",
+      runtimeRoot: "/workspace-b/.stem",
     });
     service.activateWorkspace({
       model: workspaceModel(settingsA),
       settings: settingsA,
-      runtimeRoot: "/workspace/.exo",
+      runtimeRoot: "/workspace/.stem",
     });
     expect(firstSignal?.aborted).toBe(true);
 
@@ -247,11 +247,11 @@ describe("IndexingService", () => {
 
     const oldSearch = service.search("old");
     await Promise.resolve();
-    service.activateWorkspace({ model: workspaceModel(settingsB), settings: settingsB, runtimeRoot: "/workspace-b/.exo" });
+    service.activateWorkspace({ model: workspaceModel(settingsB), settings: settingsB, runtimeRoot: "/workspace-b/.stem" });
     expect(searchSignal?.aborted).toBe(true);
     service.scheduleReconciliation("b", 0);
     await vi.advanceTimersByTimeAsync(0);
-    expect(maintenance.update).toHaveBeenCalledWith(expect.objectContaining({ workspaceRoot: "/workspace-b" }), "/workspace-b/.exo", ["index-notes"], expect.anything());
+    expect(maintenance.update).toHaveBeenCalledWith(expect.objectContaining({ workspaceRoot: "/workspace-b" }), "/workspace-b/.stem", ["index-notes"], expect.anything());
 
     heldSearch.resolve({ results: [], query: "old", mode: "hybrid", source: "qmd", provider: "qmd", warnings: [] });
     await expect(oldSearch).rejects.toMatchObject({ name: "AbortError" });
@@ -274,11 +274,11 @@ describe("IndexingService", () => {
     service.scheduleReconciliation("a", 0);
     await vi.advanceTimersByTimeAsync(0);
     expect(workerA.update).toHaveBeenCalledOnce();
-    service.activateWorkspace({ model: workspaceModel(settingsB), settings: settingsB, runtimeRoot: "/workspace-b/.exo" });
+    service.activateWorkspace({ model: workspaceModel(settingsB), settings: settingsB, runtimeRoot: "/workspace-b/.stem" });
     expect(workerA.dispose).toHaveBeenCalledOnce();
     service.scheduleReconciliation("b", 0);
     await vi.advanceTimersByTimeAsync(0);
-    expect(workerB.update).toHaveBeenCalledWith(expect.objectContaining({ workspaceRoot: "/workspace-b" }), "/workspace-b/.exo", ["index-notes"], expect.anything());
+    expect(workerB.update).toHaveBeenCalledWith(expect.objectContaining({ workspaceRoot: "/workspace-b" }), "/workspace-b/.stem", ["index-notes"], expect.anything());
 
     heldA.resolve(indexStatus(0, "lexical"));
     await vi.advanceTimersByTimeAsync(0);
@@ -321,8 +321,8 @@ describe("IndexingService", () => {
     await service.embed("settings");
     await service.runSync("settings");
 
-    expect(maintenance.embed).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo", undefined, expect.anything());
-    expect(maintenance.sync).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo", expect.anything());
+    expect(maintenance.embed).toHaveBeenCalledWith(expect.anything(), "/workspace/.stem", undefined, expect.anything());
+    expect(maintenance.sync).toHaveBeenCalledWith(expect.anything(), "/workspace/.stem", expect.anything());
     service.dispose();
   });
 
@@ -343,7 +343,7 @@ describe("IndexingService", () => {
 
     expect(foreground.search).toHaveBeenCalledWith(
       expect.objectContaining({ searchEngine: "filesystem" }),
-      "/workspace/.exo",
+      "/workspace/.stem",
       "needle",
       {},
       expect.anything(),
@@ -430,7 +430,7 @@ describe("IndexingService", () => {
     const status = await service.getMeasuredStatus();
     expect(status.warnings).toContain("runtime warning");
     expect(status.warnings).toContain(warning);
-    expect(status.warnings.join(" ")).not.toContain("exo index sync");
+    expect(status.warnings.join(" ")).not.toContain("stem index sync");
     service.dispose();
   });
 
@@ -580,7 +580,7 @@ describe("IndexingService", () => {
 
     service.scheduleReconciliation("startup", 0);
     await vi.advanceTimersByTimeAsync(0);
-    expect(maintenance.update).toHaveBeenCalledWith(expect.anything(), "/workspace/.exo", ["index-notes"], expect.anything());
+    expect(maintenance.update).toHaveBeenCalledWith(expect.anything(), "/workspace/.stem", ["index-notes"], expect.anything());
     expect(maintenance.sync).not.toHaveBeenCalled();
 
     service.scheduleForFile("/workspace/notes/later.md", "note-save");
@@ -607,7 +607,7 @@ function indexingService(
   return new IndexingService({
     getWorkspaceModel: () => workspaceModel(settings),
     getCurrentSettings: () => settings,
-    getRuntimeRoot: () => "/workspace/.exo",
+    getRuntimeRoot: () => "/workspace/.stem",
     saveWorkspaceSettings,
     sendState: options.sendState ?? (() => {}),
     errorMessage: (error) => error instanceof Error ? error.message : String(error),
@@ -661,8 +661,8 @@ function indexStatus(pendingEmbeddings = 1, mode: IndexStatus["mode"] = "hybrid"
     enabled: true,
     mode,
     backend: "qmd",
-    dbPath: "/workspace/.exo/qmd/index.sqlite",
-    runtimePath: "/workspace/.exo/qmd",
+    dbPath: "/workspace/.stem/qmd/index.sqlite",
+    runtimePath: "/workspace/.stem/qmd",
     indexedRoots: workspaceSettings().indexedRoots,
     documentCount: 1,
     pendingEmbeddings,
@@ -702,7 +702,7 @@ function workspaceSettings(): WorkspaceSettings {
     indexing: { enabled: true, mode: "lexical", backend: "qmd" },
     searchEngine: "qmd",
     appearanceMode: "system",
-    colorThemeId: "exo-neutral",
+    colorThemeId: "stem-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,

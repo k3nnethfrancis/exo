@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { launchExoTerminalFixture } from "../helpers";
+import { launchStemTerminalFixture } from "../helpers";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const fakeInkAgentPath = path.join(repoRoot, "apps/desktop/tests/fixtures/fake-ink-agent.sh");
@@ -26,10 +26,10 @@ test("keeps a direct-PTY fake TUI frame aligned at wide geometry", async () => {
 });
 
 async function launchWideTerminal() {
-  const fixture = await launchExoTerminalFixture({
+  const fixture = await launchStemTerminalFixture({
     env: {
-      EXO_SHELL: "/bin/sh",
-      EXO_SHELL_ARGS: "",
+      STEM_SHELL: "/bin/sh",
+      STEM_SHELL_ARGS: "",
     },
     initialNoteLabel: null,
   });
@@ -39,8 +39,8 @@ async function launchWideTerminal() {
     window.setBounds({ x: 0, y: 0, width: 1800, height: 1100 });
   });
   await fixture.page.evaluate(async () => {
-    const snapshot = await window.exo.workspace.getSettings();
-    await window.exo.workspace.saveSettings({
+    const snapshot = await window.stem.workspace.getSettings();
+    await window.stem.workspace.saveSettings({
       settings: { ...snapshot.settings, terminalFontSize: 10 },
       expectedRevision: snapshot.revision,
     });
@@ -66,7 +66,7 @@ async function launchWideTerminal() {
 
 async function pageShellSession(page: Page) {
   const shell = await page.evaluate(async () => {
-    const sessions = await window.exo.terminals.list();
+    const sessions = await window.stem.terminals.list();
     return sessions.find((session) => session.kind === "shell") ?? null;
   });
   if (!shell) {
@@ -78,7 +78,7 @@ async function pageShellSession(page: Page) {
 async function startFakeInkAgent(page: Page, terminalId: string): Promise<void> {
   await waitForSettledRendererGeometry(page, terminalId, { minCols: 120 });
   await page.evaluate(async ({ id, command }) => {
-    await window.exo.terminals.write(id, `${command}\n`);
+    await window.stem.terminals.write(id, `${command}\n`);
   }, {
     id: terminalId,
     command: `/usr/bin/env bash ${shellQuote(fakeInkAgentPath)}`,
@@ -96,7 +96,7 @@ async function waitForSettledRendererGeometry(page: Page, terminalId: string, op
 
   while (Date.now() < deadline) {
     const session = await page.evaluate(async (id) => {
-      const sessions = await window.exo.terminals.list();
+      const sessions = await window.stem.terminals.list();
       return sessions.find((candidate) => candidate.id === id) ?? null;
     }, terminalId);
     const rendererCols = session?.geometry?.source === "renderer-fit" ? session.geometry.cols : 0;
@@ -140,7 +140,7 @@ async function waitForCompleteGeometryFrame(page: Page, options: { minCols: numb
     await page.waitForTimeout(50);
   }
 
-  const sourceTail = await page.evaluate(async (id) => window.exo.terminals.read(id, { maxChars: 8_000 }), terminalId).catch((error) => String(error));
+  const sourceTail = await page.evaluate(async (id) => window.stem.terminals.read(id, { maxChars: 8_000 }), terminalId).catch((error) => String(error));
   throw new Error(`Timed out waiting for complete geometry frame:\n${JSON.stringify(lastFrame, null, 2)}\nsourceTail:\n${sourceTail}`);
 }
 

@@ -3,13 +3,13 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 
-const answer = process.env.EXO_FAKE_PI_ANSWER ?? "PI_FIXTURE_ANSWER OK";
-const visibleMs = Number.parseInt(process.env.EXO_FAKE_PI_VISIBLE_MS ?? "1200", 10);
-const status = process.env.EXO_FAKE_PI_STATUS ?? "model: fake-pi-viewport status: ready";
-const includePrompt = process.env.EXO_FAKE_PI_INCLUDE_PROMPT === "1";
-const tracePath = process.env.EXO_FAKE_PI_TRACE_PATH;
-const traceSessionId = process.env.EXO_FAKE_PI_TRACE_SESSION_ID ?? "fake-pi-session";
-const traceHarnessId = process.env.EXO_FAKE_PI_TRACE_HARNESS_ID ?? "fake-pi";
+const answer = process.env.STEM_FAKE_PI_ANSWER ?? "PI_FIXTURE_ANSWER OK";
+const visibleMs = Number.parseInt(process.env.STEM_FAKE_PI_VISIBLE_MS ?? "1200", 10);
+const status = process.env.STEM_FAKE_PI_STATUS ?? "model: fake-pi-viewport status: ready";
+const includePrompt = process.env.STEM_FAKE_PI_INCLUDE_PROMPT === "1";
+const tracePath = process.env.STEM_FAKE_PI_TRACE_PATH;
+const traceSessionId = process.env.STEM_FAKE_PI_TRACE_SESSION_ID ?? "fake-pi-session";
+const traceHarnessId = process.env.STEM_FAKE_PI_TRACE_HARNESS_ID ?? "fake-pi";
 
 let input = "";
 let rendering = false;

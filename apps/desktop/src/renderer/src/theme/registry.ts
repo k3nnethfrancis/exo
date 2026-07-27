@@ -1,10 +1,10 @@
 import type { ResolvedAppearance } from "../appearance";
-import type { ColorThemeId, ExoThemeFamily, ExoThemeVariant } from "./types";
+import type { ColorThemeId, StemThemeFamily, StemThemeVariant } from "./types";
 
-export const DEFAULT_COLOR_THEME_ID: ColorThemeId = "exo-neutral";
+export const DEFAULT_COLOR_THEME_ID: ColorThemeId = "stem-neutral";
 
-const neutralLight: ExoThemeVariant = {
-  id: "exo-neutral-light",
+const neutralLight: StemThemeVariant = {
+  id: "stem-neutral-light",
   appearance: "light",
   colorScheme: "light",
   css: {
@@ -61,8 +61,8 @@ const neutralLight: ExoThemeVariant = {
     "--md-list-guide": "rgba(84, 96, 92, 0.22)",
     "--md-list-bullet": "#5f6b67",
     "--md-task-checked": "#3f737b",
-    "--exo-list-guide": "rgba(84, 96, 92, 0.22)",
-    "--exo-list-bullet": "#5f6b67",
+    "--stem-list-guide": "rgba(84, 96, 92, 0.22)",
+    "--stem-list-bullet": "#5f6b67",
     "--surface-1": "rgba(255, 255, 255, 0.54)",
     "--surface-2": "rgba(238, 241, 233, 0.74)",
     "--surface-3": "rgba(229, 233, 224, 0.86)",
@@ -139,8 +139,8 @@ const neutralLight: ExoThemeVariant = {
   },
 };
 
-const neutralDark: ExoThemeVariant = {
-  id: "exo-neutral-dark",
+const neutralDark: StemThemeVariant = {
+  id: "stem-neutral-dark",
   appearance: "dark",
   colorScheme: "dark",
   css: {
@@ -197,8 +197,8 @@ const neutralDark: ExoThemeVariant = {
     "--md-list-guide": "rgba(164, 174, 166, 0.17)",
     "--md-list-bullet": "#aab0a7",
     "--md-task-checked": "#7baeb5",
-    "--exo-list-guide": "rgba(164, 174, 166, 0.17)",
-    "--exo-list-bullet": "#aab0a7",
+    "--stem-list-guide": "rgba(164, 174, 166, 0.17)",
+    "--stem-list-bullet": "#aab0a7",
     "--surface-1": "rgba(255, 255, 255, 0.035)",
     "--surface-2": "rgba(255, 255, 255, 0.065)",
     "--surface-3": "rgba(255, 255, 255, 0.095)",
@@ -275,9 +275,9 @@ const neutralDark: ExoThemeVariant = {
   },
 };
 
-const solarLight: ExoThemeVariant = {
+const solarLight: StemThemeVariant = {
   ...neutralLight,
-  id: "exo-solar-light",
+  id: "stem-solar-light",
   css: {
     ...neutralLight.css,
     "--app-bg": "#eee8d5",
@@ -334,8 +334,8 @@ const solarLight: ExoThemeVariant = {
     "--danger-soft": "rgba(186, 108, 102, 0.12)",
     "--danger-border": "rgba(170, 93, 82, 0.16)",
     "--shadow": "0 24px 64px rgba(154, 119, 52, 0.12)",
-    "--exo-list-guide": "rgba(120, 130, 148, 0.28)",
-    "--exo-list-bullet": "#626a78",
+    "--stem-list-guide": "rgba(120, 130, 148, 0.28)",
+    "--stem-list-bullet": "#626a78",
   },
   syntax: {
     keyword: "#7c4d9f",
@@ -362,9 +362,9 @@ const solarLight: ExoThemeVariant = {
   },
 };
 
-const solarDark: ExoThemeVariant = {
+const solarDark: StemThemeVariant = {
   ...neutralDark,
-  id: "exo-solar-dark",
+  id: "stem-solar-dark",
   css: {
     ...neutralDark.css,
     "--app-bg": "#1f1f1f",
@@ -420,8 +420,8 @@ const solarDark: ExoThemeVariant = {
     "--danger-soft": "rgba(180, 72, 72, 0.16)",
     "--danger-border": "rgba(255, 170, 170, 0.14)",
     "--shadow": "0 24px 64px rgba(0, 0, 0, 0.28)",
-    "--exo-list-guide": "rgba(136, 146, 164, 0.14)",
-    "--exo-list-bullet": "#98a1b2",
+    "--stem-list-guide": "rgba(136, 146, 164, 0.14)",
+    "--stem-list-bullet": "#98a1b2",
   },
   syntax: {
     keyword: "#b78dd6",
@@ -448,10 +448,10 @@ const solarDark: ExoThemeVariant = {
   },
 };
 
-export const THEME_FAMILIES: ExoThemeFamily[] = [
+export const THEME_FAMILIES: StemThemeFamily[] = [
   {
-    id: "exo-neutral",
-    label: "Exo Neutral",
+    id: "stem-neutral",
+    label: "Stem Neutral",
     description: "Restrained default palette for dense notes, code, and terminals.",
     variants: {
       light: neutralLight,
@@ -459,9 +459,9 @@ export const THEME_FAMILIES: ExoThemeFamily[] = [
     },
   },
   {
-    id: "exo-solar",
-    label: "Exo Solar",
-    description: "Warm classic Exo palette with Solarized-like light surfaces.",
+    id: "stem-solar",
+    label: "Stem Solar",
+    description: "Warm classic Stem palette with Solarized-like light surfaces.",
     variants: {
       light: solarLight,
       dark: solarDark,
@@ -469,15 +469,15 @@ export const THEME_FAMILIES: ExoThemeFamily[] = [
   },
 ];
 
-export const THEME_REGISTRY: Record<ColorThemeId, ExoThemeFamily> = Object.fromEntries(
+export const THEME_REGISTRY: Record<ColorThemeId, StemThemeFamily> = Object.fromEntries(
   THEME_FAMILIES.map((theme) => [theme.id, theme]),
-) as Record<ColorThemeId, ExoThemeFamily>;
+) as Record<ColorThemeId, StemThemeFamily>;
 
 export function normalizeColorThemeId(value: unknown): ColorThemeId {
-  return value === "exo-solar" || value === "exo-neutral" ? value : DEFAULT_COLOR_THEME_ID;
+  return value === "stem-solar" || value === "stem-neutral" ? value : DEFAULT_COLOR_THEME_ID;
 }
 
-export function resolveTheme(colorThemeId: unknown, appearance: ResolvedAppearance): ExoThemeVariant {
+export function resolveTheme(colorThemeId: unknown, appearance: ResolvedAppearance): StemThemeVariant {
   const normalized = normalizeColorThemeId(colorThemeId);
   const family = THEME_REGISTRY[normalized] ?? THEME_REGISTRY[DEFAULT_COLOR_THEME_ID];
   return family.variants[appearance] ?? THEME_REGISTRY[DEFAULT_COLOR_THEME_ID].variants[appearance] ?? neutralLight;

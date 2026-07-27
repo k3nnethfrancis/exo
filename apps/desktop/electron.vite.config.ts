@@ -28,7 +28,7 @@ export default defineConfig({
         },
       },
     },
-    plugins: [externalizeDepsPlugin({ exclude: ["@exo/core"] })],
+    plugins: [externalizeDepsPlugin({ exclude: ["@stem/core"] })],
     resolve: {
       alias: {
         "@shared": path.resolve(currentDirectory, "src/shared"),
@@ -46,7 +46,7 @@ export default defineConfig({
         },
       },
     },
-    plugins: [externalizeDepsPlugin({ exclude: ["@exo/core"] })],
+    plugins: [externalizeDepsPlugin({ exclude: ["@stem/core"] })],
     resolve: {
       alias: {
         "@shared": path.resolve(currentDirectory, "src/shared"),

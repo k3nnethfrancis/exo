@@ -8,7 +8,7 @@ filesystem authority, runtime behavior, or core domain policy.
 
 - `api.ts` is the renderer's aggregate `DesktopApi` seam.
 - `api/` groups the domain-facing method and payload types composed by that
-  aggregate. Reuse canonical `@exo/core` types instead of redefining them here.
+  aggregate. Reuse canonical `@stem/core` types instead of redefining them here.
 - `desktop-ipc.ts` maps invoke channels and renderer events back to the
   aggregate API. Keep channel arguments, return values, and event payloads in
   parity with main handlers and the preload bridge.
@@ -28,8 +28,8 @@ filesystem authority, runtime behavior, or core domain policy.
 ## Focused gates
 
 ```bash
-pnpm --filter @exo/desktop check:unused
-pnpm --filter @exo/desktop typecheck
+pnpm --filter @stem/desktop check:unused
+pnpm --filter @stem/desktop typecheck
 ```
 
 For behavior changes, also run the closest main/renderer tests and the real

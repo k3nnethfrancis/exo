@@ -13,12 +13,12 @@ describe("renderer theme application", () => {
         getPropertyValue: (name: string) => properties.get(name) ?? "",
       },
     } as unknown as HTMLElement;
-    const theme = resolveTheme("exo-solar", "dark");
+    const theme = resolveTheme("stem-solar", "dark");
 
     applyTheme(root, theme);
 
-    expect(root.dataset.colorTheme).toBe("exo-solar");
+    expect(root.dataset.colorTheme).toBe("stem-solar");
     expect(root.style.getPropertyValue("--editor-bg")).toBe("#1f1f1f");
-    expect(resolveTheme("unknown-theme", "light").id).toBe("exo-neutral-light");
+    expect(resolveTheme("unknown-theme", "light").id).toBe("stem-neutral-light");
   });
 });

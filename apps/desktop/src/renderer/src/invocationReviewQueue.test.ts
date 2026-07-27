@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { InvocationFileReviewPayload, InvocationHistoryItem, InvocationReviewListItem } from "../../shared/api";
-import type { InvocationRecord } from "@exo/core";
+import type { InvocationRecord } from "@stem/core";
 
 import {
   activeInvocationReviewChangeId,
@@ -65,7 +65,7 @@ function record(invocationId: string, decisions: Array<[string, "pending" | "kep
 
 describe("invocation review queue", () => {
   it("preserves the originating note History while its read-only retained diff is open", () => {
-    expect(invocationHistoryLoadDecision({ filePath: "exo-review://old/a/note.md", readOnly: true })).toEqual({ kind: "preserve" });
+    expect(invocationHistoryLoadDecision({ filePath: "stem-review://old/a/note.md", readOnly: true })).toEqual({ kind: "preserve" });
     expect(invocationHistoryLoadDecision({ filePath: "/notes/note.md" })).toEqual({ kind: "load", filePath: "/notes/note.md" });
     expect(invocationHistoryLoadDecision(null)).toEqual({ kind: "clear" });
   });

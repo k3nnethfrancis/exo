@@ -36,14 +36,14 @@ export class AppLifecycleController {
 
   createWindow(): BrowserWindow {
     const preloadPath = this.resolvePreloadPath();
-    const isTestWindow = process.env.EXO_TEST === "1";
+    const isTestWindow = process.env.STEM_TEST === "1";
     const window = new BrowserWindow({
       width: 1680,
       height: 1060,
       minWidth: 640,
       minHeight: 480,
       show: false,
-      title: "Exo",
+      title: "Stem",
       backgroundColor: nativeTheme.shouldUseDarkColors ? "#111318" : "#f6ecda",
       icon: this.resolveWindowIconPath(),
       titleBarStyle: "hiddenInset",
@@ -129,9 +129,9 @@ export class AppLifecycleController {
       this.options.logMain("renderer failed to load", details);
 
       // A native hard reload can occasionally leave a packaged file:// renderer
-      // navigating to a bundled asset instead of Exo's document. Recover only
+      // navigating to a bundled asset instead of Stem's document. Recover only
       // the actual renderer entry point; Preview navigation errors must remain
-      // visible to the person using Exo.
+      // visible to the person using Stem.
       if (this.isRendererEntryUrl(validatedURL)) {
         this.rendererReady = false;
         this.scheduleRendererRecovery(window, "load-failed");
@@ -173,7 +173,7 @@ export class AppLifecycleController {
     icon.setTemplateImage(true);
 
     this.tray = new Tray(icon);
-    this.tray.setToolTip("Exo");
+    this.tray.setToolTip("Stem");
     this.updateTrayMenu();
     this.tray.on("click", () => this.showMainWindow());
   }
@@ -241,7 +241,7 @@ export class AppLifecycleController {
 
     const template: MenuItemConstructorOptions[] = [
       {
-        label: "Show Exo",
+        label: "Show Stem",
         click: () => this.showMainWindow(),
       },
       {
@@ -250,7 +250,7 @@ export class AppLifecycleController {
       },
       { type: "separator" },
       {
-        label: "Exo is Running",
+        label: "Stem is Running",
         enabled: false,
       },
       {
@@ -276,7 +276,7 @@ export class AppLifecycleController {
         },
       },
       { type: "separator" },
-      { label: "Quit Exo", click: () => void this.requestQuit() },
+      { label: "Quit Stem", click: () => void this.requestQuit() },
     ];
 
     this.tray.setContextMenu(Menu.buildFromTemplate(template));
@@ -297,7 +297,7 @@ export class AppLifecycleController {
   }
 
   private scheduleRendererRecovery(window: BrowserWindow, reason: string) {
-    if (process.env.EXO_AUTO_RECOVER_RENDERER === "0") {
+    if (process.env.STEM_AUTO_RECOVER_RENDERER === "0") {
       return;
     }
     if (!shouldRecoverRenderer(reason)) {
@@ -330,7 +330,7 @@ export class AppLifecycleController {
   }
 
   private shouldDestroyWindowOnClose(): boolean {
-    return this.quitRequested || process.env.EXO_TEST === "1";
+    return this.quitRequested || process.env.STEM_TEST === "1";
   }
 
   private async confirmQuit(): Promise<boolean> {
@@ -339,11 +339,11 @@ export class AppLifecycleController {
       return true;
     }
 
-    const message = runningTerminals.length === 1 ? "Quit Exo and stop 1 live terminal?" : `Quit Exo and stop ${runningTerminals.length} live terminals?`;
-    const detail = "Closing the window keeps Exo running in the background. Quitting Exo stops live terminal and agent processes.";
+    const message = runningTerminals.length === 1 ? "Quit Stem and stop 1 live terminal?" : `Quit Stem and stop ${runningTerminals.length} live terminals?`;
+    const detail = "Closing the window keeps Stem running in the background. Quitting Stem stops live terminal and agent processes.";
     const options = {
       type: "warning" as const,
-      buttons: ["Cancel", "Quit Exo"],
+      buttons: ["Cancel", "Quit Stem"],
       defaultId: 0,
       cancelId: 0,
       message,

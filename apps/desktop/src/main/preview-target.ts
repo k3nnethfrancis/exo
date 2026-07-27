@@ -2,7 +2,7 @@ import path from "node:path";
 import { stat } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import type { WorkspaceSettings } from "@exo/core";
+import type { WorkspaceSettings } from "@stem/core";
 
 export interface PreviewTargetResponse {
   ok: true;

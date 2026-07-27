@@ -38,9 +38,9 @@ export function packagingFailureDiagnostic(output) {
 
   return [
     '',
-    'Exo mac packaging failed while electron-builder asked pnpm to collect the dependency tree.',
+    'Stem mac packaging failed while electron-builder asked pnpm to collect the dependency tree.',
     'pnpm reported ERR_SQLITE_ERROR. On macOS this can happen when the pnpm store/index SQLite files are inaccessible from a sandboxed shell.',
-    'Generated release/mac-* app output was removed so a partial Electron.app or stale Exo.app is not mistaken for an installable build.',
+    'Generated release/mac-* app output was removed so a partial Electron.app or stale Stem.app is not mistaken for an installable build.',
     '',
     'Try again from a normal terminal with access to your pnpm store/cache, or verify pnpm can inspect dependencies:',
     '  pnpm --dir apps/desktop why @tobilu/qmd better-sqlite3 sqlite-vec --prod',
@@ -62,8 +62,8 @@ function parsePositiveInteger(value) {
 
 export function packMacTimeouts(env = process.env) {
   return {
-    timeoutMs: parsePositiveInteger(env.EXO_PACK_MAC_TIMEOUT_MS) ?? defaultPackagingTimeoutMs,
-    idleTimeoutMs: parsePositiveInteger(env.EXO_PACK_MAC_IDLE_TIMEOUT_MS) ?? defaultPackagingIdleTimeoutMs,
+    timeoutMs: parsePositiveInteger(env.STEM_PACK_MAC_TIMEOUT_MS) ?? defaultPackagingTimeoutMs,
+    idleTimeoutMs: parsePositiveInteger(env.STEM_PACK_MAC_IDLE_TIMEOUT_MS) ?? defaultPackagingIdleTimeoutMs,
   };
 }
 
@@ -85,14 +85,14 @@ export function packagingTimeoutDiagnostic({ kind, label = 'electron-builder pac
 
   return [
     '',
-    `Exo mac packaging stopped because ${label} ${reason}.`,
+    `Stem mac packaging stopped because ${label} ${reason}.`,
     'If the last output is "searching for node modules", the likely stuck phase is electron-builder dependency collection through pnpm workspace metadata or pnpm store/cache access.',
     '',
     'Capture a focused debug log and verify pnpm can inspect the production dependency tree:',
     '  DEBUG=electron-builder,electron-builder:* pnpm pack:mac',
     '  pnpm --dir apps/desktop why @tobilu/qmd better-sqlite3 sqlite-vec --prod',
     '',
-    'Timeouts can be adjusted with EXO_PACK_MAC_TIMEOUT_MS and EXO_PACK_MAC_IDLE_TIMEOUT_MS.',
+    'Timeouts can be adjusted with STEM_PACK_MAC_TIMEOUT_MS and STEM_PACK_MAC_IDLE_TIMEOUT_MS.',
   ].join('\n');
 }
 
@@ -140,7 +140,7 @@ function run(command, args, { cwd = repoRoot, label = `${command} ${args.join(' 
         return;
       }
       timedOut = { kind, timeoutMs: configuredTimeoutMs, label };
-      const message = `[exo pack:mac] ${label} ${kind === 'idle' ? 'idle timed out' : 'timed out'} after ${formatDuration(configuredTimeoutMs)}; stopping process`;
+      const message = `[stem pack:mac] ${label} ${kind === 'idle' ? 'idle timed out' : 'timed out'} after ${formatDuration(configuredTimeoutMs)}; stopping process`;
       output += `${message}\n`;
       console.error(message);
       killChildProcess(child, 'SIGTERM');
@@ -203,7 +203,7 @@ function run(command, args, { cwd = repoRoot, label = `${command} ${args.join(' 
 }
 
 export function restoreLocalElectronRuntime(runCommand = run) {
-  return runCommand('pnpm', ['--filter', '@exo/desktop', 'setup:runtime'], {
+  return runCommand('pnpm', ['--filter', '@stem/desktop', 'setup:runtime'], {
     label: 'restore local Electron runtime',
   });
 }
@@ -225,7 +225,7 @@ export async function withElectronRuntimeRestore(
       if (!packagingError) {
         throw error;
       }
-      log(`[exo pack:mac] failed to restore local Electron runtime after packaging failure: ${error instanceof Error ? error.message : String(error)}`);
+      log(`[stem pack:mac] failed to restore local Electron runtime after packaging failure: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }
@@ -236,13 +236,13 @@ async function main() {
     builderArgs.push('--mac', 'dir');
   }
 
-  cleanMacOutputDirectories(repoRoot, { log: (message) => console.error(`[exo pack:mac] ${message}`) });
+  cleanMacOutputDirectories(repoRoot, { log: (message) => console.error(`[stem pack:mac] ${message}`) });
 
   try {
     await run('pnpm', ['build']);
     const timeouts = packMacTimeouts();
     console.error(
-      `[exo pack:mac] electron-builder timeout ${formatDuration(timeouts.timeoutMs)}, idle timeout ${formatDuration(timeouts.idleTimeoutMs)}`,
+      `[stem pack:mac] electron-builder timeout ${formatDuration(timeouts.timeoutMs)}, idle timeout ${formatDuration(timeouts.idleTimeoutMs)}`,
     );
     await withElectronRuntimeRestore(() => run('electron-builder', ['--projectDir', 'apps/desktop', ...builderArgs], {
       label: 'electron-builder packaging',
@@ -250,7 +250,7 @@ async function main() {
       idleTimeoutMs: timeouts.idleTimeoutMs,
     }));
   } catch (error) {
-    cleanMacOutputDirectories(repoRoot, { log: (message) => console.error(`[exo pack:mac] ${message}`) });
+    cleanMacOutputDirectories(repoRoot, { log: (message) => console.error(`[stem pack:mac] ${message}`) });
     if (error.packagingTimeout) {
       console.error(packagingTimeoutDiagnostic(error.packagingTimeout));
     }

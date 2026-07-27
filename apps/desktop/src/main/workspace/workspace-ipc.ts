@@ -6,7 +6,7 @@ import {
   assertWorkspaceOntologySelection,
   WorkspaceFiles,
   type WorkspaceModel,
-} from "@exo/core";
+} from "@stem/core";
 
 import type { DesktopApi, FileStatInfo, RendererEditorDiagnostic, WorkspaceRegistryEntry } from "../../shared/api";
 import { handleDesktopInvoke } from "../typed-ipc";
@@ -140,13 +140,13 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke(
     "workspace:select-folder",
     async (_event, options) => {
-      if (process.env.EXO_TEST === "1" && process.env.EXO_TEST_SELECT_FOLDER_CANCEL === "1") {
+      if (process.env.STEM_TEST === "1" && process.env.STEM_TEST_SELECT_FOLDER_CANCEL === "1") {
         return [];
       }
-      if (process.env.EXO_TEST === "1" && process.env.EXO_TEST_SELECT_FOLDER_PATH) {
+      if (process.env.STEM_TEST === "1" && process.env.STEM_TEST_SELECT_FOLDER_PATH) {
         return options?.allowMultiple
-          ? process.env.EXO_TEST_SELECT_FOLDER_PATH.split(path.delimiter).filter(Boolean)
-          : [process.env.EXO_TEST_SELECT_FOLDER_PATH];
+          ? process.env.STEM_TEST_SELECT_FOLDER_PATH.split(path.delimiter).filter(Boolean)
+          : [process.env.STEM_TEST_SELECT_FOLDER_PATH];
       }
 
       const dialogOptions: OpenDialogOptions = {

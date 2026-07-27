@@ -2,12 +2,12 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
-import { GraphEdgeVisualClass } from "@exo/core";
+import { GraphEdgeVisualClass } from "@stem/core";
 
-import { launchExoWorkspaceFixture, relaunchExoWorkspaceFixture } from "../helpers";
+import { launchStemWorkspaceFixture, relaunchStemWorkspaceFixture } from "../helpers";
 
 test("reviews Ontology effects before publishing one persistent graph change", async ({}, testInfo) => {
-  const fixture = await launchExoWorkspaceFixture({
+  const fixture = await launchStemWorkspaceFixture({
     mutable: true,
     initialNoteLabel: "ontology-source",
     prepareWorkspace: async (workspaceRoot) => {
@@ -45,7 +45,7 @@ test("reviews Ontology effects before publishing one persistent graph change", a
           enabled: true,
         }],
         appearanceMode: "system",
-        colorThemeId: "exo-neutral",
+        colorThemeId: "stem-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -54,7 +54,7 @@ test("reviews Ontology effects before publishing one persistent graph change", a
       }, null, 2), "utf8");
     },
   });
-  let relaunched: Awaited<ReturnType<typeof relaunchExoWorkspaceFixture>> | null = null;
+  let relaunched: Awaited<ReturnType<typeof relaunchStemWorkspaceFixture>> | null = null;
   const sourcePath = path.join(fixture.workspaceRoot, "notes/test-notes/ontology-source.md");
   const targetPath = path.join(fixture.workspaceRoot, "notes/test-notes/ontology-target.md");
   const noteRoot = path.join(fixture.workspaceRoot, "notes/test-notes");
@@ -81,7 +81,7 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     const changedBytes = originalBytes.replace("# Ontology source", "# Ontology source changed");
     await writeFile(sourcePath, changedBytes, "utf8");
     await expect.poll(
-      () => fixture.page.evaluate((filePath) => window.exo.notes.getGraphContext(filePath).then((context) => context?.note.title), sourcePath),
+      () => fixture.page.evaluate((filePath) => window.stem.notes.getGraphContext(filePath).then((context) => context?.note.title), sourcePath),
       { timeout: 10_000 },
     ).toBe("Ontology source changed");
 
@@ -122,7 +122,7 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     await fixture.page.screenshot({ path: testInfo.outputPath("ontology-review-kept-graph.png") });
 
     await fixture.electronApp.close();
-    relaunched = await relaunchExoWorkspaceFixture(fixture);
+    relaunched = await relaunchStemWorkspaceFixture(fixture);
     await relaunched.page.getByRole("button", { name: "ontology-source" }).first().click();
     await expect(relaunched.page.getByTestId("editor-title")).toHaveText("ontology-source");
     await expectGraphContext(relaunched.page, sourcePath, { ontologyRelations: 1, outgoing: 0, backlinks: 0 });
@@ -231,7 +231,7 @@ async function expectGraphContext(
   filePath: string,
   expected: { ontologyRelations: number; outgoing: number; backlinks: number },
 ): Promise<void> {
-  await expect.poll(async () => page.evaluate((target) => window.exo.notes.getGraphContext(target).then((context) => ({
+  await expect.poll(async () => page.evaluate((target) => window.stem.notes.getGraphContext(target).then((context) => ({
     ontologyRelations: context?.neighborhoodRelations.length ?? -1,
     outgoing: context?.outgoing.length ?? -1,
     backlinks: context?.backlinks.length ?? -1,
@@ -240,17 +240,17 @@ async function expectGraphContext(
 
 async function ontologyEdgeCount(page: Page): Promise<number> {
   return page.evaluate(async (ontologyClass) => {
-    const topology = await window.exo.notes.getGraphTopology();
+    const topology = await window.stem.notes.getGraphTopology();
     return Array.from(topology.edges.visualClasses).filter((visualClass) => visualClass === ontologyClass).length;
   }, GraphEdgeVisualClass.ontology);
 }
 
 async function ontologyEvidence(page: Page, filePath: string) {
   return page.evaluate(async (targetPath) => {
-    const topology = await window.exo.notes.getGraphTopology();
-    const lookup = await window.exo.notes.graphConceptLookup({ filePath: targetPath }, topology.sourceSnapshotId);
+    const topology = await window.stem.notes.getGraphTopology();
+    const lookup = await window.stem.notes.graphConceptLookup({ filePath: targetPath }, topology.sourceSnapshotId);
     if (lookup.status !== "ok" || !lookup.summary) throw new Error("Ontology source concept was not found.");
-    const detail = await window.exo.notes.getGraphConceptDetailByIndex(lookup.summary.index, topology.sourceSnapshotId);
+    const detail = await window.stem.notes.getGraphConceptDetailByIndex(lookup.summary.index, topology.sourceSnapshotId);
     if (detail.status !== "ok" || !detail.detail) throw new Error("Ontology source detail was not available.");
     const relation = detail.detail.relations.find((item) => item.relation.origin === "ontology")?.relation ?? null;
     return { ontology: detail.detail.ontology, relation, sourceSnapshotId: topology.sourceSnapshotId };

@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export COREPACK_ENABLE_PROJECT_SPEC="${COREPACK_ENABLE_PROJECT_SPEC:-0}"
 
-APP_DIR="${EXO_MAC_APP_DIR:-$HOME/Applications}"
+APP_DIR="${STEM_MAC_APP_DIR:-$HOME/Applications}"
 RUN_BUILD=1
 DRY_RUN=0
 INSTALL_CLI=0
@@ -14,13 +14,13 @@ usage() {
   cat <<'EOF'
 Usage: scripts/install-mac-app [options]
 
-Builds Exo and installs the packaged macOS app bundle.
+Builds Stem and installs the packaged macOS app bundle.
 
 Options:
-  --app-dir <path>      Install Exo.app into this directory. Default: ~/Applications
+  --app-dir <path>      Install Stem.app into this directory. Default: ~/Applications
   --system-app-dir      Install into /Applications.
   --skip-build          Reuse existing app and, with --with-cli, CLI build artifacts.
-  --with-cli            Also install the repo-backed exo CLI shim.
+  --with-cli            Also install the repo-backed stem CLI shim.
   --dry-run             Print actions without changing files.
   -h, --help            Show this help.
 
@@ -32,7 +32,7 @@ EOF
 }
 
 log() {
-  printf '[exo app install] %s\n' "$*"
+  printf '[stem app install] %s\n' "$*"
 }
 
 run() {
@@ -113,31 +113,31 @@ case "$(uname -m)" in
     ;;
 esac
 
-APP_SOURCE="$REPO_ROOT/release/$RELEASE_ARCH/Exo.app"
+APP_SOURCE="$REPO_ROOT/release/$RELEASE_ARCH/Stem.app"
 if [ ! -d "$APP_SOURCE" ]; then
   if [ "$DRY_RUN" -eq 1 ]; then
     :
   else
-    echo "No packaged Exo.app found for $RELEASE_ARCH at $APP_SOURCE. Run pnpm pack:mac on this Mac first." >&2
+    echo "No packaged Stem.app found for $RELEASE_ARCH at $APP_SOURCE. Run pnpm pack:mac on this Mac first." >&2
     exit 1
   fi
 fi
 
-APP_TARGET="$APP_DIR/Exo.app"
+APP_TARGET="$APP_DIR/Stem.app"
 
 log "installing app"
 log "source: $APP_SOURCE"
 log "target: $APP_TARGET"
 
 run mkdir -p "$APP_DIR"
-APP_STAGING="$APP_DIR/.Exo.app.install-$$"
-APP_BACKUP="$APP_DIR/.Exo.app.backup-$$"
+APP_STAGING="$APP_DIR/.Stem.app.install-$$"
+APP_BACKUP="$APP_DIR/.Stem.app.backup-$$"
 run rm -rf "$APP_STAGING" "$APP_BACKUP"
 if ! run cp -R "$APP_SOURCE" "$APP_STAGING"; then
   if [ "$APP_DIR" = "/Applications" ]; then
     cat >&2 <<'EOF'
 
-Unable to copy Exo.app into /Applications.
+Unable to copy Stem.app into /Applications.
 
 Install without elevated permissions instead:
   ./scripts/install-mac-app --app-dir "$HOME/Applications"
@@ -165,7 +165,7 @@ fi
 
 cat <<EOF
 
-Exo macOS app install complete.
+Stem macOS app install complete.
 
 App:
   $APP_TARGET
@@ -173,14 +173,14 @@ App:
 Launch:
   open "$APP_TARGET"
 
-After launch, Exo should stay resident in the macOS menu bar until you choose Quit Exo.
+After launch, Stem should stay resident in the macOS menu bar until you choose Quit Stem.
 EOF
 
 if [ "$INSTALL_CLI" -eq 0 ]; then
   cat <<'EOF'
 
 Note:
-  Use --with-cli if you also want the repo-backed `exo` command installed.
+  Use --with-cli if you also want the repo-backed `stem` command installed.
   A fully packaged standalone CLI is separate follow-up work.
 EOF
 fi

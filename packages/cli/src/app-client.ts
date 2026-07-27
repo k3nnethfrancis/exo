@@ -2,29 +2,29 @@ import { readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  EXO_COMMAND_ROUTES,
-  EXO_COMMAND_TOKEN_HEADER,
-  type ExoCommandIndexStatusResponse,
-  type ExoCommandIndexSyncResponse,
-  type ExoCommandIndexSyncRequest,
-  type ExoCommandOkResponse,
-  type ExoCommandSearchRequest,
-  type ExoCommandSearchResponse,
-  type ExoCommandServerInfo,
-  type ExoCommandStatusResponse,
-  type ExoCommandStatusTerminalInfo,
-  type ExoCommandStatusWithControlPlane,
-  type ExoCommandTerminalInfo,
-  type ExoCommandShowRequest,
-  type ExoOpenFileRequest,
-  type ExoSpawnAgentCommandRequest,
-  type ExoSpawnAgentCommandResponse,
+  STEM_COMMAND_ROUTES,
+  STEM_COMMAND_TOKEN_HEADER,
+  type StemCommandIndexStatusResponse,
+  type StemCommandIndexSyncResponse,
+  type StemCommandIndexSyncRequest,
+  type StemCommandOkResponse,
+  type StemCommandSearchRequest,
+  type StemCommandSearchResponse,
+  type StemCommandServerInfo,
+  type StemCommandStatusResponse,
+  type StemCommandStatusTerminalInfo,
+  type StemCommandStatusWithControlPlane,
+  type StemCommandTerminalInfo,
+  type StemCommandShowRequest,
+  type StemOpenFileRequest,
+  type StemSpawnAgentCommandRequest,
+  type StemSpawnAgentCommandResponse,
   type IndexedRoot,
   type IndexSearchResponse,
   type IndexStatus,
   type IndexSyncResult,
   type WorkspaceModel,
-} from "@exo/core";
+} from "@stem/core";
 
 const defaultRequestTimeoutMs = 2_000;
 const defaultSearchRequestTimeoutMs = 30_000;
@@ -65,13 +65,13 @@ export type AppClientConnectResult =
     ok: true;
     client: AppClient;
     discovery: AppClientDiscoveryMetadata;
-    status: ExoCommandStatusWithControlPlane;
+    status: StemCommandStatusWithControlPlane;
   }
   | { ok: false; failure: AppClientDiscoveryFailure };
 
 /**
- * HTTP client for communicating with the Exo desktop app's command server.
- * Discovers the server port from .exo/server.json.
+ * HTTP client for communicating with the Stem desktop app's command server.
+ * Discovers the server port from .stem/server.json.
  */
 export class AppClient {
   private constructor(
@@ -84,7 +84,7 @@ export class AppClient {
   ) {}
 
   /**
-   * Attempt to connect to a running Exo desktop app.
+   * Attempt to connect to a running Stem desktop app.
    * Returns null if the app isn't running or server.json doesn't exist.
    */
   static async connect(runtimeRoot: string, env: NodeJS.ProcessEnv = process.env): Promise<AppClient | null> {
@@ -94,7 +94,7 @@ export class AppClient {
 
   static async connectDetailed(runtimeRoot: string, env: NodeJS.ProcessEnv = process.env): Promise<AppClientConnectResult> {
     const serverJsonPath = path.join(runtimeRoot, "server.json");
-    let info: ExoCommandServerInfo;
+    let info: StemCommandServerInfo;
 
     try {
       const runtimeRootStat = await stat(runtimeRoot);
@@ -119,10 +119,10 @@ export class AppClient {
     }
 
     const baseUrl = `http://127.0.0.1:${info.port}`;
-    const requestTimeoutMs = parsePositiveInt(env.EXO_APP_CLIENT_REQUEST_TIMEOUT_MS) ?? defaultRequestTimeoutMs;
-    const searchRequestTimeoutMs = parsePositiveInt(env.EXO_APP_CLIENT_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
+    const requestTimeoutMs = parsePositiveInt(env.STEM_APP_CLIENT_REQUEST_TIMEOUT_MS) ?? defaultRequestTimeoutMs;
+    const searchRequestTimeoutMs = parsePositiveInt(env.STEM_APP_CLIENT_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
     const maintenanceRequestTimeoutMs =
-      parsePositiveInt(env.EXO_APP_CLIENT_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
+      parsePositiveInt(env.STEM_APP_CLIENT_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
     const discovery: ConnectedAppClientDiscovery = { runtimeRoot, serverJsonPath, port: info.port, pid: info.pid };
     const client = new AppClient(baseUrl, discovery, info.token, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
 
@@ -149,8 +149,8 @@ export class AppClient {
     }
   }
 
-  async getStatus(): Promise<ExoCommandStatusWithControlPlane> {
-    const status = await this.get(EXO_COMMAND_ROUTES.status, decodeExoCommandStatusResponse);
+  async getStatus(): Promise<StemCommandStatusWithControlPlane> {
+    const status = await this.get(STEM_COMMAND_ROUTES.status, decodeStemCommandStatusResponse);
     return {
       ...status,
       controlPlane: {
@@ -164,35 +164,35 @@ export class AppClient {
   }
 
   async openFile(filePath: string): Promise<void> {
-    const request: ExoOpenFileRequest = { path: filePath };
-    await this.post(EXO_COMMAND_ROUTES.open, request, decodeExoCommandOkResponse);
+    const request: StemOpenFileRequest = { path: filePath };
+    await this.post(STEM_COMMAND_ROUTES.open, request, decodeStemCommandOkResponse);
   }
 
   async showWindow(): Promise<void> {
-    const request: ExoCommandShowRequest = {};
-    await this.post(EXO_COMMAND_ROUTES.show, request, decodeExoCommandOkResponse);
+    const request: StemCommandShowRequest = {};
+    await this.post(STEM_COMMAND_ROUTES.show, request, decodeStemCommandOkResponse);
   }
 
-  async search(query: string, options: { limit?: number; offset?: number } = {}): Promise<ExoCommandSearchResponse> {
-    const request: ExoCommandSearchRequest = { q: query, ...options };
+  async search(query: string, options: { limit?: number; offset?: number } = {}): Promise<StemCommandSearchResponse> {
+    const request: StemCommandSearchRequest = { q: query, ...options };
     const params = new URLSearchParams({ q: request.q });
     if (request.limit) params.set("limit", String(request.limit));
     if (request.offset) params.set("offset", String(request.offset));
-    return this.get(`${EXO_COMMAND_ROUTES.search}?${params.toString()}`, decodeExoIndexSearchResponse, this.searchRequestTimeoutMs);
+    return this.get(`${STEM_COMMAND_ROUTES.search}?${params.toString()}`, decodeStemIndexSearchResponse, this.searchRequestTimeoutMs);
   }
 
-  async getIndexStatus(): Promise<ExoCommandIndexStatusResponse> {
-    return this.get(EXO_COMMAND_ROUTES.indexStatus, decodeExoIndexStatusResponse);
+  async getIndexStatus(): Promise<StemCommandIndexStatusResponse> {
+    return this.get(STEM_COMMAND_ROUTES.indexStatus, decodeStemIndexStatusResponse);
   }
 
-  async syncIndex(): Promise<ExoCommandIndexSyncResponse> {
-    const request: ExoCommandIndexSyncRequest = {};
-    return this.post(EXO_COMMAND_ROUTES.indexSync, request, decodeExoIndexSyncResponse, this.maintenanceRequestTimeoutMs);
+  async syncIndex(): Promise<StemCommandIndexSyncResponse> {
+    const request: StemCommandIndexSyncRequest = {};
+    return this.post(STEM_COMMAND_ROUTES.indexSync, request, decodeStemIndexSyncResponse, this.maintenanceRequestTimeoutMs);
   }
 
-  async spawnAgentCommand(handle: string, task: string): Promise<ExoSpawnAgentCommandResponse> {
-    const request: ExoSpawnAgentCommandRequest = { handle, task };
-    return this.post(EXO_COMMAND_ROUTES.spawnAgentCommand, request, decodeExoSpawnAgentCommandResponse, this.maintenanceRequestTimeoutMs);
+  async spawnAgentCommand(handle: string, task: string): Promise<StemSpawnAgentCommandResponse> {
+    const request: StemSpawnAgentCommandRequest = { handle, task };
+    return this.post(STEM_COMMAND_ROUTES.spawnAgentCommand, request, decodeStemSpawnAgentCommandResponse, this.maintenanceRequestTimeoutMs);
   }
 
   private async get<T>(path: string, decode: (value: unknown) => T, timeoutMs = this.requestTimeoutMs): Promise<T> {
@@ -226,48 +226,48 @@ export class AppClient {
   private authHeaders(): Record<string, string> {
     return {
       Authorization: `Bearer ${this.token}`,
-      [EXO_COMMAND_TOKEN_HEADER]: this.token,
+      [STEM_COMMAND_TOKEN_HEADER]: this.token,
     };
   }
 }
 
-function decodeExoCommandStatusResponse(value: unknown): ExoCommandStatusResponse {
-  if (!isExoCommandStatusResponse(value)) {
+function decodeStemCommandStatusResponse(value: unknown): StemCommandStatusResponse {
+  if (!isStemCommandStatusResponse(value)) {
     throw protocolShapeError("a valid status response");
   }
   return value;
 }
 
-function decodeExoCommandOkResponse(value: unknown): ExoCommandOkResponse {
-  if (!isExoCommandOkResponse(value)) {
+function decodeStemCommandOkResponse(value: unknown): StemCommandOkResponse {
+  if (!isStemCommandOkResponse(value)) {
     throw protocolShapeError("an { ok: true } response");
   }
   return value;
 }
 
-function decodeExoIndexSearchResponse(value: unknown): IndexSearchResponse {
+function decodeStemIndexSearchResponse(value: unknown): IndexSearchResponse {
   if (!isIndexSearchResponse(value)) {
     throw protocolShapeError("a valid search response");
   }
   return value;
 }
 
-function decodeExoIndexStatusResponse(value: unknown): IndexStatus {
+function decodeStemIndexStatusResponse(value: unknown): IndexStatus {
   if (!isIndexStatus(value)) {
     throw protocolShapeError("a valid index status response");
   }
   return value;
 }
 
-function decodeExoIndexSyncResponse(value: unknown): IndexSyncResult {
+function decodeStemIndexSyncResponse(value: unknown): IndexSyncResult {
   if (!isIndexSyncResult(value)) {
     throw protocolShapeError("a valid index sync response");
   }
   return value;
 }
 
-function decodeExoSpawnAgentCommandResponse(value: unknown): ExoSpawnAgentCommandResponse {
-  if (!isExoSpawnAgentCommandResponse(value)) {
+function decodeStemSpawnAgentCommandResponse(value: unknown): StemSpawnAgentCommandResponse {
+  if (!isStemSpawnAgentCommandResponse(value)) {
     throw protocolShapeError("a valid agent command spawn response");
   }
   return value;
@@ -284,23 +284,23 @@ function decodeSuccessfulResponse<T>(body: string, method: string, targetPath: s
     return decode(value);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw protocolError(method, targetPath, detail.replace("Exo command-server protocol error: ", ""));
+    throw protocolError(method, targetPath, detail.replace("Stem command-server protocol error: ", ""));
   }
 }
 
 function protocolShapeError(expected: string): Error {
-  return new Error(`Exo command-server protocol error: expected ${expected}`);
+  return new Error(`Stem command-server protocol error: expected ${expected}`);
 }
 
 function protocolError(method: string, targetPath: string, detail: string): Error {
-  return new Error(`Exo command-server protocol error for ${method} ${targetPath}: ${detail}.`);
+  return new Error(`Stem command-server protocol error for ${method} ${targetPath}: ${detail}.`);
 }
 
-function isExoCommandStatusResponse(value: unknown): value is ExoCommandStatusResponse {
+function isStemCommandStatusResponse(value: unknown): value is StemCommandStatusResponse {
   return isRecord(value) && isWorkspaceModel(value.workspace) && Array.isArray(value.terminals) && value.terminals.every(isCommandStatusTerminal);
 }
 
-function isExoCommandOkResponse(value: unknown): value is ExoCommandOkResponse {
+function isStemCommandOkResponse(value: unknown): value is StemCommandOkResponse {
   return isRecord(value) && value.ok === true;
 }
 
@@ -312,7 +312,7 @@ function isIndexSyncResult(value: unknown): value is IndexSyncResult {
   return isRecord(value) && isIndexStatus(value.status) && Array.isArray(value.phases) && value.phases.every(isIndexSyncPhase) && isStringArray(value.warnings);
 }
 
-function isExoSpawnAgentCommandResponse(value: unknown): value is ExoSpawnAgentCommandResponse {
+function isStemSpawnAgentCommandResponse(value: unknown): value is StemSpawnAgentCommandResponse {
   return isRecord(value) && value.ok === true && isRecord(value.invocation) && typeof value.invocation.id === "string" && typeof value.invocation.status === "string" && typeof value.invocation.handle === "string" && typeof value.invocation.createdAt === "string" && isCommandTerminal(value.terminal);
 }
 
@@ -332,11 +332,11 @@ function isIndexingConfig(value: unknown): boolean {
   return isRecord(value) && typeof value.enabled === "boolean" && isIndexMode(value.mode) && isIndexBackend(value.backend);
 }
 
-function isCommandStatusTerminal(value: unknown): value is ExoCommandStatusTerminalInfo {
+function isCommandStatusTerminal(value: unknown): value is StemCommandStatusTerminalInfo {
   return isRecord(value) && isCommandTerminal(value) && value.kind === "shell" && (value.status === "running" || value.status === "exited") && typeof value.command === "string" && typeof value.attachGeneration === "number" && (value.health === undefined || value.health === "healthy" || value.health === "idle" || value.health === "unhealthy" || value.health === "exited") && (value.healthDetail === undefined || typeof value.healthDetail === "string") && (value.geometry === undefined || isTerminalGeometry(value.geometry));
 }
 
-function isCommandTerminal(value: unknown): value is ExoCommandTerminalInfo {
+function isCommandTerminal(value: unknown): value is StemCommandTerminalInfo {
   return isRecord(value) && typeof value.id === "string" && typeof value.title === "string" && typeof value.cwd === "string" && typeof value.kind === "string" && typeof value.status === "string" && (value.command === undefined || typeof value.command === "string") && (value.exitCode === undefined || typeof value.exitCode === "number");
 }
 
@@ -386,7 +386,7 @@ function parsePositiveInt(value: string | undefined): number | undefined {
 
 function enhanceTimeoutError(error: unknown, method: string, targetPath: string, timeoutMs: number): Error {
   if (isAbortError(error)) {
-    return new Error(`Exo command server ${method} ${targetPath} timed out after ${timeoutMs}ms.`);
+    return new Error(`Stem command server ${method} ${targetPath} timed out after ${timeoutMs}ms.`);
   }
   return error instanceof Error ? error : new Error(String(error));
 }
@@ -395,7 +395,7 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError");
 }
 
-function isValidServerInfo(value: unknown): value is ExoCommandServerInfo {
+function isValidServerInfo(value: unknown): value is StemCommandServerInfo {
   if (!isRecord(value)) {
     return false;
   }
@@ -414,7 +414,7 @@ function discoveryFailure(
   runtimeRoot: string,
   serverJsonPath: string,
   cause?: unknown,
-  info?: Partial<ExoCommandServerInfo>,
+  info?: Partial<StemCommandServerInfo>,
   processCheck?: AppClientProcessCheckDiagnostic,
 ): AppClientConnectResult {
   const causeMessage = cause instanceof Error ? cause.message : cause ? String(cause) : undefined;
@@ -454,21 +454,21 @@ export function formatAppClientDiscoveryFailure(failure: AppClientDiscoveryFailu
 function discoveryFailureMessage(
   code: AppClientDiscoveryFailureCode,
   serverJsonPath: string,
-  info?: Partial<ExoCommandServerInfo>,
+  info?: Partial<StemCommandServerInfo>,
 ): string {
   switch (code) {
     case "runtime-root-missing":
-      return `Exo runtime root is missing or is not a directory. Start Exo with \`exo start\`, run \`exo status\` to confirm the active workspace, or set EXO_RUNTIME_ROOT.`;
+      return `Stem runtime root is missing or is not a directory. Start Stem with \`stem start\`, run \`stem status\` to confirm the active workspace, or set STEM_RUNTIME_ROOT.`;
     case "server-json-missing":
-      return `Exo command server discovery file is missing. Start Exo with \`exo start\`, or set EXO_RUNTIME_ROOT to the runtime containing server.json.`;
+      return `Stem command server discovery file is missing. Start Stem with \`stem start\`, or set STEM_RUNTIME_ROOT to the runtime containing server.json.`;
     case "server-json-invalid":
-      return `Exo command server discovery file is invalid. Remove or regenerate ${serverJsonPath} by restarting Exo.`;
+      return `Stem command server discovery file is invalid. Remove or regenerate ${serverJsonPath} by restarting Stem.`;
     case "server-stale":
-      return `Exo command server discovery is stale. The recorded process${info?.pid ? ` (${info.pid})` : ""} is no longer running; restart Exo with \`exo start\`.`;
+      return `Stem command server discovery is stale. The recorded process${info?.pid ? ` (${info.pid})` : ""} is no longer running; restart Stem with \`stem start\`.`;
     case "server-unreachable":
-      return `Exo command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}. Restart Exo with \`exo start\` or check that EXO_RUNTIME_ROOT points at the active runtime.`;
+      return `Stem command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}. Restart Stem with \`stem start\` or check that STEM_RUNTIME_ROOT points at the active runtime.`;
     case "server-liveness-unknown":
-      return `Exo command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}, and Exo could not verify whether the recorded process${info?.pid ? ` (${info.pid})` : ""} is alive. The discovery file was preserved because the process check was blocked or inconclusive. Run \`exo start\`, then retry; if Exo is already open, confirm EXO_RUNTIME_ROOT points to its active Workspace.`;
+      return `Stem command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}, and Stem could not verify whether the recorded process${info?.pid ? ` (${info.pid})` : ""} is alive. The discovery file was preserved because the process check was blocked or inconclusive. Run \`stem start\`, then retry; if Stem is already open, confirm STEM_RUNTIME_ROOT points to its active Workspace.`;
   }
 }
 

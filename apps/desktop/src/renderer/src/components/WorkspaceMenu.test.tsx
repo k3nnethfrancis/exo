@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { EXO_CLI_COMMANDS } from "@exo/core/operator-help";
+import { STEM_CLI_COMMANDS } from "@stem/core/operator-help";
 
 import { APP_KEYBINDINGS } from "../shellHelpModel";
 import { WorkspaceHelpPanel } from "./WorkspaceMenu";
@@ -15,7 +15,7 @@ describe("workspace help menu", () => {
       expect(html).toContain(shortcut.label);
       expect(html).toContain(shortcut.mac);
     }
-    for (const command of EXO_CLI_COMMANDS) {
+    for (const command of STEM_CLI_COMMANDS) {
       expect(html).toContain(command.syntax.replaceAll("<", "&lt;").replaceAll(">", "&gt;"));
     }
     expect(html).toContain('aria-label="Back to workspace menu"');

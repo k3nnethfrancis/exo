@@ -4,9 +4,9 @@ import path from "node:path";
 import { PassThrough } from "node:stream";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { saveWorkspaceSettings, type WorkspaceSettings } from "@exo/core";
+import { saveWorkspaceSettings, type WorkspaceSettings } from "@stem/core";
 
-import { runExoMcpServer } from "./mcp-server";
+import { runStemMcpServer } from "./mcp-server";
 
 const temporaryRoots: string[] = [];
 
@@ -22,7 +22,7 @@ function workspaceSettings(root: string): WorkspaceSettings {
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     appearanceMode: "system",
-    colorThemeId: "exo-neutral",
+    colorThemeId: "stem-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,
@@ -33,7 +33,7 @@ function workspaceSettings(root: string): WorkspaceSettings {
 
 async function invokeMcp(
   requests: object[],
-  options: Omit<Parameters<typeof runExoMcpServer>[0], "input" | "output" | "error">,
+  options: Omit<Parameters<typeof runStemMcpServer>[0], "input" | "output" | "error">,
 ): Promise<Record<string, unknown>[]> {
   const input = new PassThrough();
   const output = new PassThrough();
@@ -41,7 +41,7 @@ async function invokeMcp(
   output.on("data", (chunk) => {
     text += chunk.toString();
   });
-  const server = runExoMcpServer({ ...options, input, output, error: new PassThrough() });
+  const server = runStemMcpServer({ ...options, input, output, error: new PassThrough() });
   input.end(requests.map((request) => JSON.stringify(request)).join("\n"));
   await server;
   return text
@@ -55,19 +55,19 @@ function toolCall(id: number, name: string, arguments_: Record<string, unknown> 
   return { jsonrpc: "2.0", id, method: "tools/call", params: { name, arguments: arguments_ } };
 }
 
-describe("Exo MCP server", () => {
+describe("Stem MCP server", () => {
   it("serves workspace discovery through status and search tools", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "research.md");
-    await writeFile(notePath, "# Research\n\nExo holds local context.\n", "utf8");
+    await writeFile(notePath, "# Research\n\nStem holds local context.\n", "utf8");
     const responses = await invokeMcp([
       { jsonrpc: "2.0", id: 1, method: "initialize", params: {} },
       { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} },
       toolCall(3, "search_notes", { query: "context" }),
       toolCall(4, "workspace_status"),
     ], {
-      env: { EXO_WORKSPACE_ROOT: root, EXO_NOTE_ROOTS: root },
+      env: { STEM_WORKSPACE_ROOT: root, STEM_NOTE_ROOTS: root },
     });
 
     expect((responses[0].result as Record<string, unknown>)).toMatchObject({ protocolVersion: "2025-06-18", capabilities: { tools: { listChanged: false } } });
@@ -88,15 +88,15 @@ describe("Exo MCP server", () => {
   });
 
   it("selects the one workspace whose Note Root contains the caller cwd", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-user-data-"));
-    const alpha = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-alpha-"));
-    const beta = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-beta-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-user-data-"));
+    const alpha = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-alpha-"));
+    const beta = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-beta-"));
     temporaryRoots.push(userDataPath, alpha, beta);
     const callerCwd = path.join(alpha, "project", "src");
     await mkdir(callerCwd, { recursive: true });
     await writeFile(path.join(alpha, "alpha.md"), "# Alpha\n\nScoped caller workspace.\n", "utf8");
     await writeFile(path.join(beta, "beta.md"), "# Beta\n\nOther workspace.\n", "utf8");
-    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const env = { STEM_USER_DATA_PATH: userDataPath };
     await saveWorkspaceSettings(workspaceSettings(alpha), env);
     await saveWorkspaceSettings(workspaceSettings(beta), env);
 
@@ -117,12 +117,12 @@ describe("Exo MCP server", () => {
   });
 
   it("uses a sole configured workspace when caller cwd is outside it", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-user-data-"));
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-singleton-"));
-    const externalCwd = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-external-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-user-data-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-singleton-"));
+    const externalCwd = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-external-"));
     temporaryRoots.push(userDataPath, root, externalCwd);
     await writeFile(path.join(root, "only.md"), "# Only\n\nSingleton scope.\n", "utf8");
-    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const env = { STEM_USER_DATA_PATH: userDataPath };
     await saveWorkspaceSettings(workspaceSettings(root), env);
 
     const responses = await invokeMcp([
@@ -137,12 +137,12 @@ describe("Exo MCP server", () => {
   });
 
   it("refuses search if caller cwd is covered by multiple workspaces", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-user-data-"));
-    const parent = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-parent-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-user-data-"));
+    const parent = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-parent-"));
     const child = path.join(parent, "nested");
     await mkdir(child);
     temporaryRoots.push(userDataPath, parent);
-    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const env = { STEM_USER_DATA_PATH: userDataPath };
     await saveWorkspaceSettings(workspaceSettings(parent), env);
     await saveWorkspaceSettings(workspaceSettings(child), env);
 
@@ -157,16 +157,16 @@ describe("Exo MCP server", () => {
       search: null,
     });
     expect(responses[1].result).toMatchObject({ isError: true });
-    expect(resultText(responses[1])).toContain("matches 2 Exo Workspaces");
+    expect(resultText(responses[1])).toContain("matches 2 Stem Workspaces");
   });
 
   it("refuses search when caller cwd resolves no Workspace and no singleton exists", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-user-data-"));
-    const alpha = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-alpha-"));
-    const beta = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-beta-"));
-    const externalCwd = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-external-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-user-data-"));
+    const alpha = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-alpha-"));
+    const beta = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-beta-"));
+    const externalCwd = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-external-"));
     temporaryRoots.push(userDataPath, alpha, beta, externalCwd);
-    const env = { EXO_USER_DATA_PATH: userDataPath };
+    const env = { STEM_USER_DATA_PATH: userDataPath };
     await saveWorkspaceSettings(workspaceSettings(alpha), env);
     await saveWorkspaceSettings(workspaceSettings(beta), env);
 
@@ -180,12 +180,12 @@ describe("Exo MCP server", () => {
       search: null,
     });
     expect(responses[1].result).toMatchObject({ isError: true });
-    expect(resultText(responses[1])).toContain("No Exo Workspace matches caller cwd");
+    expect(resultText(responses[1])).toContain("No Stem Workspace matches caller cwd");
   });
 
   it("falls back to scoped filesystem search when the running app belongs to another workspace", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-fallback-"));
-    const otherRoot = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-other-app-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-fallback-"));
+    const otherRoot = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-other-app-"));
     temporaryRoots.push(root, otherRoot);
     const notePath = path.join(root, "fallback.md");
     await writeFile(notePath, "# Fallback\n\nFilesystem result wins.\n", "utf8");
@@ -194,7 +194,7 @@ describe("Exo MCP server", () => {
       toolCall(1, "workspace_status"),
       toolCall(2, "search_notes", { query: "Filesystem result" }),
     ], {
-      env: { EXO_WORKSPACE_ROOT: root, EXO_NOTE_ROOTS: root },
+      env: { STEM_WORKSPACE_ROOT: root, STEM_NOTE_ROOTS: root },
       connectApp: async () => ({
         getStatus: async () => appStatus(otherRoot),
         getIndexStatus: async () => indexStatusResponse(),
@@ -207,14 +207,14 @@ describe("Exo MCP server", () => {
   });
 
   it("uses app retrieval only when its Workspace exactly matches the resolved scope", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-mcp-app-match-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-mcp-app-match-"));
     temporaryRoots.push(root);
 
     const responses = await invokeMcp([
       toolCall(1, "workspace_status"),
       toolCall(2, "search_notes", { query: "from app" }),
     ], {
-      env: { EXO_WORKSPACE_ROOT: root, EXO_NOTE_ROOTS: root },
+      env: { STEM_WORKSPACE_ROOT: root, STEM_NOTE_ROOTS: root },
       connectApp: async () => ({
         getStatus: async () => appStatus(root),
         getIndexStatus: async () => indexStatusResponse(),
@@ -228,7 +228,7 @@ describe("Exo MCP server", () => {
 
   it("returns tool errors as MCP tool results rather than crashing the protocol", async () => {
     const [response] = await invokeMcp([toolCall(1, "read_note")], {
-      env: { EXO_WORKSPACE_ROOT: process.cwd(), EXO_NOTE_ROOTS: process.cwd() },
+      env: { STEM_WORKSPACE_ROOT: process.cwd(), STEM_NOTE_ROOTS: process.cwd() },
     });
     expect(response.result).toMatchObject({ isError: true });
   });
@@ -251,8 +251,8 @@ function appStatus(root: string) {
     },
     terminals: [],
     controlPlane: {
-      runtimeRoot: path.join(root, ".exo"),
-      serverJsonPath: path.join(root, ".exo", "server.json"),
+      runtimeRoot: path.join(root, ".stem"),
+      serverJsonPath: path.join(root, ".stem", "server.json"),
       pid: process.pid,
       port: 12345,
       baseUrl: "http://127.0.0.1:12345",
@@ -265,8 +265,8 @@ function indexStatusResponse() {
     enabled: true,
     mode: "hybrid" as const,
     backend: "qmd" as const,
-    dbPath: "/workspace/.exo/index.sqlite",
-    runtimePath: "/workspace/.exo",
+    dbPath: "/workspace/.stem/index.sqlite",
+    runtimePath: "/workspace/.stem",
     indexedRoots: [],
     documentCount: 1,
     pendingEmbeddings: 0,

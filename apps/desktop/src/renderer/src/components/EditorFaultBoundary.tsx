@@ -19,7 +19,7 @@ interface EditorFaultBoundaryState {
 /**
  * Contain an editor-only renderer exception. This is intentionally not a
  * retry mechanism: the failed pane stays visible and the safe state snapshot
- * is written to Exo's local log for a real reproduction/fix cycle.
+ * is written to Stem's local log for a real reproduction/fix cycle.
  */
 export class EditorFaultBoundary extends Component<EditorFaultBoundaryProps, EditorFaultBoundaryState> {
   state: EditorFaultBoundaryState = { hasFault: false, diagnostic: null };
@@ -33,9 +33,9 @@ export class EditorFaultBoundary extends Component<EditorFaultBoundaryProps, Edi
     this.setState({ hasFault: true, diagnostic });
     // Keep the original error in the live DevTools console while the durable
     // record below remains explicitly content-free.
-    console.error("[exo] editor render fault", diagnostic, error);
-    void window.exo.workspace.recordRendererDiagnostic(diagnostic).catch((loggingError) => {
-      console.error("[exo] failed to persist editor render diagnostic", loggingError);
+    console.error("[stem] editor render fault", diagnostic, error);
+    void window.stem.workspace.recordRendererDiagnostic(diagnostic).catch((loggingError) => {
+      console.error("[stem] failed to persist editor render diagnostic", loggingError);
     });
   }
 
@@ -44,7 +44,7 @@ export class EditorFaultBoundary extends Component<EditorFaultBoundaryProps, Edi
       return (
         <section className="editor-fault" role="status" aria-live="polite">
           <strong>Editor paused.</strong>
-          <span>Refresh Exo to continue.</span>
+          <span>Refresh Stem to continue.</span>
         </section>
       );
     }

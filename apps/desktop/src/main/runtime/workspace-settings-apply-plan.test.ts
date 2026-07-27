@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { WorkspaceSettings } from "@exo/core";
+import type { WorkspaceSettings } from "@stem/core";
 
 import { planWorkspaceSettingsApply } from "./workspace-settings-apply-plan";
 
@@ -106,7 +106,7 @@ function settings(): WorkspaceSettings {
     indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
     searchEngine: "qmd",
     appearanceMode: "system",
-    colorThemeId: "exo-neutral",
+    colorThemeId: "stem-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,

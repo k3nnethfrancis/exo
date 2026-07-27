@@ -124,7 +124,7 @@ const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 describe("AppLifecycleController", () => {
   beforeEach(() => {
-    delete process.env.EXO_TEST;
+    delete process.env.STEM_TEST;
     delete process.env.ELECTRON_RENDERER_URL;
     delete process.env.VITE_DEV_SERVER_URL;
     electronMock.appQuit.mockClear();
@@ -201,15 +201,15 @@ describe("AppLifecycleController", () => {
     expect(electronMock.trayImageCreateFromPath).not.toHaveBeenCalled();
     expect(electronMock.trayImageSetTemplateImage).toHaveBeenCalledWith(true);
     expect(electronMock.trayInstances).toHaveLength(1);
-    expect(electronMock.trayInstances[0].setToolTip).toHaveBeenCalledWith("Exo");
-    expect(menuLabels()).toContain("Show Exo");
+    expect(electronMock.trayInstances[0].setToolTip).toHaveBeenCalledWith("Stem");
+    expect(menuLabels()).toContain("Show Stem");
     expect(menuLabels()).toContain("Settings...");
-    expect(menuLabels()).toContain("Exo is Running");
+    expect(menuLabels()).toContain("Stem is Running");
     expect(menuLabels()).toContain("Window: Hidden");
     expect(menuLabels()).toContain("Command Server: Running:4317");
     expect(menuLabels()).toContain("Live Terminals: 1");
     expect(menuLabels()).toContain("Restart Command Server");
-    expect(menuLabels()).toContain("Quit Exo");
+    expect(menuLabels()).toContain("Quit Stem");
   });
 
   it("does not require a packaged tray asset on disk", () => {

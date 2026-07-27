@@ -20,21 +20,21 @@ export interface InspectCliInstallationOptions {
 export function findSourceProjectRoot(candidates: string[]): string | undefined {
   return candidates.find((candidate) =>
     existsSync(path.join(candidate, "package.json"))
-    && existsSync(path.join(candidate, "bin", "exo"))
+    && existsSync(path.join(candidate, "bin", "stem"))
     && existsSync(path.join(candidate, "scripts", "install-local")),
   );
 }
 
 /**
- * Classify the first executable `exo` visible to the desktop app. This is
+ * Classify the first executable `stem` visible to the desktop app. This is
  * deliberately diagnostic only: installation remains an explicit shell step.
  */
 export async function inspectCliInstallation(
   { env = process.env, sourceProjectRoot }: InspectCliInstallationOptions = {},
 ): Promise<CliInstallationStatus> {
-  const sourcePath = sourceProjectRoot ? path.join(sourceProjectRoot, "bin", "exo") : undefined;
+  const sourcePath = sourceProjectRoot ? path.join(sourceProjectRoot, "bin", "stem") : undefined;
   const installCommand = sourceProjectRoot ? `cd ${shellQuote(sourceProjectRoot)} && ./scripts/install-local` : undefined;
-  const commandPath = await findExecutable("exo", commandEnvironment(env).PATH);
+  const commandPath = await findExecutable("stem", commandEnvironment(env).PATH);
 
   if (!commandPath) {
     return sourcePath ? { state: "missing", sourcePath, installCommand } : { state: "unavailable" };
@@ -45,7 +45,7 @@ export async function inspectCliInstallation(
 
   try {
     const entry = await lstat(commandPath);
-    if (!entry.isSymbolicLink()) return { state: "non-exo", ...common };
+    if (!entry.isSymbolicLink()) return { state: "non-stem", ...common };
 
     const linkTarget = await readlink(commandPath);
     const resolvedTarget = path.resolve(path.dirname(commandPath), linkTarget);
@@ -53,11 +53,11 @@ export async function inspectCliInstallation(
 
     try {
       const content = await readFile(resolvedTarget, "utf8");
-      if (content.includes(LEGACY_SHIM_MARKER)) return { state: "legacy-exo", ...common };
+      if (content.includes(LEGACY_SHIM_MARKER)) return { state: "legacy-stem", ...common };
     } catch {
-      if (linkTarget.endsWith("/bin/exo") || linkTarget === "bin/exo") return { state: "legacy-exo", ...common };
+      if (linkTarget.endsWith("/bin/stem") || linkTarget === "bin/stem") return { state: "legacy-stem", ...common };
     }
-    return { state: "non-exo", ...common };
+    return { state: "non-stem", ...common };
   } catch {
     return { state: "unavailable", ...common };
   }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { InvocationRecord } from "@exo/core";
-import type { InvocationActivityEvent } from "@exo/core/invocation-activity";
+import type { InvocationRecord } from "@stem/core";
+import type { InvocationActivityEvent } from "@stem/core/invocation-activity";
 
 import {
   acknowledgeInvocationActivity,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EditorState } from "@codemirror/state";
-import type { NoteDocument, TreeNode, WorkspaceGraphContext, WorkspaceModel } from "@exo/core";
+import type { NoteDocument, TreeNode, WorkspaceGraphContext, WorkspaceModel } from "@stem/core";
 
 import {
   buildNoteGraphContext,

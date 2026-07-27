@@ -1,6 +1,6 @@
 # Knowledge graph
 
-Exo derives a live graph from ordinary Markdown. The graph helps navigation and retrieval; it does not replace your files as the source of truth.
+Stem derives a live graph from ordinary Markdown. The graph helps navigation and retrieval; it does not replace your files as the source of truth.
 
 ## What becomes a graph object
 
@@ -34,6 +34,6 @@ The hot rendering path uses compact numeric topology. Labels, paths, properties,
 
 ## Add more meaning deliberately
 
-An optional workspace `ontology.yaml` can declare property shapes, path-default types, reference-valued relations, and validation rules. Exo previews its exact effects and requires Keep before activating it. One ontology is active at a time; switching never rewrites Notes. Read [Workspace ontology](workspace-ontology.md).
+An optional workspace `ontology.yaml` can declare property shapes, path-default types, reference-valued relations, and validation rules. Stem previews its exact effects and requires Keep before activating it. One ontology is active at a time; switching never rewrites Notes. Read [Workspace ontology](workspace-ontology.md).
 
 For the base reading rules and OKF compatibility, read [Note Root Formats](note-root-formats.md).

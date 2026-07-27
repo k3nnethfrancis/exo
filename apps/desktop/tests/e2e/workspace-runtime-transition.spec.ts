@@ -2,12 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { WorkspaceSettings } from "@exo/core";
+import type { WorkspaceSettings } from "@stem/core";
 
-import { launchExoWorkspaceFixture } from "../helpers";
+import { launchStemWorkspaceFixture } from "../helpers";
 
 test("keeps command discovery, status, and search scoped across A → B → A", async () => {
-  const fixture = await launchExoWorkspaceFixture({
+  const fixture = await launchStemWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     runtimeRootEnv: false,
@@ -24,22 +24,22 @@ test("keeps command discovery, status, and search scoped across A → B → A", 
   const rootB = path.join(rootA, "alternate-wiki");
 
   try {
-    await expect.poll(() => commandServerStatus(path.join(rootA, ".exo"))).toMatchObject({
+    await expect.poll(() => commandServerStatus(path.join(rootA, ".stem"))).toMatchObject({
       workspace: { workspaceRoot: rootA, noteRoots: [{ path: noteRootA }] },
     });
 
     await saveActiveWorkspace(fixture.page, rootB, rootB);
-    await expect.poll(() => commandServerStatus(path.join(rootB, ".exo"))).toMatchObject({
+    await expect.poll(() => commandServerStatus(path.join(rootB, ".stem"))).toMatchObject({
       workspace: { workspaceRoot: rootB, noteRoots: [{ path: rootB }] },
     });
-    await expect.poll(() => fixture.page.evaluate(() => window.exo.workspace.searchWorkspace("runtime-b")))
+    await expect.poll(() => fixture.page.evaluate(() => window.stem.workspace.searchWorkspace("runtime-b")))
       .toMatchObject({ notes: [expect.objectContaining({ title: "runtime-b" })] });
 
     await saveActiveWorkspace(fixture.page, rootA, noteRootA);
-    await expect.poll(() => commandServerStatus(path.join(rootA, ".exo"))).toMatchObject({
+    await expect.poll(() => commandServerStatus(path.join(rootA, ".stem"))).toMatchObject({
       workspace: { workspaceRoot: rootA, noteRoots: [{ path: noteRootA }] },
     });
-    await expect.poll(() => fixture.page.evaluate(() => window.exo.workspace.searchWorkspace("runtime-a")))
+    await expect.poll(() => fixture.page.evaluate(() => window.stem.workspace.searchWorkspace("runtime-a")))
       .toMatchObject({ notes: [expect.objectContaining({ title: "runtime-a" })] });
   } finally {
     await fixture.cleanup();
@@ -48,8 +48,8 @@ test("keeps command discovery, status, and search scoped across A → B → A", 
 
 async function saveActiveWorkspace(page: Page, workspaceRoot: string, noteRoot: string): Promise<void> {
   const outcome = await page.evaluate(async ({ workspaceRoot, noteRoot }) => {
-    const snapshot = await window.exo.workspace.getSettings();
-    return window.exo.workspace.saveSettings({
+    const snapshot = await window.stem.workspace.getSettings();
+    return window.stem.workspace.saveSettings({
       settings: {
         ...snapshot.settings,
         workspaceRoot,
@@ -71,7 +71,7 @@ async function commandServerStatus(runtimeRoot: string): Promise<unknown> {
     token: string;
   };
   const response = await fetch(`http://127.0.0.1:${discovery.port}/status`, {
-    headers: { "x-exo-command-token": discovery.token },
+    headers: { "x-stem-command-token": discovery.token },
   });
   expect(response.ok).toBe(true);
   return response.json();

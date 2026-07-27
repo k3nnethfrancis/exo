@@ -11,12 +11,12 @@ playwright-report/
 *.tsbuildinfo
 # Generated local development output.
 /artifacts/
-.exo/
-.exo-dev/
+.stem/
+.stem-dev/
 .env
 .env.*.local
 
-# Provider configuration is personal. Exo's reusable public guidance lives in
+# Provider configuration is personal. Stem's reusable public guidance lives in
 # /skills and AGENTS.md instead.
 /.claude/
 /.codex/

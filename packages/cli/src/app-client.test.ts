@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { EXO_COMMAND_TOKEN_HEADER, type ExoCommandStatusResponse } from "@exo/core";
+import { STEM_COMMAND_TOKEN_HEADER, type StemCommandStatusResponse } from "@stem/core";
 import {
   AppClient,
   formatAppClientDiscoveryFailure,
@@ -50,7 +50,7 @@ describe("AppClient", () => {
   });
 
   it("reports a missing runtime root", async () => {
-    const runtimeRoot = path.join(os.tmpdir(), `exo-cli-client-missing-${Date.now()}`);
+    const runtimeRoot = path.join(os.tmpdir(), `stem-cli-client-missing-${Date.now()}`);
 
     const result = await AppClient.connectDetailed(runtimeRoot);
 
@@ -63,7 +63,7 @@ describe("AppClient", () => {
   });
 
   it("reports a missing server.json", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-client-"));
     tempPaths.push(runtimeRoot);
 
     const result = await AppClient.connectDetailed(runtimeRoot);
@@ -76,7 +76,7 @@ describe("AppClient", () => {
   });
 
   it("reports an invalid server.json", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-client-"));
     tempPaths.push(runtimeRoot);
     await writeFile(path.join(runtimeRoot, "server.json"), "{nope", "utf8");
 
@@ -90,7 +90,7 @@ describe("AppClient", () => {
   });
 
   it("reports stale discovery when the recorded pid is gone", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-client-"));
     tempPaths.push(runtimeRoot);
     await writeServerInfo(runtimeRoot, { port: 12345, pid: 9_999_999 });
 
@@ -106,7 +106,7 @@ describe("AppClient", () => {
   });
 
   it("quarantines stale server.json when the recorded pid is gone", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-client-"));
     tempPaths.push(runtimeRoot);
     await writeServerInfo(runtimeRoot, { port: 12345, pid: 9_999_999 });
 
@@ -119,7 +119,7 @@ describe("AppClient", () => {
   });
 
   it("does not quarantine server.json when process liveness is blocked by permissions", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-client-"));
     tempPaths.push(runtimeRoot);
     await writeServerInfo(runtimeRoot, { port: 12345, pid: 14108 });
     vi.spyOn(process, "kill").mockImplementation(() => {
@@ -128,7 +128,7 @@ describe("AppClient", () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("fetch failed"))));
 
     const result = await AppClient.connectDetailed(runtimeRoot, {
-      EXO_APP_CLIENT_REQUEST_TIMEOUT_MS: "5",
+      STEM_APP_CLIENT_REQUEST_TIMEOUT_MS: "5",
     });
 
     expect(result.ok).toBe(false);
@@ -139,12 +139,12 @@ describe("AppClient", () => {
       expect(result.failure.code).toBe("server-liveness-unknown");
       expect(result.failure.processCheck).toMatchObject({ status: "blocked", code: "EPERM", message: "kill EPERM 14108" });
       expect(formatAppClientDiscoveryFailure(result.failure)).toContain("Process check: blocked; code=EPERM");
-      expect(formatAppClientDiscoveryFailure(result.failure)).toContain("Run `exo start`, then retry");
+      expect(formatAppClientDiscoveryFailure(result.failure)).toContain("Run `stem start`, then retry");
     }
   });
 
   it("connects when process liveness is blocked but the command server is reachable", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-client-"));
     tempPaths.push(runtimeRoot);
     await writeServerInfo(runtimeRoot, { port: 12345, pid: 14108 });
     vi.spyOn(process, "kill").mockImplementation(() => {
@@ -166,12 +166,12 @@ describe("AppClient", () => {
   });
 
   it("reports unreachable discovery when the recorded pid is alive but the port is not", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-client-"));
     tempPaths.push(runtimeRoot);
     await writeServerInfo(runtimeRoot, { port: 9, pid: process.pid });
 
     const result = await AppClient.connectDetailed(runtimeRoot, {
-      EXO_APP_CLIENT_REQUEST_TIMEOUT_MS: "5",
+      STEM_APP_CLIENT_REQUEST_TIMEOUT_MS: "5",
     });
 
     expect(result.ok).toBe(false);
@@ -183,7 +183,7 @@ describe("AppClient", () => {
   });
 
   it("reports discovery without a token as invalid", async () => {
-    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+    const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-client-"));
     tempPaths.push(runtimeRoot);
     await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify({ port: 12345, pid: process.pid }), "utf8");
 
@@ -211,8 +211,8 @@ describe("AppClient", () => {
     });
 
     const client = await AppClient.connect(runtimeRoot, {
-      EXO_APP_CLIENT_REQUEST_TIMEOUT_MS: "1",
-      EXO_APP_CLIENT_SEARCH_TIMEOUT_MS: "100",
+      STEM_APP_CLIENT_REQUEST_TIMEOUT_MS: "1",
+      STEM_APP_CLIENT_SEARCH_TIMEOUT_MS: "100",
     });
 
     await expect(client?.search("roleplay", { limit: 7 })).resolves.toMatchObject({ query: "roleplay", mode: "lexical" });
@@ -281,8 +281,8 @@ describe("AppClient", () => {
     });
 
     const client = await AppClient.connect(runtimeRoot, {
-      EXO_APP_CLIENT_REQUEST_TIMEOUT_MS: "50",
-      EXO_APP_CLIENT_SEARCH_TIMEOUT_MS: "5",
+      STEM_APP_CLIENT_REQUEST_TIMEOUT_MS: "50",
+      STEM_APP_CLIENT_SEARCH_TIMEOUT_MS: "5",
     });
 
     await expect(client?.search("roleplay")).rejects.toThrow("GET /search?q=roleplay timed out after 5ms");
@@ -301,7 +301,7 @@ describe("AppClient", () => {
 
     const client = await AppClient.connect(runtimeRoot);
 
-    await expect(client?.getStatus()).rejects.toThrow("Exo command-server protocol error for GET /status: successful response was not valid JSON");
+    await expect(client?.getStatus()).rejects.toThrow("Stem command-server protocol error for GET /status: successful response was not valid JSON");
   });
 
   it("names the query-bearing GET route for a structurally invalid success response", async () => {
@@ -317,7 +317,7 @@ describe("AppClient", () => {
     const client = await AppClient.connect(runtimeRoot);
 
     await expect(client?.search("roleplay")).rejects.toThrow(
-      "Exo command-server protocol error for GET /search?q=roleplay: expected a valid search response",
+      "Stem command-server protocol error for GET /search?q=roleplay: expected a valid search response",
     );
   });
 
@@ -332,7 +332,7 @@ describe("AppClient", () => {
     const client = await AppClient.connect(runtimeRoot);
 
     await expect(client?.openFile("/workspace/note.md")).rejects.toThrow(
-      "Exo command-server protocol error for POST /open: expected an { ok: true } response",
+      "Stem command-server protocol error for POST /open: expected an { ok: true } response",
     );
   });
 
@@ -351,7 +351,7 @@ describe("AppClient", () => {
 });
 
 async function runtimeFixture(): Promise<string> {
-  const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-client-"));
+  const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-client-"));
   tempPaths.push(runtimeRoot);
   await mkdir(runtimeRoot, { recursive: true });
   await writeServerInfo(runtimeRoot, { port: 12345, pid: process.pid });
@@ -379,7 +379,7 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function statusResponse(): ExoCommandStatusResponse {
+function statusResponse(): StemCommandStatusResponse {
   return {
     workspace: {
       workspaceRoot: "/workspace",
@@ -411,8 +411,8 @@ function indexStatusResponse() {
     enabled: true,
     mode: "hybrid" as const,
     backend: "qmd" as const,
-    dbPath: "/workspace/.exo/index.sqlite",
-    runtimePath: "/workspace/.exo",
+    dbPath: "/workspace/.stem/index.sqlite",
+    runtimePath: "/workspace/.stem",
     indexedRoots: [],
     documentCount: 1,
     pendingEmbeddings: 0,
@@ -436,7 +436,7 @@ function authHeader(init: RequestInit | undefined): string | null {
 }
 
 function commandTokenHeader(init: RequestInit | undefined): string | null {
-  return headerValue(init, EXO_COMMAND_TOKEN_HEADER);
+  return headerValue(init, STEM_COMMAND_TOKEN_HEADER);
 }
 
 function headerValue(init: RequestInit | undefined, key: string): string | null {

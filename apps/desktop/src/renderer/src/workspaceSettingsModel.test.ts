@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeWorkspaceSettings } from "@exo/core";
+import { normalizeWorkspaceSettings } from "@stem/core";
 
 import { workspaceSettingsFromDialog } from "./hooks/useWorkspaceSettingsController";
 import {
@@ -64,7 +64,7 @@ describe("workspace settings renderer model", () => {
       indexMode: "lexical",
       searchEngine: "qmd",
       appearanceMode: "system",
-      colorThemeId: "exo-neutral",
+      colorThemeId: "stem-neutral",
       editorFontSize: "15",
       terminalFontSize: "13",
       explorerScale: "1",
@@ -195,7 +195,7 @@ describe("workspace settings renderer model", () => {
       indexMode: "off" as const,
       searchEngine: "filesystem" as const,
       appearanceMode: "system" as const,
-      colorThemeId: "exo-neutral" as const,
+      colorThemeId: "stem-neutral" as const,
       editorFontSize: "15",
       terminalFontSize: "13",
       explorerScale: "1",
@@ -210,7 +210,7 @@ describe("workspace settings renderer model", () => {
     };
 
     expect(workspaceSettingsImmediateDraftKey(base)).not.toBe(
-      workspaceSettingsImmediateDraftKey({ ...base, colorThemeId: "exo-solar" }),
+      workspaceSettingsImmediateDraftKey({ ...base, colorThemeId: "stem-solar" }),
     );
   });
 

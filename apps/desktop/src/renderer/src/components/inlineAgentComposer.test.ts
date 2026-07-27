@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDocumentAgentInvocation } from "@exo/core/document-agent-protocol";
+import { formatDocumentAgentInvocation } from "@stem/core/document-agent-protocol";
 
 import {
   InlineAgentAffordanceWidget,

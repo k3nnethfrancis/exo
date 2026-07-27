@@ -1,6 +1,6 @@
 # Search
 
-Exo has two local search paths. They share the same workspace content policy: only Markdown selected as workspace content becomes a searchable Note.
+Stem has two local search paths. They share the same workspace content policy: only Markdown selected as workspace content becomes a searchable Note.
 
 ## Immediate search
 
@@ -24,4 +24,4 @@ When **Use QMD when I press Enter in Explore** is enabled, Enter in the search f
 
 Indexing runs outside the Electron main process. During maintenance, foreground retrieval can fall back to filesystem search rather than waiting behind the writer. Pending embeddings do not make Notes unavailable: lexical retrieval continues to work.
 
-The QMD database is local derived state under the workspace `.exo/` runtime. It can be rebuilt; it is not the source of truth. See [Durable state](durable-state.md) and [Performance contracts](performance-contracts.md) for the implementation and latency boundaries.
+The QMD database is local derived state under the workspace `.stem/` runtime. It can be rebuilt; it is not the source of truth. See [Durable state](durable-state.md) and [Performance contracts](performance-contracts.md) for the implementation and latency boundaries.

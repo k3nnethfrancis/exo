@@ -9,8 +9,8 @@ import type {
   WorkspaceRegistryEntry,
   WorkspaceSettingsSaveRequest,
   WorkspaceSettingsSnapshot,
-} from "@exo/core";
-import type { WorkspaceContentInspection } from "@exo/core";
+} from "@stem/core";
+import type { WorkspaceContentInspection } from "@stem/core";
 
 export type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal" | "agents";
 

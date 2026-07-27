@@ -150,7 +150,7 @@ describe("WorkspaceFiles", () => {
   });
 
   async function temporaryRoot(): Promise<string> {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-files-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-files-"));
     temporaryRoots.push(root);
     return root;
   }

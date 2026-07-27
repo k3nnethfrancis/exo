@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, CircleHelp, Folder, Keyboard, Settings, SquareTerminal } from "lucide-react";
-import { EXO_CLI_COMMANDS } from "@exo/core/operator-help";
+import { STEM_CLI_COMMANDS } from "@stem/core/operator-help";
 
 import { APP_KEYBINDINGS, isMacPlatform } from "../shellHelpModel";
 
@@ -90,7 +90,7 @@ export function WorkspaceHelpPanel({ isMac = isMacPlatform(), onBack }: { isMac?
         ))}
       </HelpSection>
       <HelpSection icon={<SquareTerminal size={14} aria-hidden="true" />} label="CLI">
-        {EXO_CLI_COMMANDS.map((command) => (
+        {STEM_CLI_COMMANDS.map((command) => (
           <li key={command.syntax}><code>{command.syntax}</code><span>{command.label}</span></li>
         ))}
       </HelpSection>

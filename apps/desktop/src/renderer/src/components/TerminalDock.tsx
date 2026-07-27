@@ -3,7 +3,7 @@ import { Bot, Plus, SquareTerminal, X } from "lucide-react";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import { isTerminalInputEnabled } from "../terminalSessions";
-import type { ExoThemeVariant } from "../theme/types";
+import type { StemThemeVariant } from "../theme/types";
 import { AgentIcon } from "./AgentIcon";
 import { ChromeTab } from "./Chrome";
 import type { TerminalHydrationReason } from "./terminalHydration";
@@ -13,7 +13,7 @@ import { TerminalView } from "./TerminalView";
 
 interface TerminalDockProps {
   paneId: string;
-  theme: ExoThemeVariant;
+  theme: StemThemeVariant;
   compact: boolean;
   empty: boolean;
   focused: boolean;

@@ -122,7 +122,7 @@ test("fails loudly when upstream installation leaves Electron incomplete", () =>
 });
 
 function withElectronFixture(platform, run) {
-  const electronDirectory = mkdtempSync(path.join(os.tmpdir(), "exo-electron-runtime-"));
+  const electronDirectory = mkdtempSync(path.join(os.tmpdir(), "stem-electron-runtime-"));
   const platformPath = electronPlatformPath(platform);
   const binaryPath = path.join(electronDirectory, "dist", platformPath);
   const requiredPaths = electronRuntimeRequiredPaths(electronDirectory, platform);

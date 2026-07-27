@@ -3,7 +3,7 @@
  * arrays; they do not choose graph meaning, interaction, labels, or layout.
  */
 
-import type { GraphTopology } from "@exo/core";
+import type { GraphTopology } from "@stem/core";
 
 export type Vec3 = readonly [number, number, number];
 

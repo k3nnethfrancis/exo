@@ -1,4 +1,4 @@
-# Exo Skills
+# Stem Skills
 
 These are reusable Markdown instructions for contributors and compatible coding
 agents. They do not execute automatically and do not grant filesystem, process,
@@ -12,7 +12,7 @@ or network authority.
   ownership, performance, and renderer boundaries.
 - [terminal-stability](terminal-stability/SKILL.md) — preserve direct-PTY and
   xterm ownership.
-- [submit-exo-issue](submit-exo-issue/SKILL.md) — file clear reports through
+- [submit-stem-issue](submit-stem-issue/SKILL.md) — file clear reports through
   GitHub Issues.
 
 Copy or install a Skill into the location expected by your coding environment.

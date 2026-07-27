@@ -12,20 +12,20 @@ import {
   workspaceModelFromSettings,
   type WorkspaceModel,
   type IndexSearchResponse,
-  type ExoCommandIndexStatusResponse,
-  type ExoCommandIndexSyncResponse,
-  type ExoCommandSearchResponse,
-  type ExoCommandStatusWithControlPlane,
-  type ExoSpawnAgentCommandResponse,
+  type StemCommandIndexStatusResponse,
+  type StemCommandIndexSyncResponse,
+  type StemCommandSearchResponse,
+  type StemCommandStatusWithControlPlane,
+  type StemSpawnAgentCommandResponse,
   type WorkspaceRegistryEntry,
-} from "@exo/core";
-import { EXO_CLI_USAGE } from "@exo/core/operator-help";
+} from "@stem/core";
+import { STEM_CLI_USAGE } from "@stem/core/operator-help";
 import {
   AppClient,
   formatAppClientDiscoveryFailure,
   type AppClientDiscoveryFailure,
 } from "./app-client";
-import { runExoMcpServer } from "./mcp-server";
+import { runStemMcpServer } from "./mcp-server";
 import {
   MAX_AGENT_SEARCH_LIMIT,
   agentSearchResponse,
@@ -34,13 +34,13 @@ import {
 import { workspaceMatches } from "./workspace-match";
 
 interface AppClientLike {
-  getStatus(): Promise<ExoCommandStatusWithControlPlane>;
+  getStatus(): Promise<StemCommandStatusWithControlPlane>;
   showWindow(): Promise<void>;
-  search(query: string, options?: { limit?: number; offset?: number }): Promise<ExoCommandSearchResponse>;
-  getIndexStatus(): Promise<ExoCommandIndexStatusResponse>;
-  syncIndex(): Promise<ExoCommandIndexSyncResponse>;
+  search(query: string, options?: { limit?: number; offset?: number }): Promise<StemCommandSearchResponse>;
+  getIndexStatus(): Promise<StemCommandIndexStatusResponse>;
+  syncIndex(): Promise<StemCommandIndexSyncResponse>;
   openFile(filePath: string): Promise<void>;
-  spawnAgentCommand(handle: string, task: string): Promise<ExoSpawnAgentCommandResponse>;
+  spawnAgentCommand(handle: string, task: string): Promise<StemSpawnAgentCommandResponse>;
 }
 
 type AppClientConnector = (runtimeRoot: string, env: NodeJS.ProcessEnv) => Promise<AppClientLike | null>;
@@ -69,7 +69,7 @@ type CliRuntimeDiagnostic = AppClientDiscoveryFailure | WorkspaceMismatchDiagnos
 
 interface CliConnection {
   client: AppClientLike | null;
-  status?: ExoCommandStatusWithControlPlane;
+  status?: StemCommandStatusWithControlPlane;
   diagnostic?: CliRuntimeDiagnostic;
 }
 
@@ -100,7 +100,7 @@ export async function runCli(argv: string[], options: {
   const [command, subcommand, ...args] = argv.slice(2);
 
   if (!command) {
-    return startExoApp(env, stderr, launchApp);
+    return startStemApp(env, stderr, launchApp);
   }
 
   if (command === "--help" || command === "-h" || command === "help") {
@@ -119,12 +119,12 @@ export async function runCli(argv: string[], options: {
 
   if (command === "start") {
     assertNoUnexpectedArguments([subcommand, ...args]);
-    return startExoApp(env, stderr, launchApp);
+    return startStemApp(env, stderr, launchApp);
   }
 
   if (command === "mcp" && subcommand === "serve") {
     assertNoUnexpectedArguments(args);
-    await runExoMcpServer({ env, input: process.stdin, output: process.stdout, error: process.stderr });
+    await runStemMcpServer({ env, input: process.stdin, output: process.stdout, error: process.stderr });
     return 0;
   }
 
@@ -192,7 +192,7 @@ export async function runCli(argv: string[], options: {
   const client = connection.client;
   if (!client) {
     if (connection.diagnostic) stderr.write(formatCliRuntimeDiagnostic(connection.diagnostic));
-    else stderr.write(`Exo app is not reachable. Start it with: exo start\nRuntime root: ${await resolveCliRuntimeRoot(env)}\n`);
+    else stderr.write(`Stem app is not reachable. Start it with: stem start\nRuntime root: ${await resolveCliRuntimeRoot(env)}\n`);
     return 1;
   }
 
@@ -220,7 +220,7 @@ async function connectIfAvailable(
 ): Promise<CliConnection> {
   const runtimeRoot = await resolveCliRuntimeRoot(env);
   let client: AppClientLike | null;
-  let status: ExoCommandStatusWithControlPlane | undefined;
+  let status: StemCommandStatusWithControlPlane | undefined;
   if (connect === defaultAppClientConnector) {
     const result = await AppClient.connectDetailed(runtimeRoot, env);
     if (!result.ok) return { client: null, diagnostic: result.failure };
@@ -236,7 +236,7 @@ async function connectIfAvailable(
       client: null,
       diagnostic: {
         code: "workspace-mismatch",
-        message: `The running Exo app serves ${status.workspace.workspaceRoot}, not the selected Workspace ${workspace.model.workspaceRoot}. Filesystem retrieval was used for the selected Workspace; switch the app or pass --workspace explicitly.`,
+        message: `The running Stem app serves ${status.workspace.workspaceRoot}, not the selected Workspace ${workspace.model.workspaceRoot}. Filesystem retrieval was used for the selected Workspace; switch the app or pass --workspace explicitly.`,
         selectedWorkspaceRoot: workspace.model.workspaceRoot,
         appWorkspaceRoot: status.workspace.workspaceRoot,
       },
@@ -254,10 +254,10 @@ async function resolveCliWorkspaceModel(env: NodeJS.ProcessEnv): Promise<Workspa
 }
 
 async function resolveCliRuntimeRoot(env: NodeJS.ProcessEnv, model?: WorkspaceModel): Promise<string> {
-  if (env.EXO_RUNTIME_ROOT) {
-    return env.EXO_RUNTIME_ROOT;
+  if (env.STEM_RUNTIME_ROOT) {
+    return env.STEM_RUNTIME_ROOT;
   }
-  return path.join((model ?? await resolveCliWorkspaceModel(env)).workspaceRoot, ".exo");
+  return path.join((model ?? await resolveCliWorkspaceModel(env)).workspaceRoot, ".stem");
 }
 
 interface CliWorkspace {
@@ -270,7 +270,7 @@ interface CliWorkspace {
 async function resolveCliWorkspace(env: NodeJS.ProcessEnv, selector?: string): Promise<CliWorkspace> {
   if (workspaceEnvOverrides(env)) {
     if (selector) {
-      throw new Error("`--workspace` cannot be combined with EXO workspace environment overrides.");
+      throw new Error("`--workspace` cannot be combined with STEM workspace environment overrides.");
     }
     return { model: resolveWorkspaceModel(env), id: null, label: null, active: true };
   }
@@ -293,10 +293,10 @@ async function resolveCliWorkspace(env: NodeJS.ProcessEnv, selector?: string): P
   );
   if (matches.length === 0) {
     const available = entries.map((entry) => `${entry.label} (${entry.id})`).join(", ") || "none";
-    throw new Error(`Unknown Exo Workspace: ${selector}. Available Workspaces: ${available}.`);
+    throw new Error(`Unknown Stem Workspace: ${selector}. Available Workspaces: ${available}.`);
   }
   if (matches.length > 1) {
-    throw new Error(`Workspace selector is ambiguous: ${selector}. Use the Workspace id from \`exo workspaces\`.`);
+    throw new Error(`Workspace selector is ambiguous: ${selector}. Use the Workspace id from \`stem workspaces\`.`);
   }
   const entry = matches[0]!;
   return cliWorkspaceFromEntry(entry, entry.id === registry.activeWorkspaceId);
@@ -315,7 +315,7 @@ async function listCliWorkspaces(env: NodeJS.ProcessEnv): Promise<Record<string,
   if (workspaceEnvOverrides(env)) {
     const model = resolveWorkspaceModel(env);
     return {
-      schema_version: "exo.workspaces.v1",
+      schema_version: "stem.workspaces.v1",
       active_workspace_id: null,
       workspaces: [{
         id: null,
@@ -330,7 +330,7 @@ async function listCliWorkspaces(env: NodeJS.ProcessEnv): Promise<Record<string,
   const registry = await loadWorkspaceRegistry(env);
   const entries = await listWorkspaceRegistryEntries(env);
   return {
-    schema_version: "exo.workspaces.v1",
+    schema_version: "stem.workspaces.v1",
     active_workspace_id: registry.activeWorkspaceId,
     workspaces: entries.map((entry) => ({
       id: entry.id,
@@ -370,33 +370,33 @@ async function appOffStatus(
 async function appOffSearch(workspace: CliWorkspace, query: string, options: { limit: number; offset: number }): Promise<IndexSearchResponse> {
   return filesystemSearchProvider.search(
     workspace.model,
-    path.join(workspace.model.workspaceRoot, ".exo"),
+    path.join(workspace.model.workspaceRoot, ".stem"),
     query,
     options,
   );
 }
 
-async function startExoApp(
+async function startStemApp(
   env: NodeJS.ProcessEnv,
   stderr: { write(text: string): void },
   launchApp: AppLauncher,
 ): Promise<number> {
   if (process.platform !== "darwin") {
-    stderr.write("`exo start` launches the packaged macOS app. Use `pnpm dev:qa` for source QA.\n");
+    stderr.write("`stem start` launches the packaged macOS app. Use `pnpm dev:qa` for source QA.\n");
     return 1;
   }
-  const candidates = [env.EXO_APP_PATH, path.join(env.HOME ?? "", "Applications", "Exo.app"), "/Applications/Exo.app"]
+  const candidates = [env.STEM_APP_PATH, path.join(env.HOME ?? "", "Applications", "Stem.app"), "/Applications/Stem.app"]
     .filter((candidate): candidate is string => Boolean(candidate));
   const appPath = candidates.find((candidate) => existsSync(candidate));
   if (!appPath) {
-    stderr.write("Unable to find Exo.app. Install it with `scripts/install-mac-app --with-cli`, or set EXO_APP_PATH.\n");
+    stderr.write("Unable to find Stem.app. Install it with `scripts/install-mac-app --with-cli`, or set STEM_APP_PATH.\n");
     return 1;
   }
   try {
     await launchApp(appPath, env);
     return 0;
   } catch {
-    stderr.write(`Unable to start Exo app at ${appPath}.\n`);
+    stderr.write(`Unable to start Stem app at ${appPath}.\n`);
     return 1;
   }
 }
@@ -481,26 +481,26 @@ function formatCliRuntimeDiagnostic(diagnostic: CliRuntimeDiagnostic): string {
 async function print(value: Promise<unknown> | unknown, stdout: { write(text: string): void }): Promise<number> { stdout.write(`${JSON.stringify(await value, null, 2)}\n`); return 0; }
 function commandHelp(command: string): string {
   const usage = {
-    start: "exo start",
-    show: "exo show",
-    workspaces: "exo workspaces",
-    status: "exo status [--workspace <id|label|path>]",
-    search: "exo search <query> [--limit n] [--cursor cursor] [--workspace <id|label|path>]",
-    index: "exo index [status|sync]",
-    open: "exo open <path>",
-    invoke: "exo invoke @handle <task>",
-    mcp: "exo mcp serve",
+    start: "stem start",
+    show: "stem show",
+    workspaces: "stem workspaces",
+    status: "stem status [--workspace <id|label|path>]",
+    search: "stem search <query> [--limit n] [--cursor cursor] [--workspace <id|label|path>]",
+    index: "stem index [status|sync]",
+    open: "stem open <path>",
+    invoke: "stem invoke @handle <task>",
+    mcp: "stem mcp serve",
   }[command];
   return usage ? `Usage: ${usage}\n` : help();
 }
 
 function help(): string {
   return [
-    EXO_CLI_USAGE,
+    STEM_CLI_USAGE,
     "",
-    "Workspace selection: exo workspaces; status/search accept --workspace <id|label|path>.",
+    "Workspace selection: stem workspaces; status/search accept --workspace <id|label|path>.",
     "App-off: status and search use the configured workspace's filesystem roots.",
-    "App-backed: show, index maintenance, open, and invoke require Exo to be running.",
+    "App-backed: show, index maintenance, open, and invoke require Stem to be running.",
     "Developer source QA: pnpm dev:qa",
     "",
   ].join("\n");

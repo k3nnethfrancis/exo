@@ -16,7 +16,7 @@ import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
 import { normalizeWorkspaceContentPolicy } from "./workspace-content-policy";
 
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
-export const DEFAULT_COLOR_THEME_ID: WorkspaceSettings["colorThemeId"] = "exo-neutral";
+export const DEFAULT_COLOR_THEME_ID: WorkspaceSettings["colorThemeId"] = "stem-neutral";
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
 export const DEFAULT_EXPLORER_SCALE = 1;
@@ -53,17 +53,17 @@ export interface WorkspaceRegistry {
 
 export function workspaceEnvOverrides(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(
-      env.EXO_WORKSPACE_ROOT ||
-      env.EXO_DEFAULT_TERMINAL_CWD ||
-      env.EXO_NOTE_ROOTS ||
-      env.EXO_INDEXED_ROOTS ||
-      env.EXO_INDEX_ENABLED ||
-      env.EXO_INDEX_MODE,
+      env.STEM_WORKSPACE_ROOT ||
+      env.STEM_DEFAULT_TERMINAL_CWD ||
+      env.STEM_NOTE_ROOTS ||
+      env.STEM_INDEXED_ROOTS ||
+      env.STEM_INDEX_ENABLED ||
+      env.STEM_INDEX_MODE,
   );
 }
 
 export function resolveWorkspaceSettingsPath(env: NodeJS.ProcessEnv = process.env): string {
-  return env.EXO_SETTINGS_PATH ?? path.join(resolveDesktopUserDataPath(env), "workspace-settings.json");
+  return env.STEM_SETTINGS_PATH ?? path.join(resolveDesktopUserDataPath(env), "workspace-settings.json");
 }
 
 export function resolveWorkspaceRegistryPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -533,7 +533,7 @@ async function duplicateIndexedRootPathsInPersistence(env: NodeJS.ProcessEnv): P
 }
 
 function normalizeColorThemeId(value: unknown): WorkspaceSettings["colorThemeId"] {
-  return value === "exo-solar" || value === "exo-neutral" ? value : DEFAULT_COLOR_THEME_ID;
+  return value === "stem-solar" || value === "stem-neutral" ? value : DEFAULT_COLOR_THEME_ID;
 }
 
 export function workspaceEntryFromSettings(settings: WorkspaceSettings): WorkspaceRegistryEntry {
@@ -577,17 +577,17 @@ function normalizeRegistryEntry(value: unknown): WorkspaceRegistryEntry | null {
 }
 
 function resolveDesktopUserDataPath(env: NodeJS.ProcessEnv): string {
-  if (env.EXO_USER_DATA_PATH) {
-    return env.EXO_USER_DATA_PATH;
+  if (env.STEM_USER_DATA_PATH) {
+    return env.STEM_USER_DATA_PATH;
   }
   const home = os.homedir();
   if (process.platform === "darwin") {
-    return path.join(home, "Library", "Application Support", "@exo", "desktop");
+    return path.join(home, "Library", "Application Support", "@stem", "desktop");
   }
   if (process.platform === "win32") {
-    return path.join(env.APPDATA ?? path.join(home, "AppData", "Roaming"), "@exo", "desktop");
+    return path.join(env.APPDATA ?? path.join(home, "AppData", "Roaming"), "@stem", "desktop");
   }
-  return path.join(env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "@exo", "desktop");
+  return path.join(env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "@stem", "desktop");
 }
 
 function workspaceIdForNotesFolder(notesFolder: string): string {

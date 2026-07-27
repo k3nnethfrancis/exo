@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchExoWorkspaceFixture } from "../helpers";
+import { launchStemWorkspaceFixture } from "../helpers";
 
 test("renders fenced code blocks in markdown live preview", async () => {
   const markdownContent = `# Code Block Test
@@ -28,7 +28,7 @@ cover cover cover cover cover cover cover cover cover cover cover cover cover co
 After.
 `;
 
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/code-block-test.md");
@@ -38,21 +38,21 @@ After.
 
   await page.getByRole("button", { name: /code-block-test/i }).first().click();
 
-  await expect.poll(() => page.locator(".exo-md-line--codeblock").count()).toBeGreaterThanOrEqual(6);
-  await expect(page.locator(".exo-md-line--codeblock-start")).toHaveCount(3);
-  await expect(page.locator(".exo-md-line--codeblock-end")).toHaveCount(3);
-  await expect(page.locator(".exo-md-line--codeblock .exo-md-tag")).toHaveCount(0);
-  await expect(page.locator(".exo-md-line--codeblock .exo-md-link")).toHaveCount(0);
+  await expect.poll(() => page.locator(".stem-md-line--codeblock").count()).toBeGreaterThanOrEqual(6);
+  await expect(page.locator(".stem-md-line--codeblock-start")).toHaveCount(3);
+  await expect(page.locator(".stem-md-line--codeblock-end")).toHaveCount(3);
+  await expect(page.locator(".stem-md-line--codeblock .stem-md-tag")).toHaveCount(0);
+  await expect(page.locator(".stem-md-line--codeblock .stem-md-link")).toHaveCount(0);
 
-  const longCodeLine = page.locator(".exo-md-line--codeblock").filter({ hasText: /^cover cover/ }).first();
+  const longCodeLine = page.locator(".stem-md-line--codeblock").filter({ hasText: /^cover cover/ }).first();
   await expect(longCodeLine).toBeVisible();
   await expect(longCodeLine).toHaveCSS("white-space", "pre-wrap");
   await expect.poll(async () => {
     return longCodeLine.evaluate((element) => element.scrollWidth <= element.clientWidth + 1);
   }).toBe(true);
 
-  const finalCodeLine = page.locator(".exo-md-line--codeblock-end").last();
-  const ruleLine = page.locator(".exo-md-line--rule").first();
+  const finalCodeLine = page.locator(".stem-md-line--codeblock-end").last();
+  const ruleLine = page.locator(".stem-md-line--rule").first();
   await expect(ruleLine).toBeVisible();
   const codeBox = await finalCodeLine.boundingBox();
   const ruleBox = await ruleLine.boundingBox();

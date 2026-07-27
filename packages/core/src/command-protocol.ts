@@ -1,6 +1,6 @@
 import type { IndexSearchResponse, IndexStatus, IndexSyncResult, WorkspaceModel } from "./types";
 
-export const EXO_COMMAND_ROUTES = {
+export const STEM_COMMAND_ROUTES = {
   status: "/status",
   show: "/show",
   search: "/search",
@@ -10,22 +10,22 @@ export const EXO_COMMAND_ROUTES = {
   spawnAgentCommand: "/agent-commands/spawn",
 } as const;
 
-export const EXO_COMMAND_TOKEN_HEADER = "x-exo-command-token";
+export const STEM_COMMAND_TOKEN_HEADER = "x-stem-command-token";
 
-export interface ExoCommandServerInfo {
+export interface StemCommandServerInfo {
   port: number;
   pid: number;
   token: string;
 }
 
 /** The successful `/status` body emitted by the desktop command server. */
-export interface ExoCommandStatusResponse {
+export interface StemCommandStatusResponse {
   workspace: WorkspaceModel;
-  terminals: ExoCommandStatusTerminalInfo[];
+  terminals: StemCommandStatusTerminalInfo[];
 }
 
 /** Discovery facts added locally by the CLI after a successful `/status` response. */
-export interface ExoCommandStatusControlPlane {
+export interface StemCommandStatusControlPlane {
   runtimeRoot: string;
   serverJsonPath: string;
   pid: number;
@@ -33,12 +33,12 @@ export interface ExoCommandStatusControlPlane {
   baseUrl: string;
 }
 
-export interface ExoCommandStatusWithControlPlane extends ExoCommandStatusResponse {
-  controlPlane: ExoCommandStatusControlPlane;
+export interface StemCommandStatusWithControlPlane extends StemCommandStatusResponse {
+  controlPlane: StemCommandStatusControlPlane;
 }
 
 /** The full terminal representation currently returned by `/status`. */
-export interface ExoCommandStatusTerminalInfo extends ExoCommandTerminalInfo {
+export interface StemCommandStatusTerminalInfo extends StemCommandTerminalInfo {
   command: string;
   kind: "shell";
   status: "running" | "exited";
@@ -53,7 +53,7 @@ export interface ExoCommandStatusTerminalInfo extends ExoCommandTerminalInfo {
   };
 }
 
-export interface ExoCommandTerminalInfo {
+export interface StemCommandTerminalInfo {
   id: string;
   title: string;
   cwd: string;
@@ -63,14 +63,14 @@ export interface ExoCommandTerminalInfo {
   exitCode?: number;
 }
 
-export interface ExoCommandOkResponse {
+export interface StemCommandOkResponse {
   ok: true;
 }
 
-export type ExoCommandShowRequest = Record<string, never>;
-export type ExoCommandIndexSyncRequest = Record<string, never>;
+export type StemCommandShowRequest = Record<string, never>;
+export type StemCommandIndexSyncRequest = Record<string, never>;
 
-export interface ExoCommandSearchRequest {
+export interface StemCommandSearchRequest {
   q: string;
   limit?: number;
   offset?: number;
@@ -79,20 +79,20 @@ export interface ExoCommandSearchRequest {
   maxLinesPerResult?: number;
 }
 
-export type ExoCommandSearchResponse = IndexSearchResponse;
-export type ExoCommandIndexStatusResponse = IndexStatus;
-export type ExoCommandIndexSyncResponse = IndexSyncResult;
+export type StemCommandSearchResponse = IndexSearchResponse;
+export type StemCommandIndexStatusResponse = IndexStatus;
+export type StemCommandIndexSyncResponse = IndexSyncResult;
 
-export interface ExoOpenFileRequest {
+export interface StemOpenFileRequest {
   path: string;
 }
 
-export interface ExoSpawnAgentCommandRequest {
+export interface StemSpawnAgentCommandRequest {
   handle: string;
   task: string;
 }
 
-export interface ExoSpawnAgentCommandResponse {
+export interface StemSpawnAgentCommandResponse {
   ok: true;
   invocation: {
     id: string;
@@ -100,16 +100,16 @@ export interface ExoSpawnAgentCommandResponse {
     handle: string;
     createdAt: string;
   };
-  terminal: ExoCommandTerminalInfo;
+  terminal: StemCommandTerminalInfo;
 }
 
 /** The error envelope shared by routes that report only a human-readable failure. */
-export interface ExoCommandBasicErrorResponse {
+export interface StemCommandBasicErrorResponse {
   error: string;
 }
 
 /** The structured failure envelope emitted only by `/agent-commands/spawn`. */
-export interface ExoSpawnAgentCommandErrorResponse {
+export interface StemSpawnAgentCommandErrorResponse {
   ok: false;
   code: string;
   error: string;

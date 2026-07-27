@@ -4,7 +4,7 @@ Last reviewed: 2026-07-25
 
 ## Decision
 
-Exo has one production terminal runtime: a direct `node-pty` process rendered by xterm.js.
+Stem has one production terminal runtime: a direct `node-pty` process rendered by xterm.js.
 
 ```text
 xterm.js
@@ -26,15 +26,15 @@ This supersedes the tmux control-mode, restore, transcript, built-in harness, an
 
 ## Lifetime
 
-Closing and reopening the Exo window does not end a PTY while the desktop process remains alive. Quitting the Exo process ends its PTYs. Renderer reload may replay bounded memory, but Exo does not promise process persistence across app exit.
+Closing and reopening the Stem window does not end a PTY while the desktop process remains alive. Quitting the Stem process ends its PTYs. Renderer reload may replay bounded memory, but Stem does not promise process persistence across app exit.
 
-Users who need durable shell sessions may run tmux themselves inside a normal Exo terminal. Provider-native resume remains provider-owned.
+Users who need durable shell sessions may run tmux themselves inside a normal Stem terminal. Provider-native resume remains provider-owned.
 
 ## Input and scroll
 
 Input passes through byte-for-byte. Spaces, paste, Enter, Ctrl-C, Escape, arrows, mouse reports, and resize are not translated into tmux or provider-specific commands.
 
-Ordinary shell wheel, trackpad, and selection stay with xterm. A full-screen TUI may own wheel input only while mouse mode is active; Exo must make that ownership visible and provide a documented modifier escape to local scrollback.
+Ordinary shell wheel, trackpad, and selection stay with xterm. A full-screen TUI may own wheel input only while mouse mode is active; Stem must make that ownership visible and provide a documented modifier escape to local scrollback.
 
 ## Testing boundary
 

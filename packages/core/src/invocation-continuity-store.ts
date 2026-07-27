@@ -36,7 +36,7 @@ export class InvocationContinuityStore {
     const resolvedWorkspaceRoot = path.resolve(workspaceRoot);
     this.layout = {
       workspaceRoot: resolvedWorkspaceRoot,
-      continuityDir: path.join(resolvedWorkspaceRoot, ".exo", "invocation-continuity", "v1"),
+      continuityDir: path.join(resolvedWorkspaceRoot, ".stem", "invocation-continuity", "v1"),
     };
   }
 

@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { WorkspaceSettings } from "@exo/core";
+import type { WorkspaceSettings } from "@stem/core";
 import { resolvePreviewTarget } from "./preview-target";
 
 const tempPaths: string[] = [];
@@ -100,7 +100,7 @@ describe("resolvePreviewTarget", () => {
 
   it("rejects local files outside configured roots", async () => {
     const fixture = await previewFixture();
-    const outsideRoot = await mkdtemp(path.join(os.tmpdir(), "exo-preview-outside-"));
+    const outsideRoot = await mkdtemp(path.join(os.tmpdir(), "stem-preview-outside-"));
     tempPaths.push(outsideRoot);
     const target = path.join(outsideRoot, "report.html");
     await writeFile(target, "<!doctype html><title>Outside</title>", "utf8");
@@ -126,11 +126,11 @@ async function previewFixture(): Promise<{
   projectRoot: string;
   settings: WorkspaceSettings;
 }> {
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-preview-workspace-"));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-preview-workspace-"));
   tempPaths.push(workspaceRoot);
 
   const noteRoot = path.join(workspaceRoot, "notes");
-  const projectRoot = path.join(workspaceRoot, "projects", "exo");
+  const projectRoot = path.join(workspaceRoot, "projects", "stem");
   const artifactRoot = path.join(projectRoot, "docs", "artifacts");
   await mkdir(noteRoot, { recursive: true });
   await mkdir(path.join(noteRoot, "artifacts"), { recursive: true });
@@ -153,7 +153,7 @@ async function previewFixture(): Promise<{
       indexedRoots: [],
       indexing: { enabled: false, mode: "lexical", backend: "qmd" },
       appearanceMode: "system",
-      colorThemeId: "exo-neutral",
+      colorThemeId: "stem-neutral",
       editorFontSize: 15,
       terminalFontSize: 13,
       explorerScale: 1,

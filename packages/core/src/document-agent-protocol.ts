@@ -1,12 +1,12 @@
 /**
  * The document-native protocol is intentionally small: ordinary Markdown is
  * the user’s data, while these envelopes make one explicit agent request and
- * its durable response addressable by Exo and by a configured Command.
+ * its durable response addressable by Stem and by a configured Command.
  *
  * Tags are inert source text. They never grant trust or execute a Command.
  */
-export const EXO_INVOCATION_TAG = "exo-invocation";
-export const EXO_AGENT_RESPONSE_TAG = "exo-agent-response";
+export const STEM_INVOCATION_TAG = "stem-invocation";
+export const STEM_AGENT_RESPONSE_TAG = "stem-agent-response";
 
 export interface DocumentAgentInvocationEnvelope {
   kind: "invocation";
@@ -40,13 +40,13 @@ export function isDocumentAgentProtocolId(value: unknown): value is string {
 export function formatDocumentAgentInvocation(input: { id: string; agent: string; message: string }): string {
   assertProtocolId(input.id, "invocation id");
   assertAgent(input.agent);
-  return `<${EXO_INVOCATION_TAG} id="${input.id}" agent="${input.agent}" status="sent">\n${input.message}\n</${EXO_INVOCATION_TAG}>`;
+  return `<${STEM_INVOCATION_TAG} id="${input.id}" agent="${input.agent}" status="sent">\n${input.message}\n</${STEM_INVOCATION_TAG}>`;
 }
 
 export function formatDocumentAgentResponse(input: { invocationId: string; agent: string; message: string }): string {
   assertProtocolId(input.invocationId, "response invocation id");
   assertAgent(input.agent);
-  return `<${EXO_AGENT_RESPONSE_TAG} invocation="${input.invocationId}" agent="${input.agent}">\n${input.message}\n</${EXO_AGENT_RESPONSE_TAG}>`;
+  return `<${STEM_AGENT_RESPONSE_TAG} invocation="${input.invocationId}" agent="${input.agent}">\n${input.message}\n</${STEM_AGENT_RESPONSE_TAG}>`;
 }
 
 /**
@@ -57,22 +57,22 @@ export function formatDocumentAgentResponse(input: { invocationId: string; agent
 export function findDocumentAgentEnvelopes(text: string): DocumentAgentEnvelope[] {
   const envelopes: DocumentAgentEnvelope[] = [];
   const openings: Array<{
-    tag: typeof EXO_INVOCATION_TAG | typeof EXO_AGENT_RESPONSE_TAG;
+    tag: typeof STEM_INVOCATION_TAG | typeof STEM_AGENT_RESPONSE_TAG;
     attrs: Record<string, string>;
     from: number;
     contentFrom: number;
   }> = [];
-  const tokens = /<(exo-invocation|exo-agent-response)\b([^>]*)>\n|\n<\/(exo-invocation|exo-agent-response)>/g;
+  const tokens = /<(stem-invocation|stem-agent-response)\b([^>]*)>\n|\n<\/(stem-invocation|stem-agent-response)>/g;
 
   for (const match of text.matchAll(tokens)) {
     const from = match.index ?? 0;
     const to = from + match[0].length;
-    const openingTag = match[1] as typeof EXO_INVOCATION_TAG | typeof EXO_AGENT_RESPONSE_TAG | undefined;
+    const openingTag = match[1] as typeof STEM_INVOCATION_TAG | typeof STEM_AGENT_RESPONSE_TAG | undefined;
     if (openingTag) {
       openings.push({ tag: openingTag, attrs: parseAttributes(match[2] ?? ""), from, contentFrom: to });
       continue;
     }
-    const closingTag = match[3] as typeof EXO_INVOCATION_TAG | typeof EXO_AGENT_RESPONSE_TAG;
+    const closingTag = match[3] as typeof STEM_INVOCATION_TAG | typeof STEM_AGENT_RESPONSE_TAG;
     const openingIndex = findMatchingOpening(openings, closingTag);
     if (openingIndex < 0) continue;
     const [opening] = openings.splice(openingIndex, 1);
@@ -80,7 +80,7 @@ export function findDocumentAgentEnvelopes(text: string): DocumentAgentEnvelope[
     const agent = opening.attrs.agent;
     if (!isProtocolAgent(agent)) continue;
 
-    if (opening.tag === EXO_INVOCATION_TAG) {
+    if (opening.tag === STEM_INVOCATION_TAG) {
       if (opening.attrs.status !== "sent" || (opening.attrs.id !== undefined && !isDocumentAgentProtocolId(opening.attrs.id))) continue;
       envelopes.push({
         kind: "invocation",
@@ -130,8 +130,8 @@ export function removeDocumentAgentInvocation(
 }
 
 function findMatchingOpening(
-  openings: Array<{ tag: typeof EXO_INVOCATION_TAG | typeof EXO_AGENT_RESPONSE_TAG }>,
-  closingTag: typeof EXO_INVOCATION_TAG | typeof EXO_AGENT_RESPONSE_TAG,
+  openings: Array<{ tag: typeof STEM_INVOCATION_TAG | typeof STEM_AGENT_RESPONSE_TAG }>,
+  closingTag: typeof STEM_INVOCATION_TAG | typeof STEM_AGENT_RESPONSE_TAG,
 ): number {
   for (let index = openings.length - 1; index >= 0; index -= 1) {
     if (openings[index].tag === closingTag) return index;

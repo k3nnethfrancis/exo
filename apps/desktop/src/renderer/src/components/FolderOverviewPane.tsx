@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { FileText, Folder, GitBranch, Link2, Plus } from "lucide-react";
-import type { FolderOverview } from "@exo/core";
+import type { FolderOverview } from "@stem/core";
 
 interface FolderOverviewPaneProps {
   directoryPath: string;
@@ -25,7 +25,7 @@ export function FolderOverviewPane({ directoryPath, onOpenFolder, onOpenFile, on
     setOverview(folderOverviewCache.get(directoryPath) ?? null);
     setGraphContext(null);
     setGraphStatus("idle");
-    void window.exo.workspace.getFolderOverview(directoryPath).then(
+    void window.stem.workspace.getFolderOverview(directoryPath).then(
       (next) => {
         if (disposed) return;
         folderOverviewCache.set(directoryPath, next);
@@ -33,9 +33,9 @@ export function FolderOverviewPane({ directoryPath, onOpenFolder, onOpenFile, on
         if (next.indexExists) {
           setGraphStatus("loading");
           const loadGraphContext = () => {
-            void window.exo.notes.getGraphContext(next.indexPath).then(
+            void window.stem.notes.getGraphContext(next.indexPath).then(
               (graph) => { if (!disposed) { setGraphContext(graph); setGraphStatus("ready"); } },
-              (cause) => { if (!disposed) setGraphStatus("error"); console.warn("[exo] failed to enrich folder overview", { directoryPath, cause }); },
+              (cause) => { if (!disposed) setGraphStatus("error"); console.warn("[stem] failed to enrich folder overview", { directoryPath, cause }); },
             );
           };
           if (typeof window.requestIdleCallback === "function") {
@@ -60,7 +60,7 @@ export function FolderOverviewPane({ directoryPath, onOpenFolder, onOpenFile, on
   const title = loadedOverview?.title ?? directoryTitle(directoryPath);
   const graph = graphContext;
   async function createIndex() {
-    const result = await window.exo.workspace.ensureFolderIndex(directoryPath);
+    const result = await window.stem.workspace.ensureFolderIndex(directoryPath);
     folderOverviewCache.delete(directoryPath);
     onOpenFile(result.indexPath);
   }

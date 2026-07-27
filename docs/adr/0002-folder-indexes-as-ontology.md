@@ -4,7 +4,7 @@ status: accepted
 
 # Folder Notes Provide The First Ontology Substrate
 
-Exo uses user-owned Folder structure plus optional `index.md` Folder Notes as
+Stem uses user-owned Folder structure plus optional `index.md` Folder Notes as
 the first custom-ontology substrate instead of introducing an app-owned
 schema/profile database. A Folder gives Notes a primary structural home; its
 Folder Note may describe the collection, declare suggested properties and

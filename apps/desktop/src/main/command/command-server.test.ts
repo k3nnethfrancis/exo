@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import { EXO_COMMAND_TOKEN_HEADER, type IndexStatus, type WorkspaceSettings } from "@exo/core";
+import { STEM_COMMAND_TOKEN_HEADER, type IndexStatus, type WorkspaceSettings } from "@stem/core";
 
 import { CommandServer, type CommandServerOptions } from "./command-server";
 
@@ -31,7 +31,7 @@ describe("CommandServer operator contract", () => {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/status`);
       expect(response.status).toBe(401);
-      await expect(response.json()).resolves.toMatchObject({ error: "Missing or invalid Exo command token." });
+      await expect(response.json()).resolves.toMatchObject({ error: "Missing or invalid Stem command token." });
     } finally {
       server.stop();
     }
@@ -229,7 +229,7 @@ describe("CommandServer operator contract", () => {
 });
 
 async function startServer(overrides: Partial<CommandServerOptions> = {}) {
-  const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "exo-command-server-"));
+  const runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-command-server-"));
   tempPaths.push(runtimeRoot);
   const server = new CommandServer({ ...options(runtimeRoot), ...overrides });
   return { runtimeRoot, server, port: await server.start(), token: server.getServerInfo().token };
@@ -237,7 +237,7 @@ async function startServer(overrides: Partial<CommandServerOptions> = {}) {
 
 async function commandFetch(token: string, port: number, route: string, init: RequestInit = {}): Promise<Response> {
   const headers = new Headers(init.headers);
-  headers.set(EXO_COMMAND_TOKEN_HEADER, token);
+  headers.set(STEM_COMMAND_TOKEN_HEADER, token);
   headers.set("Content-Type", "application/json");
   return fetch(`http://127.0.0.1:${port}${route}`, { ...init, headers });
 }
@@ -253,8 +253,8 @@ function options(runtimeRoot: string): CommandServerOptions {
     enabled: true,
     mode: "hybrid",
     backend: "qmd",
-    dbPath: "/workspace/.exo/index.sqlite",
-    runtimePath: "/workspace/.exo",
+    dbPath: "/workspace/.stem/index.sqlite",
+    runtimePath: "/workspace/.stem",
     indexedRoots: [],
     documentCount: 0,
     pendingEmbeddings: 0,

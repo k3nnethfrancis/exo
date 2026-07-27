@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand, type InvocationConversationHead } from "@exo/core";
+import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand, type InvocationConversationHead } from "@stem/core";
 
 import { commandForHeadlessInvocation, extractClaudeSessionId, inspectInvocationAdapterResult, supportsAutomaticContinuity } from "./invocation-adapter";
 

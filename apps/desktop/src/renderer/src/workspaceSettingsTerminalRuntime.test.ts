@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeWorkspaceSettings } from "@exo/core";
+import { normalizeWorkspaceSettings } from "@stem/core";
 
 import { resolveSettingsTerminalRuntime } from "./workspaceSettingsModel";
 
@@ -10,11 +10,11 @@ class WorkspaceSettingsStore {
 
 describe("workspace terminal settings", () => {
   it("keeps terminal runtime bounds out of persisted settings", () => {
-    const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
+    const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/stem-test", env: {} });
     const settings = store.normalize({
-      workspaceRoot: "/tmp/exo-test/workspace",
-      defaultTerminalCwd: "/tmp/exo-test/workspace",
-      noteRoots: ["/tmp/exo-test/workspace/notes"],
+      workspaceRoot: "/tmp/stem-test/workspace",
+      defaultTerminalCwd: "/tmp/stem-test/workspace",
+      noteRoots: ["/tmp/stem-test/workspace/notes"],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
     });
@@ -30,11 +30,11 @@ describe("workspace terminal settings", () => {
   });
 
   it("rejects retired terminal tuning instead of applying internal defaults to it", () => {
-    const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/exo-test", env: {} });
+    const store = new WorkspaceSettingsStore({ userDataPath: "/tmp/stem-test", env: {} });
     const settings = store.normalize({
-      workspaceRoot: "/tmp/exo-test/workspace",
-      defaultTerminalCwd: "/tmp/exo-test/workspace",
-      noteRoots: ["/tmp/exo-test/workspace/notes"],
+      workspaceRoot: "/tmp/stem-test/workspace",
+      defaultTerminalCwd: "/tmp/stem-test/workspace",
+      noteRoots: ["/tmp/stem-test/workspace/notes"],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
       terminalHistoryLines: 24_000,

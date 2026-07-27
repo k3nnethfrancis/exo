@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { WorkspaceModel } from "@exo/core";
+import type { WorkspaceModel } from "@stem/core";
 
 import type { PaneNodeId } from "./usePaneTree";
 import { directoryOf, pathLabel } from "../workspaceTree";
@@ -77,7 +77,7 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     }
 
     const noteRootPaths = options.workspaceModel.noteRoots.map((root) => root.path);
-    const nextPath = await window.exo.workspace.createFile(
+    const nextPath = await window.stem.workspace.createFile(
       joinPath(directoryPath, ensureDefaultExtension(name, directoryPath, noteRootPaths)),
     );
     if (nextPath.toLowerCase().endsWith(".md")) {
@@ -98,7 +98,7 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
   }
 
   async function commitCreateDirectory(directoryPath: string, name: string) {
-    const result = await window.exo.workspace.createFolder(joinPath(directoryPath, name));
+    const result = await window.stem.workspace.createFolder(joinPath(directoryPath, name));
     await options.reloadTrees();
     options.revealExplorerPath(result.directoryPath);
     await options.openFile(result.indexPath, options.editorFocusedLeafId);
@@ -122,7 +122,7 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     }
     const nextPath = joinPath(directoryOf(sourcePath), nextName);
     const previousPath = sourcePath;
-    await window.exo.workspace.renamePath(sourcePath, nextPath);
+    await window.stem.workspace.renamePath(sourcePath, nextPath);
     options.remapOpenPaths(previousPath, nextPath);
     await options.reloadTrees();
     if (previousPath === options.activeDocumentPath) {
@@ -145,14 +145,14 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
 
     const nextPath = joinPath(targetDirectoryPath, sourceLabel);
     try {
-      await window.exo.workspace.renamePath(sourcePath, nextPath);
+      await window.stem.workspace.renamePath(sourcePath, nextPath);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes("Destination already exists")) {
         setDialog({
           kind: "move-conflict",
           title: "Destination already exists",
-          message: `${sourceLabel} cannot be moved into ${targetLabel} because ${pathLabel(nextPath)} already exists there. Exo will not merge or overwrite folders automatically.`,
+          message: `${sourceLabel} cannot be moved into ${targetLabel} because ${pathLabel(nextPath)} already exists there. Stem will not merge or overwrite folders automatically.`,
           confirmLabel: "OK",
         });
       }
@@ -177,7 +177,7 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
   }
 
   async function commitDeleteWorkspacePath(targetPath: string) {
-    await window.exo.workspace.deletePath(targetPath);
+    await window.stem.workspace.deletePath(targetPath);
     options.removeDeletedPaths(targetPath);
     await options.reloadTrees();
   }

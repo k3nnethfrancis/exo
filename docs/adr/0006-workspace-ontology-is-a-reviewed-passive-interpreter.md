@@ -4,10 +4,10 @@ status: accepted
 
 # Keep the Workspace Ontology user-owned, reviewed, and passive
 
-Exo reads one candidate from `<Workspace Root>/ontology.yaml`. Merely changing
+Stem reads one candidate from `<Workspace Root>/ontology.yaml`. Merely changing
 that file never changes the active graph. Candidate validation is atomic; Keep
 must compare the exact reviewed revision before persisting accepted source as
-derived state under `.exo/ontology`. Keeping a reviewed source publishes that
+derived state under `.stem/ontology`. Keeping a reviewed source publishes that
 transition and invalidates derived graph state atomically. Reject
 leaves both Markdown and the previously kept
 interpreter unchanged. A missing or invalid kept state falls back to the base

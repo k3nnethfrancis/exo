@@ -1,5 +1,5 @@
 {
-  "name": "@exo/cli",
+  "name": "@stem/cli",
   "version": "0.1.0-alpha.3",
   "license": "Apache-2.0",
   "private": true,
@@ -11,6 +11,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@exo/core": "workspace:*"
+    "@stem/core": "workspace:*"
   }
 }

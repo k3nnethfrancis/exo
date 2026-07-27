@@ -72,7 +72,7 @@ describe("Canvas plan and draw-call scale measurements", () => {
       expect(finalStats.allocatedBytes).toBe(warmStats.allocatedBytes);
       expect(presentationBuffers(finalPlan)).toEqual(stableBuffers);
       if (
-        process.env.EXO_GRAPH_PRESENTATION_PERF_GATE === "1"
+        process.env.STEM_GRAPH_PRESENTATION_PERF_GATE === "1"
         && scale.nodes === 50_000
       ) {
         if (cpu !== "Apple M2 Max" || process.arch !== "arm64") {

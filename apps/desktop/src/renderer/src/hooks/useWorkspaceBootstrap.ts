@@ -10,10 +10,10 @@ import type {
   WorkspaceModel,
   WorkspaceSettings,
   WorkspaceSettingsRevision,
-} from "@exo/core";
-import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "@exo/core/default-agent-command";
-import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exo/core/agent-invocation-prompt";
-import { defaultWorkspaceContentPolicy } from "@exo/core/workspace-content-policy";
+} from "@stem/core";
+import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "@stem/core/default-agent-command";
+import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@stem/core/agent-invocation-prompt";
+import { defaultWorkspaceContentPolicy } from "@stem/core/workspace-content-policy";
 
 import type {
   TerminalSessionInfo,
@@ -81,11 +81,11 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     async function bootstrap() {
       const bootstrapRun = ++bootstrapRunRef.current;
       const currentOptions = optionsRef.current;
-      const workspaceListPromise = window.exo.workspace.listWorkspaces().catch(() => []);
+      const workspaceListPromise = window.stem.workspace.listWorkspaces().catch(() => []);
       const [setupState, model, settingsSnapshot, workspaces] = await Promise.all([
-        window.exo.workspace.getSetupState(),
-        window.exo.workspace.getModel(),
-        window.exo.workspace.getSettings(),
+        window.stem.workspace.getSetupState(),
+        window.stem.workspace.getModel(),
+        window.stem.workspace.getSettings(),
         workspaceListPromise,
       ]);
       const settings = settingsSnapshot.settings;
@@ -124,7 +124,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       }
 
       setOnboardingState(null);
-      const status = await window.exo.workspace.getIndexStatus();
+      const status = await window.stem.workspace.getIndexStatus();
       currentOptions.setIndexStatus(status);
       const nextNoteTrees = await loadInitialTrees(model, currentOptions);
 
@@ -143,14 +143,14 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       setLayoutPersistenceReady(true);
 
       try {
-        const sessions = await window.exo.terminals.list();
+        const sessions = await window.stem.terminals.list();
 
         if (cancelled || bootstrapRun !== bootstrapRunRef.current) {
           return;
         }
 
         if (import.meta.env.DEV) {
-          console.info("[exo] renderer bootstrap", {
+          console.info("[stem] renderer bootstrap", {
             workspaceRoot: model.workspaceRoot,
             defaultTerminalCwd: model.defaultTerminalCwd,
             noteRoots: model.noteRoots.map((root) => root.path),
@@ -163,7 +163,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
           sessions,
         });
       } catch (error) {
-        console.error("[exo] terminal bootstrap failed", error);
+        console.error("[stem] terminal bootstrap failed", error);
         if (!cancelled && bootstrapRun === bootstrapRunRef.current) {
           setBootstrapError(error instanceof Error ? `Terminal setup failed: ${error.message}` : `Terminal setup failed: ${String(error)}`);
         }
@@ -171,7 +171,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     }
 
     void bootstrap().catch((error) => {
-      console.error("[exo] renderer bootstrap failed", error);
+      console.error("[stem] renderer bootstrap failed", error);
       if (!cancelled) {
         setBootstrapError(error instanceof Error ? error.message : String(error));
       }
@@ -184,7 +184,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
 
   async function persistOnboardingState(current: OnboardingState): Promise<void> {
     if (current.step === "recovery") return;
-    await window.exo.workspace.saveOnboardingProgress(onboardingDraftFromState(current));
+    await window.stem.workspace.saveOnboardingProgress(onboardingDraftFromState(current));
   }
 
   async function confirmOnboardingChange(update: (current: OnboardingState) => OnboardingState): Promise<void> {
@@ -220,7 +220,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
 
   async function resetMalformedOnboardingProgress() {
     try {
-      await window.exo.workspace.resetOnboardingProgress();
+      await window.stem.workspace.resetOnboardingProgress();
       window.location.reload();
     } catch (error) {
       setOnboardingState((current) => current ? {
@@ -232,13 +232,13 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
   }
 
   async function selectNotesFolderForOnboarding() {
-    const folders = await window.exo.workspace.selectFolder({
+    const folders = await window.stem.workspace.selectFolder({
       title: "Choose your notes folder",
       buttonLabel: "Use Notes Folder",
     });
     if (folders[0]) {
       const notesFolder = folders[0];
-      const contentInspection = await window.exo.workspace.inspectContentScope(notesFolder).catch(() => null);
+      const contentInspection = await window.stem.workspace.inspectContentScope(notesFolder).catch(() => null);
       await confirmOnboardingChange((current) => ({
         ...current,
         notesFolder,
@@ -251,7 +251,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
   }
 
   async function selectDefaultTerminalForOnboarding() {
-    const folders = await window.exo.workspace.selectFolder({
+    const folders = await window.stem.workspace.selectFolder({
       title: "Choose default terminal folder",
       buttonLabel: "Use Terminal Folder",
     });
@@ -265,7 +265,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
 
   async function openWorkspaceSwitcher() {
     const current = workspaceSettingsRef.current;
-    const workspaces = await window.exo.workspace.listWorkspaces();
+    const workspaces = await window.stem.workspace.listWorkspaces();
     setOnboardingState({
       mode: "switch",
       step: "select",
@@ -319,7 +319,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     setOnboardingState({ ...current, status: "saving", errorMessage: null });
     try {
       await persistOnboardingState(current);
-      const saved = await window.exo.workspace.activateWorkspace({
+      const saved = await window.stem.workspace.activateWorkspace({
         workspaceId: current.selectedWorkspaceId,
         expectedRevision: workspaceSettingsRevisionRef.current,
       });
@@ -337,7 +337,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         });
         return;
       }
-      await window.exo.workspace.markOnboardingComplete();
+      await window.stem.workspace.markOnboardingComplete();
       window.location.reload();
     } catch (error) {
       setOnboardingState({
@@ -350,7 +350,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
 
   async function inspectOnboardingContentScope(notesFolder: string) {
     try {
-      const contentInspection = await window.exo.workspace.inspectContentScope(notesFolder);
+      const contentInspection = await window.stem.workspace.inspectContentScope(notesFolder);
       setOnboardingState((current) =>
         current?.notesFolder === notesFolder
           ? {
@@ -381,7 +381,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       await persistOnboardingState(current);
       const baseSnapshot = workspaceSettingsRef.current
         ? { settings: workspaceSettingsRef.current, revision: workspaceSettingsRevisionRef.current }
-        : await window.exo.workspace.getSettings();
+        : await window.stem.workspace.getSettings();
       const base = baseSnapshot.settings;
       const indexMode = current.indexMode;
       const indexedRootPaths = current.searchEngine === "qmd" ? [notesFolder] : [];
@@ -407,7 +407,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         agentInvocationPrompt: current.agentInvocationPrompt,
         contentPolicy: current.contentPolicy,
       };
-      const saved = await window.exo.workspace.saveSettings({
+      const saved = await window.stem.workspace.saveSettings({
         settings: nextSettings,
         expectedRevision: baseSnapshot.revision,
       });
@@ -425,7 +425,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
         });
         return;
       }
-      await window.exo.workspace.markOnboardingComplete();
+      await window.stem.workspace.markOnboardingComplete();
       window.location.reload();
     } catch (error) {
       setOnboardingState({

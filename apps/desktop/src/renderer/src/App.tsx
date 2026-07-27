@@ -7,9 +7,9 @@ import type {
   InvocationSkillContext,
   WorkspaceModel,
   WorkspaceSettings,
-} from "@exo/core";
-import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@exo/core/workspace-content-policy";
-import type { InvocationActivityEvent } from "@exo/core/invocation-activity";
+} from "@stem/core";
+import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@stem/core/workspace-content-policy";
+import type { InvocationActivityEvent } from "@stem/core/invocation-activity";
 
 import type { CliInstallationStatus, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
 
@@ -180,7 +180,7 @@ export function App() {
     if (onboardingState?.step !== "mcp") return;
     setOnboardingMcp({ status: "idle", results: [], errorMessage: null });
     let cancelled = false;
-    void window.exo.workspace.getCliInstallationStatus()
+    void window.stem.workspace.getCliInstallationStatus()
       .then((status) => { if (!cancelled) setCliInstallation(status); })
       .catch(() => { if (!cancelled) setCliInstallation({ state: "unavailable" }); });
     return () => { cancelled = true; };
@@ -296,7 +296,7 @@ export function App() {
   }, [activeDocumentPath, graphInspection.inspect]);
 
   useEffect(() => {
-    return window.exo.workspace.onInvocationUpdated((record) => {
+    return window.stem.workspace.onInvocationUpdated((record) => {
       if (record.workspaceRoot && record.workspaceRoot !== workspaceModel?.workspaceRoot) {
         return;
       }
@@ -311,7 +311,7 @@ export function App() {
   }, [invocationReviewController.applyRecord, scheduleOpenDocumentRefresh, workspaceModel?.workspaceRoot]);
 
   useEffect(() => {
-    return window.exo.workspace.onInvocationActivity((event) => {
+    return window.stem.workspace.onInvocationActivity((event) => {
       setInvocationActivity((current) => {
         if (current?.invocationId === null && current.kind !== "done" && current.kind !== "failed") {
           bufferEarlyInvocationActivityEvent(invocationActivityEarlyEventsRef.current, event);
@@ -417,7 +417,7 @@ export function App() {
       await Promise.all(
         Array.from(restoredPaths).map((filePath) =>
           ensureDocumentLoaded(filePath).catch((error) => {
-            console.warn("[exo] failed to restore open document", { filePath, error });
+            console.warn("[stem] failed to restore open document", { filePath, error });
           }),
         ),
       );
@@ -484,7 +484,7 @@ export function App() {
 
   async function refreshWorkspaceModel() {
     const [model] = await Promise.all([
-      window.exo.workspace.getModel(),
+      window.stem.workspace.getModel(),
       refreshIndexStatus(),
     ]);
     setWorkspaceModel(model);
@@ -492,7 +492,7 @@ export function App() {
   }
 
   async function refreshIndexStatus() {
-    const status = await window.exo.workspace.getIndexStatus();
+    const status = await window.stem.workspace.getIndexStatus();
     setIndexStatus(status);
     return status;
   }
@@ -516,7 +516,7 @@ export function App() {
     flushSync(() => updateBody(document.filePath, draft.documentBody));
     let authorization;
     try {
-      authorization = await window.exo.workspace.getAgentInvocationAuthorization({
+      authorization = await window.stem.workspace.getAgentInvocationAuthorization({
         handle: draft.handle,
         documentPath: document.filePath,
       });
@@ -558,11 +558,11 @@ export function App() {
     setInvocationActivity(beginInvocationActivity(pending.command));
     try {
       await saveDocument(pending.document.filePath);
-      const persisted = await window.exo.notes.read(pending.document.filePath);
+      const persisted = await window.stem.notes.read(pending.document.filePath);
       if (persisted.body !== pending.draft.documentBody) {
         throw new Error("The document changed after this invocation was composed. Review the note and send it again.");
       }
-      const result = await window.exo.workspace.launchAgentInvocation({
+      const result = await window.stem.workspace.launchAgentInvocation({
         handle: pending.draft.handle,
         protocolInvocationId: pending.draft.protocolInvocationId,
         documentPath: pending.document.filePath,
@@ -595,7 +595,7 @@ export function App() {
       ? { ...current, kind: "finishing", label: undefined }
       : current);
     try {
-      const finalized = await window.exo.workspace.endAgentInvocation(invocationId);
+      const finalized = await window.stem.workspace.endAgentInvocation(invocationId);
       if (!finalized) return;
       if (finalized.taggedDocumentPath) {
         scheduleOpenDocumentRefresh(finalized.taggedDocumentPath);
@@ -670,7 +670,7 @@ export function App() {
     command?: Pick<AgentCommand, "handle" | "label">,
   ) {
     try {
-      await window.exo.workspace.resumeInvocationInTerminal(invocationId);
+      await window.stem.workspace.resumeInvocationInTerminal(invocationId);
       setInvocationActivity(null);
       dispatchUtility({ type: "select", destination: "terminal" });
     } catch (error) {
@@ -692,7 +692,7 @@ export function App() {
 
   async function openKnowledgeTarget(target: string) {
     if (/^https?:\/\//.test(target)) {
-      await window.exo.shell.openExternal(target);
+      await window.stem.shell.openExternal(target);
       return;
     }
 
@@ -707,10 +707,10 @@ export function App() {
     if (!activeDocumentPath) return;
 
     const resolved = target.endsWith(".md") || target.includes("/")
-      ? await window.exo.notes.resolveTarget(activeDocumentPath, target)
-      : await window.exo.notes.resolveTarget(activeDocumentPath, `${target}.md`);
+      ? await window.stem.notes.resolveTarget(activeDocumentPath, target)
+      : await window.stem.notes.resolveTarget(activeDocumentPath, `${target}.md`);
 
-    const ensured = resolved ?? await window.exo.notes.ensureTarget(activeDocumentPath, target);
+    const ensured = resolved ?? await window.stem.notes.ensureTarget(activeDocumentPath, target);
     if (!resolved) {
       requestGeneratedTitleSelection(ensured);
     }
@@ -725,7 +725,7 @@ export function App() {
       return;
     }
     try {
-      const prepared = await window.exo.workspace.prepareGraphMaintenanceSkill({ documentPath: filePath });
+      const prepared = await window.stem.workspace.prepareGraphMaintenanceSkill({ documentPath: filePath });
       await canvasNavigation.openFile(filePath, findEditorLeaf(canvasTree)?.id);
       const nonce = agentComposeNonceRef.current + 1;
       agentComposeNonceRef.current = nonce;
@@ -755,13 +755,13 @@ export function App() {
     }
 
     const resolved = target.endsWith(".md") || target.includes("/")
-      ? await window.exo.notes.resolveTarget(activeDocumentPath, target)
-      : await window.exo.notes.resolveTarget(activeDocumentPath, `${target}.md`);
+      ? await window.stem.notes.resolveTarget(activeDocumentPath, target)
+      : await window.stem.notes.resolveTarget(activeDocumentPath, `${target}.md`);
     if (!resolved) {
       return null;
     }
 
-    const document = await window.exo.notes.read(resolved);
+    const document = await window.stem.notes.read(resolved);
     return {
       title: document.title || getPreviewTitle(resolved),
       excerpt: markdownPreviewExcerpt(document.body),
@@ -910,9 +910,9 @@ export function App() {
     const dailyPath = joinPath(noteRoot, `${yyyy}-${mm}-${dd}.md`);
 
     try {
-      await window.exo.notes.read(dailyPath);
+      await window.stem.notes.read(dailyPath);
     } catch {
-      await window.exo.workspace.createFile(dailyPath);
+      await window.stem.workspace.createFile(dailyPath);
       requestGeneratedTitleSelection(dailyPath);
       await reloadTrees();
     }
@@ -932,7 +932,7 @@ export function App() {
   if (!workspaceModel) {
     return (
       <div className="shell shell--loading">
-        <div>Loading Exo…</div>
+        <div>Loading Stem…</div>
         {bootstrapError ? <div className="dialog-card__status dialog-card__status--error">{bootstrapError}</div> : null}
       </div>
     );
@@ -944,14 +944,14 @@ export function App() {
       <div className="onboarding-shell" data-testid="onboarding">
         <div className="onboarding-card" data-testid="onboarding-card">
           <div className="onboarding-card__eyebrow">
-            {onboardingState.mode === "first-run" ? "Set up Exo" : "Switch workspace"}
+            {onboardingState.mode === "first-run" ? "Set up Stem" : "Switch workspace"}
           </div>
           {onboardingState.step === "recovery" ? (
             <>
               <div className="onboarding-card__body" data-testid="onboarding-recovery">
                 <h1 className="onboarding-card__title">Setup progress needs recovery</h1>
                 <p className="onboarding-card__copy">
-                  {onboardingState.errorMessage ?? "Exo could not read the saved setup progress."}
+                  {onboardingState.errorMessage ?? "Stem could not read the saved setup progress."}
                 </p>
                 <p className="onboarding-section__hint">
                   Restarting setup replaces only the saved setup draft. It does not delete your notes or provider-owned MCP configuration.
@@ -1035,14 +1035,14 @@ export function App() {
                   {onboardingState.mode === "first-run" ? "Choose your main wiki" : "Choose a main wiki"}
                 </h1>
                 <p className="onboarding-card__copy">
-                  Pick the Markdown folder Exo should treat as this workspace. You can make another Workspace for a separate wiki later.
+                  Pick the Markdown folder Stem should treat as this workspace. You can make another Workspace for a separate wiki later.
                 </p>
                 <div className="onboarding-grid">
                   <div className="onboarding-section onboarding-section--primary">
                     <div className="onboarding-section__header">
                       <div>
                         <div className="dialog-field__label">Main wiki</div>
-                        <div className="onboarding-section__hint">Required. Exo indexes Markdown inside this one folder.</div>
+                        <div className="onboarding-section__hint">Required. Stem indexes Markdown inside this one folder.</div>
                       </div>
                       <button className="toolbar-button" data-testid="onboarding-choose-notes" onClick={() => void workspaceBootstrap.selectNotesFolderForOnboarding()} type="button">
                         Select
@@ -1163,7 +1163,7 @@ export function App() {
               <div className="onboarding-card__body" data-testid="onboarding-card-body">
                 <h1 className="onboarding-card__title">Set up agents</h1>
                 <p className="onboarding-card__copy">
-                  Exo invokes agents through their installed local CLIs. These commands stay on this computer and can be edited later in Settings.
+                  Stem invokes agents through their installed local CLIs. These commands stay on this computer and can be edited later in Settings.
                 </p>
                 <AgentCommandConfigurator
                   commands={onboardingState.agentCommands}
@@ -1178,7 +1178,7 @@ export function App() {
                 />
                 <div className="onboarding-section onboarding-section--summary">
                   <div className="dialog-field__label">How invocations run</div>
-                  <div className="onboarding-section__hint">Messages are sent headlessly from the main wiki. Exo shows any document changes for review; it never grants a provider broader file access itself.</div>
+                  <div className="onboarding-section__hint">Messages are sent headlessly from the main wiki. Stem shows any document changes for review; it never grants a provider broader file access itself.</div>
                 </div>
                 <details className="agent-invocation-prompt-disclosure">
                   <summary>Advanced</summary>
@@ -1194,7 +1194,7 @@ export function App() {
               </div>
               <div className="onboarding-card__actions">
                 <button className="toolbar-button" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "mcp" }))} type="button">Back</button>
-                <button className="toolbar-button toolbar-button--primary" disabled={onboardingState.status === "saving"} onClick={() => void workspaceBootstrap.completeOnboarding()} type="button">{onboardingState.status === "saving" ? "Opening…" : "Open Exo"}</button>
+                <button className="toolbar-button toolbar-button--primary" disabled={onboardingState.status === "saving"} onClick={() => void workspaceBootstrap.completeOnboarding()} type="button">{onboardingState.status === "saving" ? "Opening…" : "Open Stem"}</button>
               </div>
             </>
           ) : (
@@ -1210,7 +1210,7 @@ export function App() {
                       <ShieldCheck aria-hidden="true" size={16} strokeWidth={1.8} />
                       <div><strong id="onboarding-mcp-title">MCP</strong><span>Read-only context · 2 tools</span></div>
                     </div>
-                    <div className="onboarding-provider-menu" aria-label="Install Exo MCP in">
+                    <div className="onboarding-provider-menu" aria-label="Install Stem MCP in">
                       <div className="onboarding-provider-menu__title">Install in</div>
                       {(["claude", "codex"] as const).map((provider) => (
                         <button
@@ -1237,7 +1237,7 @@ export function App() {
                         </button>
                       ))}
                     </div>
-                    <ul className="onboarding-mcp-tools" aria-label="Exo MCP tools">
+                    <ul className="onboarding-mcp-tools" aria-label="Stem MCP tools">
                       <li>
                         <Database aria-hidden="true" size={16} strokeWidth={1.8} />
                         <span className="onboarding-mcp-tools__copy"><code>workspace_status</code><span>Wiki and search health</span></span>
@@ -1254,7 +1254,7 @@ export function App() {
                         setOnboardingMcp((current) => ({ ...current, status: "saving", errorMessage: null, results: [] }));
                         try {
                           await workspaceBootstrap.persistCurrentOnboardingState();
-                          const results = await window.exo.workspace.configureProviderMcp({ providers: onboardingState.selectedMcpProviders });
+                          const results = await window.stem.workspace.configureProviderMcp({ providers: onboardingState.selectedMcpProviders });
                           setOnboardingMcp((current) => ({ ...current, status: results.every((result) => result.ok) ? "done" : "error", results, errorMessage: results.some((result) => !result.ok) ? "MCP setup needs attention." : null }));
                         } catch (error) {
                           setOnboardingMcp((current) => ({ ...current, status: "error", errorMessage: error instanceof Error ? error.message : String(error), results: [] }));
@@ -1269,13 +1269,13 @@ export function App() {
                       <SquareTerminal aria-hidden="true" size={16} strokeWidth={1.8} />
                       <div><strong id="onboarding-cli-title">CLI</strong><span>For shell-capable clients</span></div>
                     </div>
-                    <div className="onboarding-cli-context"><code>exo search</code><code>exo open</code><code>exo invoke</code></div>
+                    <div className="onboarding-cli-context"><code>stem search</code><code>stem open</code><code>stem invoke</code></div>
                     <p className="onboarding-section__hint">Search returns paths. Agents use their own filesystem tools to inspect them.</p>
                     <div className={`onboarding-cli-installation onboarding-cli-installation--${cliInstallation?.state ?? "checking"}`} aria-live="polite">
                       {cliInstallation?.state === "current" ? <Check aria-hidden="true" size={15} strokeWidth={2.2} /> : <SquareTerminal aria-hidden="true" size={15} strokeWidth={1.8} />}
                       <span>
-                        <strong>{cliInstallation?.state === "current" ? "CLI ready" : cliInstallation?.state === "legacy-exo" ? "Update CLI" : cliInstallation?.state === "missing" ? "Install CLI" : cliInstallation?.state === "non-exo" ? "Existing command kept" : "CLI setup"}</strong>
-                        {cliInstallation?.state === "current" ? <small>Linked to this checkout</small> : cliInstallation?.installCommand ? <code>{cliInstallation.installCommand}</code> : <small>Run setup from an Exo checkout.</small>}
+                        <strong>{cliInstallation?.state === "current" ? "CLI ready" : cliInstallation?.state === "legacy-stem" ? "Update CLI" : cliInstallation?.state === "missing" ? "Install CLI" : cliInstallation?.state === "non-stem" ? "Existing command kept" : "CLI setup"}</strong>
+                        {cliInstallation?.state === "current" ? <small>Linked to this checkout</small> : cliInstallation?.installCommand ? <code>{cliInstallation.installCommand}</code> : <small>Run setup from an Stem checkout.</small>}
                       </span>
                     </div>
                     <p className="onboarding-section__hint">MCP setup never changes the CLI.</p>
@@ -1296,7 +1296,7 @@ export function App() {
     );
   }
 
-  const workspaceLabel = workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "Exo";
+  const workspaceLabel = workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "Stem";
   const titleSegments = activeDocument
     ? workspaceBreadcrumb(activeDocument.filePath, workspaceModel?.noteRoots.map((root) => root.path) ?? [])
     : [{ kind: "folder" as const, label: workspaceLabel, path: workspaceModel?.workspaceRoot ?? "" }];
@@ -1314,7 +1314,7 @@ export function App() {
       compact={false}
       onFocus={() => undefined}
       onNavigate={async (target) => {
-        const result = await window.exo.workspace.resolvePreviewTarget(target);
+        const result = await window.stem.workspace.resolvePreviewTarget(target);
         setPreviewTabs((current) => updatePreviewTabUrl(current, activePreview.id, result.url));
         return result.url;
       }}
@@ -1353,8 +1353,8 @@ export function App() {
       onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
       onHydrated={(id) => terminalState.markTerminalHydrated(id)}
       onSetActiveTerminal={(id) => void terminalState.activateTerminal(id)}
-      onWrite={(id, data) => void window.exo.terminals.write(id, data)}
-      onGeometryMeasured={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
+      onWrite={(id, data) => void window.stem.terminals.write(id, data)}
+      onGeometryMeasured={(id, cols, rows) => void window.stem.terminals.resize(id, cols, rows)}
       onKill={(id) => void terminalState.killTerminal(id)}
       onCreateTerminal={() => void createUtilityTerminal("shell")}
       dragManager={dragManager}
@@ -1435,8 +1435,8 @@ export function App() {
               onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
               onHydrated={(id) => terminalState.markTerminalHydrated(id)}
               onSetActiveTerminal={(id) => void terminalState.activateTerminal(id)}
-              onWrite={(id, data) => void window.exo.terminals.write(id, data)}
-              onGeometryMeasured={(id, cols, rows) => void window.exo.terminals.resize(id, cols, rows)}
+              onWrite={(id, data) => void window.stem.terminals.write(id, data)}
+              onGeometryMeasured={(id, cols, rows) => void window.stem.terminals.resize(id, cols, rows)}
               onKill={(id) => void terminalState.killTerminal(id)}
               onCreateTerminal={() => void createUtilityTerminal("shell")}
               onClosePane={() => canvasActions.removeLeaf(leaf.id)}
@@ -1457,7 +1457,7 @@ export function App() {
               compact={false}
               onFocus={() => canvasNavigation.focusPane(leaf.id)}
               onNavigate={async (target) => {
-                const result = await window.exo.workspace.resolvePreviewTarget(target);
+                const result = await window.stem.workspace.resolvePreviewTarget(target);
                 setPreviewTabs((current) => updatePreviewTabUrl(current, tab.id, result.url));
                 return result.url;
               }}
@@ -1568,7 +1568,7 @@ export function App() {
       }} onResumeInvocation={(id) => {
         const item = invocationHistory.find((candidate) => candidate.invocationId === id);
         void resumeInvocationInTerminal(id, item?.command);
-      }} onToggle={toggleConnectionsSurface} onOpenGraphCanvas={openGraphCanvas} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exo.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
+      }} onToggle={toggleConnectionsSurface} onOpenGraphCanvas={openGraphCanvas} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.stem.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
       connectionsOpen={isUtilityDestinationActive(utilityState, "connections")}

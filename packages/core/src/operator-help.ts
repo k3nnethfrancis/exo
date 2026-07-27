@@ -1,4 +1,4 @@
-export interface ExoCliCommandHelp {
+export interface StemCliCommandHelp {
   usageToken: string;
   syntax: string;
   label: string;
@@ -8,16 +8,16 @@ export interface ExoCliCommandHelp {
  * One non-executable catalog for the protected CLI surface. The CLI owns
  * behavior; other product surfaces may render this catalog without copying it.
  */
-export const EXO_CLI_COMMANDS: readonly ExoCliCommandHelp[] = [
-  { usageToken: "[start]", syntax: "exo start", label: "Open app" },
-  { usageToken: "show", syntax: "exo show", label: "Show window" },
-  { usageToken: "workspaces", syntax: "exo workspaces", label: "List workspaces" },
-  { usageToken: "status", syntax: "exo status", label: "Workspace status" },
-  { usageToken: "search", syntax: "exo search <query>", label: "Search notes" },
-  { usageToken: "index [status|sync]", syntax: "exo index [status|sync]", label: "Index" },
-  { usageToken: "open", syntax: "exo open <path>", label: "Open note" },
-  { usageToken: "invoke", syntax: "exo invoke @handle <task>", label: "Invoke command" },
-  { usageToken: "mcp serve", syntax: "exo mcp serve", label: "Serve MCP" },
+export const STEM_CLI_COMMANDS: readonly StemCliCommandHelp[] = [
+  { usageToken: "[start]", syntax: "stem start", label: "Open app" },
+  { usageToken: "show", syntax: "stem show", label: "Show window" },
+  { usageToken: "workspaces", syntax: "stem workspaces", label: "List workspaces" },
+  { usageToken: "status", syntax: "stem status", label: "Workspace status" },
+  { usageToken: "search", syntax: "stem search <query>", label: "Search notes" },
+  { usageToken: "index [status|sync]", syntax: "stem index [status|sync]", label: "Index" },
+  { usageToken: "open", syntax: "stem open <path>", label: "Open note" },
+  { usageToken: "invoke", syntax: "stem invoke @handle <task>", label: "Invoke command" },
+  { usageToken: "mcp serve", syntax: "stem mcp serve", label: "Serve MCP" },
 ] as const;
 
-export const EXO_CLI_USAGE = `Usage: exo ${EXO_CLI_COMMANDS.map((command) => command.usageToken).join(" | ")}`;
+export const STEM_CLI_USAGE = `Usage: stem ${STEM_CLI_COMMANDS.map((command) => command.usageToken).join(" | ")}`;

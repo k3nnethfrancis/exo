@@ -1,6 +1,6 @@
 # CLI and MCP
 
-Exo exposes two complementary local integration surfaces:
+Stem exposes two complementary local integration surfaces:
 
 - **CLI** for people and agents that can use a shell.
 - **MCP** for clients that can call tools but may not have shell access.
@@ -9,34 +9,34 @@ They are separate. Installing MCP does not install, replace, or broaden the CLI;
 
 ## Install the local CLI
 
-From an Exo checkout:
+From an Stem checkout:
 
 ```sh
 ./scripts/install-local
 ```
 
-This builds Exo and installs a repo-backed `exo` launcher in `~/.local/bin` by default. `./scripts/install-mac-app --with-cli` installs the unsigned app and the same local launcher together.
+This builds Stem and installs a repo-backed `stem` launcher in `~/.local/bin` by default. `./scripts/install-mac-app --with-cli` installs the unsigned app and the same local launcher together.
 
 When using `--skip-build`, the CLI installer requires an existing non-empty
 `packages/cli/dist/index.cjs` build artifact. Build the CLI first with
-`pnpm --filter @exo/cli build`, or omit `--skip-build`; the installer refuses
-to replace an existing `exo` command when that artifact is missing or empty.
+`pnpm --filter @stem/cli build`, or omit `--skip-build`; the installer refuses
+to replace an existing `stem` command when that artifact is missing or empty.
 
 ## Commands
 
 ```text
-exo [start]
-exo show
-exo workspaces
-exo status [--workspace <id|label|path>]
-exo search <query> [--limit n] [--cursor cursor] [--workspace <id|label|path>]
-exo index [status|sync]
-exo open <path>
-exo invoke @handle <task>
-exo mcp serve
+stem [start]
+stem show
+stem workspaces
+stem status [--workspace <id|label|path>]
+stem search <query> [--limit n] [--cursor cursor] [--workspace <id|label|path>]
+stem index [status|sync]
+stem open <path>
+stem invoke @handle <task>
+stem mcp serve
 ```
 
-`exo status` and `exo search` work when the desktop app is not running. They resolve a saved workspace, use bounded filesystem retrieval, and report that the app is unavailable rather than claiming indexed app results.
+`stem status` and `stem search` work when the desktop app is not running. They resolve a saved workspace, use bounded filesystem retrieval, and report that the app is unavailable rather than claiming indexed app results.
 
 When runtime discovery fails, app-off status includes
 `app.diagnostic`, and app-off search includes the same object as `runtime`.
@@ -45,19 +45,19 @@ discovery, an unreachable live process, an inconclusive/permission-limited
 process check, and a running app for a different workspace. Filesystem results
 remain available and continue to name `filesystem` as their effective provider.
 
-`show`, `index`, `open`, and `invoke` require the resident Exo app. `invoke` opens a visible terminal task and is intentionally different from a note-native `@` invocation, which carries document context and uses inline review.
+`show`, `index`, `open`, and `invoke` require the resident Stem app. `invoke` opens a visible terminal task and is intentionally different from a note-native `@` invocation, which carries document context and uses inline review.
 
 Search output is JSON with ranked paths, titles, snippets, source metadata, and an optional cursor. It does not grant filesystem authority: callers read a returned path only through their own allowed tools.
-Search limits must be integers from 1 through 20. Use `exo <command> --help`
+Search limits must be integers from 1 through 20. Use `stem <command> --help`
 for command-specific usage; unknown options, missing option values, and invalid
 limits exit unsuccessfully instead of being silently normalized.
 
 ## MCP
 
-Onboarding can install Exo MCP into locally installed Claude or Codex. It adds a provider-owned configuration entry that starts:
+Onboarding can install Stem MCP into locally installed Claude or Codex. It adds a provider-owned configuration entry that starts:
 
 ```text
-exo mcp serve
+stem mcp serve
 ```
 
 The server exposes exactly two read-only tools:

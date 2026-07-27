@@ -225,7 +225,7 @@ describe("agent invocation model", () => {
     ])).toBe("Only one Custom command can be configured.");
   });
 
-  it("formats a note invocation with Exo workspace and referenced-note guidance", () => {
+  it("formats a note invocation with Stem workspace and referenced-note guidance", () => {
     const protocolInvocationId = "11111111-1111-4111-8111-111111111111";
     const prompt = formatNoteInvocationPrompt({
       workspaceRoot: "/workspace",
@@ -235,23 +235,23 @@ describe("agent invocation model", () => {
       message: "Read [[research/self-improving-systems|the essay]] and tell me what you think.",
       protocolInvocationId,
       agentHandle: "claude",
-      frontmatter: { tags: ["exo"] },
+      frontmatter: { tags: ["stem"] },
       body: "# Task\n\nCurrent draft",
     });
     expect(prompt).toContain("Working note:\n/workspace/notes/task.md");
     expect(prompt).toContain("Message:\nRead [[research/self-improving-systems|the essay]] and tell me what you think.");
     expect(prompt).toContain('"tags": [');
     expect(prompt).toContain("# Task");
-    expect(prompt).toContain("Exo Workspace");
+    expect(prompt).toContain("Stem Workspace");
     expect(prompt).toContain("Workspace root:\n/workspace");
     expect(prompt).toContain("Configured Note Roots:\n- /workspace/notes\n- /workspace/research");
     expect(prompt).toContain("configured Note Roots");
     expect(prompt).toContain("[[durable/path/to/note|Readable title]]");
     expect(prompt).toContain("[[note-name]]");
-    expect(prompt).toContain("native filesystem tools or Exo CLI/Search");
+    expect(prompt).toContain("native filesystem tools or Stem CLI/Search");
     expect(prompt).toContain("prefer the durable path target with a readable alias");
-    expect(prompt).toContain("Exo document-agent protocol:");
-    expect(prompt).toContain(`<exo-agent-response invocation="${protocolInvocationId}" agent="claude">`);
+    expect(prompt).toContain("Stem document-agent protocol:");
+    expect(prompt).toContain(`<stem-agent-response invocation="${protocolInvocationId}" agent="claude">`);
     expect(prompt).toContain("Use a filesystem Edit or Write tool to modify the Working note path");
     expect(prompt).toContain("Printing XML in stdout or assistant text does not write it to the note");
     expect(prompt).toContain("Do not claim completion unless the filesystem tool reports success");
@@ -270,7 +270,7 @@ describe("agent invocation model", () => {
     });
 
     expect(prompt).toContain("Be concise.\nReview this.");
-    expect(prompt).toContain(`exactly one <exo-agent-response> linked to invocation ${invocationId}`);
+    expect(prompt).toContain(`exactly one <stem-agent-response> linked to invocation ${invocationId}`);
     expect(prompt).toContain("Working note:\n/workspace/notes/task.md");
   });
 
@@ -285,7 +285,7 @@ describe("agent invocation model", () => {
     });
 
     expect(prompt).toContain("For an answer-shaped request");
-    expect(prompt).toContain("the linked Exo agent response is the deliverable");
+    expect(prompt).toContain("the linked Stem agent response is the deliverable");
     expect(prompt).toContain("Make direct Markdown edits only when requested or genuinely useful.");
     expect(prompt).not.toContain("Complete the user's request by editing the working document directly");
     expect(prompt).not.toContain("write the useful result into the working document in the appropriate place");
@@ -302,8 +302,8 @@ describe("agent invocation model", () => {
     });
 
     expect(prompt).toContain("For an edit-shaped request, edit the relevant Markdown directly");
-    expect(prompt).toContain("use the linked Exo agent response as a concise receipt describing those edits");
-    expect(prompt).toContain("Direct edits remain ordinary Markdown and Exo presents them for review.");
+    expect(prompt).toContain("use the linked Stem agent response as a concise receipt describing those edits");
+    expect(prompt).toContain("Direct edits remain ordinary Markdown and Stem presents them for review.");
   });
 
   it("marks the supplied note snapshot as bounded and directs full reads to disk", () => {
@@ -384,10 +384,10 @@ describe("agent invocation model", () => {
       agentHandle: "claude",
     });
 
-    expect(prompt).toContain(`exactly one <exo-agent-response> linked to invocation ${invocationId}`);
-    expect(prompt).toContain("Exo renders that envelope as the colored, page-native agent response");
+    expect(prompt).toContain(`exactly one <stem-agent-response> linked to invocation ${invocationId}`);
+    expect(prompt).toContain("Stem renders that envelope as the colored, page-native agent response");
     expect(prompt).toContain("Never leave the useful answer only in stdout, chat, or another transient surface.");
-    expect(prompt.match(/<exo-agent-response invocation=/g)).toHaveLength(1);
+    expect(prompt.match(/<stem-agent-response invocation=/g)).toHaveLength(1);
   });
 
   it("round-trips the inert document-agent envelopes and ignores malformed source", () => {
@@ -396,7 +396,7 @@ describe("agent invocation model", () => {
       "# Note",
       formatDocumentAgentInvocation({ id: invocationId, agent: "claude", message: "@claude inspect this note" }),
       formatDocumentAgentResponse({ invocationId, agent: "claude", message: "## Finding\n\nThe durable result." }),
-      '<exo-agent-response invocation="not-an-id" agent="claude">\nIgnore me\n</exo-agent-response>',
+      '<stem-agent-response invocation="not-an-id" agent="claude">\nIgnore me\n</stem-agent-response>',
     ].join("\n\n");
     expect(findDocumentAgentEnvelopes(document)).toEqual([
       expect.objectContaining({ kind: "invocation", id: invocationId, agent: "claude", status: "sent" }),
@@ -405,7 +405,7 @@ describe("agent invocation model", () => {
   });
 
   it("renders an id-less source envelope but never treats it as an executable V1 invocation", () => {
-    const document = '<exo-invocation agent="claude" status="sent">\n@claude preserved source\n</exo-invocation>';
+    const document = '<stem-invocation agent="claude" status="sent">\n@claude preserved source\n</stem-invocation>';
 
     expect(findDocumentAgentEnvelopes(document)).toEqual([
       expect.objectContaining({ kind: "invocation", agent: "claude", status: "sent" }),
@@ -450,7 +450,7 @@ describe("agent invocation model", () => {
       noteRoots: ["/tmp/notes"],
       createdAt: "2026-07-08T00:00:00.000Z",
       changedFileRefs: [{ path: "/tmp/note.md", kind: "modified", attribution: "ambiguous", diffRefId: "diff-1" }],
-      diffRefs: [{ id: "diff-1", path: "/tmp/note.md", format: "unified", ref: ".exo/invocations/inv-1/diff.patch" }],
+      diffRefs: [{ id: "diff-1", path: "/tmp/note.md", format: "unified", ref: ".stem/invocations/inv-1/diff.patch" }],
       attribution: { status: "ambiguous", reason: "user and agent touched the file during the invocation window" },
       providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
       continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: "inv-0" },

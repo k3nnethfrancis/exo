@@ -7,11 +7,11 @@
 }
 
 .shell-frame {
-  --exo-side-panel-width: 45vw;
+  --stem-side-panel-width: 45vw;
   --mac-titlebar-safe-left: 132px;
   --mac-titlebar-safe-right: 52px;
-  --exo-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --exo-press-scale: 0.97;
+  --stem-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --stem-press-scale: 0.97;
   position: relative;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
@@ -75,7 +75,7 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background-color 140ms var(--exo-ease-out), color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
+  transition: background-color 140ms var(--stem-ease-out), color 140ms var(--stem-ease-out), transform 120ms var(--stem-ease-out);
 }
 
 .workspace-titlebar__button:hover,
@@ -85,7 +85,7 @@
 }
 
 .workspace-titlebar__button:active {
-  transform: scale(var(--exo-press-scale));
+  transform: scale(var(--stem-press-scale));
 }
 
 .workspace-titlebar__divider {
@@ -274,7 +274,7 @@
 }
 
 .workspace-utility-rail__button:active {
-  transform: scale(var(--exo-press-scale));
+  transform: scale(var(--stem-press-scale));
 }
 
 .workspace-utility-rail__button:focus-visible {
@@ -357,7 +357,7 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background-color 140ms var(--exo-ease-out), color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
+  transition: background-color 140ms var(--stem-ease-out), color 140ms var(--stem-ease-out), transform 120ms var(--stem-ease-out);
 }
 
 .window-chrome__button:hover,
@@ -367,7 +367,7 @@
 }
 
 .window-chrome__button:active {
-  transform: scale(var(--exo-press-scale));
+  transform: scale(var(--stem-press-scale));
 }
 
 /* Connections rail -------------------------------------------------------- */
@@ -494,10 +494,10 @@
 }
 
 .sidebar__main {
-  --explorer-font-size: calc(13px * var(--exo-explorer-scale, 1));
-  --explorer-muted-font-size: calc(11px * var(--exo-explorer-scale, 1));
-  --explorer-row-pad-y: calc(3.5px * var(--exo-explorer-scale, 1));
-  --explorer-root-pad-y: calc(4.5px * var(--exo-explorer-scale, 1));
+  --explorer-font-size: calc(13px * var(--stem-explorer-scale, 1));
+  --explorer-muted-font-size: calc(11px * var(--stem-explorer-scale, 1));
+  --explorer-row-pad-y: calc(3.5px * var(--stem-explorer-scale, 1));
+  --explorer-root-pad-y: calc(4.5px * var(--stem-explorer-scale, 1));
   min-width: 0;
   min-height: 0;
   display: flex;
@@ -1037,7 +1037,7 @@
   overflow: hidden;
 }
 
-.exo-side-panel-shell {
+.stem-side-panel-shell {
   position: relative;
   grid-column: 2;
   grid-row: 1;
@@ -1052,29 +1052,29 @@
   backdrop-filter: blur(18px) saturate(1.2);
   overflow: hidden;
   transform-origin: right center;
-  transition: opacity 180ms var(--exo-ease-out), transform 180ms var(--exo-ease-out), visibility 0s linear 180ms;
+  transition: opacity 180ms var(--stem-ease-out), transform 180ms var(--stem-ease-out), visibility 0s linear 180ms;
 }
 
-.exo-side-panel-shell--open {
+.stem-side-panel-shell--open {
   opacity: 1;
   visibility: visible;
   transform: translateX(0);
   transition-delay: 0s;
 }
 
-.exo-side-panel-shell--closed {
+.stem-side-panel-shell--closed {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: var(--exo-side-panel-width);
+  width: var(--stem-side-panel-width);
   opacity: 0;
   pointer-events: none;
   visibility: hidden;
   transform: translateX(10px);
 }
 
-.exo-side-panel-rail {
+.stem-side-panel-rail {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1085,7 +1085,7 @@
   background: color-mix(in srgb, var(--panel) 76%, transparent);
 }
 
-.exo-side-panel-rail__button {
+.stem-side-panel-rail__button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1096,20 +1096,20 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background-color 140ms var(--exo-ease-out), color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
+  transition: background-color 140ms var(--stem-ease-out), color 140ms var(--stem-ease-out), transform 120ms var(--stem-ease-out);
 }
 
-.exo-side-panel-rail__button:hover,
-.exo-side-panel-rail__button--active {
+.stem-side-panel-rail__button:hover,
+.stem-side-panel-rail__button--active {
   background: var(--surface-hover);
   color: var(--text);
 }
 
-.exo-side-panel-rail__button:active {
-  transform: scale(var(--exo-press-scale));
+.stem-side-panel-rail__button:active {
+  transform: scale(var(--stem-press-scale));
 }
 
-.exo-side-panel-surface {
+.stem-side-panel-surface {
   min-width: 0;
   min-height: 0;
   display: grid;
@@ -1117,8 +1117,8 @@
   overflow: hidden;
 }
 
-.exo-side-panel-surface .terminal-dock__header,
-.exo-side-panel-surface .browser-pane__header {
+.stem-side-panel-surface .terminal-dock__header,
+.stem-side-panel-surface .browser-pane__header {
   padding-right: calc(8px + var(--mac-titlebar-safe-right));
 }
 
@@ -1142,7 +1142,7 @@
   color: var(--text);
   font: inherit;
   cursor: pointer;
-  transition: background-color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
+  transition: background-color 140ms var(--stem-ease-out), transform 120ms var(--stem-ease-out);
 }
 
 .workspace-menu-button:hover {
@@ -1187,7 +1187,7 @@
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.18);
   backdrop-filter: blur(18px) saturate(1.2);
   transform-origin: left bottom;
-  transition: opacity 160ms var(--exo-ease-out), transform 160ms var(--exo-ease-out);
+  transition: opacity 160ms var(--stem-ease-out), transform 160ms var(--stem-ease-out);
 
   @starting-style {
     opacity: 0;
@@ -1209,7 +1209,7 @@
   color: var(--text);
   font: inherit;
   text-align: left;
-  transition: background-color 140ms var(--exo-ease-out), color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
+  transition: background-color 140ms var(--stem-ease-out), color 140ms var(--stem-ease-out), transform 120ms var(--stem-ease-out);
 }
 
 .workspace-menu__header {
@@ -1247,7 +1247,7 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  transition: background-color 140ms var(--exo-ease-out), color 140ms var(--exo-ease-out), transform 120ms var(--exo-ease-out);
+  transition: background-color 140ms var(--stem-ease-out), color 140ms var(--stem-ease-out), transform 120ms var(--stem-ease-out);
 }
 
 .workspace-menu__icon:hover {
@@ -1355,8 +1355,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .window-chrome__button,
-  .exo-side-panel-shell,
-  .exo-side-panel-rail__button,
+  .stem-side-panel-shell,
+  .stem-side-panel-rail__button,
   .workspace-menu-button,
   .workspace-menu,
   .workspace-menu__item,
@@ -1367,7 +1367,7 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .exo-side-panel-shell,
+  .stem-side-panel-shell,
   .workspace-menu {
     background: var(--panel-strong);
     backdrop-filter: none;
@@ -1746,7 +1746,7 @@ body.pane-resize-active .browser-pane__frame {
   transform: translateY(-2px);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 140ms var(--exo-ease-out), transform 140ms var(--exo-ease-out);
+  transition: opacity 140ms var(--stem-ease-out), transform 140ms var(--stem-ease-out);
 }
 
 .editor-panel__header--visible,

@@ -1,5 +1,5 @@
 import { useEffect, type MutableRefObject } from "react";
-import type { WorkspaceModel, WorkspaceSettings } from "@exo/core";
+import type { WorkspaceModel, WorkspaceSettings } from "@stem/core";
 
 import { decodeWorkspaceCanvasLayout, type PaneNode, type WorkspaceCanvasLayout } from "./usePaneTree";
 
@@ -25,7 +25,7 @@ export function useWorkspaceLayoutPersistence(options: UseWorkspaceLayoutPersist
       if (stableJson(currentSettings.layout ?? null) === stableJson(layout)) return;
       void options.saveSettingsPatch({
         layout: layout as unknown as WorkspaceSettings["layout"],
-      }).catch((error) => console.warn("[exo] failed to persist workspace canvas", error));
+      }).catch((error) => console.warn("[stem] failed to persist workspace canvas", error));
     }, 900);
     return () => window.clearTimeout(timeout);
   }, [

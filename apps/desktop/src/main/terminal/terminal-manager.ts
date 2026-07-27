@@ -4,14 +4,14 @@ import path from "node:path";
 import {
   agentCommandExecutableFingerprint,
   type AgentCommand,
-} from "@exo/core";
+} from "@stem/core";
 import {
   DEFAULT_TERMINAL_AGENT_SUBMIT_DELAY_MS,
   DEFAULT_TERMINAL_INITIAL_COLUMNS,
   DEFAULT_TERMINAL_INITIAL_ROWS,
   DEFAULT_TERMINAL_IDLE_THRESHOLD_MS,
   DEFAULT_TERMINAL_TAIL_CACHE_CHARS,
-} from "@exo/core/terminal-settings";
+} from "@stem/core/terminal-settings";
 
 import type { TerminalCreateOptions, TerminalHealthState, TerminalSessionInfo, TerminalKind, TerminalWriteResult } from "../../shared/api";
 import type { TerminalProcess, TerminalProcessFactory } from "./terminal-runtime";
@@ -139,13 +139,13 @@ export class TerminalManager extends EventEmitter {
       displayCommand: command.command,
       env: {
         ...commandEnvironment(),
-        EXO_WORKSPACE_ROOT: workspace.workspaceRoot,
-        EXO_NOTE_ROOTS: workspace.noteRoots.join(path.delimiter),
-        EXO_DEFAULT_TERMINAL_CWD: workspace.defaultTerminalCwd,
-        EXO_RUNTIME_ROOT: workspace.runtimeRoot,
-        EXO_AGENT_COMMAND_ID: command.id,
-        EXO_AGENT_COMMAND_HANDLE: command.handle,
-        EXO_AGENT_COMMAND_FINGERPRINT: agentCommandExecutableFingerprint(command),
+        STEM_WORKSPACE_ROOT: workspace.workspaceRoot,
+        STEM_NOTE_ROOTS: workspace.noteRoots.join(path.delimiter),
+        STEM_DEFAULT_TERMINAL_CWD: workspace.defaultTerminalCwd,
+        STEM_RUNTIME_ROOT: workspace.runtimeRoot,
+        STEM_AGENT_COMMAND_ID: command.id,
+        STEM_AGENT_COMMAND_HANDLE: command.handle,
+        STEM_AGENT_COMMAND_FINGERPRINT: agentCommandExecutableFingerprint(command),
       },
     });
   }
@@ -195,7 +195,7 @@ export class TerminalManager extends EventEmitter {
       record.bridgeDetached = true;
       record.info.health = "unhealthy";
       record.info.healthDetail = error instanceof Error ? `Terminal resize failed: ${error.message}` : "Terminal resize failed.";
-      console.warn("[exo] terminal resize failed", {
+      console.warn("[stem] terminal resize failed", {
         id,
         error: error instanceof Error ? error.message : String(error),
       });
@@ -351,8 +351,8 @@ function canDeliverInput(record: TerminalRecord | undefined): record is Terminal
 }
 
 function shellLauncher(): { command: string; args: string[] } {
-  const command = process.env.EXO_SHELL || process.env.SHELL || "/bin/zsh";
-  const args = process.env.EXO_SHELL_ARGS?.split(",").filter(Boolean) ?? (process.env.EXO_SHELL ? [] : ["-l"]);
+  const command = process.env.STEM_SHELL || process.env.SHELL || "/bin/zsh";
+  const args = process.env.STEM_SHELL_ARGS?.split(",").filter(Boolean) ?? (process.env.STEM_SHELL ? [] : ["-l"]);
   return { command, args };
 }
 function baseTerminalEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {

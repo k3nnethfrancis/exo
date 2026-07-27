@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type {
   WorkspaceSettings,
   WorkspaceSettingsSaveRequest,
-} from "@exo/core";
+} from "@stem/core";
 
 import type { WorkspaceSettingsSaveOutcome } from "../../../shared/api";
 import { defaultIndexedRoot } from "../workspaceSettingsDialogTypes";
@@ -46,7 +46,7 @@ describe("workspace settings patch persistence", () => {
       return result;
     });
     vi.stubGlobal("window", {
-      exo: {
+      stem: {
         workspace: {
           getSettings: vi.fn(async () => ({ settings: persistedSettings, revision: persistedRevision })),
           saveSettings,
@@ -115,7 +115,7 @@ describe("workspace settings patch persistence", () => {
           };
     });
     vi.stubGlobal("window", {
-      exo: {
+      stem: {
         workspace: {
           getSettings: vi.fn(async () => ({ settings: persistedSettings, revision: persistedRevision })),
           saveSettings,
@@ -580,7 +580,7 @@ describe("workspace settings patch persistence", () => {
     const getIndexStatus = vi.fn(() =>
       settingsRef.current.workspaceRoot === "/workspace-a" ? firstStatus.promise : secondStatus.promise);
     vi.stubGlobal("window", {
-      exo: {
+      stem: {
         workspace: {
           getSettings: vi.fn(async () => ({ settings: settingsRef.current, revision: revisionRef.current })),
           saveSettings,
@@ -707,7 +707,7 @@ describe("workspace settings structural persistence", () => {
       pattern: "**/*.{md,mdx}",
       ignore: ["private/**", "archive/**"],
       backend: "filesystem" as const,
-      futureRootOption: { source: "newer-exo" },
+      futureRootOption: { source: "newer-stem" },
     };
     const current = {
       ...workspaceSettings(),
@@ -809,7 +809,7 @@ function workspaceWindow(
   saveSettings: (request: WorkspaceSettingsSaveRequest) => Promise<WorkspaceSettingsSaveOutcome>,
 ) {
   return {
-    exo: {
+    stem: {
       workspace: {
         getSettings: vi.fn(async () => ({ settings, revision })),
         saveSettings,
@@ -835,7 +835,7 @@ function workspaceSettings(): WorkspaceSettings {
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     appearanceMode: "system",
-    colorThemeId: "exo-neutral",
+    colorThemeId: "stem-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,
@@ -849,7 +849,7 @@ function indexStatus(label: string) {
     workspaceId: `workspace-${label}`,
     updatedAt: 0,
     roots: [],
-  } as unknown as import("@exo/core").IndexStatus;
+  } as unknown as import("@stem/core").IndexStatus;
 }
 
 function deferred<Value>() {

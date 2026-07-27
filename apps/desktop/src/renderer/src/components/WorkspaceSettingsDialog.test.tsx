@@ -4,7 +4,7 @@ import {
   createDefaultClaudeAgentCommand,
   createDefaultCodexAgentCommand,
   type IndexStatus,
-} from "@exo/core";
+} from "@stem/core";
 
 import {
   WorkspaceSettingsDialog,
@@ -23,7 +23,7 @@ describe("workspace settings footer copy", () => {
 
   it("keeps the dialog intro from mentioning Apply when no Apply action is visible", () => {
     expect(workspaceSettingsDialogIntroCopy("index", false)).not.toContain("Apply");
-    expect(workspaceSettingsDialogIntroCopy("index", false)).toContain("Choose how Exo searches");
+    expect(workspaceSettingsDialogIntroCopy("index", false)).toContain("Choose how Stem searches");
     expect(workspaceSettingsDialogIntroCopy("appearance", false)).not.toContain("Apply");
     expect(workspaceSettingsDialogIntroCopy("index", true)).toContain("apply");
   });
@@ -117,7 +117,7 @@ describe("workspace settings footer copy", () => {
     const manual = indexSettingsStatusCopy(pending, null, "manual")?.text;
 
     expect(automatic).toContain("3 content embeddings waiting");
-    expect(automatic).toContain("catch up automatically while Exo is idle");
+    expect(automatic).toContain("catch up automatically while Stem is idle");
     expect(automatic).toContain("lexical search remains available");
     expect(automatic).toContain("Build embeddings runs now");
     expect(manual).toContain("3 content embeddings waiting");
@@ -128,7 +128,7 @@ describe("workspace settings footer copy", () => {
 
 
   it("keeps provider failures out of the settings surface", () => {
-    const copy = indexSettingsStatusCopy(indexStatusFixture({ errors: ["ENOENT: mkdir '/.exo'"] }), null);
+    const copy = indexSettingsStatusCopy(indexStatusFixture({ errors: ["ENOENT: mkdir '/.stem'"] }), null);
 
     expect(copy?.text).toBe("QMD is unavailable. Simple search still works; switch engines or sync QMD to recover.");
     expect(copy?.text).not.toContain("ENOENT");
@@ -177,7 +177,7 @@ describe("workspace settings footer copy", () => {
     );
 
     expect(html).toContain("3 content embeddings waiting");
-    expect(html).toContain("catch up automatically while Exo is idle");
+    expect(html).toContain("catch up automatically while Stem is idle");
     expect(html).toContain("Search engine");
     expect(html).toContain("QMD retrieval");
     expect(html).not.toContain("3 pending embeddings");
@@ -234,8 +234,8 @@ function indexStatusFixture(overrides: Partial<IndexStatus> = {}): IndexStatus {
     enabled: true,
     mode: "hybrid",
     backend: "qmd",
-    dbPath: "/workspace/.exo/qmd/index.sqlite",
-    runtimePath: "/workspace/.exo/qmd",
+    dbPath: "/workspace/.stem/qmd/index.sqlite",
+    runtimePath: "/workspace/.stem/qmd",
     indexedRoots: [
       {
         id: "index-root-1",

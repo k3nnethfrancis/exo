@@ -78,11 +78,11 @@ describe("QMD index adapter", () => {
   it("uses filesystem search when the index is off", async () => {
     const root = await fixtureRoot();
     const model = resolveWorkspaceModel({
-      EXO_WORKSPACE_ROOT: root,
-      EXO_NOTE_ROOTS: path.join(root, "notes"),
+      STEM_WORKSPACE_ROOT: root,
+      STEM_NOTE_ROOTS: path.join(root, "notes"),
     });
 
-    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+    const result = await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus");
 
     expect(result.source).toBe("filesystem");
     expect(result.warnings[0]).toBe("QMD is unavailable; showing Simple search results.");
@@ -104,8 +104,8 @@ describe("QMD index adapter", () => {
     ]);
     const model = {
       ...resolveWorkspaceModel({
-        EXO_WORKSPACE_ROOT: root,
-        EXO_NOTE_ROOTS: [path.join(root, "notes"), docsPath, extraPath].join(path.delimiter),
+        STEM_WORKSPACE_ROOT: root,
+        STEM_NOTE_ROOTS: [path.join(root, "notes"), docsPath, extraPath].join(path.delimiter),
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -127,7 +127,7 @@ describe("QMD index adapter", () => {
     ];
 
     for (const { rootIds, expected } of cases) {
-      const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "Fallback scope", { rootIds });
+      const result = await qmdSearchProvider.search(model, path.join(root, ".stem"), "Fallback scope", { rootIds });
       expect(result.source).toBe("filesystem");
       expect(result.results.map((entry) => entry.filePath).sort()).toEqual(expected.slice().sort());
       expect(result.results.map((entry) => entry.filePath)).not.toContain(extraFilePath);
@@ -142,8 +142,8 @@ describe("QMD index adapter", () => {
     await writeFile(docPath, "# Focus docs\n", "utf8");
     const model = {
       ...resolveWorkspaceModel({
-        EXO_WORKSPACE_ROOT: root,
-        EXO_NOTE_ROOTS: [path.join(root, "notes"), docsPath].join(path.delimiter),
+        STEM_WORKSPACE_ROOT: root,
+        STEM_NOTE_ROOTS: [path.join(root, "notes"), docsPath].join(path.delimiter),
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -154,7 +154,7 @@ describe("QMD index adapter", () => {
     searchLexResultsOverride = [qmdResult("qmd://notes/focus.md")];
     readFileMock.mockRejectedValueOnce(new Error("simulated hydration read failure"));
 
-    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", {
+    const result = await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus", {
       rootIds: ["index-notes"],
       includeContent: true,
     });
@@ -179,7 +179,7 @@ describe("QMD index adapter", () => {
       },
     };
 
-    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+    await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus");
 
     const configuredStore = stores.find((store) => Object.keys(store.config.collections).length > 0)!;
     const collection = Object.values(configuredStore.config.collections)
@@ -196,14 +196,14 @@ describe("QMD index adapter", () => {
     const indexedRoot = createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" });
     const model = {
       ...resolveWorkspaceModel({
-        EXO_WORKSPACE_ROOT: root,
-        EXO_NOTE_ROOTS: path.join(root, "notes"),
+        STEM_WORKSPACE_ROOT: root,
+        STEM_NOTE_ROOTS: path.join(root, "notes"),
       }),
       indexedRoots: [indexedRoot],
       indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
     };
 
-    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+    const result = await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus");
 
     expect(result.source).toBe("qmd");
     expect(stores[0].searchLexCalls).toEqual([{ query: "focus", collection: configuredCollectionForPath(stores[0], path.join(root, "notes")), limit: 12 }]);
@@ -214,10 +214,10 @@ describe("QMD index adapter", () => {
   it("does not reindex an existing empty QMD database", async () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "lexical");
-    await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
-    await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
+    await mkdir(path.join(root, ".stem", "qmd"), { recursive: true });
+    await writeFile(path.join(root, ".stem", "qmd", "index.sqlite"), "", "utf8");
 
-    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+    await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus");
 
     expect(stores).toHaveLength(2);
     expect(stores[1].updateOptions).toEqual([]);
@@ -231,8 +231,8 @@ describe("QMD index adapter", () => {
     const second = createIndexedRoot(notesPath, { id: "second", label: "second", kind: "docs", pattern: "**/*.md", ignore: ["second/**"] });
     const model = { ...indexedModel(root, "lexical"), indexedRoots: [first, second] };
 
-    await expect(qmdSearchProvider.search(model, path.join(root, ".exo"), "focus")).rejects.toThrow("QMD physical root identity");
-    await expect(qmdSearchProvider.update(model, path.join(root, ".exo"))).rejects.toThrow("QMD physical root identity");
+    await expect(qmdSearchProvider.search(model, path.join(root, ".stem"), "focus")).rejects.toThrow("QMD physical root identity");
+    await expect(qmdSearchProvider.update(model, path.join(root, ".stem"))).rejects.toThrow("QMD physical root identity");
     expect(stores).toEqual([]);
   });
 
@@ -245,8 +245,8 @@ describe("QMD index adapter", () => {
     const alias = createIndexedRoot(aliasPath, { id: "alias", label: "alias", kind: "docs" });
     const model = { ...indexedModel(root, "lexical"), indexedRoots: [physical, alias] };
 
-    await expect(qmdSearchProvider.search(model, path.join(root, ".exo"), "focus")).rejects.toThrow("QMD physical root identity");
-    await expect(qmdSearchProvider.update(model, path.join(root, ".exo"))).rejects.toThrow("QMD physical root identity");
+    await expect(qmdSearchProvider.search(model, path.join(root, ".stem"), "focus")).rejects.toThrow("QMD physical root identity");
+    await expect(qmdSearchProvider.update(model, path.join(root, ".stem"))).rejects.toThrow("QMD physical root identity");
     expect(stores).toEqual([]);
   });
 
@@ -255,14 +255,14 @@ describe("QMD index adapter", () => {
     const physicalPath = path.join(root, "notes");
     const aliasPath = path.join(root, "notes-alias");
     await symlink(physicalPath, aliasPath);
-    await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
-    await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
+    await mkdir(path.join(root, ".stem", "qmd"), { recursive: true });
+    await writeFile(path.join(root, ".stem", "qmd", "index.sqlite"), "", "utf8");
     existingQmdCollections = [{ name: "stale-physical", pwd: physicalPath }];
     existingQmdDocumentCollections = ["stale-physical"];
     const aliasRoot = createIndexedRoot(aliasPath, { id: "index-notes", label: "notes", kind: "notes" });
     const model = { ...indexedModel(root, "lexical"), indexedRoots: [aliasRoot] };
 
-    const first = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+    const first = await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus");
 
     const repairedStore = stores[1];
     const aliasCollection = configuredCollectionForPath(repairedStore, aliasPath);
@@ -270,7 +270,7 @@ describe("QMD index adapter", () => {
     expect(repairedStore.visibleDocumentCollectionsBeforeUpdates).toEqual([[]]);
     expect(first.results.map((entry) => entry.filePath)).toEqual([path.join(aliasPath, "focus.md")]);
 
-    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+    await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus");
 
     expect(stores[3].updateOptions).toEqual([]);
   });
@@ -283,14 +283,14 @@ describe("QMD index adapter", () => {
     const projectsPath = path.join(root, "projects");
     await symlink(physicalPath, aliasPath);
     await Promise.all([mkdir(docsPath), mkdir(projectsPath)]);
-    await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
-    await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
+    await mkdir(path.join(root, ".stem", "qmd"), { recursive: true });
+    await writeFile(path.join(root, ".stem", "qmd", "index.sqlite"), "", "utf8");
     existingQmdCollections = [{ name: "stale-physical", pwd: physicalPath }];
     const aliasRoot = createIndexedRoot(aliasPath, { id: "index-notes", label: "notes", kind: "notes" });
     const aliasModel = { ...indexedModel(root, "lexical"), indexedRoots: [aliasRoot] };
     updateError = new Error("simulated reindex failure");
 
-    const failed = await qmdSearchProvider.search(aliasModel, path.join(root, ".exo"), "focus");
+    const failed = await qmdSearchProvider.search(aliasModel, path.join(root, ".stem"), "focus");
     expect(failed.source).toBe("filesystem");
     expect(stores[1].updateCalls).toBe(1);
     expect(await fileExists(pendingQmdCollectionReindexPath(root))).toBe(true);
@@ -300,7 +300,7 @@ describe("QMD index adapter", () => {
     const currentModel = { ...indexedModel(root, "lexical"), indexedRoots: [docsRoot, projectsRoot] };
 
     updateError = null;
-    const retried = await qmdSearchProvider.search(currentModel, path.join(root, ".exo"), "focus");
+    const retried = await qmdSearchProvider.search(currentModel, path.join(root, ".stem"), "focus");
     expect(retried.source).toBe("qmd");
     expect(stores[3].updateOptions).toEqual([{
       collections: [
@@ -310,7 +310,7 @@ describe("QMD index adapter", () => {
     }]);
     expect(await fileExists(pendingQmdCollectionReindexPath(root))).toBe(false);
 
-    await qmdSearchProvider.search(currentModel, path.join(root, ".exo"), "focus");
+    await qmdSearchProvider.search(currentModel, path.join(root, ".stem"), "focus");
     expect(stores[5].updateCalls).toBe(0);
   });
 
@@ -333,14 +333,14 @@ describe("QMD index adapter", () => {
     const lowerCasePunctuation = createIndexedRoot(lowerCasePunctuationPath, { id: "case /!?é", label: "punctuation lower", kind: "mixed" });
     const model = {
       ...resolveWorkspaceModel({
-        EXO_WORKSPACE_ROOT: root,
-        EXO_NOTE_ROOTS: path.join(root, "notes"),
+        STEM_WORKSPACE_ROOT: root,
+        STEM_NOTE_ROOTS: path.join(root, "notes"),
       }),
       indexedRoots: [first, second, punctuation, lowerCasePunctuation],
       indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
     };
 
-    const firstResult = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", { rootIds: [first.id] });
+    const firstResult = await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus", { rootIds: [first.id] });
     const firstSearchStore = stores.find((store) => Object.keys(store.config.collections).length > 0)!;
     const firstConfig = firstSearchStore.config.collections;
     const [firstCollection, secondCollection, punctuationCollection, lowerCasePunctuationCollection] = [first, second, punctuation, lowerCasePunctuation].map((indexedRoot) =>
@@ -353,20 +353,20 @@ describe("QMD index adapter", () => {
     expect(lowerCasePunctuationCollection).toBeTruthy();
     expect(new Set([firstCollection, secondCollection, punctuationCollection, lowerCasePunctuationCollection]).size).toBe(4);
     expect(Object.keys(firstConfig)).toHaveLength(4);
-    expect(firstCollection).toMatch(/^exo-root-[0-9a-f]+$/);
-    expect(secondCollection).toMatch(/^exo-root-[0-9a-f]+$/);
-    expect(punctuationCollection).toMatch(/^exo-root-[0-9a-f]+$/);
-    expect(lowerCasePunctuationCollection).toMatch(/^exo-root-[0-9a-f]+$/);
+    expect(firstCollection).toMatch(/^stem-root-[0-9a-f]+$/);
+    expect(secondCollection).toMatch(/^stem-root-[0-9a-f]+$/);
+    expect(punctuationCollection).toMatch(/^stem-root-[0-9a-f]+$/);
+    expect(lowerCasePunctuationCollection).toMatch(/^stem-root-[0-9a-f]+$/);
     expect(punctuationCollection).not.toBe(lowerCasePunctuationCollection);
     expect(firstResult.results.map((entry) => entry.filePath)).toEqual([path.join(firstPath, "focus.md")]);
     expect(firstSearchStore.searchLexCalls.map((call) => call.collection)).toEqual([firstCollection]);
 
-    const secondResult = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", { rootIds: [second.id] });
+    const secondResult = await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus", { rootIds: [second.id] });
     expect(secondResult.results.map((entry) => entry.filePath)).toEqual([path.join(secondPath, "focus.md")]);
     expect(stores.filter((store) => Object.keys(store.config.collections).length > 0).at(-1)?.searchLexCalls.map((call) => call.collection)).toEqual([secondCollection]);
 
-    await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds: [first.id] });
-    await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds: [second.id] });
+    await qmdSearchProvider.update(model, path.join(root, ".stem"), { rootIds: [first.id] });
+    await qmdSearchProvider.update(model, path.join(root, ".stem"), { rootIds: [second.id] });
     const updatedCollections = stores
       .flatMap((store) => store.updateOptions)
       .flatMap((options) => (options as { collections?: string[] }).collections ?? []);
@@ -389,14 +389,14 @@ describe("QMD index adapter", () => {
       indexedRoots: [first, second],
     };
 
-    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", { rootIds: [first.id] });
+    const result = await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus", { rootIds: [first.id] });
 
     const configuredStore = stores[0];
     const collectionEntries = Object.entries(configuredStore.config.collections);
     const firstCollection = collectionEntries.find(([, config]) => config.path === firstPath)?.[0];
     const secondCollection = collectionEntries.find(([, config]) => config.path === secondPath)?.[0];
-    expect(firstCollection).toMatch(/^exo-root-[0-9a-f]{64}$/);
-    expect(secondCollection).toMatch(/^exo-root-[0-9a-f]{64}$/);
+    expect(firstCollection).toMatch(/^stem-root-[0-9a-f]{64}$/);
+    expect(secondCollection).toMatch(/^stem-root-[0-9a-f]{64}$/);
     expect(firstCollection).not.toBe(secondCollection);
     expect(Object.keys(configuredStore.config.collections)).toHaveLength(2);
     expect(configuredStore.searchLexCalls.map((call) => call.collection)).toEqual([firstCollection, secondCollection]);
@@ -405,7 +405,7 @@ describe("QMD index adapter", () => {
       path.join(secondPath, "focus.md"),
     ].sort());
 
-    await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds: [first.id] });
+    await qmdSearchProvider.update(model, path.join(root, ".stem"), { rootIds: [first.id] });
 
     const updatingStore = stores[1];
     expect(updatingStore.updateOptions).toEqual([{ collections: [firstCollection, secondCollection] }]);
@@ -420,20 +420,20 @@ describe("QMD index adapter", () => {
     const second = createIndexedRoot(secondPath, { id: "index-x", label: "second", kind: "docs" });
     const initialModel = { ...indexedModel(root, "lexical"), indexedRoots: [first] };
 
-    await qmdSearchProvider.search(initialModel, path.join(root, ".exo"), "focus");
+    await qmdSearchProvider.search(initialModel, path.join(root, ".stem"), "focus");
 
     const initialStore = stores[0];
     const firstCollection = configuredCollectionForPath(initialStore, firstPath);
-    await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
-    await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
+    await mkdir(path.join(root, ".stem", "qmd"), { recursive: true });
+    await writeFile(path.join(root, ".stem", "qmd", "index.sqlite"), "", "utf8");
 
-    await qmdSearchProvider.search({ ...initialModel, indexedRoots: [first, second] }, path.join(root, ".exo"), "focus");
+    await qmdSearchProvider.search({ ...initialModel, indexedRoots: [first, second] }, path.join(root, ".stem"), "focus");
 
     const addedSiblingStore = stores[2];
     expect(configuredCollectionForPath(addedSiblingStore, firstPath)).toBe(firstCollection);
     expect(addedSiblingStore.updateOptions).toEqual([]);
 
-    await qmdSearchProvider.search(initialModel, path.join(root, ".exo"), "focus");
+    await qmdSearchProvider.search(initialModel, path.join(root, ".stem"), "focus");
 
     const removedSiblingStore = stores[4];
     expect(configuredCollectionForPath(removedSiblingStore, firstPath)).toBe(firstCollection);
@@ -449,14 +449,14 @@ describe("QMD index adapter", () => {
     const second = createIndexedRoot(secondPath, { id: "index-duplicate", label: "second", kind: "docs" });
     existingQmdCollections = [{ name: "duplicate", pwd: secondPath }];
     existingQmdDocumentCollections = ["duplicate"];
-    await mkdir(path.join(root, ".exo", "qmd"), { recursive: true });
-    await writeFile(path.join(root, ".exo", "qmd", "index.sqlite"), "", "utf8");
+    await mkdir(path.join(root, ".stem", "qmd"), { recursive: true });
+    await writeFile(path.join(root, ".stem", "qmd", "index.sqlite"), "", "utf8");
     const model = {
       ...indexedModel(root, "lexical"),
       indexedRoots: [first, second],
     };
 
-    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+    await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus");
 
     const configuredStore = stores[1];
     expect(configuredStore.updateOptions).toEqual([{
@@ -469,7 +469,7 @@ describe("QMD index adapter", () => {
     expect(configuredStore.visibleDocumentCollectionsBeforeUpdates).toEqual([[]]);
     expect(existingQmdCollections.map((collection) => collection.name)).toEqual(Object.keys(configuredStore.config.collections));
 
-    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+    await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus");
 
     const secondConfiguredStore = stores[3];
     expect(secondConfiguredStore.updateOptions).toEqual([]);
@@ -486,7 +486,7 @@ describe("QMD index adapter", () => {
       qmdResult(notePaths[3], 0.5),
     ];
 
-    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", { limit: 2 });
+    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".stem"), "result", { limit: 2 });
 
     expect(result.results.map((entry) => entry.filePath)).toEqual(notePaths.slice(0, 2));
     expect(result.hasMore).toBe(true);
@@ -523,8 +523,8 @@ describe("QMD index adapter", () => {
     };
 
     const model = indexedModel(root, "semantic");
-    const firstPage = await qmdSearchProvider.search(model, path.join(root, ".exo"), "result", { limit: 2 });
-    const secondPage = await qmdSearchProvider.search(model, path.join(root, ".exo"), "result", {
+    const firstPage = await qmdSearchProvider.search(model, path.join(root, ".stem"), "result", { limit: 2 });
+    const secondPage = await qmdSearchProvider.search(model, path.join(root, ".stem"), "result", {
       limit: 2,
       offset: firstPage.results.length,
     });
@@ -558,7 +558,7 @@ describe("QMD index adapter", () => {
       collections: [{ name: "notes", documents: 3, lastUpdated: "2026-05-15T00:00:00.000Z" }],
     };
 
-    const result = await qmdSearchProvider.search(indexedModel(root, "semantic"), path.join(root, ".exo"), "result", {
+    const result = await qmdSearchProvider.search(indexedModel(root, "semantic"), path.join(root, ".stem"), "result", {
       limit: 2,
       offset: 2,
     });
@@ -584,7 +584,7 @@ describe("QMD index adapter", () => {
       collections: [{ name: "notes", documents: 4, lastUpdated: "2026-05-15T00:00:00.000Z" }],
     };
 
-    const result = await qmdSearchProvider.search(indexedModel(root, "hybrid"), path.join(root, ".exo"), "result", { limit: 2 });
+    const result = await qmdSearchProvider.search(indexedModel(root, "hybrid"), path.join(root, ".stem"), "result", { limit: 2 });
 
     expect(result.mode).toBe("hybrid");
     expect(result.results.map((entry) => entry.filePath)).toEqual(notePaths.slice(0, 2));
@@ -609,7 +609,7 @@ describe("QMD index adapter", () => {
     };
     hybridSearchError = mode === "hybrid" ? new Error("no vectors") : null;
 
-    const result = await qmdSearchProvider.search(indexedModel(root, mode), path.join(root, ".exo"), "result", { limit: 2 });
+    const result = await qmdSearchProvider.search(indexedModel(root, mode), path.join(root, ".stem"), "result", { limit: 2 });
 
     expect(result.mode).toBe("lexical");
     expect(result.results.map((entry) => entry.filePath)).toEqual(notePaths.slice(0, 2));
@@ -646,7 +646,7 @@ describe("QMD index adapter", () => {
       qmdResult(secretPath, 0.7),
     ];
 
-    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", {
+    const result = await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus", {
       rootIds: ["index-notes"],
       includeContent: true,
     });
@@ -671,12 +671,12 @@ describe("QMD index adapter", () => {
       ...notePaths.map((filePath, index) => qmdResult(filePath, 0.9 - index / 10)),
     ];
 
-    const firstPage = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", {
+    const firstPage = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".stem"), "result", {
       includeContent,
       limit: 2,
       offset: 0,
     });
-    const secondPage = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", {
+    const secondPage = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".stem"), "result", {
       includeContent,
       limit: 2,
       offset: firstPage.results.length,
@@ -712,13 +712,13 @@ describe("QMD index adapter", () => {
       return originalExistingIdentity.call(this, targetPath);
     });
 
-    const firstPage = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", {
+    const firstPage = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".stem"), "result", {
       includeContent: true,
       limit: 2,
       offset: 0,
     });
     authorityCalls.clear();
-    const secondPage = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", {
+    const secondPage = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".stem"), "result", {
       includeContent: true,
       limit: 2,
       offset: firstPage.results.length,
@@ -742,7 +742,7 @@ describe("QMD index adapter", () => {
     await Promise.all(notePaths.map((filePath, index) => writeFile(filePath, `# Result ${index + 1}\n`, "utf8")));
     searchLexResultsOverride = notePaths.map((filePath, index) => qmdResult(filePath, 1 - index / 10));
 
-    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", { limit: 2 });
+    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".stem"), "result", { limit: 2 });
 
     expect(result.results.map((entry) => entry.filePath)).toEqual(notePaths);
     expect(result.hasMore).toBe(false);
@@ -757,8 +757,8 @@ describe("QMD index adapter", () => {
     searchLexResultsOverride = notePaths.map((filePath, index) => qmdResult(filePath, 1 - index / 1000));
     const model = indexedModel(root, "lexical");
 
-    const sixthPage = await qmdSearchProvider.search(model, path.join(root, ".exo"), "deep", { limit: 20, offset: 100 });
-    const seventhPage = await qmdSearchProvider.search(model, path.join(root, ".exo"), "deep", { limit: 20, offset: 120 });
+    const sixthPage = await qmdSearchProvider.search(model, path.join(root, ".stem"), "deep", { limit: 20, offset: 100 });
+    const seventhPage = await qmdSearchProvider.search(model, path.join(root, ".stem"), "deep", { limit: 20, offset: 120 });
 
     expect(sixthPage.results.map((entry) => entry.filePath)).toEqual(notePaths.slice(100, 120));
     expect(sixthPage.hasMore).toBe(true);
@@ -773,7 +773,7 @@ describe("QMD index adapter", () => {
     const cappedPaths = Array.from({ length: 104 }, (_, index) => path.join(root, "notes", `capped-${index}.md`));
     searchLexResultsOverride = cappedPaths.map((filePath, index) => qmdResult(filePath, 1 - index / 1000));
 
-    await expect(qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "result", {
+    await expect(qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".stem"), "result", {
       limit: 2,
     })).rejects.toThrow(
       "QMD search exhausted its bounded refill budget of 100 additional results in a provider stream before finding enough authorized results or proving exhaustion.",
@@ -813,12 +813,12 @@ describe("QMD index adapter", () => {
       ],
     };
 
-    const firstPage = await qmdSearchProvider.search(model, path.join(root, ".exo"), "result", { limit: 2 });
-    const secondPage = await qmdSearchProvider.search(model, path.join(root, ".exo"), "result", {
+    const firstPage = await qmdSearchProvider.search(model, path.join(root, ".stem"), "result", { limit: 2 });
+    const secondPage = await qmdSearchProvider.search(model, path.join(root, ".stem"), "result", {
       limit: 2,
       offset: firstPage.results.length,
     });
-    const thirdPage = await qmdSearchProvider.search(model, path.join(root, ".exo"), "result", {
+    const thirdPage = await qmdSearchProvider.search(model, path.join(root, ".stem"), "result", {
       limit: 2,
       offset: firstPage.results.length + secondPage.results.length,
     });
@@ -868,7 +868,7 @@ describe("QMD index adapter", () => {
       qmdResult("qmd://docs/secret.md", 0.8),
     ];
 
-    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus", { rootIds, includeContent: true });
+    const result = await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus", { rootIds, includeContent: true });
 
     expect(result.results.map((entry) => path.basename(entry.filePath))).toEqual(expectedPaths);
     expect(stores[0].searchLexCalls.map((call) => call.collection)).toEqual(collections.map((collection) =>
@@ -882,7 +882,7 @@ describe("QMD index adapter", () => {
     await writeFile(outsidePath, "# Outside\n", "utf8");
     searchLexResultsOverride = [qmdResult(outsidePath)];
 
-    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "focus");
+    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".stem"), "focus");
 
     expect(result.results).toEqual([]);
     expect(result.warnings).toContain("Dropped 1 invalid or stale QMD result.");
@@ -895,7 +895,7 @@ describe("QMD index adapter", () => {
     await symlink(outsidePath, path.join(root, "notes", "escape.md"));
     searchLexResultsOverride = [qmdResult("qmd://notes/escape.md")];
 
-    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "focus");
+    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".stem"), "focus");
 
     expect(result.results).toEqual([]);
     expect(result.warnings).toContain("Dropped 1 invalid or stale QMD result.");
@@ -914,7 +914,7 @@ describe("QMD index adapter", () => {
     };
     searchLexResultsOverride = [qmdResult("qmd://notes/../docs/outside.md")];
 
-    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+    const result = await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus");
 
     expect(result.results).toEqual([]);
     expect(result.warnings).toContain("Dropped 2 invalid or stale QMD results.");
@@ -924,7 +924,7 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     searchLexResultsOverride = [qmdResult("qmd://notes/focus.md")];
 
-    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "focus", { includeContent: true });
+    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".stem"), "focus", { includeContent: true });
 
     expect(result.results).toEqual([expect.objectContaining({
       filePath: path.join(root, "notes", "focus.md"),
@@ -937,7 +937,7 @@ describe("QMD index adapter", () => {
     const outsidePath = path.join(root, "outside.md");
     await writeFile(outsidePath, "secret\n", "utf8");
     searchLexResultsOverride = [qmdResult(outsidePath)];
-    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".exo"), "focus", { includeContent: true });
+    const result = await qmdSearchProvider.search(indexedModel(root, "lexical"), path.join(root, ".stem"), "focus", { includeContent: true });
 
     expect(result.results).toEqual([]);
     expect(readFileMock).not.toHaveBeenCalled();
@@ -962,8 +962,8 @@ describe("QMD index adapter", () => {
     const model = indexedModel(root, "hybrid");
     createStoreError = new Error("The module was compiled against a different Node.js version using NODE_MODULE_VERSION 127");
 
-    const bodyResult = await qmdSearchProvider.search(model, path.join(root, ".exo"), "Ashby");
-    const titleResult = await qmdSearchProvider.search(model, path.join(root, ".exo"), "Sigmund Lab");
+    const bodyResult = await qmdSearchProvider.search(model, path.join(root, ".stem"), "Ashby");
+    const titleResult = await qmdSearchProvider.search(model, path.join(root, ".stem"), "Sigmund Lab");
 
     expect(bodyResult.source).toBe("filesystem");
     expect(bodyResult.warnings[0]).toContain("QMD native ABI mismatch");
@@ -977,7 +977,7 @@ describe("QMD index adapter", () => {
     const model = indexedModel(root, "hybrid");
     createStoreError = new Error("SQLITE_ERROR: no such module: vec0");
 
-    const result = await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+    const result = await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus");
 
     expect(result.source).toBe("filesystem");
     expect(result.warnings[0]).toContain("QMD vec0 extension is unavailable");
@@ -987,8 +987,8 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = {
       ...resolveWorkspaceModel({
-        EXO_WORKSPACE_ROOT: root,
-        EXO_NOTE_ROOTS: path.join(root, "notes"),
+        STEM_WORKSPACE_ROOT: root,
+        STEM_NOTE_ROOTS: path.join(root, "notes"),
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -997,7 +997,7 @@ describe("QMD index adapter", () => {
       indexing: { enabled: true, mode: "hybrid" as const, backend: "qmd" as const },
     };
 
-    await qmdSearchProvider.search(model, path.join(root, ".exo"), "focus");
+    await qmdSearchProvider.search(model, path.join(root, ".stem"), "focus");
 
     expect(stores[0].searchCalls.map((call) => call.collections)).toEqual([
       [configuredCollectionForPath(stores[0], path.join(root, "notes"))],
@@ -1009,14 +1009,14 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "hybrid");
 
-    const status = await qmdSearchProvider.getStatus(model, path.join(root, ".exo"));
-    expect(status.dbPath).toContain(path.join(".exo", "qmd", "index.sqlite"));
+    const status = await qmdSearchProvider.getStatus(model, path.join(root, ".stem"));
+    expect(status.dbPath).toContain(path.join(".stem", "qmd", "index.sqlite"));
     expect(status.documentCount).toBe(1);
     expect(status.pendingEmbeddings).toBe(1);
-    expect(status.warnings.join(" ")).not.toContain("exo index sync");
+    expect(status.warnings.join(" ")).not.toContain("stem index sync");
 
-    await qmdSearchProvider.update(model, path.join(root, ".exo"));
-    await qmdSearchProvider.embed(model, path.join(root, ".exo"));
+    await qmdSearchProvider.update(model, path.join(root, ".stem"));
+    await qmdSearchProvider.embed(model, path.join(root, ".stem"));
 
     expect(stores.some((store) => store.updateCalls === 1)).toBe(true);
     expect(stores.some((store) => store.embedCalls === 1)).toBe(true);
@@ -1031,7 +1031,7 @@ describe("QMD index adapter", () => {
       hasVectorIndex: false,
       collections: [{ name: "notes", documents: 0, lastUpdated: "2026-05-15T00:00:00.000Z" }],
     };
-    const empty = await qmdSearchProvider.getStatus(model, path.join(root, ".exo"));
+    const empty = await qmdSearchProvider.getStatus(model, path.join(root, ".stem"));
     expect(empty.warnings).not.toContainEqual(expect.stringContaining("Semantic vector index is unavailable"));
 
     storeStatusOverride = {
@@ -1039,7 +1039,7 @@ describe("QMD index adapter", () => {
       totalDocuments: 1,
       collections: [{ name: "notes", documents: 1, lastUpdated: "2026-05-15T00:00:00.000Z" }],
     };
-    const inconsistent = await qmdSearchProvider.getStatus(model, path.join(root, ".exo"));
+    const inconsistent = await qmdSearchProvider.getStatus(model, path.join(root, ".stem"));
     expect(inconsistent.warnings).toContain("Semantic vector index is unavailable even though no embeddings are pending. Build embeddings to repair it.");
   });
 
@@ -1047,12 +1047,12 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "hybrid");
 
-    await qmdSearchProvider.embed(model, path.join(root, ".exo"), {
+    await qmdSearchProvider.embed(model, path.join(root, ".stem"), {
       maxDocuments: 4,
       maxDocsPerBatch: 1,
       maxDurationMs: 15_000,
     });
-    await qmdSearchProvider.embed(model, path.join(root, ".exo"));
+    await qmdSearchProvider.embed(model, path.join(root, ".stem"));
 
     const embeddingStores = stores.filter((store) => store.embedCalls > 0);
     expect(embeddingStores.map((store) => store.embedOptions[0])).toEqual([
@@ -1061,24 +1061,24 @@ describe("QMD index adapter", () => {
     ]);
   });
 
-  it("warns when derived Exo state in a Git workspace is not ignored", async () => {
+  it("warns when derived Stem state in a Git workspace is not ignored", async () => {
     const root = await fixtureRoot();
     await mkdir(path.join(root, ".git"));
-    const status = await qmdSearchProvider.getStatus(indexedModel(root, "lexical"), path.join(root, ".exo"));
+    const status = await qmdSearchProvider.getStatus(indexedModel(root, "lexical"), path.join(root, ".stem"));
 
-    expect(status.warnings).toContain("This Workspace is a Git repository and .exo/ is not ignored. Add .exo/ to .gitignore; Exo will not modify repository files automatically.");
+    expect(status.warnings).toContain("This Workspace is a Git repository and .stem/ is not ignored. Add .stem/ to .gitignore; Stem will not modify repository files automatically.");
 
-    await writeFile(path.join(root, ".gitignore"), "/.exo/\n", "utf8");
-    const ignoredStatus = await qmdSearchProvider.getStatus(indexedModel(root, "lexical"), path.join(root, ".exo"));
+    await writeFile(path.join(root, ".gitignore"), "/.stem/\n", "utf8");
+    const ignoredStatus = await qmdSearchProvider.getStatus(indexedModel(root, "lexical"), path.join(root, ".stem"));
 
-    expect(ignoredStatus.warnings).not.toContain("This Workspace is a Git repository and .exo/ is not ignored. Add .exo/ to .gitignore; Exo will not modify repository files automatically.");
+    expect(ignoredStatus.warnings).not.toContain("This Workspace is a Git repository and .stem/ is not ignored. Add .stem/ to .gitignore; Stem will not modify repository files automatically.");
   });
 
   it("can scope updates to selected indexed roots", async () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "hybrid");
 
-    await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds: ["index-notes"] });
+    await qmdSearchProvider.update(model, path.join(root, ".stem"), { rootIds: ["index-notes"] });
 
     expect(stores.some((store) => JSON.stringify(store.updateOptions[0]) === JSON.stringify({ collections: [configuredCollectionForPath(store, path.join(root, "notes"))] }))).toBe(true);
   });
@@ -1100,7 +1100,7 @@ describe("QMD index adapter", () => {
       ],
     };
 
-    await qmdSearchProvider.update(model, path.join(root, ".exo"), { rootIds });
+    await qmdSearchProvider.update(model, path.join(root, ".stem"), { rootIds });
 
     const updatingStores = stores.filter((store) => store.updateCalls > 0);
     if (expectedRootLabels) {
@@ -1120,7 +1120,7 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "lexical");
 
-    const result = await qmdSearchProvider.sync(model, path.join(root, ".exo"));
+    const result = await qmdSearchProvider.sync(model, path.join(root, ".stem"));
 
     expect(result.phases).toEqual([
       { name: "update", status: "completed", message: "Indexed documents refreshed." },
@@ -1134,7 +1134,7 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "hybrid");
 
-    const result = await qmdSearchProvider.sync(model, path.join(root, ".exo"));
+    const result = await qmdSearchProvider.sync(model, path.join(root, ".stem"));
 
     expect(result.phases.map((phase) => `${phase.name}:${phase.status}`)).toEqual(["update:completed", "embed:completed"]);
     expect(stores.some((store) => store.updateCalls === 1)).toBe(true);
@@ -1145,11 +1145,11 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const filePath = path.join(root, "notes", "focus.md");
     const model = resolveWorkspaceModel({
-      EXO_WORKSPACE_ROOT: root,
-      EXO_NOTE_ROOTS: path.join(root, "notes"),
+      STEM_WORKSPACE_ROOT: root,
+      STEM_NOTE_ROOTS: path.join(root, "notes"),
     });
 
-    const result = await qmdSearchProvider.read(model, path.join(root, ".exo"), filePath, { fromLine: 2, maxLines: 1 });
+    const result = await qmdSearchProvider.read(model, path.join(root, ".stem"), filePath, { fromLine: 2, maxLines: 1 });
 
     expect(result.body).toBe("alpha");
   });
@@ -1158,7 +1158,7 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "lexical");
 
-    const result = await qmdSearchProvider.read(model, path.join(root, ".exo"), "#abc123", { fromLine: 1, maxLines: 2 });
+    const result = await qmdSearchProvider.read(model, path.join(root, ".stem"), "#abc123", { fromLine: 1, maxLines: 2 });
 
     expect(result.filePath).toBe(path.join(root, "notes", "focus.md"));
     expect(result.source).toBe("qmd");
@@ -1171,7 +1171,7 @@ describe("QMD index adapter", () => {
     await expect(
       qmdSearchProvider.readAuthorized(
         model,
-        path.join(root, ".exo"),
+        path.join(root, ".stem"),
         "#abc123",
         {},
         async () => {
@@ -1189,7 +1189,7 @@ describe("QMD index adapter", () => {
       indexedRoots: [createIndexedRoot(path.join(root, "docs"), { id: "index-docs", label: "docs", kind: "docs" })],
     };
 
-    await expect(qmdSearchProvider.read(model, path.join(root, ".exo"), "#abc123")).rejects.toThrow(
+    await expect(qmdSearchProvider.read(model, path.join(root, ".stem"), "#abc123")).rejects.toThrow(
       "outside configured indexed roots",
     );
   });
@@ -1201,7 +1201,7 @@ describe("QMD index adapter", () => {
     await symlink(outsidePath, path.join(root, "notes", "escape.md"));
     documentPathOverride = "qmd://notes/escape.md";
 
-    await expect(qmdSearchProvider.read(indexedModel(root, "lexical"), path.join(root, ".exo"), "#abc123")).rejects.toThrow(
+    await expect(qmdSearchProvider.read(indexedModel(root, "lexical"), path.join(root, ".stem"), "#abc123")).rejects.toThrow(
       "outside configured indexed roots",
     );
     expect(stores[0].getDocumentBodyCalls).toBe(0);
@@ -1209,7 +1209,7 @@ describe("QMD index adapter", () => {
 });
 
 async function fixtureRoot(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "exo-qmd-test-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "stem-qmd-test-"));
   tempPaths.push(root);
   await mkdir(path.join(root, "notes"), { recursive: true });
   await writeFile(path.join(root, "notes", "focus.md"), "# Focus\nalpha\nbeta\n", "utf8");
@@ -1219,8 +1219,8 @@ async function fixtureRoot(): Promise<string> {
 function indexedModel(root: string, mode: "lexical" | "semantic" | "hybrid") {
   return {
     ...resolveWorkspaceModel({
-      EXO_WORKSPACE_ROOT: root,
-      EXO_NOTE_ROOTS: path.join(root, "notes"),
+      STEM_WORKSPACE_ROOT: root,
+      STEM_NOTE_ROOTS: path.join(root, "notes"),
     }),
     indexedRoots: [createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" })],
     indexing: { enabled: true, mode, backend: "qmd" as const },
@@ -1362,7 +1362,7 @@ function configuredCollectionForPath(store: MockStore, rootPath: string): string
 }
 
 function pendingQmdCollectionReindexPath(root: string): string {
-  return path.join(root, ".exo", "qmd", "pending-collection-reindex");
+  return path.join(root, ".stem", "qmd", "pending-collection-reindex");
 }
 
 async function fileExists(filePath: string): Promise<boolean> {

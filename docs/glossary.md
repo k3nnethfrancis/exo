@@ -1,15 +1,25 @@
-# Exo Glossary
+# Stem Glossary
 
 This public glossary defines product meaning, not implementation.
 
 ## Language
 
-**Exo**
-The current working name for the open-source local application and reference implementation for building and using a Markdown exograph. The public project and CLI name remain unresolved.
+**Stem**
+The open-source knowledge-graph interface and Markdown editor. Stem lets people
+work with and manage a user-owned knowledge graph alongside terminal agents.
 _Avoid_: lab name, the category name itself
 
-**Exograph**
-A user-owned, durable graph of artifacts, relationships, evidence, and history that people and machines can read and maintain in common. In Exo it is formed from Markdown files, frontmatter, links, paths, tags, properties, attachments, and accepted durable knowledge; Exo operates over it but does not own it.
+**Exocortex**
+The user-owned system formed by Markdown, relationships, evidence, local
+retrieval, and reviewable agent work. Stem is its interface; ordinary files
+remain the durable substrate.
+_Avoid_: proprietary database, app-owned memory, product synonym
+
+**Knowledge Graph**
+A user-owned, durable graph of Notes, relationships, evidence, and history that
+people and machines can read and maintain in common. Stem derives it from
+Markdown files, frontmatter, links, paths, tags, properties, attachments, and
+accepted durable knowledge; Stem operates over it but does not own it.
 _Avoid_: proprietary database, app-specific knowledge base, model memory
 
 **Workspace**
@@ -17,7 +27,7 @@ A named, independently saved and switchable Markdown scope. It owns its writable
 _Avoid_: vault, project
 
 **Note Root**
-A user-authorized folder whose Markdown Notes Exo may create and edit. Each Note Root has one Format.
+A user-authorized folder whose Markdown Notes Stem may create and edit. Each Note Root has one Format.
 _Avoid_: arbitrary filesystem root
 
 **Note**
@@ -31,7 +41,7 @@ not additional Concepts. The Note remains canonical.
 _Avoid_: graph node as source of truth, database entity
 
 **Indexed Root**
-A selected retrieval location. It can be searched but does not grant Exo edit authority, Command trust, or a second Explorer filesystem domain.
+A selected retrieval location. It can be searched but does not grant Stem edit authority, Command trust, or a second Explorer filesystem domain.
 _Avoid_: record, database row
 
 **Content Policy**
@@ -93,7 +103,7 @@ A directed connection between Concepts with a family, optional user-defined pred
 _Avoid_: unexplained edge, visual line as truth
 
 **Origin**
-How Exo obtained a Relation: `document` when Markdown states it directly, `ontology` when the active Ontology interprets Markdown data, or `inferred` when a versioned machine process proposes it. Origin explains derivation, not authorship or truth.
+How Stem obtained a Relation: `document` when Markdown states it directly, `ontology` when the active Ontology interprets Markdown data, or `inferred` when a versioned machine process proposes it. Origin explains derivation, not authorship or truth.
 _Avoid_: authority, author, confidence class
 
 **Evidence**

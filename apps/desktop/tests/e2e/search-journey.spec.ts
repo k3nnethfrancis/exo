@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { launchExoWorkspaceFixture } from "../helpers";
+import { launchStemWorkspaceFixture } from "../helpers";
 
 test("finds and opens a note from the titlebar without opening Explorer", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture();
+  const { page, cleanup } = await launchStemWorkspaceFixture();
 
   try {
     await page.getByTestId("workspace-titlebar-sidebar").click();

@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import type { TreeNode, WorkspaceModel } from "@exo/core";
+import type { TreeNode, WorkspaceModel } from "@stem/core";
 
 import {
   replaceTreeChildrenInRoots,
@@ -41,7 +41,7 @@ export function useWorkspaceTrees(options: UseWorkspaceTreesOptions) {
     }
     loadedTreeDirectoriesRef.current.add(loadKey);
 
-    const children = await window.exo.workspace.listTree(directoryPath, {
+    const children = await window.stem.workspace.listTree(directoryPath, {
       markdownOnly: true,
       maxDepth: 1,
       excludedPaths: excludedPathsRef.current,
@@ -64,7 +64,7 @@ export async function loadInitialTrees(
   const nextNoteTrees = await Promise.all(
     model.noteRoots.map(
       async (root) =>
-        [root.path, await window.exo.workspace.listTree(root.path, {
+        [root.path, await window.stem.workspace.listTree(root.path, {
           markdownOnly: true,
           maxDepth: options.noteTreeMaxDepth,
           excludedPaths: model.contentPolicy?.excludedPaths ?? [],

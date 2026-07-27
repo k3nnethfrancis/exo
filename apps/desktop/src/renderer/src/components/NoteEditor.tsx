@@ -9,10 +9,10 @@ import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection, Prec } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
 import { Clock3, Code2, Network, Plus, Save, SlidersHorizontal } from "lucide-react";
-import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exo/core";
+import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@stem/core";
 import type { InvocationFileReviewPayload } from "../../../shared/api";
-import { exoEditorTheme, exoSyntaxHighlighting } from "../theme/codemirror";
-import type { ExoThemeVariant } from "../theme/types";
+import { stemEditorTheme, stemSyntaxHighlighting } from "../theme/codemirror";
+import type { StemThemeVariant } from "../theme/types";
 import { codeLanguageForPath } from "./codeLanguages";
 import { AgentIcon } from "./AgentIcon";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
@@ -97,7 +97,7 @@ interface NoteEditorProps {
   historyAvailable: boolean;
   onOpenHistory: () => void;
   onFocus: () => void;
-  theme: ExoThemeVariant;
+  theme: StemThemeVariant;
   fontSize: number;
   onZoomEditor: (direction: -1 | 0 | 1) => void;
   compact: boolean;
@@ -238,8 +238,8 @@ export function NoteEditor(props: NoteEditorProps) {
   }, [document, useMarkdownEditing]);
   const graphContext = useMemo(() => buildNoteGraphContext(loadedGraphContext), [loadedGraphContext]);
   const graphPropertyEntries = notePropertyEntries(document);
-  const cmTheme = useMemo(() => exoEditorTheme(theme, fontSize), [fontSize, theme]);
-  const syntaxTheme = useMemo(() => exoSyntaxHighlighting(theme), [theme]);
+  const cmTheme = useMemo(() => stemEditorTheme(theme, fontSize), [fontSize, theme]);
+  const syntaxTheme = useMemo(() => stemSyntaxHighlighting(theme), [theme]);
   const graphReferences = useMemo((): MarkdownGraphReferences | null => {
     return graphReferencesForMarkdownMode(showNoteMetadata, rawMarkdownMode, graphContext);
   }, [graphContext, rawMarkdownMode, showNoteMetadata]);
@@ -252,7 +252,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const openTagRef = useRef(onOpenTag);
   const suggestTargetsRef = useRef(onSuggestTargets);
   const previewTargetRef = useRef(onPreviewTarget);
-  const resolveMarkdownImageRef = useRef(window.exo.notes.resolveMarkdownImage);
+  const resolveMarkdownImageRef = useRef(window.stem.notes.resolveMarkdownImage);
   const saveRef = useRef(onSave);
   const zoomEditorRef = useRef(onZoomEditor);
   // Event callbacks must stay stable for CodeMirror configuration without
@@ -528,14 +528,14 @@ export function NoteEditor(props: NoteEditorProps) {
         if (!useMarkdownEditing || rawMarkdownMode) {
           return;
         }
-        const target = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-exo-link-kind='wikilink'][data-exo-link-target]");
+        const target = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-stem-link-kind='wikilink'][data-stem-link-target]");
         if (!target) {
           wikilinkPreviewRequestRef.current += 1;
           setWikilinkPreview(null);
           return;
         }
 
-        const linkTarget = target.dataset.exoLinkTarget;
+        const linkTarget = target.dataset.stemLinkTarget;
         if (!linkTarget || wikilinkPreview?.target === linkTarget) {
           return;
         }
@@ -921,7 +921,7 @@ export function NoteEditor(props: NoteEditorProps) {
   if (!document) {
     return (
       <section className="editor-panel editor-panel--empty" data-testid="editor-empty">
-        <h1>Exo</h1>
+        <h1>Stem</h1>
         <p>Open a note from the left sidebar to begin.</p>
       </section>
     );

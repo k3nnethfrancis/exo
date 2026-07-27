@@ -1,4 +1,4 @@
-# Exo contributor map
+# Stem contributor map
 
 This file is provider-neutral guidance for coding agents. `CLAUDE.md` is a compatibility symlink to `AGENTS.md`; do not add provider-specific instructions.
 
@@ -20,7 +20,7 @@ documentation.
 - `apps/desktop` — Electron main process, preload, renderer, and shared API.
 - `packages/core` — Workspace, Markdown graph, search, invocations, and shared protocol types.
 - `packages/cli` — local CLI and MCP presentation.
-- `evals/graph` — Exo's internal graph-rendering regression suite.
+- `evals/graph` — Stem's internal graph-rendering regression suite.
 - `skills` — reusable provider-neutral instructions for contributors and coding agents.
 - `scripts` and `.github/workflows` — build, installation, and CI.
 
@@ -47,7 +47,7 @@ an existing domain owner.
 ## Invariants
 
 - A Workspace has explicit Note Roots. No convenience path may widen filesystem authority.
-- Markdown and frontmatter are canonical. Derived indexes, proposals, inference, activity, and provenance remain under `.exo/` until accepted.
+- Markdown and frontmatter are canonical. Derived indexes, proposals, inference, activity, and provenance remain under `.stem/` until accepted.
 - Renderer code never touches filesystem or processes directly; use typed preload APIs.
 - A Format projects Markdown, an optional Ontology interprets it afterward, and graph views only affect presentation.
 - Commands are provider-neutral executable configurations. Invocation is explicit and reviewable.
@@ -62,7 +62,7 @@ pnpm check
 ```
 
 Use `pnpm dev` for source iteration, `pnpm dev:qa` for isolated source QA, and
-a packaged `Exo.app` for first-run or installed-app evidence. Run focused owner
+a packaged `Stem.app` for first-run or installed-app evidence. Run focused owner
 tests before the broad gate and update public documentation for user-visible
 changes.
 

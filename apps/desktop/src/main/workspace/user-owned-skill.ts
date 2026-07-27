@@ -15,7 +15,7 @@ export interface UserOwnedSkill {
 }
 
 /**
- * Installs Exo's initial instructions once, then treats the Markdown file as
+ * Installs Stem's initial instructions once, then treats the Markdown file as
  * user-owned configuration. Existing bytes are read and fingerprinted but
  * never rewritten.
  */

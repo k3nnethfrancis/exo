@@ -12,7 +12,7 @@ const fixtureWorkspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta
 
 describe("workspace", () => {
   it("initializes new Markdown files with core metadata and an editable H1", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-"));
     const target = path.join(root, "new-note.md");
     try {
       await createWorkspaceFile(target);
@@ -24,8 +24,8 @@ describe("workspace", () => {
 
   it("resolves the default workspace model from env", () => {
     const model = resolveWorkspaceModel({
-      EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
+      STEM_WORKSPACE_ROOT: fixtureWorkspaceRoot,
+      STEM_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
     });
 
     expect(model.workspaceRoot).toBe(fixtureWorkspaceRoot);
@@ -52,10 +52,10 @@ describe("workspace", () => {
   it("resolves indexed roots and indexing mode from env", () => {
     const indexPath = path.join(fixtureWorkspaceRoot, "notes/test-notes");
     const model = resolveWorkspaceModel({
-      EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
-      EXO_INDEX_MODE: "hybrid",
-      EXO_INDEXED_ROOTS: JSON.stringify([{ id: "index-notes", label: "notes", path: indexPath, kind: "notes", pattern: "**/*.md" }]),
+      STEM_WORKSPACE_ROOT: fixtureWorkspaceRoot,
+      STEM_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
+      STEM_INDEX_MODE: "hybrid",
+      STEM_INDEXED_ROOTS: JSON.stringify([{ id: "index-notes", label: "notes", path: indexPath, kind: "notes", pattern: "**/*.md" }]),
     });
 
     expect(model.indexing).toEqual({ enabled: true, mode: "hybrid", backend: "qmd" });
@@ -78,7 +78,7 @@ describe("workspace", () => {
   });
 
   it("prunes excluded content paths from a Markdown tree", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-content-tree-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-content-tree-"));
     try {
       await mkdir(path.join(root, "docs"), { recursive: true });
       await mkdir(path.join(root, "release"), { recursive: true });
@@ -94,7 +94,7 @@ describe("workspace", () => {
   });
 
   it("keeps excluded Markdown out of filesystem search", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-content-search-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-content-search-"));
     try {
       await mkdir(path.join(root, "release"), { recursive: true });
       await writeFile(path.join(root, "readme.md"), "# Readme\nneedle\n", "utf8");
@@ -117,8 +117,8 @@ describe("workspace", () => {
   });
 
   it("never follows nested Markdown symlinks outside a Note Root", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-note-search-symlink-"));
-    const outside = await mkdtemp(path.join(os.tmpdir(), "exo-note-search-outside-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-note-search-symlink-"));
+    const outside = await mkdtemp(path.join(os.tmpdir(), "stem-note-search-outside-"));
     try {
       const notesRoot = path.join(root, "notes");
       const escapedNote = path.join(outside, "outside.md");
@@ -128,8 +128,8 @@ describe("workspace", () => {
       await symlink(escapedNote, path.join(notesRoot, "outside-link.md"));
 
       const workspace = resolveWorkspaceModel({
-        EXO_WORKSPACE_ROOT: root,
-        EXO_NOTE_ROOTS: notesRoot,
+        STEM_WORKSPACE_ROOT: root,
+        STEM_NOTE_ROOTS: notesRoot,
       });
 
       await expect(searchNotes(workspace, "TOP_SECRET_NEEDLE")).resolves.toEqual([]);
@@ -145,7 +145,7 @@ describe("workspace", () => {
   });
 
   it("can include empty directories in markdown-only trees", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-empty-notes-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-empty-notes-"));
     try {
       await mkdir(path.join(root, "empty-folder"));
 
@@ -167,8 +167,8 @@ describe("workspace", () => {
 
   it("searches notes by title and path", async () => {
     const model = resolveWorkspaceModel({
-      EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
+      STEM_WORKSPACE_ROOT: fixtureWorkspaceRoot,
+      STEM_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
     });
 
     const results = await searchNotes(model, "focus-note");
@@ -177,7 +177,7 @@ describe("workspace", () => {
   });
 
   it("searches notes by frontmatter title, body, and tags", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-note-search-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-note-search-"));
     try {
       await mkdir(path.join(root, "notes", "garden", "research"), { recursive: true });
       const notePath = path.join(root, "notes", "garden", "research", "sigmund.md");
@@ -195,8 +195,8 @@ describe("workspace", () => {
         "utf8",
       );
       const model = resolveWorkspaceModel({
-        EXO_WORKSPACE_ROOT: root,
-        EXO_NOTE_ROOTS: path.join(root, "notes"),
+        STEM_WORKSPACE_ROOT: root,
+        STEM_NOTE_ROOTS: path.join(root, "notes"),
       });
 
       const titleResults = await searchNotes(model, "Sigmund Lab");
@@ -214,8 +214,8 @@ describe("workspace", () => {
 
   it("returns note-only workspace search results", async () => {
     const model = resolveWorkspaceModel({
-      EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
+      STEM_WORKSPACE_ROOT: fixtureWorkspaceRoot,
+      STEM_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
     });
 
     const results = await searchWorkspace(model, "focus-note");
@@ -225,8 +225,8 @@ describe("workspace", () => {
 
   it("returns workspace tag matches from note roots", async () => {
     const model = resolveWorkspaceModel({
-      EXO_WORKSPACE_ROOT: fixtureWorkspaceRoot,
-      EXO_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
+      STEM_WORKSPACE_ROOT: fixtureWorkspaceRoot,
+      STEM_NOTE_ROOTS: path.join(fixtureWorkspaceRoot, "notes/test-notes"),
     });
 
     const results = await searchWorkspace(model, "research");
@@ -234,14 +234,14 @@ describe("workspace", () => {
   });
 
   it("resolves note-root-relative note paths", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-note-resolve-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-note-resolve-"));
     try {
       const notePath = path.join(root, "notes", "garden", "research", "ashby.md");
       await mkdir(path.dirname(notePath), { recursive: true });
       await writeFile(notePath, "# Ashby\n", "utf8");
       const model = resolveWorkspaceModel({
-        EXO_WORKSPACE_ROOT: root,
-        EXO_NOTE_ROOTS: path.join(root, "notes"),
+        STEM_WORKSPACE_ROOT: root,
+        STEM_NOTE_ROOTS: path.join(root, "notes"),
       });
 
       expect(resolveNotePath(model, "garden/research/ashby.md", path.join(root, "outside"))).toBe(notePath);
@@ -253,7 +253,7 @@ describe("workspace", () => {
   });
 
   it("refuses to rename over an existing destination", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-workspace-test-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-test-"));
     try {
       const sourcePath = path.join(root, "source");
       const destinationPath = path.join(root, "destination");

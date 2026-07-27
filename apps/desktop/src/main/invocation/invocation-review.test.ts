@@ -10,7 +10,7 @@ import {
   agentCommandSnapshot,
   InvocationStore,
   type InvocationRecord,
-} from "@exo/core";
+} from "@stem/core";
 
 import { InvocationReviewService } from "./invocation-review";
 
@@ -157,13 +157,13 @@ describe("InvocationReviewService", () => {
   });
 
   it("uses the clean protocol base for Reject and preserves frontmatter bytes", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-envelope-review-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-envelope-review-"));
     temporaryRoots.push(workspaceRoot);
     const noteRoot = path.join(workspaceRoot, "notes");
     const notePath = path.join(noteRoot, "note.md");
     await mkdir(noteRoot);
     const clean = "---\ntitle: Exact\ntags: [one, two]\n---\nHuman text before request.\n\n";
-    const launchText = `${clean}<exo-invocation id=\"11111111-1111-4111-8111-111111111111\" agent=\"claude\" status=\"sent\">\n@claude edit\n</exo-invocation>\n`;
+    const launchText = `${clean}<stem-invocation id=\"11111111-1111-4111-8111-111111111111\" agent=\"claude\" status=\"sent\">\n@claude edit\n</stem-invocation>\n`;
     await writeFile(notePath, launchText);
     const store = new InvocationStore(workspaceRoot);
     const id = "envelope-review";
@@ -313,14 +313,14 @@ describe("InvocationReviewService", () => {
   });
 
   it.each(["deleted", "renamed"] as const)("restores the clean tagged note when the proposal %s it", async (operation) => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-tagged-path-review-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-tagged-path-review-"));
     temporaryRoots.push(workspaceRoot);
     const noteRoot = path.join(workspaceRoot, "notes");
     const notePath = path.join(noteRoot, "note.md");
     const renamedPath = path.join(noteRoot, "renamed.md");
     await mkdir(noteRoot);
     const clean = "Human text before request.\n\n";
-    const launchText = `${clean}<exo-invocation id=\"11111111-1111-4111-8111-111111111111\" agent=\"claude\" status=\"sent\">\n@claude organize\n</exo-invocation>\n`;
+    const launchText = `${clean}<stem-invocation id=\"11111111-1111-4111-8111-111111111111\" agent=\"claude\" status=\"sent\">\n@claude organize\n</stem-invocation>\n`;
     await writeFile(notePath, launchText);
     const store = new InvocationStore(workspaceRoot);
     const id = `tagged-${operation}`;
@@ -533,7 +533,7 @@ describe("InvocationReviewService", () => {
 });
 
 async function changesetFixture() {
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-review-"));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-review-"));
   temporaryRoots.push(workspaceRoot);
   const noteRoot = path.join(workspaceRoot, "notes");
   const paths = {
@@ -568,13 +568,13 @@ async function changesetFixture() {
 }
 
 async function unchangedTaggedFixture(createdCount: number) {
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-invocation-unchanged-tagged-"));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-unchanged-tagged-"));
   temporaryRoots.push(workspaceRoot);
   const noteRoot = path.join(workspaceRoot, "notes");
   const notePath = path.join(noteRoot, "note.md");
   await mkdir(noteRoot);
   const clean = "Human text before request.\n\n";
-  const launchText = `${clean}<exo-invocation id="11111111-1111-4111-8111-111111111111" agent="claude" status="sent">\n@claude create files\n</exo-invocation>\n`;
+  const launchText = `${clean}<stem-invocation id="11111111-1111-4111-8111-111111111111" agent="claude" status="sent">\n@claude create files\n</stem-invocation>\n`;
   await writeFile(notePath, launchText);
   const store = new InvocationStore(workspaceRoot);
   const id = `unchanged-tagged-${createdCount}`;
@@ -589,7 +589,7 @@ async function unchangedTaggedFixture(createdCount: number) {
 }
 
 async function ancestorSymlinkFixture(operation: "deleted" | "created") {
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `exo-review-symlink-${operation}-`));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `stem-review-symlink-${operation}-`));
   temporaryRoots.push(workspaceRoot);
   const noteRoot = path.join(workspaceRoot, "notes");
   const nested = path.join(noteRoot, "nested");
@@ -618,7 +618,7 @@ async function ancestorSymlinkFixture(operation: "deleted" | "created") {
 }
 
 async function modeOnlyFixture(action: "keep" | "reject") {
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `exo-review-mode-${action}-`));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `stem-review-mode-${action}-`));
   temporaryRoots.push(workspaceRoot);
   const noteRoot = path.join(workspaceRoot, "notes");
   const notePath = path.join(noteRoot, "note.md");
@@ -665,5 +665,5 @@ function invocationRecord(
 
 function testQuarantinePath(invocationId: string, changeId: string, target: string): string {
   const transaction = createHash("sha256").update(`${invocationId}\0${changeId}`).digest("hex").slice(0, 20);
-  return path.join(path.dirname(target), `.${path.basename(target)}.exo-review-${transaction}.quarantine`);
+  return path.join(path.dirname(target), `.${path.basename(target)}.stem-review-${transaction}.quarantine`);
 }

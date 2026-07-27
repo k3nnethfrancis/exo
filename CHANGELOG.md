@@ -11,7 +11,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
   interpretation at a time, and explicit effect review before every switch.
 - Adds optional Ontology discovery through a trusted Claude or Codex Command.
   The provider sees only a disposable Markdown snapshot under read-only
-  controls; Exo validates and stages a proposal, but never activates it without
+  controls; Stem validates and stages a proposal, but never activates it without
   Keep.
 - Adds the first provider-neutral graph-maintenance Skill, **Find and connect
   relevant context**. A graph-selected Note opens an ordinary inline
@@ -21,7 +21,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
   fresh read-only Claude and Codex sessions and generates a private local
   comparison dashboard without defining an automated quality gate.
 - Adds `Mod+B` and `Mod+Alt+B` shell shortcuts for Explorer and Utility,
-  plus a compact lower-menu Help surface sourced from Exo's current
+  plus a compact lower-menu Help surface sourced from Stem's current
   keybinding and CLI command catalogs.
 - Adds `/today` and `/tomorrow` editor commands that expand to ordinary date
   wikilinks and open or create the corresponding daily Note through the
@@ -42,11 +42,11 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Renders Obsidian-style `![[image.png]]` embeds from contained files in the
   current Note Root, including the common `|width` suffix.
 - Adds automatic semantic catch-up for QMD `On save` indexing: small pending
-  sets run in bounded slices only after Exo is quiet and the system is idle,
+  sets run in bounded slices only after Stem is quiet and the system is idle,
   while `Manual only` remains an explicit pause.
-- Adds Exo-aware inline Command prompts, snapshot-backed inline editor diffs,
+- Adds Stem-aware inline Command prompts, snapshot-backed inline editor diffs,
   and per-Command Claude context continuity with visible provenance and reset.
-- Adds a focused first-run flow: choose one main wiki, optionally install Exo's Workspace status/search MCP tools into Claude and Codex, then persist editable local invocation commands.
+- Adds a focused first-run flow: choose one main wiki, optionally install Stem's Workspace status/search MCP tools into Claude and Codex, then persist editable local invocation commands.
 - Renders contained Markdown image attachments in the live editor while preserving raw source editing at the caret.
 - Adds reviewable inline Command outcomes: exact tagged-note patch, Keep/Reject with dirty-buffer and disk-drift protection, and Claude **Resume in Shell** when the command returned a real session id.
 - Adds an **Agents** section to Workspace Settings for configuring the commands behind `@` mentions.
@@ -68,7 +68,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
   or invalid: saved registry entries remain selectable but never reopen on their
   own.
 - Prevents a packaged app's bundled plugin resources from being mistaken for a
-  source checkout when Exo reports CLI installation status.
+  source checkout when Stem reports CLI installation status.
 - Restores the local Electron runtime after macOS packaging so development and
   source E2E launches continue without reinstalling dependencies.
 - Replaces incomplete cached Electron distributions before recovery instead of
@@ -83,12 +83,12 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Narrows the CLI to orientation, paginated path-first search, explicit
   configured-Command invocation, index status/sync, and desktop handoff;
   removes CLI file reading and remote preview/terminal/configuration control.
-- Makes CLI and MCP search return the shared bounded `exo.search.v1` page with
+- Makes CLI and MCP search return the shared bounded `stem.search.v1` page with
   paths, root-relative metadata, retrieval warnings, and an opaque cursor;
   agents inspect returned paths with their own filesystem tools.
 - Sends inline agent invocations with Command+Return and presents the compact `⌘ ↵` shortcut glyph beside the active request.
-- Narrows the optional Exo MCP from status/search/read to workspace status and search only; agents use returned paths through their own native file permissions.
-- Resolves Exo MCP scope from the provider process's caller directory, refuses ambiguous Workspace matches, and falls back to scoped filesystem retrieval when a running app belongs elsewhere.
+- Narrows the optional Stem MCP from status/search/read to workspace status and search only; agents use returned paths through their own native file permissions.
+- Resolves Stem MCP scope from the provider process's caller directory, refuses ambiguous Workspace matches, and falls back to scoped filesystem retrieval when a running app belongs elsewhere.
 - Keeps Preview and Terminal as independent utility destinations with their own tabs, while allowing a tab to be dragged into an editor split and returned by closing its canvas pane.
 - Makes folder creation create a minimal `index.md`, while imported folders remain read-only until the user explicitly creates an index.
 - Moves workspace Settings to the lower workspace menu and tightens Explorer/titlebar chrome.
@@ -167,8 +167,8 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
   Command widget/decorations stable and incremental, and prevents stale slower
   note loads from replacing a newer same-pane selection.
 - Stops inherited operator note-root environment variables from skipping the first-run desktop setup; only explicit test fixtures may use that bypass.
-- Distinguishes a headless Command's chat/stdout from the Exo note in the invocation prompt, requires a successful filesystem write for linked responses, and fails stdout-only protocol completions that never reach the document.
-- Starts with an empty editor when no saved layout chooses a note instead of hard-coding an Exo `tasks.md`; restores only user-selected tabs and migrates saved canvas layouts from v2 to the renderer's canonical v3 schema.
+- Distinguishes a headless Command's chat/stdout from the Stem note in the invocation prompt, requires a successful filesystem write for linked responses, and fails stdout-only protocol completions that never reach the document.
+- Starts with an empty editor when no saved layout chooses a note instead of hard-coding an Stem `tasks.md`; restores only user-selected tabs and migrates saved canvas layouts from v2 to the renderer's canonical v3 schema.
 - Gives the built-in headless Claude command explicit prompt-free access to the bounded read/edit tools it needs for inline responses, while leaving custom commands unchanged.
 - Keeps provider identity separate from editable `@` handles, prevents
   continued sessions crossing Workspaces or overlapping in one lane, and
@@ -182,7 +182,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 - Gives viewBox-only SVG attachments a definite editor width so successfully loaded vectors cannot collapse to an invisible zero-width image.
 - Unifies inline invocation feedback around running, review, completed, and failed states; failed Claude sessions show the exact resume command, successful terminal handoff dismisses the status surface, and the authorization modal no longer survives a settled launch decision.
 - Clarifies onboarding's separate MCP and CLI access paths, shows only the two read-only MCP tools, treats an existing provider registration as installed, gives an actionable missing-provider-CLI error, and keeps configured agent commands on one full-width line.
-- Diagnoses the CLI visible to the desktop app during onboarding—current checkout, legacy Exo shim, missing command, or a command owned by something else—and offers an explicit checkout install/update command without ever changing it from MCP setup.
+- Diagnoses the CLI visible to the desktop app during onboarding—current checkout, legacy Stem shim, missing command, or a command owned by something else—and offers an explicit checkout install/update command without ever changing it from MCP setup.
 - Reserves a scroll-safe lower edge in the Explorer so long file lists fade out above the floating workspace menu instead of disappearing behind it.
 - Makes the inline `@claude` path genuinely headless and writable: the visible, fingerprinted default now uses `acceptEdits`, real Claude event-array output supplies session provenance, structured permission denials fail explicitly, and process finalization waits for drained output.
 - Keeps sent invocation envelopes visible only in raw Markdown, retains the agent-colored mention in live preview, prevents re-wrapping an existing invocation, and saves/prompts/baselines the same document snapshot before observation.
@@ -198,24 +198,24 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 
 ## 0.1.0-alpha.3 - 2026-05-31
 
-Installed-app readiness, direct-pty terminal reliability, Exo-on-Exo harness cleanup, and resident runtime support.
+Installed-app readiness, direct-pty terminal reliability, Stem-on-Stem harness cleanup, and resident runtime support.
 
 - Makes the packaged macOS app the intended stable daily runtime and adds `./scripts/install-mac-app` / `pnpm install:mac-app` for local unsigned app installation.
-- Adds `pnpm dev:qa` so source QA uses isolated `.exo-dev/` runtime and user-data state while installed Exo keeps coordinating notes, agents, CLI, and MCP.
-- Adds a resident runtime menu-bar controller: closing the window hides Exo, the process keeps the command server/MCP/watchers/transcripts/live pty agents alive, and explicit Quit warns before stopping live terminals.
+- Adds `pnpm dev:qa` so source QA uses isolated `.stem-dev/` runtime and user-data state while installed Stem keeps coordinating notes, agents, CLI, and MCP.
+- Adds a resident runtime menu-bar controller: closing the window hides Stem, the process keeps the command server/MCP/watchers/transcripts/live pty agents alive, and explicit Quit warns before stopping live terminals.
 - Replaces core tmux terminal runtime paths with direct `node-pty` sessions, disk-backed transcripts, bounded live-tail hydration, terminal health diagnostics, semantic agent-message delivery, and coalesced resize handling.
 - Refactors major desktop ownership boundaries out of the shell: app lifecycle, indexing, workspace notes, project review, agent instructions, workspace settings, renderer workspace/bootstrap/settings/mutation/open-document/terminal/pane-layout hooks, and typed desktop IPC.
 - Prunes MCP to the narrow agent work plane while keeping CLI as the broader operator/admin/debug surface.
-- Simplifies the Agent Config Editor to global and active exocortex instruction layers that align `AGENTS.md` and `CLAUDE.md`.
+- Simplifies the Agent Config Editor to global and active stemcortex instruction layers that align `AGENTS.md` and `CLAUDE.md`.
 - Adds and verifies hidden-window CLI/MCP QA, refreshed desktop visual baselines, full desktop e2e coverage, and the usability-readiness standard for installed daily use.
-- Installs and verifies `/Applications/Exo.app` as the local stable runtime with a visible macOS menu bar icon; normal `exo status` resolves to the installed runtime while `pnpm dev:qa` can run side-by-side.
-- Tracks the remaining CI Node 20 GitHub Actions deprecation warning as `EXO-ISSUE-025`.
+- Installs and verifies `/Applications/Stem.app` as the local stable runtime with a visible macOS menu bar icon; normal `stem status` resolves to the installed runtime while `pnpm dev:qa` can run side-by-side.
+- Tracks the remaining CI Node 20 GitHub Actions deprecation warning as `STEM-ISSUE-025`.
 
 ## 0.1.0-alpha.2 - 2026-05-17
 
 Tester-readiness hardening for terminal history, Markdown tasks, and agent search.
 
-- Simplifies terminal history behavior around explicit `full` and `custom` modes: `full` keeps Exo buffers untrimmed and transcripts default to forever.
+- Simplifies terminal history behavior around explicit `full` and `custom` modes: `full` keeps Stem buffers untrimmed and transcripts default to forever.
 - Removes hidden terminal transcript byte caps and renderer-side terminal buffer trimming.
 - Filters xterm device-response sequences so terminal control replies cannot leak into Claude/Codex input.
 - Makes rendered Markdown task checkboxes clickable, toggling the underlying `- [ ]` / `- [x]` source text directly.
@@ -228,19 +228,19 @@ Fresh setup and QMD integration hardening.
 
 - Adds repo-backed local install flow with `./scripts/install-local`, CI dry-run coverage, and pnpm dependency build-script allowlisting.
 - Hardens first launch by creating missing note roots, using portable workspace defaults, preserving empty folders in the explorer, and fixing the blank renderer hook-order crash.
-- Adds Exo-managed QMD indexing as an active optional substrate with lexical, semantic, and hybrid modes, Settings controls, status UI, sync/update/embed actions, and Explore indexed search on Enter.
-- Exposes QMD-backed index status, search, read, sync, update, and embed flows through the Exo CLI/MCP command server while keeping terminal-agent CLI/MCP tools intact.
-- Keeps QMD state under workspace-local `.exo/qmd`, credits upstream QMD by Tobi Lutke, and documents the adapter boundary and upgrade checklist.
+- Adds Stem-managed QMD indexing as an active optional substrate with lexical, semantic, and hybrid modes, Settings controls, status UI, sync/update/embed actions, and Explore indexed search on Enter.
+- Exposes QMD-backed index status, search, read, sync, update, and embed flows through the Stem CLI/MCP command server while keeping terminal-agent CLI/MCP tools intact.
+- Keeps QMD state under workspace-local `.stem/qmd`, credits upstream QMD by Tobi Lutke, and documents the adapter boundary and upgrade checklist.
 - Fixes merge-blocking review issues: stale QMD docid read safety, multi-root hybrid search, long-running index command timeouts, workspace-root command-server refresh, and the ignored root `postinstall` script.
 
 ## 0.1.0-alpha.0 - 2026-05-12
 
 Initial public alpha.
 
-- Defines Exo as a local-first agentic development environment built around a shared exocortex.
+- Defines Stem as a local-first agentic development environment built around a shared stemcortex.
 - Ships the Electron desktop shell with Markdown notes, explicit note/project roots, project file viewing/editing, and terminal panes.
 - Adds Claude, Codex, and shell terminal launchers with tmux-backed agent recovery.
-- Adds Exo CLI and MCP control surfaces for live terminal agents.
+- Adds Stem CLI and MCP control surfaces for live terminal agents.
 - Adds MCP integration setup helpers for Codex and Claude Code.
 - Narrows app search to fast note filename/path search while QMD remains future notes index infrastructure.
 - Adds the current docs, roadmap, task tracker, harness notes, and plugin architecture direction.

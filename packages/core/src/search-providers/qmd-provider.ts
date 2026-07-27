@@ -185,10 +185,10 @@ async function getIndexStatus(model: WorkspaceModel, runtimeRoot: string): Promi
 }
 
 async function runtimeStateWarnings(runtimeRoot: string): Promise<string[]> {
-  // The packaged app intentionally puts derived state at <workspace>/.exo. Do
+  // The packaged app intentionally puts derived state at <workspace>/.stem. Do
   // not silently write a user's repository configuration, but make a tracked
   // runtime directory visible before indexes/invocation records surprise them.
-  if (path.basename(runtimeRoot) !== ".exo") {
+  if (path.basename(runtimeRoot) !== ".stem") {
     return [];
   }
   const workspaceRoot = path.dirname(runtimeRoot);
@@ -197,18 +197,18 @@ async function runtimeStateWarnings(runtimeRoot: string): Promise<string[]> {
   }
   try {
     const gitignore = await readFile(path.join(workspaceRoot, ".gitignore"), "utf8");
-    if (gitignore.split(/\r?\n/).some(ignoresExoRuntimePath)) {
+    if (gitignore.split(/\r?\n/).some(ignoresStemRuntimePath)) {
       return [];
     }
   } catch {
     // A missing or unreadable .gitignore leaves the warning intentionally visible.
   }
-  return ["This Workspace is a Git repository and .exo/ is not ignored. Add .exo/ to .gitignore; Exo will not modify repository files automatically."];
+  return ["This Workspace is a Git repository and .stem/ is not ignored. Add .stem/ to .gitignore; Stem will not modify repository files automatically."];
 }
 
-function ignoresExoRuntimePath(line: string): boolean {
+function ignoresStemRuntimePath(line: string): boolean {
   const rule = line.trim();
-  return rule === ".exo" || rule === ".exo/" || rule === "/.exo" || rule === "/.exo/" || rule === "**/.exo" || rule === "**/.exo/";
+  return rule === ".stem" || rule === ".stem/" || rule === "/.stem" || rule === "/.stem/" || rule === "**/.stem" || rule === "**/.stem/";
 }
 
 async function pathExists(target: string): Promise<boolean> {
@@ -348,7 +348,7 @@ async function searchIndex(
         effectiveMode !== "lexical"
         && (!Boolean(qmdStatus.hasVectorIndex) || pendingEmbeddings > 0)
       ) {
-        warnings.push("Embeddings are not ready; Exo will use lexical fallback if semantic/hybrid search is unavailable.");
+        warnings.push("Embeddings are not ready; Stem will use lexical fallback if semantic/hybrid search is unavailable.");
       }
     } catch {
       // Status warnings and lexical exhaustion bounds are best-effort. A stream
@@ -679,7 +679,7 @@ async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise
   const store = await qmd.createStore({
     dbPath: getQmdDbPath(runtimeRoot),
     config: {
-      global_context: "Exo-managed QMD search provider. Indexed roots are explicitly selected by the user.",
+      global_context: "Stem-managed QMD search provider. Indexed roots are explicitly selected by the user.",
       collections: collectionConfig,
     },
   });
@@ -718,7 +718,7 @@ function baseStatus(model: WorkspaceModel, runtimeRoot: string): IndexStatus {
 
 function ensureIndexEnabled(model: WorkspaceModel): void {
   if (!shouldUseQmd(model)) {
-    throw new Error("The Exo index is off or has no indexed roots.");
+    throw new Error("The Stem index is off or has no indexed roots.");
   }
 }
 
@@ -771,7 +771,7 @@ function qmdCollectionIdentity(roots: IndexedRoot[]): QmdCollectionIdentity {
 }
 
 function qmdCollectionName(root: IndexedRoot): string {
-  return `exo-root-${createHash("sha256")
+  return `stem-root-${createHash("sha256")
     .update(path.resolve(root.path))
     .digest("hex")}`;
 }

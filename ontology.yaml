@@ -1,7 +1,7 @@
 ontology_schema: 1
-id: exo-repository
+id: stem-repository
 version: 1
-label: Exo repository
+label: Stem repository
 
 types:
   product-context:
@@ -46,7 +46,7 @@ types:
       - docs/provider-mcp-onboarding.md
       - docs/search.md
       - docs/troubleshooting.md
-      - docs/using-exo.md
+      - docs/using-stem.md
       - docs/workspace-ontology.md
 
   decision-record:

@@ -77,7 +77,7 @@ try {
 
 const report = roundDeep({
   schemaVersion: 1,
-  evaluation: 'Exo graph',
+  evaluation: 'Stem graph',
   profile: profileName,
   repetitions,
   runId,
@@ -346,5 +346,5 @@ function renderMarkdown(report) {
     return `| ${result.engine} | ${result.track} | ${result.fixture.nodes.toLocaleString()} | ${result.fixture.links.toLocaleString()} | ${result.measured}/${result.attempted} | ${primary} |`;
   });
   const gaps = report.results.filter((result) => result.status !== 'measured');
-  return `# Exo graph evaluation — ${report.profile}\n\nRun \`${report.runId}\` on ${report.hardware.cpu?.model || 'unknown CPU'} with ${report.hardware.browser}. Each supported case has ${report.repetitions} independent browser-page trial(s).\n\n| Engine | Track | Nodes | Links | Trials | primary p50 / p95 |\n| --- | --- | ---: | ---: | ---: | ---: |\n${rows.join('\n') || '| — | — | — | — | — | — |'}\n\n## Capability gaps\n\n${gaps.map((gap) => `- **${gap.engine} / ${gap.track} / trial ${gap.trial}:** ${gap.status} — ${gap.reason}`).join('\n') || '- None.'}\n\nFull per-trial measurements and aggregate distributions are in \`results.json\`. Lower frame/input latency is better; layout quality metrics are not interchangeable with render throughput.\n`;
+  return `# Stem graph evaluation — ${report.profile}\n\nRun \`${report.runId}\` on ${report.hardware.cpu?.model || 'unknown CPU'} with ${report.hardware.browser}. Each supported case has ${report.repetitions} independent browser-page trial(s).\n\n| Engine | Track | Nodes | Links | Trials | primary p50 / p95 |\n| --- | --- | ---: | ---: | ---: | ---: |\n${rows.join('\n') || '| — | — | — | — | — | — |'}\n\n## Capability gaps\n\n${gaps.map((gap) => `- **${gap.engine} / ${gap.track} / trial ${gap.trial}:** ${gap.status} — ${gap.reason}`).join('\n') || '- None.'}\n\nFull per-trial measurements and aggregate distributions are in \`results.json\`. Lower frame/input latency is better; layout quality metrics are not interchangeable with render throughput.\n`;
 }

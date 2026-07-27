@@ -27,7 +27,7 @@ describe("notes", () => {
   });
 
   it("preserves a date-only property when saving parsed YAML", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-note-date-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-note-date-"));
     const notePath = path.join(root, "dated.md");
     try {
       await writeFile(notePath, "---\ndate: 2026-07-11\n---\n# Dated\n", "utf8");
@@ -43,7 +43,7 @@ describe("notes", () => {
   });
 
   it("does not add a final newline that was absent from the Markdown body", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "exo-note-newline-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "stem-note-newline-"));
     const plainPath = path.join(root, "plain.md");
     const frontmatterPath = path.join(root, "frontmatter.md");
     try {

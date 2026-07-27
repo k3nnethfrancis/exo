@@ -14,7 +14,7 @@ describe("invocation snapshot projection", () => {
   });
 
   it("projects a Markdown artifact onto the editor body", () => {
-    expect(invocationSnapshotBody("---\ntitle: Before\ntags:\n  - exo\n---\n# Draft\n", "markdown"))
+    expect(invocationSnapshotBody("---\ntitle: Before\ntags:\n  - stem\n---\n# Draft\n", "markdown"))
       .toBe("# Draft\n");
   });
 
@@ -40,8 +40,8 @@ describe("invocation snapshot projection", () => {
 
   it("projects frontmatter-only edits as exact structured field changes", () => {
     const payload = {
-      beforeText: "---\ntitle: Before\ntags:\n  - exo\nstatus: draft\n---\nSame body\n",
-      afterText: "---\ntitle: After\ntags:\n  - exo\nstatus: ready\n---\nSame body\n",
+      beforeText: "---\ntitle: Before\ntags:\n  - stem\nstatus: draft\n---\nSame body\n",
+      afterText: "---\ntitle: After\ntags:\n  - stem\nstatus: ready\n---\nSame body\n",
       change: {
         before: { mode: 0o644 },
         after: { mode: 0o644 },
@@ -54,7 +54,7 @@ describe("invocation snapshot projection", () => {
         { key: "title", before: "Before", after: "After" },
       ],
     });
-    expect(invocationSnapshotFrontmatter(payload.afterText)).toBe("title: After\ntags:\n  - exo\nstatus: ready\n");
+    expect(invocationSnapshotFrontmatter(payload.afterText)).toBe("title: After\ntags:\n  - stem\nstatus: ready\n");
   });
 
   it("falls back to the exact YAML block when complex and simple keys change together", () => {

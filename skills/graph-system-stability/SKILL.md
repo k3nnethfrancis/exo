@@ -1,11 +1,11 @@
 ---
 name: graph-system-stability
-description: Use before changing Exo graph domain types, snapshot construction, relationship extraction, graph queries, Note Root Formats, Workspace Ontology interpretation, graph integrity checks, layout, scene logic, WebGPU/Canvas rendering, Graph Pane integration, or graph performance tests. Preserves Markdown ownership, open ontology, evidence, renderer independence, editor latency, deterministic layout, and fallback behavior.
+description: Use before changing Stem graph domain types, snapshot construction, relationship extraction, graph queries, Note Root Formats, Workspace Ontology interpretation, graph integrity checks, layout, scene logic, WebGPU/Canvas rendering, Graph Pane integration, or graph performance tests. Preserves Markdown ownership, open ontology, evidence, renderer independence, editor latency, deterministic layout, and fallback behavior.
 ---
 
 # Graph System Stability
 
-Protect Exo's graph architecture while changing its knowledge model or spatial
+Protect Stem's graph architecture while changing its knowledge model or spatial
 view. Apply only the branch of this workflow relevant to the task.
 
 ## Required orientation
@@ -22,7 +22,7 @@ For layout, scene, renderer, gestures, or labels also read:
 - `apps/desktop/src/renderer/src/components/SpatialGraphView.tsx`
 - `apps/desktop/src/renderer/src/graphWebGpuRenderer.ts`
 
-Keep production graph semantics in Exo's stable contracts; do not introduce a
+Keep production graph semantics in Stem's stable contracts; do not introduce a
 second graph application or graph model.
 
 ## Classify the change
@@ -127,7 +127,7 @@ repository's required architecture approval.
 ### Knowledge Graph changes
 
 ```bash
-pnpm --filter @exo/core test
+pnpm --filter @stem/core test
 pnpm typecheck
 ```
 
@@ -148,9 +148,9 @@ product claim.
 ### Production Graph Pane integration
 
 ```bash
-pnpm --filter @exo/desktop typecheck
-pnpm --filter @exo/desktop test
-pnpm --filter @exo/core test
+pnpm --filter @stem/desktop typecheck
+pnpm --filter @stem/desktop test
+pnpm --filter @stem/core test
 pnpm build
 ```
 
@@ -179,4 +179,4 @@ Stop and redesign if a change introduces:
 - a universal graph-quality score; or
 - private Note titles, paths, or topology in public artifacts.
 
--- Exo | 2026-07-17
+-- Stem | 2026-07-17

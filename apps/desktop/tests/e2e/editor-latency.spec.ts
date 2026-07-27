@@ -5,9 +5,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test, type Page } from "@playwright/test";
-import { createDefaultClaudeAgentCommand } from "@exo/core/default-agent-command";
+import { createDefaultClaudeAgentCommand } from "@stem/core/default-agent-command";
 
-import { launchExoWorkspaceFixture } from "../helpers";
+import { launchStemWorkspaceFixture } from "../helpers";
 import { latencySummary } from "../terminalQuality";
 
 const P50_BUDGET_MS = 99;
@@ -22,7 +22,7 @@ const compiledCliPath = path.join(repoRoot, "packages/cli/dist/index.cjs");
 test.setTimeout(120_000);
 
 test("keeps direct Explorer note navigation within the editor latency budget", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture();
+  const { page, cleanup } = await launchStemWorkspaceFixture();
 
   try {
     const samples = await measureAlternatingNavigation(page, async (target) => {
@@ -35,7 +35,7 @@ test("keeps direct Explorer note navigation within the editor latency budget", a
 });
 
 test("keeps CLI note navigation within the editor latency budget", async () => {
-  const { page, cleanup, runtimeRoot, workspaceRoot } = await launchExoWorkspaceFixture();
+  const { page, cleanup, runtimeRoot, workspaceRoot } = await launchStemWorkspaceFixture();
 
   try {
     const paths = {
@@ -49,12 +49,12 @@ test("keeps CLI note navigation within the editor latency budget", async () => {
     for (let index = 0; index < SAMPLE_COUNT; index += 1) {
       const target = index % 2 === 0 ? "related-note" : "focus-note";
       const startedAt = performance.now();
-      const result = runExoCli(["open", paths[target]], {
+      const result = runStemCli(["open", paths[target]], {
         ...stringEnv(process.env),
         COREPACK_ENABLE_PROJECT_SPEC: "0",
-        EXO_RUNTIME_ROOT: runtimeRoot,
-        EXO_WORKSPACE_ROOT: workspaceRoot,
-        EXO_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
+        STEM_RUNTIME_ROOT: runtimeRoot,
+        STEM_WORKSPACE_ROOT: workspaceRoot,
+        STEM_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
       });
       expect(result.status, result.stderr || result.error?.message).toBe(0);
       const dispatchedAt = performance.now();
@@ -64,7 +64,7 @@ test("keeps CLI note navigation within the editor latency budget", async () => {
       appSamples.push(completedAt - dispatchedAt);
     }
 
-    const exoSideSamples = totalSamples.map((sample) => Math.max(0, sample - startupSummary.p50));
+    const stemSideSamples = totalSamples.map((sample) => Math.max(0, sample - startupSummary.p50));
     console.info(`Node ${process.versions.node} process-start floor: ${JSON.stringify({
       samples: startupSummary.samples.length,
       p50: startupSummary.p50,
@@ -72,7 +72,7 @@ test("keeps CLI note navigation within the editor latency budget", async () => {
       p99: startupSummary.p99,
       max: startupSummary.max,
     })}`);
-    expectLatencyBudget("CLI open Exo-side work after runtime floor", exoSideSamples);
+    expectLatencyBudget("CLI open Stem-side work after runtime floor", stemSideSamples);
     expectLatencyBudget("CLI open in-app application", appSamples);
     expectTailLatencyBudget("CLI open total including runtime startup", totalSamples);
   } finally {
@@ -81,7 +81,7 @@ test("keeps CLI note navigation within the editor latency budget", async () => {
 });
 
 test("keeps filename-search note navigation within the editor latency budget", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture();
+  const { page, cleanup } = await launchStemWorkspaceFixture();
 
   try {
     const samples: number[] = [];
@@ -103,7 +103,7 @@ test("keeps filename-search note navigation within the editor latency budget", a
 });
 
 test("keeps live filename results responsive in a large workspace", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: (root) => createCorpus(root, 400),
   });
@@ -125,7 +125,7 @@ test("keeps live filename results responsive in a large workspace", async () => 
 });
 
 test("keeps breadcrumb folder navigation within the editor latency budget", async () => {
-  const { electronApp, page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+  const { electronApp, page, cleanup, workspaceRoot } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (root) => {
       const folder = path.join(root, "notes/test-notes/nested");
@@ -164,7 +164,7 @@ test("keeps breadcrumb folder navigation within the editor latency budget", asyn
 });
 
 test("keeps backlink note navigation within the editor latency budget", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture();
+  const { page, cleanup } = await launchStemWorkspaceFixture();
 
   try {
     await page.getByRole("button", { name: "focus-note" }).first().click();
@@ -191,7 +191,7 @@ test("keeps backlink note navigation within the editor latency budget", async ()
 
 test("keeps sustained Markdown typing within the input-to-frame-ready budget", async () => {
   const initialBody = largeMarkdownFixture();
-  const { electronApp, page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+  const { electronApp, page, cleanup, workspaceRoot } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareSettings: writeSettingsWithEnabledClaudeCommand,
     prepareWorkspace: async (root) => {
@@ -259,7 +259,7 @@ test("keeps sustained Markdown typing within the input-to-frame-ready budget", a
     await resetInputToFrameReadyProbe(page);
     const deletionStartedAt = performance.now();
     // 50 deletions/second exceeds normal macOS key-repeat while still leaving
-    // one frame between trusted input events so the probe measures Exo rather
+    // one frame between trusted input events so the probe measures Stem rather
     // than an artificial Chromium input-queue starvation loop.
     await sendBackspaceBurst(electronApp, deletionFixture.length, 20);
     await nextPaint(page);
@@ -292,9 +292,9 @@ test("keeps sustained Markdown typing within the input-to-frame-ready budget", a
     await resetInputToFrameReadyProbe(page);
     await page.evaluate(() => {
       const scoped = window as typeof window & {
-        __exoInlineAgentComposerNode?: Element | null;
+        __stemInlineAgentComposerNode?: Element | null;
       };
-      scoped.__exoInlineAgentComposerNode = document.querySelector("[data-testid='inline-agent-composer']");
+      scoped.__stemInlineAgentComposerNode = document.querySelector("[data-testid='inline-agent-composer']");
     });
     const invocationText = "agent latency ".repeat(30);
     const invocationStartedAt = performance.now();
@@ -304,10 +304,10 @@ test("keeps sustained Markdown typing within the input-to-frame-ready budget", a
     const invocationProbe = await readInputToFrameReadyProbe(page);
     const invocationMetadata = await page.evaluate(() => {
       const scoped = window as typeof window & {
-        __exoInlineAgentComposerNode?: Element | null;
+        __stemInlineAgentComposerNode?: Element | null;
       };
       return {
-        composerNodeStable: scoped.__exoInlineAgentComposerNode === document.querySelector("[data-testid='inline-agent-composer']"),
+        composerNodeStable: scoped.__stemInlineAgentComposerNode === document.querySelector("[data-testid='inline-agent-composer']"),
       };
     });
     const invocationSummary = latencySummary(invocationProbe.samples);
@@ -345,16 +345,16 @@ test("keeps sustained Markdown typing within the input-to-frame-ready budget", a
 });
 
 test("offers agent completion after a saved append is fully deleted", async () => {
-  const priorInvocation = `<exo-invocation id="123e4567-e89b-42d3-a456-426614174000" agent="claude" status="sent">
+  const priorInvocation = `<stem-invocation id="123e4567-e89b-42d3-a456-426614174000" agent="claude" status="sent">
 @claude Prior request
-</exo-invocation>`;
+</stem-invocation>`;
   const initialBody = `# Completion regression
 
 ${priorInvocation}
 
 Stable body.
 `;
-  const { electronApp, page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+  const { electronApp, page, cleanup, workspaceRoot } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareSettings: writeSettingsWithEnabledClaudeCommand,
     prepareWorkspace: async (root) => {
@@ -389,7 +389,7 @@ Stable body.
 
 test("keeps synchronous CodeMirror deletion transactions bounded", async () => {
   const initialBody = largeMarkdownFixture();
-  const { electronApp, page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+  const { electronApp, page, cleanup, workspaceRoot } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (root) => {
       await writeFile(path.join(root, "notes/test-notes/deletion-transactions.md"), initialBody, "utf8");
@@ -480,7 +480,7 @@ test("keeps synchronous CodeMirror deletion transactions bounded", async () => {
 });
 
 test("routes the first edit after a rapid tab switch to the active note", async () => {
-  const { electronApp, page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+  const { electronApp, page, cleanup, workspaceRoot } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (root) => {
       await writeFile(path.join(root, "notes/test-notes/switch-a.md"), "# Switch A\n\nalpha\n", "utf8");
@@ -579,7 +579,7 @@ function largeMarkdownFixture(): string {
   const paragraphs = Array.from({ length: 5_000 }, (_, index) =>
     `## Section ${index}\n\nParagraph ${index} with **formatting**, [[focus-note]], #latency, and ordinary prose.`,
   );
-  const priorInvocation = `<exo-invocation id="123e4567-e89b-42d3-a456-426614174000" agent="claude" status="sent">\n@claude Prior request\n</exo-invocation>`;
+  const priorInvocation = `<stem-invocation id="123e4567-e89b-42d3-a456-426614174000" agent="claude" status="sent">\n@claude Prior request\n</stem-invocation>`;
   const table = "| Metric | Budget |\n| --- | ---: |\n| p90 | 17 ms |";
   const fence = "```ts\nconst frameBudgetMs = 17;\n```";
   return `# Typing latency\n\n${priorInvocation}\n\n${table}\n\n${fence}\n\n${paragraphs.join("\n\n")}\n\n`;
@@ -677,7 +677,7 @@ async function waitForEditorTitle(page: Page, expectedTitle: string): Promise<vo
 }
 
 async function openFromCommand(
-  electronApp: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["electronApp"],
+  electronApp: Awaited<ReturnType<typeof launchStemWorkspaceFixture>>["electronApp"],
   filePath: string,
 ): Promise<void> {
   await electronApp.evaluate(({ BrowserWindow }, targetPath) => {
@@ -686,13 +686,13 @@ async function openFromCommand(
 }
 
 async function sendBackspaceBurst(
-  electronApp: Awaited<ReturnType<typeof launchExoWorkspaceFixture>>["electronApp"],
+  electronApp: Awaited<ReturnType<typeof launchStemWorkspaceFixture>>["electronApp"],
   count: number,
   intervalMs: number,
 ): Promise<void> {
   await electronApp.evaluate(async ({ BrowserWindow }, input) => {
     const webContents = BrowserWindow.getAllWindows()[0]?.webContents;
-    if (!webContents) throw new Error("Exo BrowserWindow is unavailable.");
+    if (!webContents) throw new Error("Stem BrowserWindow is unavailable.");
     for (let index = 0; index < input.count; index += 1) {
       webContents.sendInputEvent({ type: "keyDown", keyCode: "Backspace" });
       webContents.sendInputEvent({ type: "keyUp", keyCode: "Backspace" });
@@ -701,9 +701,9 @@ async function sendBackspaceBurst(
   }, { count, intervalMs });
 }
 
-function runExoCli(args: string[], env: NodeJS.ProcessEnv) {
+function runStemCli(args: string[], env: NodeJS.ProcessEnv) {
   if (!existsSync(compiledCliPath)) {
-    throw new Error("Compiled Exo CLI is missing. Run `pnpm --filter @exo/cli build` before the focused Electron latency spec.");
+    throw new Error("Compiled Stem CLI is missing. Run `pnpm --filter @stem/cli build` before the focused Electron latency spec.");
   }
   return spawnSync(process.execPath, [compiledCliPath, ...args], {
     cwd: repoRoot,
@@ -760,11 +760,11 @@ async function installInputToFrameReadyProbe(page: Page): Promise<void> {
     });
     observer.observe({ type: "longtask" });
     Object.assign(window, {
-      __exoTypingSamples: samples,
-      __exoBackspaceSamples: backspaceSamples,
-      __exoTypingLongTasks: longTasks,
-      __exoTypingEditorLiveness: editorLiveness,
-      __exoTypingObserver: observer,
+      __stemTypingSamples: samples,
+      __stemBackspaceSamples: backspaceSamples,
+      __stemTypingLongTasks: longTasks,
+      __stemTypingEditorLiveness: editorLiveness,
+      __stemTypingObserver: observer,
     });
   });
 }
@@ -776,40 +776,40 @@ async function resetInputToFrameReadyProbe(page: Page): Promise<void> {
     // counted as the first few characters of the measured composer request.
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
     const scoped = window as typeof window & {
-      __exoTypingSamples?: number[];
-      __exoBackspaceSamples?: number[];
-      __exoTypingLongTasks?: number[];
-      __exoTypingEditorLiveness?: boolean[];
-      __exoTypingObserver?: PerformanceObserver;
+      __stemTypingSamples?: number[];
+      __stemBackspaceSamples?: number[];
+      __stemTypingLongTasks?: number[];
+      __stemTypingEditorLiveness?: boolean[];
+      __stemTypingObserver?: PerformanceObserver;
     };
-    scoped.__exoTypingObserver?.takeRecords();
-    scoped.__exoTypingSamples?.splice(0);
-    scoped.__exoBackspaceSamples?.splice(0);
-    scoped.__exoTypingLongTasks?.splice(0);
-    scoped.__exoTypingEditorLiveness?.splice(0);
+    scoped.__stemTypingObserver?.takeRecords();
+    scoped.__stemTypingSamples?.splice(0);
+    scoped.__stemBackspaceSamples?.splice(0);
+    scoped.__stemTypingLongTasks?.splice(0);
+    scoped.__stemTypingEditorLiveness?.splice(0);
   });
 }
 
 async function readInputToFrameReadyProbe(page: Page): Promise<InputToFrameReadyProbeResult> {
   return page.evaluate(() => {
     const scoped = window as typeof window & {
-      __exoTypingSamples?: number[];
-      __exoBackspaceSamples?: number[];
-      __exoTypingLongTasks?: number[];
-      __exoTypingEditorLiveness?: boolean[];
+      __stemTypingSamples?: number[];
+      __stemBackspaceSamples?: number[];
+      __stemTypingLongTasks?: number[];
+      __stemTypingEditorLiveness?: boolean[];
     };
     return {
-      samples: [...(scoped.__exoTypingSamples ?? [])],
-      backspaceSamples: [...(scoped.__exoBackspaceSamples ?? [])],
-      longTasks: [...(scoped.__exoTypingLongTasks ?? [])],
-      editorLiveness: [...(scoped.__exoTypingEditorLiveness ?? [])],
+      samples: [...(scoped.__stemTypingSamples ?? [])],
+      backspaceSamples: [...(scoped.__stemBackspaceSamples ?? [])],
+      longTasks: [...(scoped.__stemTypingLongTasks ?? [])],
+      editorLiveness: [...(scoped.__stemTypingEditorLiveness ?? [])],
     };
   });
 }
 
 async function disconnectInputToFrameReadyProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
-    (window as typeof window & { __exoTypingObserver?: PerformanceObserver }).__exoTypingObserver?.disconnect();
+    (window as typeof window & { __stemTypingObserver?: PerformanceObserver }).__stemTypingObserver?.disconnect();
   });
 }
 

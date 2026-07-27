@@ -38,7 +38,7 @@ export type {
   WorkspaceSettingsSection,
   WorkspaceSetupState,
 } from "./api/workspace-setup";
-export type { WorkspaceRegistryEntry } from "@exo/core";
+export type { WorkspaceRegistryEntry } from "@stem/core";
 export type { IndexSyncStateEvent } from "./api/workspace-index";
 
 /**

@@ -43,7 +43,7 @@ export async function runStandaloneGraphGpuProbe(options: StandaloneGraphGpuProb
     value: options.app.commandLine.getSwitchValue(name),
   }]));
   const launchArguments = process.argv.slice(1);
-  const exoFeatureOverrideArguments = launchArguments.filter((argument) =>
+  const stemFeatureOverrideArguments = launchArguments.filter((argument) =>
     /^--(?:enable|disable)-features(?:=|$)/.test(argument)
     || /^--enable-unsafe-webgpu(?:=|$)/.test(argument)
     || /^--use-angle(?:=|$)/.test(argument));
@@ -59,7 +59,7 @@ export async function runStandaloneGraphGpuProbe(options: StandaloneGraphGpuProb
     gpuFeatureStatus: options.app.getGPUFeatureStatus(),
     gpuInfo: await options.app.getGPUInfo("basic").catch((error) => ({ error: String(error) })),
     launchArguments,
-    exoFeatureOverrideArguments,
+    stemFeatureOverrideArguments,
     switches,
   };
   const report = {
@@ -70,7 +70,7 @@ export async function runStandaloneGraphGpuProbe(options: StandaloneGraphGpuProb
   };
   await writeFile(options.outputPath, `${JSON.stringify(report, null, 2)}\n`, "utf8");
   window.destroy();
-  const status = isSuccessfulProbe(result) && exoFeatureOverrideArguments.length === 0 ? 0 : 1;
+  const status = isSuccessfulProbe(result) && stemFeatureOverrideArguments.length === 0 ? 0 : 1;
   options.app.exit(status);
 }
 
@@ -78,7 +78,7 @@ async function waitForProbeResult(window: BrowserWindow): Promise<unknown> {
   const deadline = Date.now() + PROBE_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (window.isDestroyed()) throw new Error("The WebGPU probe window closed before producing a result.");
-    const result = await window.webContents.executeJavaScript("globalThis.__exoGraphGpuProbeResult ?? null", true);
+    const result = await window.webContents.executeJavaScript("globalThis.__stemGraphGpuProbeResult ?? null", true);
     if (result) return result;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }

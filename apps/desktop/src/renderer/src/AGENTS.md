@@ -2,7 +2,7 @@
 
 This directory owns rendered interaction, local state, and presentation. It
 never owns filesystem/process access or a second version of core domain rules;
-use `window.exo` through preload/shared API types.
+use `window.stem` through preload/shared API types.
 
 ## Start with the owner
 
@@ -47,12 +47,12 @@ use `window.exo` through preload/shared API types.
 ## Focused gates
 
 ```bash
-pnpm --filter @exo/desktop exec vitest run src/renderer/src/hooks/useCanvasDocumentNavigation.test.ts
-pnpm --filter @exo/desktop exec vitest run src/renderer/src/hooks/useInvocationReviewController.test.ts src/renderer/src/invocationReviewQueue.test.ts
-pnpm --filter @exo/desktop exec vitest run src/renderer/src/components/markdown-live-preview/index.test.ts
-pnpm --filter @exo/desktop exec playwright test tests/e2e/markdown-rules.spec.ts
-pnpm --filter @exo/desktop typecheck
+pnpm --filter @stem/desktop exec vitest run src/renderer/src/hooks/useCanvasDocumentNavigation.test.ts
+pnpm --filter @stem/desktop exec vitest run src/renderer/src/hooks/useInvocationReviewController.test.ts src/renderer/src/invocationReviewQueue.test.ts
+pnpm --filter @stem/desktop exec vitest run src/renderer/src/components/markdown-live-preview/index.test.ts
+pnpm --filter @stem/desktop exec playwright test tests/e2e/markdown-rules.spec.ts
+pnpm --filter @stem/desktop typecheck
 ```
 
 Use the real Electron renderer for UI/terminal changes. A browser-only route
-does not provide `window.exo` and cannot prove IPC behavior.
+does not provide `window.stem` and cannot prove IPC behavior.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { WorkspaceModel, WorkspaceSettings } from "@exo/core";
+import type { WorkspaceModel, WorkspaceSettings } from "@stem/core";
 
 import { WorkspaceRuntimeCoordinator } from "./workspace-runtime-coordinator";
 
@@ -31,7 +31,7 @@ describe("WorkspaceRuntimeCoordinator", () => {
     finishRecovery();
     await expect(activating).resolves.toMatchObject({
       status: "applied",
-      active: { settings: destination, revision: "destination-revision", runtimeRoot: "/destination/.exo" },
+      active: { settings: destination, revision: "destination-revision", runtimeRoot: "/destination/.stem" },
     });
     expect(events).toEqual([
       "recover:/destination",
@@ -84,7 +84,7 @@ describe("WorkspaceRuntimeCoordinator", () => {
     expect(coordinator.current()).toMatchObject({
       settings: { workspaceRoot: "/workspace-a" },
       model: { workspaceRoot: "/workspace-a" },
-      runtimeRoot: "/workspace-a/.exo",
+      runtimeRoot: "/workspace-a/.stem",
     });
     expect(events.filter((event) => event.startsWith("publish:"))).toEqual([
       "publish:/workspace-a:destination-revision",
@@ -327,7 +327,7 @@ function coordinatorFor(
   overrides: Partial<ConstructorParameters<typeof WorkspaceRuntimeCoordinator>[0]> = {},
 ): WorkspaceRuntimeCoordinator {
   return new WorkspaceRuntimeCoordinator({
-    runtimeRootFor: (settings) => `${settings.workspaceRoot}/.exo`,
+    runtimeRootFor: (settings) => `${settings.workspaceRoot}/.stem`,
     recoverInvocations: async (candidate) => { events.push(`recover:${candidate.settings.workspaceRoot}`); },
     modelFromSettings: (settings) => model(settings.workspaceRoot),
     prepareNoteRoots: async (candidate) => { events.push(`prepare:${candidate.model.workspaceRoot}`); },
@@ -372,7 +372,7 @@ function settings(workspaceRoot: string): WorkspaceSettings {
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     searchEngine: "filesystem",
     appearanceMode: "system",
-    colorThemeId: "exo-neutral",
+    colorThemeId: "stem-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,

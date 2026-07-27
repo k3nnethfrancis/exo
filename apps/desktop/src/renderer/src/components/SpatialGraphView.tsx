@@ -12,7 +12,7 @@ import type {
   GraphConceptLookupReference,
   GraphConceptSummary,
   GraphTopology,
-} from "@exo/core";
+} from "@stem/core";
 
 import {
   graphEscapeDecision,
@@ -68,7 +68,7 @@ interface RecentGraphPick {
 }
 
 type DebugCanvas = HTMLCanvasElement & {
-  __exoGraphSnapshot?: () => (SpatialGraphRuntimeCounters & {
+  __stemGraphSnapshot?: () => (SpatialGraphRuntimeCounters & {
     metadataCacheEntries: number;
     sourceSnapshotId: string | null;
     selected: number;
@@ -77,9 +77,9 @@ type DebugCanvas = HTMLCanvasElement & {
     graphReturnPath: string | null;
     inspectedFilePath: string | null;
   }) | null;
-  __exoGraphPointForIndex?: (index: number) => { x: number; y: number; visible: boolean } | null;
-  __exoGraphPickAt?: (x: number, y: number) => number;
-  __exoGraphForceCanvasFallback?: () => Promise<void>;
+  __stemGraphPointForIndex?: (index: number) => { x: number; y: number; visible: boolean } | null;
+  __stemGraphPickAt?: (x: number, y: number) => number;
+  __stemGraphForceCanvasFallback?: () => Promise<void>;
 };
 
 export function SpatialGraphView({
@@ -154,7 +154,7 @@ export function SpatialGraphView({
     metadataPendingRef.current += 1;
     updatePendingWork();
     try {
-      const result = await window.exo.notes.getGraphConceptSummaries(unique, sourceSnapshotId);
+      const result = await window.stem.notes.getGraphConceptSummaries(unique, sourceSnapshotId);
       if (result.status === "stale") {
         refreshForStaleRead(sourceSnapshotId);
         return;
@@ -183,7 +183,7 @@ export function SpatialGraphView({
     metadataPendingRef.current += 1;
     updatePendingWork();
     try {
-      const result = await window.exo.notes.getGraphConceptDetailByIndex(index, sourceSnapshotId);
+      const result = await window.stem.notes.getGraphConceptDetailByIndex(index, sourceSnapshotId);
       if (result.status === "stale") {
         refreshForStaleRead(sourceSnapshotId);
         return null;
@@ -219,7 +219,7 @@ export function SpatialGraphView({
     metadataPendingRef.current += 1;
     updatePendingWork();
     try {
-      const result = await window.exo.notes.graphConceptLookup(reference, sourceSnapshotId);
+      const result = await window.stem.notes.graphConceptLookup(reference, sourceSnapshotId);
       if (result.status === "stale") {
         refreshForStaleRead(sourceSnapshotId);
         return null;
@@ -280,7 +280,7 @@ export function SpatialGraphView({
       return;
     }
     runtimeRef.current = runtime;
-    if (window.exo.test?.graphHooks) canvas.__exoGraphSnapshot = () => {
+    if (window.stem.test?.graphHooks) canvas.__stemGraphSnapshot = () => {
       const snapshot = runtimeRef.current?.snapshot();
       if (!snapshot) return null;
       return {
@@ -294,7 +294,7 @@ export function SpatialGraphView({
         inspectedFilePath: inspectedConceptRef.current?.filePath ?? null,
       };
     };
-    if (window.exo.test?.graphHooks) canvas.__exoGraphPointForIndex = (index) => {
+    if (window.stem.test?.graphHooks) canvas.__stemGraphPointForIndex = (index) => {
       const scene = runtimeRef.current?.getScene();
       if (!scene || index < 0 || index >= scene.topology.nodes.seeds.length) return null;
       const offset = index * 4;
@@ -304,13 +304,13 @@ export function SpatialGraphView({
         visible: scene.projection.nodes[offset + 3] === 1,
       };
     };
-    if (window.exo.test?.graphHooks) canvas.__exoGraphPickAt = (x, y) => {
+    if (window.stem.test?.graphHooks) canvas.__stemGraphPickAt = (x, y) => {
       const scene = runtimeRef.current?.getScene();
       if (!scene) return -1;
       return pickGraphSceneNode(scene.topology, scene.projection, scene.camera, x, y, { pointer: "fine" });
     };
-    if (window.exo.test?.graphHooks) {
-      canvas.__exoGraphForceCanvasFallback = () => runtime.forceCanvasFallbackForTesting();
+    if (window.stem.test?.graphHooks) {
+      canvas.__stemGraphForceCanvasFallback = () => runtime.forceCanvasFallbackForTesting();
     }
     const refreshCoordinator = new GraphSnapshotRefreshCoordinator(
       {
@@ -321,10 +321,10 @@ export function SpatialGraphView({
       updatePendingWork,
     );
     refreshCoordinatorRef.current = refreshCoordinator;
-    const unsubscribeWorkspace = window.exo.workspace.onDidChange((event) => {
+    const unsubscribeWorkspace = window.stem.workspace.onDidChange((event) => {
       if (shouldRefreshGraphForWorkspaceChange(event)) refreshCoordinator.workspaceChanged();
     });
-    const unsubscribeGraph = window.exo.workspace.onGraphChanged(() => refreshCoordinator.workspaceChanged());
+    const unsubscribeGraph = window.stem.workspace.onGraphChanged(() => refreshCoordinator.workspaceChanged());
     let worker: Worker | null = null;
     try {
       worker = new Worker(new URL("../workers/graphLayout.worker.ts", import.meta.url), { type: "module" });
@@ -378,10 +378,10 @@ export function SpatialGraphView({
       refreshCoordinatorRef.current = null;
       runtime.dispose();
       runtimeRef.current = null;
-      delete canvas.__exoGraphSnapshot;
-      delete canvas.__exoGraphPointForIndex;
-      delete canvas.__exoGraphPickAt;
-      delete canvas.__exoGraphForceCanvasFallback;
+      delete canvas.__stemGraphSnapshot;
+      delete canvas.__stemGraphPointForIndex;
+      delete canvas.__stemGraphPickAt;
+      delete canvas.__stemGraphForceCanvasFallback;
     };
   }, [rendererNonce, updatePendingWork]);
 
@@ -393,7 +393,7 @@ export function SpatialGraphView({
     updatePendingWork();
     setLoading(topologyRef.current === null);
     setError(null);
-    void window.exo.notes.getGraphTopology().then((next) => {
+    void window.stem.notes.getGraphTopology().then((next) => {
       if (request !== loadSequenceRef.current || runtimeRef.current !== runtime) return;
       const previous = topologyRef.current;
       if (previous?.sourceSnapshotId !== next.sourceSnapshotId) {

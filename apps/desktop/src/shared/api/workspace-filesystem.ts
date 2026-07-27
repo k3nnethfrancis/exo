@@ -1,4 +1,4 @@
-import type { FolderIndexResult, FolderOverview, TreeNode } from "@exo/core";
+import type { FolderIndexResult, FolderOverview, TreeNode } from "@stem/core";
 
 export interface WorkspaceFilesystemApi {
   listTree: (

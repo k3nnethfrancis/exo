@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchExoWorkspaceFixture } from "../helpers";
+import { launchStemWorkspaceFixture } from "../helpers";
 
 test("renders underscore thematic breaks in markdown live preview", async () => {
   const markdownContent = `# Rule Test
@@ -14,7 +14,7 @@ ___
 Below.
 `;
 
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/rule-test.md");
@@ -24,15 +24,15 @@ Below.
 
   await page.getByRole("button", { name: /rule-test/i }).first().click();
 
-  await expect(page.locator(".exo-md-line--rule")).toHaveCount(1);
-  await expect(page.locator(".exo-md-line--rule .exo-md-syntax-hidden")).toContainText("___");
-  await expect(page.locator(".exo-md-line--rule")).toHaveCSS("border-top-style", "solid");
+  await expect(page.locator(".stem-md-line--rule")).toHaveCount(1);
+  await expect(page.locator(".stem-md-line--rule .stem-md-syntax-hidden")).toContainText("___");
+  await expect(page.locator(".stem-md-line--rule")).toHaveCSS("border-top-style", "solid");
 
   await cleanup();
 });
 
 test("continues and exits markdown bullets in live preview", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/list-edit-test.md");
@@ -77,7 +77,7 @@ test("continues and exits markdown bullets in live preview", async () => {
 });
 
 test("renders ordered-list markers at the text size and vertical center", async ({}, testInfo) => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/ordered-list-rendering.md");
@@ -87,7 +87,7 @@ test("renders ordered-list markers at the text size and vertical center", async 
 
   try {
     await page.getByRole("button", { name: /ordered-list-rendering/i }).first().click();
-    const firstItem = page.locator(".exo-md-line--list-ordered").first();
+    const firstItem = page.locator(".stem-md-line--list-ordered").first();
 
     await expect.poll(() => firstItem.evaluate((line) => {
       const lineStyle = window.getComputedStyle(line);
@@ -117,7 +117,7 @@ test("renders ordered-list markers at the text size and vertical center", async 
 });
 
 test("continues and exits markdown task list items in live preview", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/task-list-edit-test.md");
@@ -139,7 +139,7 @@ test("continues and exits markdown task list items in live preview", async () =>
     view.focus();
     return textStart;
   });
-  await expect(page.locator(".exo-md-checkbox")).toHaveCount(1);
+  await expect(page.locator(".stem-md-checkbox")).toHaveCount(1);
   await expect.poll(() => page.evaluate(() => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
     return content?.cmView?.view?.state.selection.main.head ?? -1;
@@ -163,7 +163,7 @@ test("continues and exits markdown task list items in live preview", async () =>
       }),
     )
     .toBe("# Task List Edit Test\n\n- [x] follow up\n- [ ] \n");
-  await expect(page.locator(".exo-md-checkbox")).toHaveCount(2);
+  await expect(page.locator(".stem-md-checkbox")).toHaveCount(2);
 
   await page.keyboard.press("Enter");
   await expect
@@ -179,7 +179,7 @@ test("continues and exits markdown task list items in live preview", async () =>
 });
 
 test("renders and edits ordered lists with aligned nested markers", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/ordered-list-edit-test.md");
@@ -188,12 +188,12 @@ test("renders and edits ordered lists with aligned nested markers", async () => 
   });
 
   await page.getByRole("button", { name: /ordered-list-edit-test/i }).first().click();
-  const orderedLines = page.locator(".exo-md-line--list-ordered");
+  const orderedLines = page.locator(".stem-md-line--list-ordered");
   await expect(orderedLines).toHaveCount(3);
   await expect
     .poll(() => orderedLines.evaluateAll((nodes) => nodes.map((node) => ({
-      marker: node.getAttribute("data-exo-list-marker"),
-      depth: node.getAttribute("data-exo-list-depth"),
+      marker: node.getAttribute("data-stem-list-marker"),
+      depth: node.getAttribute("data-stem-list-depth"),
       paddingLeft: window.getComputedStyle(node).paddingLeft,
       markerContent: window.getComputedStyle(node, "::before").content,
     }))))
@@ -221,7 +221,7 @@ test("renders and edits ordered lists with aligned nested markers", async () => 
 });
 
 test("expands slash dates into normal wikilinks and opens the root daily note", async () => {
-  const { page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+  const { page, cleanup, workspaceRoot } = await launchStemWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (root) => {
@@ -248,7 +248,7 @@ test("expands slash dates into normal wikilinks and opens the root daily note", 
     return content?.cmView?.view?.state.doc.toString() ?? "";
   })).toContain(`[[${date}]]`);
 
-  await page.locator(`[data-exo-link-target="${date}"]`).click();
+  await page.locator(`[data-stem-link-target="${date}"]`).click();
   const dailyPath = path.join(workspaceRoot, "notes/test-notes", `${date}.md`);
   await expect.poll(() => readFile(dailyPath, "utf8").catch(() => "")).toContain(`# ${date}`);
   await expect(page.getByRole("button", { name: date }).last()).toBeVisible();
@@ -257,7 +257,7 @@ test("expands slash dates into normal wikilinks and opens the root daily note", 
 });
 
 test("opens inline tags as normal note links while keeping the hash visible", async () => {
-  const { page, cleanup, workspaceRoot } = await launchExoWorkspaceFixture({
+  const { page, cleanup, workspaceRoot } = await launchStemWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (root) => {
@@ -266,7 +266,7 @@ test("opens inline tags as normal note links while keeping the hash visible", as
   });
 
   await page.getByRole("button", { name: /tag-link-test/i }).first().click();
-  const tag = page.locator('[data-exo-tag="strategy"]');
+  const tag = page.locator('[data-stem-tag="strategy"]');
   await expect(tag).toHaveText("#strategy");
   await expect(tag).toHaveCSS("cursor", "pointer");
   await tag.click();
@@ -278,7 +278,7 @@ test("opens inline tags as normal note links while keeping the hash visible", as
 });
 
 test("Tab and Enter exit wikilinks without adding whitespace", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/wikilink-edit-test.md");
@@ -348,7 +348,7 @@ test("Tab and Enter exit wikilinks without adding whitespace", async () => {
 });
 
 test("suggests existing note targets while typing wikilinks", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
@@ -406,7 +406,7 @@ test("suggests existing note targets while typing wikilinks", async () => {
 });
 
 test("keeps wikilink completion overlays outside editor clipping", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
@@ -458,7 +458,7 @@ test("keeps wikilink completion overlays outside editor clipping", async () => {
 });
 
 test("lets Enter add a line above a first-line wikilink", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
@@ -495,7 +495,7 @@ test("lets Enter add a line above a first-line wikilink", async () => {
 });
 
 test("keeps generated graph references outside editable list layout", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const notesRoot = path.join(workspaceRoot, "notes/test-notes");
@@ -521,7 +521,7 @@ test("keeps generated graph references outside editable list layout", async () =
 });
 
 test("keeps cursor and shortcut selections out of rendered list markers", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/list-cursor-boundaries.md");
@@ -610,7 +610,7 @@ test("keeps cursor and shortcut selections out of rendered list markers", async 
 });
 
 test("repairs structural list metadata before compiling the current viewport interaction", async () => {
-  const { page, cleanup } = await launchExoWorkspaceFixture({
+  const { page, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       await writeFile(
@@ -635,10 +635,10 @@ test("repairs structural list metadata before compiling the current viewport int
       view.dispatch({ changes: { from, to: from + "plain item".length, insert: "  - [ ] repaired task" } });
     });
 
-    const checkbox = page.locator("[data-exo-checkbox-pos]");
+    const checkbox = page.locator("[data-stem-checkbox-pos]");
     await expect(checkbox).toHaveCount(1);
     await expect(
-      page.locator('.exo-md-line--task.exo-md-line--list-start[data-exo-list-depth="1"]'),
+      page.locator('.stem-md-line--task.stem-md-line--list-start[data-stem-list-depth="1"]'),
     ).toHaveCount(1);
     await checkbox.click();
     await expect.poll(() => page.evaluate(() => {

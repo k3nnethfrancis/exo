@@ -1,7 +1,7 @@
 import type { ITheme } from "xterm";
 
-import type { ExoThemeVariant } from "./types";
+import type { StemThemeVariant } from "./types";
 
-export function exoXtermTheme(theme: ExoThemeVariant): ITheme {
+export function stemXtermTheme(theme: StemThemeVariant): ITheme {
   return theme.terminal;
 }

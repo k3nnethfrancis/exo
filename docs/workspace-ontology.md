@@ -1,6 +1,6 @@
 # Workspace ontology
 
-Exo recognizes user-owned Ontology sources at:
+Stem recognizes user-owned Ontology sources at:
 
 ```text
 <Workspace Root>/ontology.yaml
@@ -14,7 +14,7 @@ there is simply no additional ontology interpretation.
 
 ## Start with the base graph
 
-Exo does not require an Ontology for an exograph to work. In Generic Markdown,
+Stem does not require an Ontology for its knowledge graph to work. In Generic Markdown,
 each resolved Markdown file becomes one Concept. Headings label or structure
 that Note; they do not create additional Concepts. Authored wikilinks and
 Markdown links connect the existing file Concepts, and tags form shared tag
@@ -28,10 +28,10 @@ type: project
 status: active
 ---
 
-# Exo
+# Stem
 ```
 
-Here `type: project` is an open classification of the Exo Note. It is not a
+Here `type: project` is an open classification of the Stem Note. It is not a
 second `project` node or an edge. The optional Ontology gives selected existing
 fields a precise, workspace-local meaning; it never replaces the Note, its
 frontmatter, or its authored links.
@@ -92,7 +92,7 @@ active, and base-graph identities for Keep and Reject, preventing a stale
 review from accepting newer bytes.
 
 An explicitly kept source and revision are atomically persisted under the
-Workspace runtime's `.exo/ontology/activation.json`. This is reproducible
+Workspace runtime's `.stem/ontology/activation.json`. This is reproducible
 derived state, not canonical knowledge. It allows restart to preserve the last
 kept interpreter while the user-owned candidate changes. A missing or invalid
 kept state falls back explicitly to the existing base graph without additional
@@ -121,7 +121,7 @@ receives a user-owned `skills/design-workspace-ontology.md`, a schema-bound
 response contract, read-only tools/sandboxing, and no live Workspace write
 authority. Generic Commands are not accepted by this early-access path.
 
-The Exo host validates the returned source, rechecks the exact graph,
+The Stem host validates the returned source, rechecks the exact graph,
 Candidate, and Active identities observed before the run, and is the only
 writer allowed to stage root `ontology.yaml`. A proposal is still only a
 Candidate: the active graph does not change until Keep. Abstention, questions,
@@ -159,7 +159,7 @@ properties:
 ```
 
 If a project Note contains a `supports` frontmatter value pointing at a claim
-Note, Exo may add a `supports` Relation with `ontology` origin. The Relation
+Note, Stem may add a `supports` Relation with `ontology` origin. The Relation
 still cites the source property and the exact Ontology rule. An ordinary
 wikilink remains a `document`-origin Relation whether or not an Ontology is
 active.

@@ -1,5 +1,5 @@
 import type { DesktopApi, IndexSyncStateEvent, TerminalDataEvent, TerminalSessionInfo, WorkspaceSettingsSection } from "./api";
-import type { InvocationActivityEvent, InvocationRecord } from "@exo/core";
+import type { InvocationActivityEvent, InvocationRecord } from "@stem/core";
 
 type WorkspaceApi = DesktopApi["workspace"];
 type NotesApi = DesktopApi["notes"];

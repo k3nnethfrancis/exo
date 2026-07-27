@@ -1,4 +1,4 @@
-import type { AgentCommand } from "@exo/core";
+import type { AgentCommand } from "@stem/core";
 
 import {
   InvocationAuthorizationPopover,

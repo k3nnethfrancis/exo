@@ -1,4 +1,4 @@
-import type { AgentCommand, IndexedRoot, SearchEngine, WorkspaceContentPolicy, WorkspaceSettings, WorkspaceSettingsRevision } from "@exo/core";
+import type { AgentCommand, IndexedRoot, SearchEngine, WorkspaceContentPolicy, WorkspaceSettings, WorkspaceSettingsRevision } from "@stem/core";
 
 import type { AppearanceMode } from "./appearance";
 import type { ColorThemeId } from "./theme/types";

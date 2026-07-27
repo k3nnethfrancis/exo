@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { expect, test, type Page } from "@playwright/test";
 
-import { launchExoTerminalFixture } from "../helpers";
+import { launchStemTerminalFixture } from "../helpers";
 import { latencySummary } from "../terminalQuality";
 
 const CORPUS_SIZE = 1_200;
@@ -21,7 +21,7 @@ interface ConcurrentSurfaceResults {
 test.setTimeout(120_000);
 
 test("keeps editor and the full graph responsive while QMD refresh runs out of process", async () => {
-  const fixture = await launchExoTerminalFixture({
+  const fixture = await launchStemTerminalFixture({
     mutable: true,
     initialNoteLabel: "latency",
     prepareWorkspace: async (workspaceRoot) => {
@@ -47,7 +47,7 @@ test("keeps editor and the full graph responsive while QMD refresh runs out of p
         indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
         searchEngine: "filesystem",
         appearanceMode: "system",
-        colorThemeId: "exo-neutral",
+        colorThemeId: "stem-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -75,13 +75,13 @@ test("keeps editor and the full graph responsive while QMD refresh runs out of p
     }, { timeout: 30_000 }).toBeGreaterThanOrEqual(CORPUS_SIZE);
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
       return (canvas as HTMLCanvasElement & {
-        __exoGraphSnapshot?: () => { pendingWork: number; pendingFrame: boolean; moving: boolean; rendererKind: string | null };
-      }).__exoGraphSnapshot?.() ?? null;
+        __stemGraphSnapshot?: () => { pendingWork: number; pendingFrame: boolean; moving: boolean; rendererKind: string | null };
+      }).__stemGraphSnapshot?.() ?? null;
     })).toMatchObject({ pendingWork: 0, pendingFrame: false, moving: false });
     const graphRuntime = await graphCanvas.evaluate((canvas) => {
       const snapshot = (canvas as HTMLCanvasElement & {
-        __exoGraphSnapshot?: () => { rendererKind: string | null; rendererRecoveryState: string };
-      }).__exoGraphSnapshot?.();
+        __stemGraphSnapshot?: () => { rendererKind: string | null; rendererRecoveryState: string };
+      }).__stemGraphSnapshot?.();
       canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: -60, clientX: 120, clientY: 120, bubbles: true, cancelable: true }));
       return snapshot ?? null;
     });
@@ -91,20 +91,20 @@ test("keeps editor and the full graph responsive while QMD refresh runs out of p
 
     await fixture.page.evaluate(() => {
       const scoped = window as typeof window & {
-        __exoConcurrentIndexUpdate?: Promise<unknown>;
-        __exoConcurrentIndexPending?: boolean;
+        __stemConcurrentIndexUpdate?: Promise<unknown>;
+        __stemConcurrentIndexPending?: boolean;
       };
-      scoped.__exoConcurrentIndexPending = true;
-      scoped.__exoConcurrentIndexUpdate = window.exo.workspace.updateIndex().finally(() => {
-        scoped.__exoConcurrentIndexPending = false;
+      scoped.__stemConcurrentIndexPending = true;
+      scoped.__stemConcurrentIndexUpdate = window.stem.workspace.updateIndex().finally(() => {
+        scoped.__stemConcurrentIndexPending = false;
       });
     });
-    expect(await fixture.page.evaluate(() => (window as typeof window & { __exoConcurrentIndexPending?: boolean }).__exoConcurrentIndexPending)).toBe(true);
+    expect(await fixture.page.evaluate(() => (window as typeof window & { __stemConcurrentIndexPending?: boolean }).__stemConcurrentIndexPending)).toBe(true);
 
     const latencyPath = path.join(fixture.workspaceRoot, "notes/test-notes/latency.md");
     await fixture.page.evaluate(({ filePath, searchSamples }) => {
       const scoped = window as typeof window & {
-        __exoConcurrentSurfaces?: Promise<ConcurrentSurfaceResults>;
+        __stemConcurrentSurfaces?: Promise<ConcurrentSurfaceResults>;
       };
       const measure = async <Value>(run: () => Promise<Value>): Promise<{ elapsed: number; value: Value }> => {
         const startedAt = performance.now();
@@ -116,10 +116,10 @@ test("keeps editor and the full graph responsive while QMD refresh runs out of p
           measure(run),
           new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${label} exceeded 5 seconds`)), 5_000)),
         ]);
-      scoped.__exoConcurrentSurfaces = (async () => {
+      scoped.__stemConcurrentSurfaces = (async () => {
         // Start cold graph work before Search. These surfaces must remain
         // independently usable even when both need derived state.
-        const graphPromise = bounded("graph context", () => window.exo.notes.getGraphContext(filePath));
+        const graphPromise = bounded("graph context", () => window.stem.notes.getGraphContext(filePath));
         await new Promise<void>((resolve) => setTimeout(resolve, 0));
         const searchPromise = (async () => {
           const samples: number[] = [];
@@ -128,12 +128,12 @@ test("keeps editor and the full graph responsive while QMD refresh runs out of p
           for (let index = 0; index < searchSamples; index += 1) {
             let sample: {
               elapsed: number;
-              value: Awaited<ReturnType<typeof window.exo.workspace.searchIndex>>;
+              value: Awaited<ReturnType<typeof window.stem.workspace.searchIndex>>;
             };
             try {
-              sample = await bounded(`search ${index + 1}`, () => window.exo.workspace.searchIndex("latency", { limit: 5 }));
+              sample = await bounded(`search ${index + 1}`, () => window.stem.workspace.searchIndex("latency", { limit: 5 }));
             } catch (error) {
-              const pending = (window as typeof window & { __exoConcurrentIndexPending?: boolean }).__exoConcurrentIndexPending;
+              const pending = (window as typeof window & { __stemConcurrentIndexPending?: boolean }).__stemConcurrentIndexPending;
               throw new Error(`${error instanceof Error ? error.message : String(error)}; prior=${JSON.stringify({ samples, sources, pending })}`);
             }
             samples.push(sample.elapsed);
@@ -142,11 +142,11 @@ test("keeps editor and the full graph responsive while QMD refresh runs out of p
           }
           return { samples, sources, warnings };
         })();
-        const statusPromise = bounded("index status", () => window.exo.workspace.getIndexStatus());
+        const statusPromise = bounded("index status", () => window.stem.workspace.getIndexStatus());
         const terminalPromise = bounded("terminal", async () => {
-          const terminal = (await window.exo.terminals.list())[0];
+          const terminal = (await window.stem.terminals.list())[0];
           if (!terminal) return false;
-          await window.exo.terminals.write(terminal.id, "derived-work-terminal-alive\n");
+          await window.stem.terminals.write(terminal.id, "derived-work-terminal-alive\n");
           return true;
         });
         const [graph, search, status, terminal] = await Promise.all([
@@ -169,13 +169,13 @@ test("keeps editor and the full graph responsive while QMD refresh runs out of p
     const typingStartedAt = performance.now();
     await content.pressSequentially(typingText.slice(0, typingSplit), { delay: 0 });
     await graphCanvas.evaluate(async (canvas) => {
-      await (canvas as HTMLCanvasElement & { __exoGraphForceCanvasFallback?: () => Promise<void> })
-        .__exoGraphForceCanvasFallback?.();
+      await (canvas as HTMLCanvasElement & { __stemGraphForceCanvasFallback?: () => Promise<void> })
+        .__stemGraphForceCanvasFallback?.();
     });
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
       return (canvas as HTMLCanvasElement & {
-        __exoGraphSnapshot?: () => { rendererKind: string | null; rendererRecoveryState: string };
-      }).__exoGraphSnapshot?.() ?? null;
+        __stemGraphSnapshot?: () => { rendererKind: string | null; rendererRecoveryState: string };
+      }).__stemGraphSnapshot?.() ?? null;
     })).toMatchObject({ rendererKind: "canvas2d", rendererRecoveryState: "fallback" });
     await content.click();
     await fixture.page.keyboard.press("Control+End");
@@ -196,24 +196,24 @@ test("keeps editor and the full graph responsive while QMD refresh runs out of p
     const navigation = latencySummary(navigationSamples);
 
     const indexStatus = await fixture.page.evaluate(async () => {
-      const scoped = window as typeof window & { __exoConcurrentIndexUpdate?: Promise<unknown> };
-      return scoped.__exoConcurrentIndexUpdate;
+      const scoped = window as typeof window & { __stemConcurrentIndexUpdate?: Promise<unknown> };
+      return scoped.__stemConcurrentIndexUpdate;
     });
     const concurrentSurfaces = await fixture.page.evaluate(async () => {
       const scoped = window as typeof window & {
-        __exoConcurrentSurfaces?: Promise<ConcurrentSurfaceResults>;
+        __stemConcurrentSurfaces?: Promise<ConcurrentSurfaceResults>;
       };
-      return scoped.__exoConcurrentSurfaces;
+      return scoped.__stemConcurrentSurfaces;
     });
     const finalProbe = await readLatencyProbe(fixture.page, true);
     const warmedSearch = latencySummary(concurrentSurfaces?.search.samples.slice(1) ?? []);
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
       return (canvas as HTMLCanvasElement & {
-        __exoGraphSnapshot?: () => { pendingWork: number; pendingFrame: boolean; moving: boolean; rendererKind: string | null };
-      }).__exoGraphSnapshot?.() ?? null;
+        __stemGraphSnapshot?: () => { pendingWork: number; pendingFrame: boolean; moving: boolean; rendererKind: string | null };
+      }).__stemGraphSnapshot?.() ?? null;
     })).toMatchObject({ pendingWork: 0, pendingFrame: false, moving: false, rendererKind: "canvas2d" });
     const finalGraphRuntime = await graphCanvas.evaluate((canvas) => {
-      return (canvas as HTMLCanvasElement & { __exoGraphSnapshot?: () => unknown }).__exoGraphSnapshot?.() ?? null;
+      return (canvas as HTMLCanvasElement & { __stemGraphSnapshot?: () => unknown }).__stemGraphSnapshot?.() ?? null;
     });
 
     console.info(`Concurrent derived-work latency: ${JSON.stringify({
@@ -300,9 +300,9 @@ async function installLatencyProbe(page: Page): Promise<void> {
     });
     observer.observe({ type: "longtask", buffered: true });
     Object.assign(window, {
-      __exoConcurrentTypingSamples: samples,
-      __exoConcurrentLongTasks: longTasks,
-      __exoConcurrentObserver: observer,
+      __stemConcurrentTypingSamples: samples,
+      __stemConcurrentLongTasks: longTasks,
+      __stemConcurrentObserver: observer,
     });
   });
 }
@@ -310,14 +310,14 @@ async function installLatencyProbe(page: Page): Promise<void> {
 async function readLatencyProbe(page: Page, disconnect: boolean): Promise<{ samples: number[]; longTasks: number[] }> {
   return page.evaluate((shouldDisconnect) => {
     const scoped = window as typeof window & {
-      __exoConcurrentTypingSamples?: number[];
-      __exoConcurrentLongTasks?: number[];
-      __exoConcurrentObserver?: PerformanceObserver;
+      __stemConcurrentTypingSamples?: number[];
+      __stemConcurrentLongTasks?: number[];
+      __stemConcurrentObserver?: PerformanceObserver;
     };
-    if (shouldDisconnect) scoped.__exoConcurrentObserver?.disconnect();
+    if (shouldDisconnect) scoped.__stemConcurrentObserver?.disconnect();
     return {
-      samples: scoped.__exoConcurrentTypingSamples ?? [],
-      longTasks: scoped.__exoConcurrentLongTasks ?? [],
+      samples: scoped.__stemConcurrentTypingSamples ?? [],
+      longTasks: scoped.__stemConcurrentLongTasks ?? [],
     };
   }, disconnect);
 }

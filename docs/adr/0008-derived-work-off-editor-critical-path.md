@@ -57,8 +57,8 @@ The deep module for derived retrieval keeps the existing provider-neutral `Works
 
 The UI may briefly show path-derived titles or incomplete context before durable Folder Note metadata and graph enrichment arrive. This is preferable to blocking navigation. Derived data can be stale for a short interval after a filesystem event, but canonical Markdown never is.
 
-QMD now runs through its SDK in utility processes. Exo carries a narrow patched
+QMD now runs through its SDK in utility processes. Stem carries a narrow patched
 QMD 2.5.3 package because the upstream SDK did not expose per-call document/time
 budgets and could publish embedding metadata separately from its vector row.
-The patch is reproducible through pnpm, keeps the public Exo command routes
+The patch is reproducible through pnpm, keeps the public Stem command routes
 unchanged, and makes metadata/vector publication atomic.

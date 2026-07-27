@@ -3,11 +3,11 @@ import path from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { launchExoWorkspaceFixture } from "../helpers";
+import { launchStemWorkspaceFixture } from "../helpers";
 
 test("keeps Folder Overview read-only until Create index is explicit", async () => {
   const folderName = "unindexed-project";
-  const { page, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
+  const { page, workspaceRoot, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (root) => {
@@ -54,7 +54,7 @@ test("keeps Folder Overview read-only until Create index is explicit", async () 
 test("restores the document owner after closing Folder Overview", async () => {
   const folderName = "close-overview";
   const marker = "\n\nSaved after closing Folder Overview.\n";
-  const { page, electronApp, workspaceRoot, cleanup } = await launchExoWorkspaceFixture({
+  const { page, electronApp, workspaceRoot, cleanup } = await launchStemWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (root) => {

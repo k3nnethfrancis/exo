@@ -16,7 +16,7 @@ describe("workspace content policy", () => {
   it("keeps common repository artifacts out of content scope without excluding nearby docs", () => {
     const policy = repositoryWorkspaceContentPolicy();
 
-    expect(isWorkspaceContentExcluded("release/mac-arm64/Exo.app/Contents/info.md", policy)).toBe(true);
+    expect(isWorkspaceContentExcluded("release/mac-arm64/Stem.app/Contents/info.md", policy)).toBe(true);
     expect(isWorkspaceContentExcluded("packages/core/node_modules/package/readme.md", policy)).toBe(true);
     expect(isWorkspaceContentExcluded("docs/release-notes.md", policy)).toBe(false);
   });

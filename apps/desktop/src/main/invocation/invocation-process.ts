@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 
-import type { InvocationProcessOwnership } from "@exo/core";
+import type { InvocationProcessOwnership } from "@stem/core";
 
 import { commandEnvironment } from "../command/command-environment";
 
@@ -52,7 +52,7 @@ export class DirectInvocationProcessFactory implements InvocationProcessFactory 
     const child = spawn("/bin/sh", [
       "-c",
       'IFS= read -r _ <&3 || exit 125; /bin/sh -lc "$1" <&0 & child=$!; wait "$child"; exit $?',
-      "exo-invocation-gate",
+      "stem-invocation-gate",
       input.command,
       ownerToken,
     ], {
@@ -127,7 +127,7 @@ class DirectInvocationProcess implements InvocationProcess {
       };
       void this.finishAfterProcessGroupExit(event).catch((error) => {
         this.finalizationError = asError(error);
-        console.error("[exo] invocation process-group finalization failed", this.finalizationError);
+        console.error("[stem] invocation process-group finalization failed", this.finalizationError);
       });
     });
   }
@@ -211,7 +211,7 @@ class DirectInvocationProcess implements InvocationProcess {
 
 const MAX_INVOCATION_STDOUT_CHARS = 256_000;
 const DEFAULT_STOP_GRACE_MS = 1_000;
-const INVOCATION_OWNER_ENV = "EXO_INVOCATION_OWNER_TOKEN";
+const INVOCATION_OWNER_ENV = "STEM_INVOCATION_OWNER_TOKEN";
 const execFileAsync = promisify(execFile);
 
 /**

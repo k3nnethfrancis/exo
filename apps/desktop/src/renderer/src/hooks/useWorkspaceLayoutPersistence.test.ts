@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { normalizeWorkspaceSettings, type WorkspaceSettings } from "@exo/core";
+import { normalizeWorkspaceSettings, type WorkspaceSettings } from "@stem/core";
 
 import {
   createWorkspaceCanvasSnapshot,

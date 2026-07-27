@@ -1,5 +1,5 @@
-appId: computer.exo.desktop
-productName: Exo
+appId: computer.stem.desktop
+productName: Stem
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 
 directories:

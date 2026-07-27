@@ -105,6 +105,6 @@ have structured homes in `candidateSource` and `evidence`.
 - Do not write, edit, move, rename, or delete any file.
 - Do not stage or activate an Ontology.
 - Do not reorganize or annotate Notes.
-- Do not write reports, indexes, or `.exo/` state.
+- Do not write reports, indexes, or `.stem/` state.
 - Do not claim that a syntactically valid proposal is correct.
 - Applying an accepted Ontology to Notes is a separate reviewed Invocation.

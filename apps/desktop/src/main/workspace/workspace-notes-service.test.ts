@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
-import { repositoryWorkspaceContentPolicy, type WorkspaceModel } from "@exo/core";
+import { repositoryWorkspaceContentPolicy, type WorkspaceModel } from "@stem/core";
 import type { DerivedIndexClient } from "../indexing/derived-index-process";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 
@@ -35,7 +35,7 @@ describe("WorkspaceNotesService", () => {
   });
 
   it("keeps policy-excluded Markdown out of Workspace search and link suggestions", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-notes-policy-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-notes-policy-"));
     const noteRoot = path.join(workspaceRoot, "notes");
     await mkdir(path.join(noteRoot, "release"), { recursive: true });
     const sourcePath = path.join(noteRoot, "source.md");
@@ -59,7 +59,7 @@ describe("WorkspaceNotesService", () => {
   });
 
   it("drops warmed filename results immediately when Content Policy changes in place", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-notes-policy-cache-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-notes-policy-cache-"));
     const noteRoot = path.join(workspaceRoot, "notes");
     await mkdir(path.join(noteRoot, "release"), { recursive: true });
     const generatedPath = path.join(noteRoot, "release", "generated.md");
@@ -321,8 +321,8 @@ describe("WorkspaceNotesService", () => {
   });
 
   it("does not let a held graph refresh from A mutate the replacement Workspace", async () => {
-    const workspaceA = await mkdtemp(path.join(os.tmpdir(), "exo-notes-a-"));
-    const workspaceB = await mkdtemp(path.join(os.tmpdir(), "exo-notes-b-"));
+    const workspaceA = await mkdtemp(path.join(os.tmpdir(), "stem-notes-a-"));
+    const workspaceB = await mkdtemp(path.join(os.tmpdir(), "stem-notes-b-"));
     const noteA = path.join(workspaceA, "notes");
     const noteB = path.join(workspaceB, "notes");
     await Promise.all([mkdir(noteA), mkdir(noteB)]);
@@ -339,19 +339,19 @@ describe("WorkspaceNotesService", () => {
     const modelB = workspaceModel(workspaceB, noteB);
     const service = new WorkspaceNotesService({
       getWorkspaceModel: () => modelA,
-      getRuntimeRoot: () => path.join(workspaceA, ".exo"),
+      getRuntimeRoot: () => path.join(workspaceA, ".stem"),
       derivedIndex,
     });
 
     const staleRefresh = service.handleWorkspaceChange({ rootPath: noteA, eventType: "change", filePath: sourceA });
     await Promise.resolve();
-    service.activateWorkspace({ model: modelB, runtimeRoot: path.join(workspaceB, ".exo"), generation: 1 });
+    service.activateWorkspace({ model: modelB, runtimeRoot: path.join(workspaceB, ".stem"), generation: 1 });
     expect(observedSignal?.aborted).toBe(true);
     held.resolve();
     await staleRefresh;
 
     expect(graphRefresh).toHaveBeenCalledTimes(1);
-    expect(graphRefresh).toHaveBeenLastCalledWith(modelA, path.join(workspaceA, ".exo"), sourceA, expect.anything());
+    expect(graphRefresh).toHaveBeenLastCalledWith(modelA, path.join(workspaceA, ".stem"), sourceA, expect.anything());
     await Promise.all([rm(workspaceA, { recursive: true, force: true }), rm(workspaceB, { recursive: true, force: true })]);
   });
 
@@ -366,14 +366,14 @@ describe("WorkspaceNotesService", () => {
     const dispose = vi.fn();
     const service = new WorkspaceNotesService({
       getWorkspaceModel: () => model,
-      getRuntimeRoot: () => "/workspace/.exo",
+      getRuntimeRoot: () => "/workspace/.stem",
       derivedIndex: { graphTopology, dispose } as unknown as DerivedIndexClient,
     });
 
     service.applyWorkspaceModel(nextModel);
 
     await expect(service.getGraphTopology()).rejects.toThrow("observed model");
-    expect(graphTopology).toHaveBeenCalledWith(nextModel, "/workspace/.exo", expect.anything());
+    expect(graphTopology).toHaveBeenCalledWith(nextModel, "/workspace/.stem", expect.anything());
     expect(dispose).not.toHaveBeenCalled();
   });
 
@@ -434,7 +434,7 @@ describe("WorkspaceNotesService", () => {
   });
 
   it("emits one graph change only after a successful reviewed Ontology Keep", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-notes-ontology-review-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-notes-ontology-review-"));
     const noteRoot = path.join(workspaceRoot, "notes");
     await mkdir(noteRoot, { recursive: true });
     await writeFile(path.join(noteRoot, "focus.md"), "---\ntype: paper\n---\n# Focus\n");
@@ -449,7 +449,7 @@ describe("WorkspaceNotesService", () => {
     let graphChanged = 0;
     const service = new WorkspaceNotesService({
       getWorkspaceModel: () => model,
-      getRuntimeRoot: () => path.join(workspaceRoot, ".exo-test"),
+      getRuntimeRoot: () => path.join(workspaceRoot, ".stem-test"),
       onGraphChanged: () => { graphChanged += 1; },
     });
 
@@ -468,7 +468,7 @@ describe("WorkspaceNotesService", () => {
 });
 
 async function workspaceNotesService() {
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-notes-service-"));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-notes-service-"));
   const noteRoot = path.join(workspaceRoot, "notes");
   await mkdir(path.join(noteRoot, "folder"), { recursive: true });
   const model: WorkspaceModel = {

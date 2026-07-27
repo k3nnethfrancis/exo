@@ -56,10 +56,10 @@ function noteRoot(id: string, label: string, targetPath: string) {
 }
 
 export function resolveWorkspaceModel(env: NodeJS.ProcessEnv = process.env): WorkspaceModel {
-  const workspaceRoot = env.EXO_WORKSPACE_ROOT ?? process.cwd();
-  const defaultTerminalCwd = env.EXO_DEFAULT_TERMINAL_CWD ?? workspaceRoot;
-  const noteRootCandidates = (env.EXO_NOTE_ROOTS ?? path.join(workspaceRoot, "notes")).split(path.delimiter).filter(Boolean);
-  const indexedRoots = parseIndexedRoots(env.EXO_INDEXED_ROOTS);
+  const workspaceRoot = env.STEM_WORKSPACE_ROOT ?? process.cwd();
+  const defaultTerminalCwd = env.STEM_DEFAULT_TERMINAL_CWD ?? workspaceRoot;
+  const noteRootCandidates = (env.STEM_NOTE_ROOTS ?? path.join(workspaceRoot, "notes")).split(path.delimiter).filter(Boolean);
+  const indexedRoots = parseIndexedRoots(env.STEM_INDEXED_ROOTS);
   const indexing = parseIndexingConfig(env);
 
   return {
@@ -132,9 +132,9 @@ function isIndexedRoot(value: IndexedRoot | null): value is IndexedRoot {
 }
 
 function parseIndexingConfig(env: NodeJS.ProcessEnv): IndexingConfig {
-  const mode = normalizeIndexMode(env.EXO_INDEX_MODE);
+  const mode = normalizeIndexMode(env.STEM_INDEX_MODE);
   return {
-    enabled: env.EXO_INDEX_ENABLED === "1" || mode !== "off",
+    enabled: env.STEM_INDEX_ENABLED === "1" || mode !== "off",
     mode,
     backend: "qmd",
   };

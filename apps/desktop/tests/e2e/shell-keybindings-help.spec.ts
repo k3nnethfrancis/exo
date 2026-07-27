@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { launchExoWorkspaceFixture } from "../helpers";
+import { launchStemWorkspaceFixture } from "../helpers";
 
 test("toggles shell panels from the keyboard and exposes compact operator help", async () => {
-  const fixture = await launchExoWorkspaceFixture();
+  const fixture = await launchStemWorkspaceFixture();
   const modifier = process.platform === "darwin" ? "Meta" : "Control";
 
   try {
@@ -27,7 +27,7 @@ test("toggles shell panels from the keyboard and exposes compact operator help",
     await expect(help).toBeVisible();
     await expect(help).toContainText("Keyboard");
     await expect(help).toContainText("CLI");
-    await expect(help).toContainText("exo status");
+    await expect(help).toContainText("stem status");
     await expect(help).toContainText(process.platform === "darwin" ? "⌘ B" : "Ctrl B");
     await fixture.page.keyboard.press("Escape");
     await fixture.page.getByTestId("workspace-menu-toggle").click();

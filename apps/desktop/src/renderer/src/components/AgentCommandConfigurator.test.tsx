@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import {
   createDefaultClaudeAgentCommand,
   createDefaultCodexAgentCommand,
-} from "@exo/core";
+} from "@stem/core";
 
 import {
   AgentCommandConfigurator,

@@ -1,8 +1,8 @@
-export const exoAdapter = Object.freeze({
-  id: 'exo',
+export const stemAdapter = Object.freeze({
+  id: 'stem',
   version: 'stellar-1',
   available: true,
-  contract: '__exoStellarLab',
+  contract: '__stemStellarLab',
   surface: '#stellar-shell',
   capabilities: { render: true, layout: true, product: true, resilience: true, incremental: true, dimensions: 3 },
   url(baseUrl, track, { presentationProfile = 'evaluation-v1' } = {}) {

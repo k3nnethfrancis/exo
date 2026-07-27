@@ -103,7 +103,7 @@ describe("Folder Overview editor ownership", () => {
   });
 
   it("restores a reachable review virtual document exactly", () => {
-    const virtualPath = "exo-review://invocation/file";
+    const virtualPath = "stem-review://invocation/file";
     const overview = activateFolderOverviewContent(
       content({
         openPaths: ["/notes/a.md", virtualPath],

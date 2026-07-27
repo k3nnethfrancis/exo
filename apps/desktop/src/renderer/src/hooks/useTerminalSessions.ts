@@ -71,7 +71,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }, [sessions]);
 
   useEffect(() => {
-    const removeDataListener = window.exo.terminals.onData(({ id, generation, data }) => {
+    const removeDataListener = window.stem.terminals.onData(({ id, generation, data }) => {
       const knownGeneration = sessionsRef.current.find((session) => session.id === id)?.attachGeneration ?? 0;
       if (knownGeneration > generation) {
         return;
@@ -103,16 +103,16 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
       }
     });
 
-    const removeExitListener = window.exo.terminals.onExit(({ id, exitCode }) => {
+    const removeExitListener = window.stem.terminals.onExit(({ id, exitCode }) => {
       setSessions((current) =>
         current.map((session) => (session.id === id ? { ...session, status: "exited", exitCode } : session)),
       );
     });
-    const removeCreatedListener = window.exo.terminals.onCreated((session) => {
+    const removeCreatedListener = window.stem.terminals.onCreated((session) => {
       adoptExternalSessions([session], { activateLatest: true });
     });
     const syncInterval = window.setInterval(() => {
-      void window.exo.terminals.list().then((nextSessions) => {
+      void window.stem.terminals.list().then((nextSessions) => {
         const previousSessions = syncTerminalSessions(nextSessions);
         const knownIds = new Set(previousSessions.map((session) => session.id));
         const unseenSessions = nextSessions.filter((session) => !knownIds.has(session.id));
@@ -189,7 +189,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     setHydratingTerminalIds((current) => withSetEntry(current, id));
     let snapshotQueued = false;
     try {
-      const snapshot = await window.exo.terminals.read(id);
+      const snapshot = await window.stem.terminals.read(id);
       setHydrationSnapshot(id, snapshot, reason);
       snapshotQueued = true;
     } finally {
@@ -211,7 +211,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
     }
     generationSyncIdsRef.current.add(id);
     try {
-      const nextSessions = await window.exo.terminals.list();
+      const nextSessions = await window.stem.terminals.list();
       syncTerminalSessions(nextSessions);
       const knownGeneration = sessionsRef.current.find((session) => session.id === id)?.attachGeneration ?? 0;
       if (knownGeneration >= generation) {
@@ -243,7 +243,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }
 
   async function createTerminal(terminalKind: TerminalKind, cwd?: string): Promise<TerminalSessionInfo> {
-    const session = await window.exo.terminals.create({ terminalKind, cwd });
+    const session = await window.stem.terminals.create({ terminalKind, cwd });
     const nextSessions = sessionsRef.current.some((existing) => existing.id === session.id)
       ? sessionsRef.current
       : [...sessionsRef.current, session];
@@ -280,7 +280,7 @@ export function useTerminalSessions(options: UseTerminalSessionsOptions) {
   }
 
   async function killTerminal(id: string): Promise<TerminalSessionInfo[]> {
-    await window.exo.terminals.kill(id);
+    await window.stem.terminals.kill(id);
     const remainingSessions = sessionsRef.current.filter((session) => session.id !== id);
     sessionsRef.current = remainingSessions;
     setSessions(remainingSessions);

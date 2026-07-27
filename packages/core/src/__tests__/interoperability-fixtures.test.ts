@@ -174,12 +174,12 @@ describe("public graph interoperability fixtures", () => {
 
   it("preserves Format facts until a kept Workspace Ontology adds separate meaning", async () => {
     const fixture = path.join(fixtureRoot, "format-ontology-boundary");
-    const temporary = await mkdtemp(path.join(os.tmpdir(), "exo-interop-boundary-"));
+    const temporary = await mkdtemp(path.join(os.tmpdir(), "stem-interop-boundary-"));
     temporaryRoots.push(temporary);
     const workspace = path.join(temporary, "workspace");
     await cp(fixture, workspace, { recursive: true });
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(temporary, ".exo");
+    const runtimeRoot = path.join(temporary, ".stem");
     const before = await treeSha256(notes);
 
     const formatOnly = await okfGraph(
@@ -228,12 +228,12 @@ describe("public graph interoperability fixtures", () => {
   });
 
   it("contains root-absolute document and Ontology references inside the source Note Root", async () => {
-    const temporary = await mkdtemp(path.join(os.tmpdir(), "exo-okf-root-links-"));
+    const temporary = await mkdtemp(path.join(os.tmpdir(), "stem-okf-root-links-"));
     temporaryRoots.push(temporary);
     const workspace = path.join(temporary, "workspace");
     const rootA = path.join(workspace, "a");
     const rootB = path.join(workspace, "b");
-    const runtimeRoot = path.join(temporary, ".exo");
+    const runtimeRoot = path.join(temporary, ".stem");
     await mkdir(rootA, { recursive: true });
     await mkdir(rootB, { recursive: true });
     await writeFile(path.join(rootA, "source.md"), [
@@ -285,11 +285,11 @@ describe("public graph interoperability fixtures", () => {
   });
 
   it("does not create document or Ontology endpoints for reserved OKF targets", async () => {
-    const temporary = await mkdtemp(path.join(os.tmpdir(), "exo-okf-reserved-targets-"));
+    const temporary = await mkdtemp(path.join(os.tmpdir(), "stem-okf-reserved-targets-"));
     temporaryRoots.push(temporary);
     const workspace = path.join(temporary, "workspace");
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(temporary, ".exo");
+    const runtimeRoot = path.join(temporary, ".stem");
     await mkdir(notes, { recursive: true });
     await writeFile(path.join(notes, "source.md"), [
       "---",

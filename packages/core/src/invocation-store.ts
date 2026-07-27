@@ -32,7 +32,7 @@ export interface InvocationStoreLayout {
 }
 
 export function resolveInvocationStoreLayout(workspaceRoot: string): InvocationStoreLayout {
-  const runtimeRoot = path.join(workspaceRoot, ".exo");
+  const runtimeRoot = path.join(workspaceRoot, ".stem");
   return {
     workspaceRoot,
     runtimeRoot,

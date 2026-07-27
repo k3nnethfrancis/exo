@@ -5,51 +5,51 @@ import { describe, expect, it, vi } from "vitest";
 import {
   saveWorkspaceSettings,
   type WorkspaceSettings,
-  type ExoCommandIndexStatusResponse,
-  type ExoCommandIndexSyncResponse,
-  type ExoCommandSearchResponse,
-  type ExoCommandStatusWithControlPlane,
-  type ExoSpawnAgentCommandResponse,
-} from "@exo/core";
-import { EXO_CLI_COMMANDS } from "@exo/core/operator-help";
+  type StemCommandIndexStatusResponse,
+  type StemCommandIndexSyncResponse,
+  type StemCommandSearchResponse,
+  type StemCommandStatusWithControlPlane,
+  type StemSpawnAgentCommandResponse,
+} from "@stem/core";
+import { STEM_CLI_COMMANDS } from "@stem/core/operator-help";
 import { AppClient } from "./app-client";
 import { runCli } from "./index";
 
 const client = {
-  getStatus: async (): Promise<ExoCommandStatusWithControlPlane> => statusResponse(),
+  getStatus: async (): Promise<StemCommandStatusWithControlPlane> => statusResponse(),
   showWindow: async () => {},
-  search: async (query: string): Promise<ExoCommandSearchResponse> => ({ query, mode: "lexical", source: "filesystem", warnings: [], results: [] }),
-  getIndexStatus: async (): Promise<ExoCommandIndexStatusResponse> => indexStatusResponse(),
-  syncIndex: async (): Promise<ExoCommandIndexSyncResponse> => ({ status: indexStatusResponse(), phases: [], warnings: [] }),
+  search: async (query: string): Promise<StemCommandSearchResponse> => ({ query, mode: "lexical", source: "filesystem", warnings: [], results: [] }),
+  getIndexStatus: async (): Promise<StemCommandIndexStatusResponse> => indexStatusResponse(),
+  syncIndex: async (): Promise<StemCommandIndexSyncResponse> => ({ status: indexStatusResponse(), phases: [], warnings: [] }),
   openFile: async () => {},
-  spawnAgentCommand: async (): Promise<ExoSpawnAgentCommandResponse> => spawnResponse(),
+  spawnAgentCommand: async (): Promise<StemSpawnAgentCommandResponse> => spawnResponse(),
 } satisfies Pick<AppClient, "getStatus" | "showWindow" | "search" | "getIndexStatus" | "syncIndex" | "openFile" | "spawnAgentCommand">;
 const connect = async () => client;
 const matchingClientEnv = {
   ...process.env,
-  EXO_WORKSPACE_ROOT: "/workspace",
-  EXO_NOTE_ROOTS: "/workspace",
+  STEM_WORKSPACE_ROOT: "/workspace",
+  STEM_NOTE_ROOTS: "/workspace",
 };
 
-describe("minimal Exo operator CLI", () => {
+describe("minimal Stem operator CLI", () => {
   it("prints every command from the shared operator catalog", async () => {
     let help = "";
-    expect(await runCli(["node", "exo", "--help"], { stderr: { write: (text) => { help += text; } } })).toBe(0);
-    for (const command of EXO_CLI_COMMANDS) {
+    expect(await runCli(["node", "stem", "--help"], { stderr: { write: (text) => { help += text; } } })).toBe(0);
+    for (const command of STEM_CLI_COMMANDS) {
       expect(help).toContain(command.usageToken);
     }
   });
 
   it.each([
-    ["search", "exo search <query>"],
-    ["status", "exo status"],
-    ["index", "exo index"],
-    ["mcp", "exo mcp serve"],
+    ["search", "stem search <query>"],
+    ["status", "stem status"],
+    ["index", "stem index"],
+    ["mcp", "stem mcp serve"],
   ])("prints subcommand help for %s without executing it", async (command, expectedUsage) => {
     let help = "";
     const connector = vi.fn(async () => client);
 
-    expect(await runCli(["node", "exo", command, "--help"], {
+    expect(await runCli(["node", "stem", command, "--help"], {
       stderr: { write: (text) => { help += text; } },
       connectAppClient: connector,
     })).toBe(0);
@@ -61,16 +61,16 @@ describe("minimal Exo operator CLI", () => {
   it("rejects unknown flags, missing flag values, stray arguments, and invalid limits", async () => {
     const options = { stderr: { write: () => {} }, connectAppClient: connect };
 
-    await expect(runCli(["node", "exo", "search", "needle", "--wat", "nope"], options))
+    await expect(runCli(["node", "stem", "search", "needle", "--wat", "nope"], options))
       .rejects.toThrow("Unknown option: --wat");
-    await expect(runCli(["node", "exo", "status", "--workspace"], options))
+    await expect(runCli(["node", "stem", "status", "--workspace"], options))
       .rejects.toThrow("Missing value for --workspace");
-    await expect(runCli(["node", "exo", "search", "needle", "--cursor"], options))
+    await expect(runCli(["node", "stem", "search", "needle", "--cursor"], options))
       .rejects.toThrow("Missing value for --cursor");
-    await expect(runCli(["node", "exo", "status", "stray"], options))
+    await expect(runCli(["node", "stem", "status", "stray"], options))
       .rejects.toThrow("Unexpected argument: stray");
     for (const value of ["-1", "0", "21", "1.5", "many"]) {
-      await expect(runCli(["node", "exo", "search", "needle", "--limit", value], options))
+      await expect(runCli(["node", "stem", "search", "needle", "--limit", value], options))
         .rejects.toThrow("Expected --limit to be an integer from 1 to 20");
     }
   });
@@ -83,22 +83,22 @@ describe("minimal Exo operator CLI", () => {
       stderr: { write: () => {} },
       connectAppClient: connect,
     };
-    expect(await runCli(["node", "exo", "search", "hello"], options)).toBe(0);
-    expect(await runCli(["node", "exo", "index", "sync"], options)).toBe(0);
-    expect(await runCli(["node", "exo", "open", "note.md"], options)).toBe(0);
-    expect(await runCli(["node", "exo", "invoke", "@review", "check", "this"], options)).toBe(0);
-    expect(output).toContain("exo.search.v1");
+    expect(await runCli(["node", "stem", "search", "hello"], options)).toBe(0);
+    expect(await runCli(["node", "stem", "index", "sync"], options)).toBe(0);
+    expect(await runCli(["node", "stem", "open", "note.md"], options)).toBe(0);
+    expect(await runCli(["node", "stem", "invoke", "@review", "check", "this"], options)).toBe(0);
+    expect(output).toContain("stem.search.v1");
   });
 
   it("advances through page six and offset 100 with the CLI-owned cursor", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-cursor-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-cursor-"));
     const resultPaths = Array.from({ length: 120 }, (_, index) =>
       path.join(workspaceRoot, `result-${String(index).padStart(3, "0")}.md`));
     const offsets: number[] = [];
     const pagingClient = {
       ...client,
       getStatus: async () => statusResponse(workspaceRoot),
-      search: async (query: string, options: { limit?: number; offset?: number } = {}): Promise<ExoCommandSearchResponse> => {
+      search: async (query: string, options: { limit?: number; offset?: number } = {}): Promise<StemCommandSearchResponse> => {
         const limit = options.limit ?? 20;
         const offset = options.offset ?? 0;
         offsets.push(offset);
@@ -121,8 +121,8 @@ describe("minimal Exo operator CLI", () => {
     } satisfies typeof client;
     const env = {
       ...process.env,
-      EXO_WORKSPACE_ROOT: workspaceRoot,
-      EXO_NOTE_ROOTS: workspaceRoot,
+      STEM_WORKSPACE_ROOT: workspaceRoot,
+      STEM_NOTE_ROOTS: workspaceRoot,
     };
 
     try {
@@ -133,7 +133,7 @@ describe("minimal Exo operator CLI", () => {
         let output = "";
         await runCli([
           "node",
-          "exo",
+          "stem",
           "search",
           "result",
           "--limit",
@@ -161,7 +161,7 @@ describe("minimal Exo operator CLI", () => {
       expect(new Set(seenPaths).size).toBe(120);
       await expect(runCli([
         "node",
-        "exo",
+        "stem",
         "search",
         "different query",
         "--cursor",
@@ -178,19 +178,19 @@ describe("minimal Exo operator CLI", () => {
 
   it("rejects deleted families instead of preserving aliases", async () => {
     for (const command of ["read", "spawn", "preview", "config", "terminals"]) {
-      await expect(runCli(["node", "exo", command], { stderr: { write: () => {} }, connectAppClient: connect })).rejects.toThrow("Usage:");
+      await expect(runCli(["node", "stem", command], { stderr: { write: () => {} }, connectAppClient: connect })).rejects.toThrow("Usage:");
     }
   });
 
   it("starts the installed macOS app through the explicit bootstrap command", async () => {
-    const home = await mkdtemp(path.join(os.tmpdir(), "exo-cli-start-"));
-    const appPath = path.join(home, "Exo.app");
+    const home = await mkdtemp(path.join(os.tmpdir(), "stem-cli-start-"));
+    const appPath = path.join(home, "Stem.app");
     await mkdir(appPath);
     let launchedPath = "";
 
     try {
-      const exitCode = await runCli(["node", "exo", "start"], {
-        env: { ...process.env, HOME: home, EXO_APP_PATH: appPath },
+      const exitCode = await runCli(["node", "stem", "start"], {
+        env: { ...process.env, HOME: home, STEM_APP_PATH: appPath },
         stderr: { write: () => {} },
         launchApp: async (target) => { launchedPath = target; },
       });
@@ -203,16 +203,16 @@ describe("minimal Exo operator CLI", () => {
   });
 
   it("keeps status and search useful when the resident app is unavailable", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-offline-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-offline-"));
     const noteRoot = path.join(workspaceRoot, "notes");
     const notePath = path.join(noteRoot, "orientation.md");
     await mkdir(noteRoot);
     await writeFile(notePath, "# Orientation\n\nThe local-first workspace.\n", "utf8");
     const env = {
       ...process.env,
-      EXO_WORKSPACE_ROOT: workspaceRoot,
-      EXO_NOTE_ROOTS: noteRoot,
-      EXO_USER_DATA_PATH: path.join(workspaceRoot, "user-data"),
+      STEM_WORKSPACE_ROOT: workspaceRoot,
+      STEM_NOTE_ROOTS: noteRoot,
+      STEM_USER_DATA_PATH: path.join(workspaceRoot, "user-data"),
     };
     let discoveredRuntimeRoot = "";
     const unavailable = async (runtimeRoot: string) => {
@@ -228,35 +228,35 @@ describe("minimal Exo operator CLI", () => {
         stderr: { write: () => {} },
         connectAppClient: unavailable,
       };
-      expect(await runCli(["node", "exo", "status"], options)).toBe(0);
-      expect(await runCli(["node", "exo", "search", "local-first"], options)).toBe(0);
+      expect(await runCli(["node", "stem", "status"], options)).toBe(0);
+      expect(await runCli(["node", "stem", "search", "local-first"], options)).toBe(0);
 
       expect(output).toContain('"available": false');
       expect(output).toContain("orientation.md");
       expect(output).toContain('"path"');
-      expect(discoveredRuntimeRoot).toBe(path.join(workspaceRoot, ".exo"));
+      expect(discoveredRuntimeRoot).toBe(path.join(workspaceRoot, ".stem"));
     } finally {
       await rm(workspaceRoot, { recursive: true, force: true });
     }
   });
 
   it("adds a machine-readable discovery diagnostic while preserving app-off status and search", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-runtime-diagnostic-"));
-    const runtimeRoot = path.join(workspaceRoot, ".exo");
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-runtime-diagnostic-"));
+    const runtimeRoot = path.join(workspaceRoot, ".stem");
     const notePath = path.join(workspaceRoot, "orientation.md");
     await mkdir(runtimeRoot);
     await writeFile(notePath, "# Orientation\n\nTruthful offline retrieval.\n", "utf8");
     const env = {
       ...process.env,
-      EXO_WORKSPACE_ROOT: workspaceRoot,
-      EXO_NOTE_ROOTS: workspaceRoot,
-      EXO_RUNTIME_ROOT: runtimeRoot,
+      STEM_WORKSPACE_ROOT: workspaceRoot,
+      STEM_NOTE_ROOTS: workspaceRoot,
+      STEM_RUNTIME_ROOT: runtimeRoot,
     };
 
     try {
       const run = async (argv: string[]) => {
         let output = "";
-        expect(await runCli(["node", "exo", ...argv], {
+        expect(await runCli(["node", "stem", ...argv], {
           env,
           stdout: { write: (text) => { output += text; } },
           stderr: { write: () => {} },
@@ -279,7 +279,7 @@ describe("minimal Exo operator CLI", () => {
 
       const search = await run(["search", "offline retrieval"]);
       expect(search).toMatchObject({
-        schema_version: "exo.search.v1",
+        schema_version: "stem.search.v1",
         retrieval: { provider: "filesystem", mode: "lexical" },
         runtime: {
           code: "server-json-missing",
@@ -294,7 +294,7 @@ describe("minimal Exo operator CLI", () => {
   });
 
   it("uses filesystem retrieval instead of a live app for a different Workspace", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-runtime-mismatch-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-runtime-mismatch-"));
     const notePath = path.join(workspaceRoot, "selected.md");
     await writeFile(notePath, "# Selected\n\nSelected workspace truth.\n", "utf8");
     const appSearch = vi.fn(client.search);
@@ -305,13 +305,13 @@ describe("minimal Exo operator CLI", () => {
     };
     const env = {
       ...process.env,
-      EXO_WORKSPACE_ROOT: workspaceRoot,
-      EXO_NOTE_ROOTS: workspaceRoot,
+      STEM_WORKSPACE_ROOT: workspaceRoot,
+      STEM_NOTE_ROOTS: workspaceRoot,
     };
     let output = "";
 
     try {
-      expect(await runCli(["node", "exo", "search", "workspace truth"], {
+      expect(await runCli(["node", "stem", "search", "workspace truth"], {
         env,
         stdout: { write: (text) => { output += text; } },
         stderr: { write: () => {} },
@@ -334,19 +334,19 @@ describe("minimal Exo operator CLI", () => {
   });
 
   it("lists saved Workspaces and searches a selected inactive Workspace without changing the active one", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-cli-workspaces-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-cli-workspaces-"));
     const alpha = path.join(userDataPath, "alpha");
     const beta = path.join(userDataPath, "beta");
     await mkdir(alpha);
     await mkdir(beta);
     await writeFile(path.join(alpha, "alpha.md"), "# Alpha\n\nIndependent repository context.\n", "utf8");
     await writeFile(path.join(beta, "beta.md"), "# Beta\n\nActive personal context.\n", "utf8");
-    const env = { ...process.env, EXO_USER_DATA_PATH: userDataPath };
+    const env = { ...process.env, STEM_USER_DATA_PATH: userDataPath };
     await saveWorkspaceSettings(workspaceSettings(alpha), env);
     await saveWorkspaceSettings(workspaceSettings(beta), env);
     const run = async (argv: string[]) => {
       let output = "";
-      await runCli(["node", "exo", ...argv], {
+      await runCli(["node", "stem", ...argv], {
         env,
         stdout: { write: (text) => { output += text; } },
         stderr: { write: () => {} },
@@ -360,7 +360,7 @@ describe("minimal Exo operator CLI", () => {
     try {
       const listed = await run(["workspaces"]);
       expect(listed).toMatchObject({
-        schema_version: "exo.workspaces.v1",
+        schema_version: "stem.workspaces.v1",
         workspaces: [
           { label: "beta", active: true },
           { label: "alpha", active: false },
@@ -375,7 +375,7 @@ describe("minimal Exo operator CLI", () => {
 
       const search = await run(["search", "repository context", "--workspace", "alpha"]);
       expect(search).toMatchObject({
-        schema_version: "exo.search.v1",
+        schema_version: "stem.search.v1",
         scope: { workspace_root: alpha, note_roots: [alpha] },
         retrieval: { provider: "filesystem" },
         results: [{ path: path.join(alpha, "alpha.md") }],
@@ -386,7 +386,7 @@ describe("minimal Exo operator CLI", () => {
   });
 });
 
-function statusResponse(workspaceRoot = "/workspace"): ExoCommandStatusWithControlPlane {
+function statusResponse(workspaceRoot = "/workspace"): StemCommandStatusWithControlPlane {
   return {
     workspace: {
       workspaceRoot,
@@ -398,8 +398,8 @@ function statusResponse(workspaceRoot = "/workspace"): ExoCommandStatusWithContr
     },
     terminals: [],
     controlPlane: {
-      runtimeRoot: "/workspace/.exo",
-      serverJsonPath: "/workspace/.exo/server.json",
+      runtimeRoot: "/workspace/.stem",
+      serverJsonPath: "/workspace/.stem/server.json",
       pid: 123,
       port: 456,
       baseUrl: "http://127.0.0.1:456",
@@ -407,13 +407,13 @@ function statusResponse(workspaceRoot = "/workspace"): ExoCommandStatusWithContr
   };
 }
 
-function indexStatusResponse(): ExoCommandIndexStatusResponse {
+function indexStatusResponse(): StemCommandIndexStatusResponse {
   return {
     enabled: true,
     mode: "hybrid",
     backend: "qmd",
-    dbPath: "/workspace/.exo/index.sqlite",
-    runtimePath: "/workspace/.exo",
+    dbPath: "/workspace/.stem/index.sqlite",
+    runtimePath: "/workspace/.stem",
     indexedRoots: [],
     documentCount: 0,
     pendingEmbeddings: 0,
@@ -424,7 +424,7 @@ function indexStatusResponse(): ExoCommandIndexStatusResponse {
   };
 }
 
-function spawnResponse(): ExoSpawnAgentCommandResponse {
+function spawnResponse(): StemSpawnAgentCommandResponse {
   return {
     ok: true,
     invocation: { id: "inv-1", status: "running", handle: "review", createdAt: "2026-07-24T00:00:00.000Z" },
@@ -440,7 +440,7 @@ function workspaceSettings(root: string): WorkspaceSettings {
     indexedRoots: [],
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     appearanceMode: "system",
-    colorThemeId: "exo-neutral",
+    colorThemeId: "stem-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,

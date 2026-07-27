@@ -6,7 +6,7 @@ import type {
   GraphTopology,
   NoteDocument,
   WorkspaceGraphContext,
-} from "@exo/core";
+} from "@stem/core";
 
 export interface FileStatInfo {
   size: number;

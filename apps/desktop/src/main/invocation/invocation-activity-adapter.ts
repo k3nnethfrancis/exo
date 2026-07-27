@@ -1,4 +1,4 @@
-import { invocationActivityLabel, type AgentCommandAdapter, type InvocationActivityKind } from "@exo/core";
+import { invocationActivityLabel, type AgentCommandAdapter, type InvocationActivityKind } from "@stem/core";
 
 export interface ParsedInvocationActivity {
   kind: InvocationActivityKind;

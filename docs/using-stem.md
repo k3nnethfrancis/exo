@@ -1,12 +1,12 @@
-# Using Exo
+# Using Stem
 
-Exo works over a folder of Markdown you control. It does not import that folder into a proprietary database: your files remain usable in any editor.
+Stem works over a folder of Markdown you control. It does not import that folder into a proprietary database: your files remain usable in any editor.
 
 ## Set up a workspace
 
-On first launch, choose one **main wiki**: the Markdown folder Exo will show in the Explorer, edit, search, and graph. A workspace saves that choice together with its search, appearance, terminal, and agent-command settings. You can create and switch between independent workspaces later.
+On first launch, choose one **main wiki**: the Markdown folder Stem will show in the Explorer, edit, search, and graph. A workspace saves that choice together with its search, appearance, terminal, and agent-command settings. You can create and switch between independent workspaces later.
 
-When the folder resembles a code repository, Exo asks what should become a Note:
+When the folder resembles a code repository, Stem asks what should become a Note:
 
 - **Markdown notes** is the safe repository default. It keeps documentation in scope while excluding generated and code-oriented paths.
 - **All Markdown** makes every Markdown file under the selected folder a Note.
@@ -19,10 +19,10 @@ Every included Markdown file is a Note. Its filename/path gives it a primary hom
 
 - Use `[[A note]]` to link to another Note. Select a suggestion to create a normal Markdown wikilink.
 - Use `#tags` in body text or frontmatter to classify a Note. Tags are clickable and open their related Notes.
-- Add frontmatter through the property control. `title`, `date`, and `tags` are useful conventional fields, but Exo preserves arbitrary properties.
+- Add frontmatter through the property control. `title`, `date`, and `tags` are useful conventional fields, but Stem preserves arbitrary properties.
 - Type `/today` or `/tomorrow`, then press Enter, to create an ordinary date wikilink. Opening it creates or opens that daily Note through the usual link path.
 
-Double-click a folder to open its Overview. An `index.md` can describe that folder, but viewing never creates one. Create it only when you want durable folder metadata or guidance; Exo hides it as a duplicate Explorer row, not from the filesystem.
+Double-click a folder to open its Overview. An `index.md` can describe that folder, but viewing never creates one. Create it only when you want durable folder metadata or guidance; Stem hides it as a duplicate Explorer row, not from the filesystem.
 
 ## Search
 
@@ -61,10 +61,10 @@ its own `@` handle. Removing a configuration requires confirmation and does not
 remove that command's existing Invocation History.
 
 In a Note, type `@`, select an enabled command, write the request inline, then
-press `⌘ Return` / `Ctrl Enter`. Exo asks for authorization when needed, runs
+press `⌘ Return` / `Ctrl Enter`. Stem asks for authorization when needed, runs
 the command headlessly, and shows changed files as a reviewable Changeset.
 
-The command is a native process with the permissions available to your local user account. Exo's review is authoritative only inside the workspace's Note Root. Saving or editing a Note never invokes a command automatically.
+The command is a native process with the permissions available to your local user account. Stem's review is authoritative only inside the workspace's Note Root. Saving or editing a Note never invokes a command automatically.
 
 Read [Agent invocations](document-agent-protocol.md) for response envelopes,
 review behavior, failed runs, and session resume.
