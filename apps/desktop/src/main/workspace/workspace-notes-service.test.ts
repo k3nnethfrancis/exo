@@ -58,6 +58,28 @@ describe("WorkspaceNotesService", () => {
     await rm(workspaceRoot, { recursive: true, force: true });
   });
 
+  it("drops warmed filename results immediately when Content Policy changes in place", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-notes-policy-cache-"));
+    const noteRoot = path.join(workspaceRoot, "notes");
+    await mkdir(path.join(noteRoot, "release"), { recursive: true });
+    const generatedPath = path.join(noteRoot, "release", "generated.md");
+    await writeFile(generatedPath, "# Generated\n", "utf8");
+    const model = workspaceModel(workspaceRoot, noteRoot);
+    const service = new WorkspaceNotesService({ getWorkspaceModel: () => model });
+
+    await expect(service.searchFilenames("generated")).resolves.toMatchObject({
+      notes: [{ filePath: generatedPath }],
+    });
+
+    service.applyWorkspaceModel({
+      ...model,
+      contentPolicy: repositoryWorkspaceContentPolicy(),
+    });
+
+    await expect(service.searchFilenames("generated")).resolves.toEqual({ notes: [], tags: [] });
+    await rm(workspaceRoot, { recursive: true, force: true });
+  });
+
   it("resolves relative targets before falling back to note basename search", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const sourcePath = path.join(noteRoot, "folder", "source.md");

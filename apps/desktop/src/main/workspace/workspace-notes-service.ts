@@ -91,7 +91,12 @@ export class WorkspaceNotesService {
    * but they do not invalidate the graph worker or its staged review state.
    */
   applyWorkspaceModel(model: WorkspaceModel): void {
+    const previousExclusions = normalizeWorkspaceContentPolicy(this.scope.model.contentPolicy).excludedPaths;
+    const nextExclusions = normalizeWorkspaceContentPolicy(model.contentPolicy).excludedPaths;
     this.scope = { ...this.scope, model };
+    if (!sameStringSet(previousExclusions, nextExclusions)) {
+      this.noteFileCache = null;
+    }
   }
 
   invalidateDerivedState(): void {
@@ -734,6 +739,12 @@ function isMissingPathError(error: unknown): error is NodeJS.ErrnoException {
 
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
+}
+
+function sameStringSet(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false;
+  const rightValues = new Set(right);
+  return left.every((value) => rightValues.has(value));
 }
 
 async function fileExists(targetPath: string): Promise<boolean> {
