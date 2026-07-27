@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   saveWorkspaceSettings,
   type WorkspaceSettings,
@@ -25,6 +25,11 @@ const client = {
   spawnAgentCommand: async (): Promise<ExoSpawnAgentCommandResponse> => spawnResponse(),
 } satisfies Pick<AppClient, "getStatus" | "showWindow" | "search" | "getIndexStatus" | "syncIndex" | "openFile" | "spawnAgentCommand">;
 const connect = async () => client;
+const matchingClientEnv = {
+  ...process.env,
+  EXO_WORKSPACE_ROOT: "/workspace",
+  EXO_NOTE_ROOTS: "/workspace",
+};
 
 describe("minimal Exo operator CLI", () => {
   it("prints every command from the shared operator catalog", async () => {
@@ -35,9 +40,49 @@ describe("minimal Exo operator CLI", () => {
     }
   });
 
+  it.each([
+    ["search", "exo search <query>"],
+    ["status", "exo status"],
+    ["index", "exo index"],
+    ["mcp", "exo mcp serve"],
+  ])("prints subcommand help for %s without executing it", async (command, expectedUsage) => {
+    let help = "";
+    const connector = vi.fn(async () => client);
+
+    expect(await runCli(["node", "exo", command, "--help"], {
+      stderr: { write: (text) => { help += text; } },
+      connectAppClient: connector,
+    })).toBe(0);
+
+    expect(help).toContain(`Usage: ${expectedUsage}`);
+    expect(connector).not.toHaveBeenCalled();
+  });
+
+  it("rejects unknown flags, missing flag values, stray arguments, and invalid limits", async () => {
+    const options = { stderr: { write: () => {} }, connectAppClient: connect };
+
+    await expect(runCli(["node", "exo", "search", "needle", "--wat", "nope"], options))
+      .rejects.toThrow("Unknown option: --wat");
+    await expect(runCli(["node", "exo", "status", "--workspace"], options))
+      .rejects.toThrow("Missing value for --workspace");
+    await expect(runCli(["node", "exo", "search", "needle", "--cursor"], options))
+      .rejects.toThrow("Missing value for --cursor");
+    await expect(runCli(["node", "exo", "status", "stray"], options))
+      .rejects.toThrow("Unexpected argument: stray");
+    for (const value of ["-1", "0", "21", "1.5", "many"]) {
+      await expect(runCli(["node", "exo", "search", "needle", "--limit", value], options))
+        .rejects.toThrow("Expected --limit to be an integer from 1 to 20");
+    }
+  });
+
   it("routes the compact search/index/open/invoke contract", async () => {
     let output = "";
-    const options = { stdout: { write: (text: string) => { output += text; } }, stderr: { write: () => {} }, connectAppClient: connect };
+    const options = {
+      env: matchingClientEnv,
+      stdout: { write: (text: string) => { output += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: connect,
+    };
     expect(await runCli(["node", "exo", "search", "hello"], options)).toBe(0);
     expect(await runCli(["node", "exo", "index", "sync"], options)).toBe(0);
     expect(await runCli(["node", "exo", "open", "note.md"], options)).toBe(0);
@@ -52,6 +97,7 @@ describe("minimal Exo operator CLI", () => {
     const offsets: number[] = [];
     const pagingClient = {
       ...client,
+      getStatus: async () => statusResponse(workspaceRoot),
       search: async (query: string, options: { limit?: number; offset?: number } = {}): Promise<ExoCommandSearchResponse> => {
         const limit = options.limit ?? 20;
         const offset = options.offset ?? 0;
@@ -81,6 +127,7 @@ describe("minimal Exo operator CLI", () => {
 
     try {
       let cursor: string | null = null;
+      let firstCursor: string | null = null;
       const seenPaths: string[] = [];
       for (let pageIndex = 0; pageIndex < 6; pageIndex += 1) {
         let output = "";
@@ -104,6 +151,7 @@ describe("minimal Exo operator CLI", () => {
         };
         seenPaths.push(...page.results.map((result) => result.path));
         cursor = page.page.next_cursor;
+        firstCursor ??= cursor;
         expect(page.page.returned).toBe(20);
         expect(page.page.next_cursor).toEqual(pageIndex === 5 ? null : expect.any(String));
       }
@@ -111,6 +159,18 @@ describe("minimal Exo operator CLI", () => {
       expect(offsets).toEqual([0, 20, 40, 60, 80, 100]);
       expect(seenPaths).toEqual(resultPaths);
       expect(new Set(seenPaths).size).toBe(120);
+      await expect(runCli([
+        "node",
+        "exo",
+        "search",
+        "different query",
+        "--cursor",
+        firstCursor!,
+      ], {
+        env,
+        stderr: { write: () => {} },
+        connectAppClient: async () => pagingClient,
+      })).rejects.toThrow("Invalid search cursor");
     } finally {
       await rm(workspaceRoot, { recursive: true, force: true });
     }
@@ -180,6 +240,99 @@ describe("minimal Exo operator CLI", () => {
     }
   });
 
+  it("adds a machine-readable discovery diagnostic while preserving app-off status and search", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-runtime-diagnostic-"));
+    const runtimeRoot = path.join(workspaceRoot, ".exo");
+    const notePath = path.join(workspaceRoot, "orientation.md");
+    await mkdir(runtimeRoot);
+    await writeFile(notePath, "# Orientation\n\nTruthful offline retrieval.\n", "utf8");
+    const env = {
+      ...process.env,
+      EXO_WORKSPACE_ROOT: workspaceRoot,
+      EXO_NOTE_ROOTS: workspaceRoot,
+      EXO_RUNTIME_ROOT: runtimeRoot,
+    };
+
+    try {
+      const run = async (argv: string[]) => {
+        let output = "";
+        expect(await runCli(["node", "exo", ...argv], {
+          env,
+          stdout: { write: (text) => { output += text; } },
+          stderr: { write: () => {} },
+        })).toBe(0);
+        return JSON.parse(output);
+      };
+
+      const status = await run(["status"]);
+      expect(status).toMatchObject({
+        app: {
+          available: false,
+          diagnostic: {
+            code: "server-json-missing",
+            runtimeRoot,
+            serverJsonPath: path.join(runtimeRoot, "server.json"),
+          },
+        },
+        search: { backend: "filesystem", mode: "lexical" },
+      });
+
+      const search = await run(["search", "offline retrieval"]);
+      expect(search).toMatchObject({
+        schema_version: "exo.search.v1",
+        retrieval: { provider: "filesystem", mode: "lexical" },
+        runtime: {
+          code: "server-json-missing",
+          runtimeRoot,
+          serverJsonPath: path.join(runtimeRoot, "server.json"),
+        },
+        results: [{ path: notePath }],
+      });
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("uses filesystem retrieval instead of a live app for a different Workspace", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exo-cli-runtime-mismatch-"));
+    const notePath = path.join(workspaceRoot, "selected.md");
+    await writeFile(notePath, "# Selected\n\nSelected workspace truth.\n", "utf8");
+    const appSearch = vi.fn(client.search);
+    const mismatchedClient = {
+      ...client,
+      getStatus: async () => statusResponse(),
+      search: appSearch,
+    };
+    const env = {
+      ...process.env,
+      EXO_WORKSPACE_ROOT: workspaceRoot,
+      EXO_NOTE_ROOTS: workspaceRoot,
+    };
+    let output = "";
+
+    try {
+      expect(await runCli(["node", "exo", "search", "workspace truth"], {
+        env,
+        stdout: { write: (text) => { output += text; } },
+        stderr: { write: () => {} },
+        connectAppClient: async () => mismatchedClient,
+      })).toBe(0);
+
+      expect(JSON.parse(output)).toMatchObject({
+        retrieval: { provider: "filesystem" },
+        runtime: {
+          code: "workspace-mismatch",
+          selectedWorkspaceRoot: workspaceRoot,
+          appWorkspaceRoot: "/workspace",
+        },
+        results: [{ path: notePath }],
+      });
+      expect(appSearch).not.toHaveBeenCalled();
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   it("lists saved Workspaces and searches a selected inactive Workspace without changing the active one", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exo-cli-workspaces-"));
     const alpha = path.join(userDataPath, "alpha");
@@ -233,12 +386,12 @@ describe("minimal Exo operator CLI", () => {
   });
 });
 
-function statusResponse(): ExoCommandStatusWithControlPlane {
+function statusResponse(workspaceRoot = "/workspace"): ExoCommandStatusWithControlPlane {
   return {
     workspace: {
-      workspaceRoot: "/workspace",
-      defaultTerminalCwd: "/workspace",
-      noteRoots: [],
+      workspaceRoot,
+      defaultTerminalCwd: workspaceRoot,
+      noteRoots: [{ id: "notes", label: "notes", path: workspaceRoot }],
       indexedRoots: [],
       indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
       searchEngine: "qmd",

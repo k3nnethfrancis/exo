@@ -61,7 +61,12 @@ export interface AppClientProcessCheckDiagnostic {
 type ConnectedAppClientDiscovery = AppClientDiscoveryMetadata & { port: number; pid: number };
 
 export type AppClientConnectResult =
-  | { ok: true; client: AppClient; discovery: AppClientDiscoveryMetadata }
+  | {
+    ok: true;
+    client: AppClient;
+    discovery: AppClientDiscoveryMetadata;
+    status: ExoCommandStatusWithControlPlane;
+  }
   | { ok: false; failure: AppClientDiscoveryFailure };
 
 /**
@@ -129,8 +134,8 @@ export class AppClient {
 
     // Health check
     try {
-      await client.getStatus();
-      return { ok: true, client, discovery };
+      const status = await client.getStatus();
+      return { ok: true, client, discovery, status };
     } catch (error) {
       const postFetchProcessCheck = checkProcessLiveness(info.pid);
       if (postFetchProcessCheck.status === "dead") {
@@ -463,7 +468,7 @@ function discoveryFailureMessage(
     case "server-unreachable":
       return `Exo command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}. Restart Exo with \`exo start\` or check that EXO_RUNTIME_ROOT points at the active runtime.`;
     case "server-liveness-unknown":
-      return `Exo command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}, and Exo could not verify whether the recorded process${info?.pid ? ` (${info.pid})` : ""} is alive. The discovery file was preserved because the process check was blocked or inconclusive.`;
+      return `Exo command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}, and Exo could not verify whether the recorded process${info?.pid ? ` (${info.pid})` : ""} is alive. The discovery file was preserved because the process check was blocked or inconclusive. Run \`exo start\`, then retry; if Exo is already open, confirm EXO_RUNTIME_ROOT points to its active Workspace.`;
   }
 }
 

@@ -20,9 +20,18 @@ import {
   type WorkspaceRegistryEntry,
 } from "@exo/core";
 import { EXO_CLI_USAGE } from "@exo/core/operator-help";
-import { AppClient, formatAppClientDiscoveryFailure } from "./app-client";
+import {
+  AppClient,
+  formatAppClientDiscoveryFailure,
+  type AppClientDiscoveryFailure,
+} from "./app-client";
 import { runExoMcpServer } from "./mcp-server";
-import { agentSearchResponse, boundedSearchLimit, parseSearchCursor } from "./search-response";
+import {
+  MAX_AGENT_SEARCH_LIMIT,
+  agentSearchResponse,
+  parseSearchCursor,
+} from "./search-response";
+import { workspaceMatches } from "./workspace-match";
 
 interface AppClientLike {
   getStatus(): Promise<ExoCommandStatusWithControlPlane>;
@@ -49,6 +58,33 @@ const defaultAppLauncher: AppLauncher = (appPath, env) =>
     child.once("exit", (code) => code ? reject(new Error(`open exited with ${code}`)) : resolve());
   });
 
+interface WorkspaceMismatchDiagnostic {
+  code: "workspace-mismatch";
+  message: string;
+  selectedWorkspaceRoot: string;
+  appWorkspaceRoot: string;
+}
+
+type CliRuntimeDiagnostic = AppClientDiscoveryFailure | WorkspaceMismatchDiagnostic;
+
+interface CliConnection {
+  client: AppClientLike | null;
+  status?: ExoCommandStatusWithControlPlane;
+  diagnostic?: CliRuntimeDiagnostic;
+}
+
+const CLI_COMMANDS = new Set([
+  "start",
+  "show",
+  "workspaces",
+  "status",
+  "search",
+  "index",
+  "open",
+  "invoke",
+  "mcp",
+]);
+
 export async function runCli(argv: string[], options: {
   env?: NodeJS.ProcessEnv;
   stdout?: { write(text: string): void };
@@ -67,85 +103,146 @@ export async function runCli(argv: string[], options: {
     return startExoApp(env, stderr, launchApp);
   }
 
-  if (command === "start") {
-    return startExoApp(env, stderr, launchApp);
-  }
-
-  if (command === "mcp" && subcommand === "serve") {
-    await runExoMcpServer({ env, input: process.stdin, output: process.stdout, error: process.stderr });
-    return 0;
-  }
-
   if (command === "--help" || command === "-h" || command === "help") {
     stderr.write(help());
     return 0;
   }
 
-  if (command === "workspaces") return print(listCliWorkspaces(env), stdout);
+  if (!CLI_COMMANDS.has(command)) {
+    throw new Error(help());
+  }
+
+  if (subcommandHelpRequested([subcommand, ...args])) {
+    stderr.write(commandHelp(command));
+    return 0;
+  }
+
+  if (command === "start") {
+    assertNoUnexpectedArguments([subcommand, ...args]);
+    return startExoApp(env, stderr, launchApp);
+  }
+
+  if (command === "mcp" && subcommand === "serve") {
+    assertNoUnexpectedArguments(args);
+    await runExoMcpServer({ env, input: process.stdin, output: process.stdout, error: process.stderr });
+    return 0;
+  }
+
+  if (command === "mcp") {
+    throw new Error(commandHelp("mcp"));
+  }
+
+  if (command === "workspaces") {
+    assertNoUnexpectedArguments([subcommand, ...args]);
+    return print(listCliWorkspaces(env), stdout);
+  }
   if (command === "status") {
-    const { values } = parseOptions([subcommand, ...args].filter((value): value is string => Boolean(value)));
+    const { positionals, values } = parseOptions(
+      [subcommand, ...args].filter((value): value is string => Boolean(value)),
+      new Set(["workspace"]),
+    );
+    assertNoUnexpectedArguments(positionals);
     const workspace = await resolveCliWorkspace(env, values.workspace);
     if (values.workspace) return print(appOffStatus(workspace, env), stdout);
-    const client = await connectIfAvailable(env, connect);
-    return print(client ? client.getStatus() : appOffStatus(workspace, env), stdout);
+    const connection = await connectIfAvailable(env, connect, workspace);
+    return print(
+      connection.client
+        ? connection.status
+        : appOffStatus(workspace, env, connection.diagnostic),
+      stdout,
+    );
   }
   if (command === "search") {
-    if (!subcommand) throw new Error("Usage: exo search <query> [--limit n]");
-    const { positionals, values } = parseOptions([subcommand, ...args]);
-    const query = positionals.join(" ");
-    const limit = boundedSearchLimit(values.limit);
+    const { positionals, values } = parseOptions(
+      [subcommand, ...args].filter((value): value is string => Boolean(value)),
+      new Set(["limit", "cursor", "workspace"]),
+    );
+    const query = positionals.join(" ").trim();
+    if (!query) throw new Error(commandHelp("search").trimEnd());
+    const limit = parseSearchLimit(values.limit);
     const offset = parseSearchCursor(values.cursor, query);
     const workspace = await resolveCliWorkspace(env, values.workspace);
-    const client = values.workspace ? null : await connectIfAvailable(env, connect);
-    const response = client
-      ? await client.search(query, { limit, offset })
+    const connection = values.workspace
+      ? { client: null }
+      : await connectIfAvailable(env, connect, workspace);
+    const response = connection.client
+      ? await connection.client.search(query, { limit, offset })
       : await appOffSearch(workspace, query, { limit, offset });
-    return print(agentSearchResponse(workspace.model, response, { limit, offset }), stdout);
+    const shaped = agentSearchResponse(workspace.model, response, { limit, offset });
+    return print(
+      connection.diagnostic ? { ...shaped, runtime: connection.diagnostic } : shaped,
+      stdout,
+    );
   }
-  let client = await connectIfAvailable(env, connect);
+
+  if (command === "show") {
+    assertNoUnexpectedArguments([subcommand, ...args]);
+  } else if (command === "index") {
+    assertIndexArguments(subcommand, args);
+  } else if (command === "open") {
+    if (!subcommand || args.length > 0) throw new Error(commandHelp("open").trimEnd());
+  } else if (command === "invoke") {
+    if (!subcommand?.startsWith("@") || args.length === 0) throw new Error(commandHelp("invoke").trimEnd());
+  } else {
+    throw new Error(help());
+  }
+
+  const workspace = await resolveCliWorkspace(env);
+  const connection = await connectIfAvailable(env, connect, workspace);
+  const client = connection.client;
   if (!client) {
-    client = await connectOrFail(env, stderr, connect);
-    if (!client) return 1;
+    if (connection.diagnostic) stderr.write(formatCliRuntimeDiagnostic(connection.diagnostic));
+    else stderr.write(`Exo app is not reachable. Start it with: exo start\nRuntime root: ${await resolveCliRuntimeRoot(env)}\n`);
+    return 1;
   }
+
   if (command === "show") { await client.showWindow(); return 0; }
   if (command === "index") return runIndex(client, subcommand, stdout);
   if (command === "open") {
-    if (!subcommand) throw new Error("Usage: exo open <path>");
     await client.openFile(subcommand); return 0;
   }
   if (command === "invoke") {
-    if (!subcommand?.startsWith("@") || args.length === 0) throw new Error("Usage: exo invoke @handle <task>");
     return print(client.spawnAgentCommand(subcommand, args.join(" ")), stdout);
   }
-  throw new Error(help());
+  throw new Error("Unreachable CLI command.");
 }
 
 async function runIndex(client: AppClientLike, subcommand: string | undefined, stdout: { write(text: string): void }): Promise<number> {
   if (!subcommand || subcommand === "status") return print(client.getIndexStatus(), stdout);
   if (subcommand === "sync") return print(client.syncIndex(), stdout);
-  throw new Error("Usage: exo index [status | sync]");
+  throw new Error(commandHelp("index").trimEnd());
 }
 
-async function connectOrFail(env: NodeJS.ProcessEnv, stderr: { write(text: string): void }, connect: AppClientConnector): Promise<AppClientLike | null> {
+async function connectIfAvailable(
+  env: NodeJS.ProcessEnv,
+  connect: AppClientConnector,
+  workspace: CliWorkspace,
+): Promise<CliConnection> {
   const runtimeRoot = await resolveCliRuntimeRoot(env);
+  let client: AppClientLike | null;
+  let status: ExoCommandStatusWithControlPlane | undefined;
   if (connect === defaultAppClientConnector) {
     const result = await AppClient.connectDetailed(runtimeRoot, env);
-    if (result.ok) return result.client;
-    stderr.write(formatAppClientDiscoveryFailure(result.failure));
-    return null;
+    if (!result.ok) return { client: null, diagnostic: result.failure };
+    client = result.client;
+    status = result.status;
+  } else {
+    client = await connect(runtimeRoot, env);
   }
-  const client = await connect(runtimeRoot, env);
-  if (!client) stderr.write(`Exo app is not reachable. Start it with: exo start\nRuntime root: ${runtimeRoot}\n`);
-  return client;
-}
-
-async function connectIfAvailable(env: NodeJS.ProcessEnv, connect: AppClientConnector): Promise<AppClientLike | null> {
-  const runtimeRoot = await resolveCliRuntimeRoot(env);
-  if (connect === defaultAppClientConnector) {
-    const result = await AppClient.connectDetailed(runtimeRoot, env);
-    return result.ok ? result.client : null;
+  if (!client) return { client: null };
+  status ??= await client.getStatus();
+  if (!workspaceMatches(workspace.model, status.workspace)) {
+    return {
+      client: null,
+      diagnostic: {
+        code: "workspace-mismatch",
+        message: `The running Exo app serves ${status.workspace.workspaceRoot}, not the selected Workspace ${workspace.model.workspaceRoot}. Filesystem retrieval was used for the selected Workspace; switch the app or pass --workspace explicitly.`,
+        selectedWorkspaceRoot: workspace.model.workspaceRoot,
+        appWorkspaceRoot: status.workspace.workspaceRoot,
+      },
+    };
   }
-  return connect(runtimeRoot, env);
+  return { client, status };
 }
 
 async function resolveCliWorkspaceModel(env: NodeJS.ProcessEnv): Promise<WorkspaceModel> {
@@ -245,12 +342,20 @@ async function listCliWorkspaces(env: NodeJS.ProcessEnv): Promise<Record<string,
   };
 }
 
-async function appOffStatus(workspace: CliWorkspace, env: NodeJS.ProcessEnv): Promise<Record<string, unknown>> {
+async function appOffStatus(
+  workspace: CliWorkspace,
+  env: NodeJS.ProcessEnv,
+  diagnostic?: CliRuntimeDiagnostic,
+): Promise<Record<string, unknown>> {
   const { model } = workspace;
   const runtimeRoot = await resolveCliRuntimeRoot(env, model);
   return {
     ok: true,
-    app: { available: false },
+    app: {
+      available: diagnostic?.code === "workspace-mismatch",
+      usableForWorkspace: false,
+      ...(diagnostic ? { diagnostic } : {}),
+    },
     workspace: {
       id: workspace.id,
       label: workspace.label,
@@ -296,18 +401,99 @@ async function startExoApp(
   }
 }
 
-function parseOptions(args: string[]): { values: Record<string, string>; positionals: string[] } {
-  const values: Record<string, string> = {}; const positionals: string[] = [];
+function parseOptions(
+  args: string[],
+  allowedOptions: ReadonlySet<string>,
+): { values: Record<string, string>; positionals: string[] } {
+  const values: Record<string, string> = {};
+  const positionals: string[] = [];
+  let positionalOnly = false;
   for (let index = 0; index < args.length; index += 1) {
     const value = args[index];
-    if (!value.startsWith("--")) { positionals.push(value); continue; }
-    const key = value.slice(2); const next = args[index + 1];
-    if (!next || next.startsWith("--")) { values[key] = "true"; continue; }
-    values[key] = next; index += 1;
+    if (positionalOnly) {
+      positionals.push(value);
+      continue;
+    }
+    if (value === "--") {
+      positionalOnly = true;
+      continue;
+    }
+    if (!value.startsWith("-")) {
+      positionals.push(value);
+      continue;
+    }
+    if (!value.startsWith("--")) {
+      throw new Error(`Unknown option: ${value}`);
+    }
+    const key = value.slice(2);
+    if (!allowedOptions.has(key)) {
+      throw new Error(`Unknown option: ${value}`);
+    }
+    if (Object.hasOwn(values, key)) {
+      throw new Error(`Option may be provided only once: ${value}`);
+    }
+    const next = args[index + 1];
+    if (!next || next.startsWith("--")) {
+      throw new Error(`Missing value for ${value}`);
+    }
+    values[key] = next;
+    index += 1;
   }
   return { values, positionals };
 }
+
+function parseSearchLimit(value: string | undefined): number {
+  if (value === undefined) return 10;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > MAX_AGENT_SEARCH_LIMIT) {
+    throw new Error(`Expected --limit to be an integer from 1 to ${MAX_AGENT_SEARCH_LIMIT}.`);
+  }
+  return parsed;
+}
+
+function subcommandHelpRequested(args: Array<string | undefined>): boolean {
+  for (const value of args) {
+    if (value === "--") return false;
+    if (value === "--help" || value === "-h") return true;
+  }
+  return false;
+}
+
+function assertNoUnexpectedArguments(args: Array<string | undefined>): void {
+  const unexpected = args.find((value): value is string => Boolean(value));
+  if (unexpected) throw new Error(`Unexpected argument: ${unexpected}`);
+}
+
+function assertIndexArguments(subcommand: string | undefined, args: string[]): void {
+  assertNoUnexpectedArguments(args);
+  if (subcommand && subcommand !== "status" && subcommand !== "sync") {
+    throw new Error(commandHelp("index").trimEnd());
+  }
+}
+
+function formatCliRuntimeDiagnostic(diagnostic: CliRuntimeDiagnostic): string {
+  if (diagnostic.code !== "workspace-mismatch") {
+    return formatAppClientDiscoveryFailure(diagnostic);
+  }
+  return `${diagnostic.message}\n`;
+}
+
 async function print(value: Promise<unknown> | unknown, stdout: { write(text: string): void }): Promise<number> { stdout.write(`${JSON.stringify(await value, null, 2)}\n`); return 0; }
+function commandHelp(command: string): string {
+  const usage = {
+    start: "exo start",
+    show: "exo show",
+    workspaces: "exo workspaces",
+    status: "exo status [--workspace <id|label|path>]",
+    search: "exo search <query> [--limit n] [--cursor cursor] [--workspace <id|label|path>]",
+    index: "exo index [status|sync]",
+    open: "exo open <path>",
+    invoke: "exo invoke @handle <task>",
+    mcp: "exo mcp serve",
+  }[command];
+  return usage ? `Usage: ${usage}\n` : help();
+}
+
 function help(): string {
   return [
     EXO_CLI_USAGE,

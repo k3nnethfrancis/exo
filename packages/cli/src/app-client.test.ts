@@ -139,6 +139,7 @@ describe("AppClient", () => {
       expect(result.failure.code).toBe("server-liveness-unknown");
       expect(result.failure.processCheck).toMatchObject({ status: "blocked", code: "EPERM", message: "kill EPERM 14108" });
       expect(formatAppClientDiscoveryFailure(result.failure)).toContain("Process check: blocked; code=EPERM");
+      expect(formatAppClientDiscoveryFailure(result.failure)).toContain("Run `exo start`, then retry");
     }
   });
 

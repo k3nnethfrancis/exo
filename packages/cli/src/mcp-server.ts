@@ -8,12 +8,12 @@ import {
   resolveWorkspaceModel,
   workspaceEnvOverrides,
   workspaceModelFromSettings,
-  type ExoCommandStatusWithControlPlane,
   type WorkspaceModel,
 } from "@exo/core";
 
 import { AppClient } from "./app-client";
 import { agentSearchResponse, boundedSearchLimit, parseSearchCursor } from "./search-response";
+import { workspaceMatches } from "./workspace-match";
 
 const MCP_PROTOCOL_VERSION = "2025-06-18";
 const MAX_SEARCH_RESULTS = 20;
@@ -113,7 +113,7 @@ async function createOperations(
 
 async function clientMatchesWorkspace(client: AppClientLike, model: WorkspaceModel): Promise<boolean> {
   try {
-    return workspaceMatches(model, await client.getStatus());
+    return workspaceMatches(model, (await client.getStatus()).workspace);
   } catch {
     return false;
   }
@@ -187,16 +187,6 @@ async function resolveWorkspaceScope(env: NodeJS.ProcessEnv, cwd: string): Promi
     };
   }
   return { status: "unresolved", cwd: resolvedCwd, candidateCount: workspaces.length };
-}
-
-function workspaceMatches(model: WorkspaceModel, status: ExoCommandStatusWithControlPlane): boolean {
-  const workspace = status.workspace;
-  if (path.resolve(workspace.workspaceRoot) !== path.resolve(model.workspaceRoot)) {
-    return false;
-  }
-  const appRoots = workspace.noteRoots.map((root) => path.resolve(root.path)).sort();
-  const expectedRoots = model.noteRoots.map((root) => path.resolve(root.path)).sort();
-  return appRoots.length === expectedRoots.length && appRoots.every((root, index) => root === expectedRoots[index]);
 }
 
 function isWithin(root: string, target: string): boolean {

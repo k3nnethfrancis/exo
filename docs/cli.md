@@ -33,9 +33,19 @@ exo mcp serve
 
 `exo status` and `exo search` work when the desktop app is not running. They resolve a saved workspace, use bounded filesystem retrieval, and report that the app is unavailable rather than claiming indexed app results.
 
+When runtime discovery fails, app-off status includes
+`app.diagnostic`, and app-off search includes the same object as `runtime`.
+Its `code` distinguishes a missing runtime or discovery file, invalid or stale
+discovery, an unreachable live process, an inconclusive/permission-limited
+process check, and a running app for a different workspace. Filesystem results
+remain available and continue to name `filesystem` as their effective provider.
+
 `show`, `index`, `open`, and `invoke` require the resident Exo app. `invoke` opens a visible terminal task and is intentionally different from a note-native `@` invocation, which carries document context and uses inline review.
 
 Search output is JSON with ranked paths, titles, snippets, source metadata, and an optional cursor. It does not grant filesystem authority: callers read a returned path only through their own allowed tools.
+Search limits must be integers from 1 through 20. Use `exo <command> --help`
+for command-specific usage; unknown options, missing option values, and invalid
+limits exit unsuccessfully instead of being silently normalized.
 
 ## MCP
 
