@@ -42,6 +42,7 @@ describe("onboarding state", () => {
   it("rejects partial, aliased, and invalid in-progress drafts", () => {
     expect(() => validateOnboardingProgressDraft({ ...draft(), version: 2 })).toThrow("version 1");
     expect(() => validateOnboardingProgressDraft({ ...draft(), step: "tools" })).toThrow("step");
+    expect(() => validateOnboardingProgressDraft({ ...draft(), contentPolicyChoice: "automatic" })).toThrow("contentPolicyChoice");
     expect(() => validateOnboardingProgressDraft({ ...draft(), notesFolder: 42 })).toThrow("notesFolder");
     expect(() => validateOnboardingProgressDraft({
       ...draft(),
@@ -134,6 +135,7 @@ function draft(): OnboardingProgressDraft {
       excludedPaths: [".git/**", "node_modules/**"],
       sourceVisibility: false,
     },
+    contentPolicyChoice: "recommended",
     search: {
       indexMode: "lexical",
       searchEngine: "qmd",

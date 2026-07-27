@@ -40,6 +40,7 @@ describe("onboarding runtime apply decisions", () => {
     current.agentCommands[0] = { ...current.agentCommands[0], command: "claude -p --model sonnet" };
     current.agentInvocationPrompt = "Confirmed {{message}} for {{working_note}}.";
     current.contentPolicy = { excludedPaths: ["dist/**"], sourceVisibility: true };
+    current.contentPolicyChoice = "explicit";
     current.selectedMcpProviders = ["codex"];
 
     expect(onboardingDraftFromState(current)).toMatchObject({
@@ -47,6 +48,7 @@ describe("onboarding runtime apply decisions", () => {
       notesFolder: "/Users/tester/wiki",
       defaultTerminalCwd: "/Users/tester",
       contentPolicy: { excludedPaths: ["dist/**"], sourceVisibility: true },
+      contentPolicyChoice: "explicit",
       search: {
         indexMode: "hybrid",
         searchEngine: "qmd",
@@ -69,6 +71,7 @@ function state(): OnboardingState {
     notesFolder: "/Users/tester/wiki",
     defaultTerminalCwd: "/Users/tester",
     contentPolicy: { excludedPaths: [".git/**"], sourceVisibility: false },
+    contentPolicyChoice: "recommended",
     contentInspection: { kind: "repository", signals: [".git"], recommendedPolicy: { excludedPaths: [".git/**"], sourceVisibility: false } },
     indexMode: "hybrid",
     searchEngine: "qmd",

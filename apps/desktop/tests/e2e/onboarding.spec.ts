@@ -75,6 +75,11 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
     mutable: true,
     workspaceRootEnv: false,
     runtimeRootEnv: false,
+    env: { PATH: "/usr/bin:/bin" },
+    prepareHome: prepareFakeProviderHome,
+    prepareWorkspace: async (workspaceRoot) => {
+      await writeFile(path.join(workspaceRoot, "notes", "test-notes", "package.json"), "{}\n", "utf8");
+    },
     selectFolderPath: (workspaceRoot) => path.join(workspaceRoot, "notes", "test-notes"),
   });
   const noteRoot = path.join(first.workspaceRoot, "notes", "test-notes");
@@ -96,6 +101,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
     workspaceRootEnv: false,
     runtimeRootEnv: false,
     expectOnboarding: true,
+    env: { PATH: "/usr/bin:/bin" },
   });
   activeApp = resumed.electronApp;
   activePage = resumed.page;
@@ -104,7 +110,15 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
 
   await activePage.getByTestId("onboarding-continue").click();
   await expect(activePage.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
-  await activePage.getByTestId("onboarding-content-scope-notes").click();
+  await expect(activePage.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => activePage.evaluate(() => window.exo.workspace.getSetupState())).toMatchObject({
+    onboarding: {
+      draft: {
+        contentPolicyChoice: "recommended",
+        contentPolicy: { excludedPaths: expect.arrayContaining(["node_modules/**"]) },
+      },
+    },
+  });
   await activePage.reload();
   await expect(activePage.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
   await expect(activePage.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
@@ -115,15 +129,30 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
     workspaceRootEnv: false,
     runtimeRootEnv: false,
     expectOnboarding: true,
+    env: { PATH: "/usr/bin:/bin" },
   });
   activeApp = resumed.electronApp;
   activePage = resumed.page;
   await expect(activePage.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
   await expect(activePage.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
+  await activePage.getByTestId("onboarding-content-scope-all").click();
+  await activePage.reload();
+  await expect(activePage.getByTestId("onboarding-content-scope-all")).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => activePage.evaluate(() => window.exo.workspace.getSetupState())).toMatchObject({
+    onboarding: {
+      draft: {
+        contentPolicyChoice: "explicit",
+        contentPolicy: { excludedPaths: [] },
+      },
+    },
+  });
 
   await activePage.getByRole("button", { name: "Continue to tools" }).click();
   await expect(activePage.getByRole("heading", { name: "Agent access" })).toBeVisible();
   await activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" }).click();
+  await activePage.getByRole("button", { name: "Install MCP" }).click();
+  await expect(activePage.getByText("Added Exo MCP to Claude.")).toBeVisible();
+  await expect.poll(() => readOptional(path.join(first.homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nexo");
   await activePage.reload();
   await expect(activePage.getByRole("heading", { name: "Agent access" })).toBeVisible();
   await expect(activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Claude" })).toHaveAttribute("aria-pressed", "true");
@@ -136,11 +165,13 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
     workspaceRootEnv: false,
     runtimeRootEnv: false,
     expectOnboarding: true,
+    env: { PATH: "/usr/bin:/bin" },
   });
   activeApp = resumed.electronApp;
   activePage = resumed.page;
   await expect(activePage.getByRole("heading", { name: "Agent access" })).toBeVisible();
   await expect(activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" })).toHaveAttribute("aria-pressed", "false");
+  await expect(activePage.getByText(/Added Exo MCP|already installed/)).toHaveCount(0);
 
   await activePage.getByRole("button", { name: "Set up CLI agents" }).click();
   const claudeInput = activePage.getByRole("textbox", { name: "Claude command" });
@@ -163,6 +194,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
     workspaceRootEnv: false,
     runtimeRootEnv: false,
     expectOnboarding: true,
+    env: { PATH: "/usr/bin:/bin" },
   });
   activeApp = resumed.electronApp;
   activePage = resumed.page;

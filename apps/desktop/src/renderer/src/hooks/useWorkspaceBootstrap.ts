@@ -32,6 +32,7 @@ export interface OnboardingState {
   notesFolder: string;
   defaultTerminalCwd: string;
   contentPolicy: WorkspaceContentPolicy;
+  contentPolicyChoice: OnboardingProgressDraft["contentPolicyChoice"];
   contentInspection: WorkspaceContentInspection | null;
   indexMode: WorkspaceSettings["indexing"]["mode"];
   searchEngine: "qmd" | "filesystem";
@@ -111,7 +112,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
             : defaultFirstRunOnboardingState(settings, workspaces);
         setOnboardingState(initialState);
         if (initialState.step !== "recovery" && initialState.notesFolder) {
-          void inspectOnboardingContentScope(initialState.notesFolder, false);
+          void inspectOnboardingContentScope(initialState.notesFolder);
         }
         return;
       }
@@ -231,13 +232,15 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     });
     if (folders[0]) {
       const notesFolder = folders[0];
+      const contentInspection = await window.exo.workspace.inspectContentScope(notesFolder).catch(() => null);
       await confirmOnboardingChange((current) => ({
         ...current,
         notesFolder,
         defaultTerminalCwd: current.defaultTerminalCwd || defaultTerminalCwdForNotesFolder(notesFolder),
-        contentInspection: null,
+        contentPolicy: contentInspection?.recommendedPolicy ?? defaultWorkspaceContentPolicy(),
+        contentPolicyChoice: "recommended",
+        contentInspection,
       }));
-      void inspectOnboardingContentScope(notesFolder, true);
     }
   }
 
@@ -265,6 +268,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       notesFolder: current?.noteRoots[0] ?? "",
       defaultTerminalCwd: current?.defaultTerminalCwd ?? current?.noteRoots[0] ?? "",
       contentPolicy: current?.contentPolicy ?? defaultWorkspaceContentPolicy(),
+      contentPolicyChoice: "explicit",
       contentInspection: null,
       indexMode: current?.indexing.mode ?? "off",
       searchEngine: current?.searchEngine ?? (current?.indexing.enabled && current.indexing.mode !== "off" && current.indexedRoots.length > 0 ? "qmd" : "filesystem"),
@@ -286,6 +290,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
       notesFolder: "",
       defaultTerminalCwd: "",
       contentPolicy: defaultWorkspaceContentPolicy(),
+      contentPolicyChoice: "recommended",
       contentInspection: null,
       indexMode: "lexical",
       searchEngine: "qmd",
@@ -337,7 +342,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     }
   }
 
-  async function inspectOnboardingContentScope(notesFolder: string, applyRecommendation: boolean) {
+  async function inspectOnboardingContentScope(notesFolder: string) {
     try {
       const contentInspection = await window.exo.workspace.inspectContentScope(notesFolder);
       setOnboardingState((current) =>
@@ -345,7 +350,6 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
           ? {
               ...current,
               contentInspection,
-              contentPolicy: applyRecommendation ? contentInspection.recommendedPolicy : current.contentPolicy,
             }
           : current,
       );
@@ -490,6 +494,7 @@ export function defaultFirstRunOnboardingState(
     notesFolder: "",
     defaultTerminalCwd: "",
     contentPolicy: defaultWorkspaceContentPolicy(),
+    contentPolicyChoice: "recommended",
     contentInspection: null,
     indexMode: "lexical",
     searchEngine: "qmd",
@@ -517,6 +522,7 @@ export function onboardingStateFromDraft(
     notesFolder: draft.notesFolder,
     defaultTerminalCwd: draft.defaultTerminalCwd,
     contentPolicy: draft.contentPolicy,
+    contentPolicyChoice: draft.contentPolicyChoice,
     contentInspection: null,
     indexMode: draft.search.indexMode,
     searchEngine: draft.search.searchEngine,
@@ -541,6 +547,7 @@ export function onboardingDraftFromState(state: OnboardingState): OnboardingProg
     notesFolder: state.notesFolder,
     defaultTerminalCwd: state.defaultTerminalCwd,
     contentPolicy: state.contentPolicy,
+    contentPolicyChoice: state.contentPolicyChoice,
     search: {
       indexMode: state.indexMode,
       searchEngine: state.searchEngine,

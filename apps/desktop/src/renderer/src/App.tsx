@@ -1124,6 +1124,7 @@ export function App() {
                     onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
                       ...current,
                       contentPolicy: repositoryWorkspaceContentPolicy(),
+                      contentPolicyChoice: "explicit",
                     }))}
                     type="button"
                   >
@@ -1138,6 +1139,7 @@ export function App() {
                     onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
                       ...current,
                       contentPolicy: defaultWorkspaceContentPolicy(),
+                      contentPolicyChoice: "explicit",
                     }))}
                     type="button"
                   >

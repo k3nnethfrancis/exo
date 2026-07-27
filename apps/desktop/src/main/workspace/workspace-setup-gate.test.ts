@@ -87,6 +87,7 @@ function draft() {
     notesFolder: "/tmp/wiki",
     defaultTerminalCwd: "/tmp",
     contentPolicy: { excludedPaths: [], sourceVisibility: false },
+    contentPolicyChoice: "recommended" as const,
     search: {
       indexMode: "lexical" as const,
       searchEngine: "qmd" as const,

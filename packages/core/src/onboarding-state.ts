@@ -18,6 +18,8 @@ export interface OnboardingProgressDraft {
   notesFolder: string;
   defaultTerminalCwd: string;
   contentPolicy: WorkspaceContentPolicy;
+  /** Whether inspection still owns the recommendation or the user chose scope explicitly. */
+  contentPolicyChoice: "recommended" | "explicit";
   search: {
     indexMode: IndexMode;
     searchEngine: SearchEngine;
@@ -200,6 +202,7 @@ export function validateOnboardingProgressDraft(input: unknown): OnboardingProgr
   const defaultTerminalCwd = requiredString(input, "defaultTerminalCwd");
   const selectedWorkspaceId = optionalNullableString(input, "selectedWorkspaceId");
   const contentPolicy = validateContentPolicy(input.contentPolicy);
+  const contentPolicyChoice = requiredUnion(input, "contentPolicyChoice", ["recommended", "explicit"]);
   const search = validateSearchSettings(input.search);
   const agentCommands = normalizeAgentCommands(input.agentCommands);
   if (!Array.isArray(input.agentCommands) || agentCommands.length !== input.agentCommands.length) {
@@ -222,6 +225,7 @@ export function validateOnboardingProgressDraft(input: unknown): OnboardingProgr
     notesFolder,
     defaultTerminalCwd,
     contentPolicy,
+    contentPolicyChoice,
     search,
     agentCommands,
     agentInvocationPrompt,
