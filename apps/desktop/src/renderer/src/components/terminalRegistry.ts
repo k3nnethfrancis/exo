@@ -1,4 +1,4 @@
-import { Terminal } from "xterm";
+import { Terminal } from "@xterm/xterm";
 
 const terminalRegistry = new Map<string, { terminal: Terminal; generation: number; write: (data: string) => void; refresh: () => void }>();
 

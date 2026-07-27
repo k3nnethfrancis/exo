@@ -1,4 +1,4 @@
-import type { ITheme } from "xterm";
+import type { ITheme } from "@xterm/xterm";
 
 import type { StemThemeVariant } from "./types";
 

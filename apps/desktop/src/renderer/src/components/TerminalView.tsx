@@ -2,7 +2,7 @@ import { useEffect, useRef, type MutableRefObject } from "react";
 
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
-import { Terminal } from "xterm";
+import { Terminal } from "@xterm/xterm";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
 import type { StemThemeVariant } from "../theme/types";
