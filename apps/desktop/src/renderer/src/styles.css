@@ -3307,9 +3307,13 @@ select.dialog-card__input {
   gap: 10px;
 }
 
-.onboarding-access + .onboarding-access {
+.onboarding-access--mcp {
   padding-top: 14px;
   border-top: 1px solid var(--surface-border);
+}
+
+.onboarding-access--cli {
+  order: -1;
 }
 
 .onboarding-access__header {

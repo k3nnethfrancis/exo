@@ -52,6 +52,7 @@ const api: DesktopApi = {
     resetAgentCommandContinuity: (commandId) => invokeDesktop("workspace:reset-agent-command-continuity", commandId),
     configureProviderMcp: (input) => invokeDesktop("workspace:configure-provider-mcp", input),
     getCliInstallationStatus: () => invokeDesktop("workspace:get-cli-installation-status"),
+    installCli: () => invokeDesktop("workspace:install-cli"),
     recordRendererDiagnostic: (diagnostic) => invokeDesktop("workspace:record-renderer-diagnostic", diagnostic),
     endAgentInvocation: (invocationId) => invokeDesktop("workspace:end-agent-invocation", invocationId),
     listPendingInvocationReviews: () => invokeDesktop("workspace:list-pending-invocation-reviews"),

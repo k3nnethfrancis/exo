@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { findSourceProjectRoot, inspectCliInstallation } from "./cli-installation";
+import { findSourceProjectRoot, inspectCliInstallation, installPackagedCli } from "./cli-installation";
 
 const roots: string[] = [];
 
@@ -77,5 +77,31 @@ describe("CLI installation diagnosis", () => {
     await chmod(command, 0o755);
     await expect(inspectCliInstallation({ env: { PATH: bin, HOME: root }, sourceProjectRoot: project }))
       .resolves.toMatchObject({ state: "non-stem" });
+  });
+
+  it("installs and recognizes the CLI bundled with the desktop app", async () => {
+    const { root } = await fixture();
+    const packagedCli = {
+      appExecutablePath: "/Applications/Stem.app/Contents/MacOS/Stem",
+      scriptPath: "/Applications/Stem.app/Contents/Resources/app.asar/dist/main/cli.js",
+    };
+
+    await expect(installPackagedCli(packagedCli, { env: { HOME: root, PATH: "/usr/bin:/bin" } }))
+      .resolves.toMatchObject({ state: "current", commandPath: path.join(root, ".local", "bin", "stem") });
+    await expect(inspectCliInstallation({
+      env: { HOME: root, PATH: path.join(root, ".local", "bin") },
+      packagedCli,
+    })).resolves.toMatchObject({ state: "current" });
+  });
+
+  it("will not overwrite an unrelated local command", async () => {
+    const { root } = await fixture();
+    const target = path.join(root, ".local", "bin", "stem");
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, "#!/bin/sh\n", "utf8");
+    await chmod(target, 0o755);
+
+    await expect(installPackagedCli({ appExecutablePath: "/app", scriptPath: "/cli" }, { env: { HOME: root } }))
+      .rejects.toThrow(`Refusing to replace the existing command at ${target}.`);
   });
 });

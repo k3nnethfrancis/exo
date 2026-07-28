@@ -303,11 +303,10 @@ test("keeps MCP and CLI setup independent without touching real provider state",
   await page.getByTestId("onboarding-continue").click();
   await continueFromContentPolicy(page);
   await expect(page.getByRole("heading", { name: "Agent access" })).toBeVisible();
-  await expect(page.getByText("MCP for tools. CLI for shells.")).toBeVisible();
-  await expect(page.getByText("MCP setup never changes the CLI.")).toBeVisible();
-  // CLI inspection is asynchronous; wait for the deliberately fake existing
+  await expect(page.getByText("Choose CLI, MCP, or both.")).toBeVisible();
+  // CLI inspection is asynchronous; wait for the deliberately fake packaged
   // command before taking the control snapshot for the MCP-isolation check.
-  await expect(page.locator(".onboarding-cli-installation")).toContainText("Existing command kept");
+  await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI ready");
   const cliStateBefore = await page.locator(".onboarding-cli-installation").innerText();
 
   await page.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" }).click();
@@ -318,6 +317,42 @@ test("keeps MCP and CLI setup independent without touching real provider state",
   expect(await page.locator(".onboarding-cli-installation").innerText()).toBe(cliStateBefore);
 
   await cleanup();
+});
+
+test("installs the bundled CLI before enabling MCP", async () => {
+  const { page, cleanup, homeRoot } = await launchStemWorkspaceFixture({
+    configured: false,
+    mutable: true,
+    workspaceRootEnv: false,
+    runtimeRootEnv: false,
+    env: { PATH: "/usr/bin:/bin" },
+    selectFolderPath: (workspaceRoot) => path.join(workspaceRoot, "notes", "test-notes"),
+    prepareHome: async (root) => {
+      const bin = path.join(root, ".local", "bin");
+      await mkdir(bin, { recursive: true });
+      await Promise.all([
+        writeExecutable(path.join(bin, "claude"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/claude-mcp.log\"\n"),
+        writeExecutable(path.join(bin, "codex"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/codex-mcp.log\"\n"),
+      ]);
+    },
+  });
+
+  try {
+    await page.getByTestId("onboarding-choose-notes").click();
+    await page.getByTestId("onboarding-continue").click();
+    await continueFromContentPolicy(page);
+    await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI not installed");
+    await expect(page.getByRole("button", { name: "Install MCP" })).toBeDisabled();
+
+    await page.getByRole("button", { name: "Install CLI" }).click();
+    await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI ready");
+    await expect(readOptional(path.join(homeRoot, ".local", "bin", "stem"))).resolves.toContain("stem-packaged-cli");
+
+    await page.getByRole("button", { name: "Install MCP" }).click();
+    await expect(page.getByText("Added Stem MCP to Claude.")).toBeVisible();
+  } finally {
+    await cleanup();
+  }
 });
 
 test("resumes a new main wiki draft launched from an existing workspace", async () => {
@@ -660,7 +695,7 @@ async function prepareFakeProviderHome(homeRoot: string): Promise<void> {
   const bin = path.join(homeRoot, ".local", "bin");
   await mkdir(bin, { recursive: true });
   await Promise.all([
-    writeExecutable(path.join(bin, "stem"), "#!/bin/sh\nexit 0\n"),
+    writeExecutable(path.join(bin, "stem"), "#!/bin/sh\n# stem-packaged-cli\nexit 0\n"),
     writeExecutable(path.join(bin, "claude"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/claude-mcp.log\"\n"),
     writeExecutable(path.join(bin, "codex"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/codex-mcp.log\"\n"),
   ]);

@@ -180,7 +180,7 @@ if [ "$INSTALL_CLI" -eq 0 ]; then
   cat <<'EOF'
 
 Note:
-  Use --with-cli if you also want the repo-backed `stem` command installed.
-  A fully packaged standalone CLI is separate follow-up work.
+  Stem can install its bundled `stem` command from Agent access.
+  Use --with-cli only when you specifically want a repo-backed developer CLI.
 EOF
 fi

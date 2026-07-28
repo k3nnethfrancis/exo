@@ -114,6 +114,8 @@ export function App() {
     errorMessage: null as string | null,
   });
   const [cliInstallation, setCliInstallation] = useState<CliInstallationStatus | null>(null);
+  const [cliInstallStatus, setCliInstallStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [cliInstallError, setCliInstallError] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [inspectorTabRequest, setInspectorTabRequest] = useState<{ tab: "history"; nonce: number } | null>(null);
   const [pendingInvocationAuthorization, setPendingInvocationAuthorization] = useState<PendingInvocationAuthorization | null>(null);
@@ -179,12 +181,15 @@ export function App() {
   useEffect(() => {
     if (onboardingState?.step !== "mcp") return;
     setOnboardingMcp({ status: "idle", results: [], errorMessage: null });
+    setCliInstallStatus("idle");
+    setCliInstallError(null);
     let cancelled = false;
     void window.stem.workspace.getCliInstallationStatus()
       .then((status) => { if (!cancelled) setCliInstallation(status); })
       .catch(() => { if (!cancelled) setCliInstallation({ state: "unavailable" }); });
     return () => { cancelled = true; };
   }, [onboardingState?.step]);
+  const cliReady = cliInstallation?.state === "current";
   const workspaceSettingsController = useWorkspaceSettingsController({
     workspaceSettingsRef,
     workspaceSettingsRevisionRef,
@@ -1198,13 +1203,13 @@ export function App() {
               <div className="onboarding-card__body" data-testid="onboarding-card-body">
                 <h1 className="onboarding-card__title">Agent access</h1>
                 <p className="onboarding-card__copy">
-                  MCP for tools. CLI for shells.
+                  Choose CLI, MCP, or both.
                 </p>
                 <div className="onboarding-section onboarding-section--primary">
-                  <section className="onboarding-access" aria-labelledby="onboarding-mcp-title">
+                  <section className="onboarding-access onboarding-access--mcp" aria-labelledby="onboarding-mcp-title">
                     <div className="onboarding-access__header">
                       <ShieldCheck aria-hidden="true" size={16} strokeWidth={1.8} />
-                      <div><strong id="onboarding-mcp-title">MCP</strong><span>Read-only context · 2 tools</span></div>
+                      <div><strong id="onboarding-mcp-title">MCP</strong><span>{cliReady ? "Read-only context · 2 tools" : "Requires Stem CLI"}</span></div>
                     </div>
                     <div className="onboarding-provider-menu" aria-label="Install Stem MCP in">
                       <div className="onboarding-provider-menu__title">Install in</div>
@@ -1246,7 +1251,7 @@ export function App() {
                       </li>
                     </ul>
                     <div className="onboarding-card__actions onboarding-card__actions--inline">
-                      <button className="toolbar-button" disabled={onboardingState.selectedMcpProviders.length === 0 || onboardingMcp.status === "saving"} onClick={() => void (async () => {
+                      <button className="toolbar-button" disabled={!cliReady || onboardingState.selectedMcpProviders.length === 0 || onboardingMcp.status === "saving"} onClick={() => void (async () => {
                         setOnboardingMcp((current) => ({ ...current, status: "saving", errorMessage: null, results: [] }));
                         try {
                           await workspaceBootstrap.persistCurrentOnboardingState();
@@ -1263,18 +1268,30 @@ export function App() {
                   <section className="onboarding-access onboarding-access--cli" aria-labelledby="onboarding-cli-title">
                     <div className="onboarding-access__header">
                       <SquareTerminal aria-hidden="true" size={16} strokeWidth={1.8} />
-                      <div><strong id="onboarding-cli-title">CLI</strong><span>For shell-capable clients</span></div>
+                      <div><strong id="onboarding-cli-title">CLI</strong><span>Shell access · required by MCP</span></div>
                     </div>
                     <div className="onboarding-cli-context"><code>stem search</code><code>stem open</code><code>stem invoke</code></div>
                     <p className="onboarding-section__hint">Search returns paths. Agents use their own filesystem tools to inspect them.</p>
                     <div className={`onboarding-cli-installation onboarding-cli-installation--${cliInstallation?.state ?? "checking"}`} aria-live="polite">
                       {cliInstallation?.state === "current" ? <Check aria-hidden="true" size={15} strokeWidth={2.2} /> : <SquareTerminal aria-hidden="true" size={15} strokeWidth={1.8} />}
                       <span>
-                        <strong>{cliInstallation?.state === "current" ? "CLI ready" : cliInstallation?.state === "legacy-stem" ? "Update CLI" : cliInstallation?.state === "missing" ? "Install CLI" : cliInstallation?.state === "non-stem" ? "Existing command kept" : "CLI setup"}</strong>
-                        {cliInstallation?.state === "current" ? <small>Linked to this checkout</small> : cliInstallation?.installCommand ? <code>{cliInstallation.installCommand}</code> : <small>Run setup from an Stem checkout.</small>}
+                        <strong>{cliReady ? "CLI ready" : cliInstallation?.state === "non-stem" ? "Existing command kept" : "CLI not installed"}</strong>
+                        {cliReady ? <small>stem is available to shells and MCP hosts</small> : <small>Installs the CLI bundled with this app.</small>}
                       </span>
                     </div>
-                    <p className="onboarding-section__hint">MCP setup never changes the CLI.</p>
+                    {!cliReady ? <button className="toolbar-button" disabled={cliInstallStatus === "saving"} onClick={() => void (async () => {
+                      setCliInstallStatus("saving");
+                      setCliInstallError(null);
+                      try {
+                        const status = await window.stem.workspace.installCli();
+                        setCliInstallation(status);
+                        setCliInstallStatus("idle");
+                      } catch (error) {
+                        setCliInstallStatus("error");
+                        setCliInstallError(error instanceof Error ? error.message : String(error));
+                      }
+                    })()} type="button">{cliInstallStatus === "saving" ? "Installing…" : "Install CLI"}</button> : null}
+                    {cliInstallError ? <div className="dialog-card__status dialog-card__status--error">{cliInstallError}</div> : null}
                   </section>
                 </div>
               </div>

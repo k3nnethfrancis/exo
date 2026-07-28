@@ -20,6 +20,7 @@ export default defineConfig({
       rollupOptions: {
         input: {
           index: path.resolve(currentDirectory, "src/main/index.ts"),
+          cli: path.resolve(currentDirectory, "../../packages/cli/src/index.ts"),
           "derived-index-worker": path.resolve(currentDirectory, "src/main/indexing/derived-index-worker.ts"),
         },
         external: qmdExternalDependencies,

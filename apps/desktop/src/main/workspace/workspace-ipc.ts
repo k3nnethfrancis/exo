@@ -35,6 +35,7 @@ export interface WorkspaceIpcHandlers {
   resetAgentCommandContinuity: WorkspaceApi["resetAgentCommandContinuity"];
   configureProviderMcp: WorkspaceApi["configureProviderMcp"];
   getCliInstallationStatus: WorkspaceApi["getCliInstallationStatus"];
+  installCli: WorkspaceApi["installCli"];
   recordRendererDiagnostic: WorkspaceApi["recordRendererDiagnostic"];
   endAgentInvocation: WorkspaceApi["endAgentInvocation"];
   listPendingInvocationReviews: WorkspaceApi["listPendingInvocationReviews"];
@@ -116,6 +117,7 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   handleDesktopInvoke("workspace:reset-agent-command-continuity", async (_event, commandId) => handlers.resetAgentCommandContinuity(commandId));
   handleDesktopInvoke("workspace:configure-provider-mcp", async (_event, input) => handlers.configureProviderMcp(input));
   handleDesktopInvoke("workspace:get-cli-installation-status", async () => handlers.getCliInstallationStatus());
+  handleDesktopInvoke("workspace:install-cli", async () => handlers.installCli());
   handleDesktopInvoke("workspace:record-renderer-diagnostic", async (_event, diagnostic) =>
     handlers.recordRendererDiagnostic(assertRendererEditorDiagnostic(diagnostic)),
   );

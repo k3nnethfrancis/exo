@@ -31,6 +31,7 @@ export interface DesktopInvokeHandlers {
   "workspace:reset-agent-command-continuity": WorkspaceApi["resetAgentCommandContinuity"];
   "workspace:configure-provider-mcp": WorkspaceApi["configureProviderMcp"];
   "workspace:get-cli-installation-status": WorkspaceApi["getCliInstallationStatus"];
+  "workspace:install-cli": WorkspaceApi["installCli"];
   "workspace:record-renderer-diagnostic": WorkspaceApi["recordRendererDiagnostic"];
   "workspace:end-agent-invocation": WorkspaceApi["endAgentInvocation"];
   "workspace:list-pending-invocation-reviews": WorkspaceApi["listPendingInvocationReviews"];

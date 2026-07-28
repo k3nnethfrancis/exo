@@ -1,15 +1,22 @@
 import { constants, existsSync } from "node:fs";
-import { access, lstat, readFile, readlink } from "node:fs/promises";
+import { access, chmod, lstat, mkdir, readFile, readlink, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { CliInstallationStatus } from "../shared/api";
 import { commandEnvironment } from "./command/command-environment";
 
 const LEGACY_SHIM_MARKER = "packages/cli/dist/index.cjs";
+const PACKAGED_SHIM_MARKER = "stem-packaged-cli";
 
 export interface InspectCliInstallationOptions {
   env?: NodeJS.ProcessEnv;
   sourceProjectRoot?: string;
+  packagedCli?: PackagedCliPaths;
+}
+
+export interface PackagedCliPaths {
+  appExecutablePath: string;
+  scriptPath: string;
 }
 
 /**
@@ -30,7 +37,7 @@ export function findSourceProjectRoot(candidates: string[]): string | undefined 
  * deliberately diagnostic only: installation remains an explicit shell step.
  */
 export async function inspectCliInstallation(
-  { env = process.env, sourceProjectRoot }: InspectCliInstallationOptions = {},
+  { env = process.env, sourceProjectRoot, packagedCli }: InspectCliInstallationOptions = {},
 ): Promise<CliInstallationStatus> {
   const sourcePath = sourceProjectRoot ? path.join(sourceProjectRoot, "bin", "stem") : undefined;
   const installCommand = sourceProjectRoot ? `cd ${shellQuote(sourceProjectRoot)} && ./scripts/install-local` : undefined;
@@ -41,6 +48,9 @@ export async function inspectCliInstallation(
   }
 
   const common = { commandPath, ...(sourcePath ? { sourcePath, installCommand } : {}) };
+  if (packagedCli && await isPackagedStemCli(commandPath)) {
+    return { state: "current", ...common };
+  }
   if (!sourcePath) return { state: "unavailable", ...common };
 
   try {
@@ -63,6 +73,31 @@ export async function inspectCliInstallation(
   }
 }
 
+/**
+ * The desktop application owns this small launcher. It deliberately installs
+ * only into the user's local bin and refuses to replace another command.
+ */
+export async function installPackagedCli(
+  packagedCli: PackagedCliPaths,
+  { env = process.env }: Pick<InspectCliInstallationOptions, "env"> = {},
+): Promise<CliInstallationStatus> {
+  const home = env.HOME || process.env.HOME;
+  if (!home) throw new Error("Stem could not determine your home folder for the CLI install.");
+  const binDirectory = path.join(home, ".local", "bin");
+  const target = path.join(binDirectory, "stem");
+  const existing = await existingCliKind(target);
+  if (existing === "other") {
+    throw new Error(`Refusing to replace the existing command at ${target}.`);
+  }
+
+  await mkdir(binDirectory, { recursive: true });
+  const temporary = `${target}.tmp-${process.pid}`;
+  await writeFile(temporary, packagedCliLauncher(packagedCli), { encoding: "utf8", mode: 0o755 });
+  await chmod(temporary, 0o755);
+  await rename(temporary, target);
+  return inspectCliInstallation({ env, packagedCli });
+}
+
 async function findExecutable(name: string, pathValue: string | undefined): Promise<string | undefined> {
   for (const directory of (pathValue ?? "").split(path.delimiter).filter(Boolean)) {
     const candidate = path.join(directory, name);
@@ -75,6 +110,33 @@ async function findExecutable(name: string, pathValue: string | undefined): Prom
     }
   }
   return undefined;
+}
+
+async function existingCliKind(target: string): Promise<"missing" | "current" | "other"> {
+  try {
+    await lstat(target);
+  } catch {
+    return "missing";
+  }
+  return await isPackagedStemCli(target) ? "current" : "other";
+}
+
+async function isPackagedStemCli(candidate: string): Promise<boolean> {
+  try {
+    const content = await readFile(candidate, "utf8");
+    return content.includes(PACKAGED_SHIM_MARKER);
+  } catch {
+    return false;
+  }
+}
+
+function packagedCliLauncher(packagedCli: PackagedCliPaths): string {
+  return [
+    "#!/bin/sh",
+    `# ${PACKAGED_SHIM_MARKER}`,
+    `exec env ELECTRON_RUN_AS_NODE=1 ${shellQuote(packagedCli.appExecutablePath)} ${shellQuote(packagedCli.scriptPath)} \"$@\"`,
+    "",
+  ].join("\n");
 }
 
 function shellQuote(value: string): string {

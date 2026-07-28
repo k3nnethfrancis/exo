@@ -44,7 +44,7 @@ import { registerTerminalIpcHandlers } from "./terminal/terminal-ipc";
 import { TerminalManager } from "./terminal/terminal-manager";
 import { registerWorkspaceIpcHandlers } from "./workspace/workspace-ipc";
 import { configureProviderMcp } from "./provider-mcp-setup";
-import { findSourceProjectRoot, inspectCliInstallation } from "./cli-installation";
+import { findSourceProjectRoot, inspectCliInstallation, installPackagedCli } from "./cli-installation";
 import { resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace/workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace/workspace-watchers";
@@ -428,7 +428,8 @@ function registerIpcHandlers() {
     getAgentCommandContinuity: (commandId) => invocationRunner.getCommandContinuityStatus(commandId),
     resetAgentCommandContinuity: (commandId) => invocationRunner.resetCommandContinuity(commandId),
     configureProviderMcp,
-    getCliInstallationStatus: () => inspectCliInstallation({ sourceProjectRoot }),
+    getCliInstallationStatus: () => inspectCliInstallation({ sourceProjectRoot, packagedCli: packagedCliPaths() }),
+    installCli: () => installPackagedCli(packagedCliPaths()),
     recordRendererDiagnostic: async (diagnostic) => {
       logMain("renderer editor diagnostic", diagnostic);
     },
@@ -550,6 +551,13 @@ function resolveSourceProjectRoot(): string | undefined {
     path.resolve(currentDirectory, "../../.."),
     path.resolve(currentDirectory, "../../../.."),
   ]);
+}
+
+function packagedCliPaths() {
+  return {
+    appExecutablePath: process.execPath,
+    scriptPath: path.join(currentDirectory, "cli.js"),
+  };
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {

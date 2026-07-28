@@ -152,6 +152,8 @@ export interface WorkspaceInvocationApi {
   resetAgentCommandContinuity: (commandId: string) => Promise<{ cleared: number }>;
   configureProviderMcp: (input: ProviderMcpSetupInput) => Promise<ProviderMcpSetupResult[]>;
   getCliInstallationStatus: () => Promise<CliInstallationStatus>;
+  /** Install the CLI bundled with this desktop app into the user's local bin. */
+  installCli: () => Promise<CliInstallationStatus>;
   recordRendererDiagnostic: (diagnostic: RendererEditorDiagnostic) => Promise<void>;
   endAgentInvocation: (invocationId: string) => Promise<InvocationRecord | null>;
   listPendingInvocationReviews: () => Promise<InvocationReviewListItem[]>;
