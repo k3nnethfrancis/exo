@@ -263,6 +263,28 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     }
   }
 
+  async function continueFromWorkspaceConfigure() {
+    const current = onboardingState;
+    if (!current?.notesFolder.trim()) return;
+
+    // Content inspection is deliberately derived rather than persisted. Recheck
+    // at the decision point so a resumed setup cannot race the background scan
+    // and accidentally skip the repository-only scope choice.
+    const contentInspection = await window.stem.workspace
+      .inspectContentScope(current.notesFolder)
+      .catch(() => current.contentInspection);
+
+    await confirmOnboardingChange((draft) => ({
+      ...draft,
+      contentInspection,
+      contentPolicy:
+        draft.contentPolicyChoice === "recommended"
+          ? contentInspection?.recommendedPolicy ?? draft.contentPolicy
+          : draft.contentPolicy,
+      step: contentInspection?.kind === "repository" ? "scope" : "mcp",
+    }));
+  }
+
   async function openWorkspaceSwitcher() {
     const current = workspaceSettingsRef.current;
     const workspaces = await window.stem.workspace.listWorkspaces();
@@ -449,6 +471,7 @@ export function useWorkspaceBootstrap(options: UseWorkspaceBootstrapOptions) {
     workspaceSettingsRevisionRef,
     selectNotesFolderForOnboarding,
     selectDefaultTerminalForOnboarding,
+    continueFromWorkspaceConfigure,
     confirmOnboardingChange,
     persistCurrentOnboardingState,
     resetMalformedOnboardingProgress,

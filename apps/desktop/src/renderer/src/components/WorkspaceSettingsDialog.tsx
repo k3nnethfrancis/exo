@@ -252,7 +252,7 @@ function WorkspaceSection({
             } : current)}
             type="button"
           >
-            Markdown notes
+            Repository Markdown
           </button>
           <button
             aria-pressed={(settings.contentPolicy?.excludedPaths.length ?? 0) === 0}
@@ -269,7 +269,7 @@ function WorkspaceSection({
             All Markdown
           </button>
         </div>
-        <div className="onboarding-section__hint">Changes which Markdown files become Notes, graph concepts, and search documents.</div>
+        <div className="onboarding-section__hint">Code files never become Notes. Repository Markdown skips tool folders such as build, dist, coverage, node_modules, release, and vendor.</div>
       </div>
       <OntologyReviewRow />
     </>

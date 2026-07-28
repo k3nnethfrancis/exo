@@ -1098,10 +1098,7 @@ export function App() {
                   className="toolbar-button toolbar-button--primary"
                   data-testid="onboarding-continue"
                   disabled={!onboardingState.notesFolder.trim() || onboardingState.status === "saving"}
-                  onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                    ...current,
-                    step: "scope",
-                  }))}
+                  onClick={() => void workspaceBootstrap.continueFromWorkspaceConfigure()}
                   type="button"
                 >
                   Continue
@@ -1111,11 +1108,12 @@ export function App() {
           ) : onboardingState.step === "scope" ? (
             <>
               <div className="onboarding-card__body" data-testid="onboarding-card-body">
-                <h1 className="onboarding-card__title">Choose what becomes Notes</h1>
+                <h1 className="onboarding-card__title">Code repository detected</h1>
                 <p className="onboarding-card__copy">
-                  {onboardingState.contentInspection?.kind === "repository"
-                    ? "This folder looks like a code repository. Keep its notes useful without turning generated files into graph content."
-                    : "All Markdown in this folder can become Notes. You can refine this later in Workspace Settings."}
+                  {onboardingState.contentInspection?.signals.length
+                    ? `Stem found ${onboardingState.contentInspection.signals.join(" · ")}. `
+                    : ""}
+                  Code files never become Notes. Choose whether Markdown inside tool folders belongs in your graph.
                 </p>
                 <div className="onboarding-scope-options" data-testid="onboarding-content-scope">
                   <button
@@ -1130,7 +1128,7 @@ export function App() {
                     type="button"
                   >
                     <Folder aria-hidden="true" size={18} strokeWidth={1.8} />
-                    <span><strong>Markdown notes</strong><small>Notes and docs stay in scope. Code and generated folders stay out.</small></span>
+                    <span><strong>Repository Markdown</strong><small>Recommended. Keeps authored docs and notes; skips build output and dependency folders.</small></span>
                     {onboardingState.contentPolicy.excludedPaths.length > 0 ? <Check aria-label="Selected" size={16} strokeWidth={2.2} /> : null}
                   </button>
                   <button
@@ -1145,13 +1143,11 @@ export function App() {
                     type="button"
                   >
                     <Database aria-hidden="true" size={18} strokeWidth={1.8} />
-                    <span><strong>All Markdown</strong><small>Every Markdown file below this folder becomes a Note.</small></span>
+                    <span><strong>All Markdown</strong><small>Includes every Markdown file, including generated docs. Code files still stay out.</small></span>
                     {onboardingState.contentPolicy.excludedPaths.length === 0 ? <Check aria-label="Selected" size={16} strokeWidth={2.2} /> : null}
                   </button>
                 </div>
-                {onboardingState.contentInspection?.signals.length ? (
-                  <div className="onboarding-section__hint">Detected: {onboardingState.contentInspection.signals.join(" · ")}</div>
-                ) : null}
+                <div className="onboarding-section__hint">Tool folders include build, dist, coverage, node_modules, release, and vendor.</div>
               </div>
               <div className="onboarding-card__actions">
                 <button className="toolbar-button" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "configure" }))} type="button">Back</button>
@@ -1283,7 +1279,10 @@ export function App() {
                 </div>
               </div>
               <div className="onboarding-card__actions">
-                <button className="toolbar-button" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "scope" }))} type="button">Back</button>
+                <button className="toolbar-button" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
+                  ...current,
+                  step: current.contentInspection?.kind === "repository" ? "scope" : "configure",
+                }))} type="button">Back</button>
                 <button className="toolbar-button toolbar-button--primary" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "agents" }))} type="button">Set up CLI agents</button>
               </div>
             </>

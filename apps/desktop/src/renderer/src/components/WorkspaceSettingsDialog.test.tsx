@@ -73,7 +73,7 @@ describe("workspace settings footer copy", () => {
     );
 
     expect(html).toContain("Content scope");
-    expect(html).toContain("Markdown notes");
+    expect(html).toContain("Repository Markdown");
     expect(html).toContain("All Markdown");
   });
 

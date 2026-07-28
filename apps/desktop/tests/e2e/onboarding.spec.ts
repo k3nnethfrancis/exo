@@ -110,7 +110,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   await expect(activePage.getByTestId("onboarding-notes-folder")).toContainText(noteRoot);
 
   await activePage.getByTestId("onboarding-continue").click();
-  await expect(activePage.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+  await expect(activePage.getByRole("heading", { name: "Code repository detected" })).toBeVisible();
   await expect(activePage.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
   await expect.poll(() => activePage.evaluate(() => window.stem.workspace.getSetupState())).toMatchObject({
     onboarding: {
@@ -121,7 +121,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
     },
   });
   await activePage.reload();
-  await expect(activePage.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+  await expect(activePage.getByRole("heading", { name: "Code repository detected" })).toBeVisible();
   await expect(activePage.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
 
   await activeApp.close();
@@ -134,7 +134,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   });
   activeApp = resumed.electronApp;
   activePage = resumed.page;
-  await expect(activePage.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+  await expect(activePage.getByRole("heading", { name: "Code repository detected" })).toBeVisible();
   await expect(activePage.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
   await activePage.getByTestId("onboarding-content-scope-all").click();
   await activePage.reload();
@@ -342,7 +342,7 @@ test("resumes a new main wiki draft launched from an existing workspace", async 
     await first.page.getByTestId("workspace-picker-new").click();
     await first.page.getByTestId("onboarding-choose-notes").click();
     await first.page.getByTestId("onboarding-continue").click();
-    await expect(first.page.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+    await expect(first.page.getByRole("heading", { name: "Agent access" })).toBeVisible();
 
     await first.electronApp.close();
     const resumed = await relaunchStemWorkspaceFixture(first, {
@@ -352,7 +352,7 @@ test("resumes a new main wiki draft launched from an existing workspace", async 
       expectOnboarding: true,
     });
     try {
-      await expect(resumed.page.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
+      await expect(resumed.page.getByRole("heading", { name: "Agent access" })).toBeVisible();
       await resumed.page.getByRole("button", { name: "Back" }).click();
       await expect(resumed.page.getByTestId("onboarding-notes-folder"))
         .toContainText(path.join(first.workspaceRoot, "notes", "test-notes"));
@@ -439,7 +439,7 @@ test("persists an explicit Note Root and edited recommended Commands across rest
   await first.cleanup();
 });
 
-test("recommends all Markdown for a generic wiki", async () => {
+test("skips repository scope for a generic wiki", async () => {
   const { page, cleanup } = await launchStemWorkspaceFixture({
     configured: false,
     mutable: true,
@@ -452,10 +452,8 @@ test("recommends all Markdown for a generic wiki", async () => {
     await page.getByTestId("onboarding-choose-notes").click();
     await page.getByTestId("onboarding-continue").click();
 
-    await expect(page.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
-    await expect(page.getByText("All Markdown in this folder can become Notes.")).toBeVisible();
-    await expect(page.getByTestId("onboarding-content-scope-all")).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "false");
+    await expect(page.getByRole("heading", { name: "Agent access" })).toBeVisible();
+    await expect(page.getByTestId("onboarding-content-scope")).toHaveCount(0);
   } finally {
     await cleanup();
   }
@@ -483,7 +481,9 @@ test("recommends repository-safe Notes while preserving a manual All Markdown ov
     await first.page.getByTestId("onboarding-choose-notes").click();
     await first.page.getByTestId("onboarding-continue").click();
 
-    await expect(first.page.getByText("This folder looks like a code repository.")).toBeVisible();
+    await expect(first.page.getByRole("heading", { name: "Code repository detected" })).toBeVisible();
+    await expect(first.page.getByText("Code files never become Notes.")).toBeVisible();
+    await expect(first.page.getByText("Tool folders include build, dist, coverage, node_modules, release, and vendor.")).toBeVisible();
     await expect(first.page.getByTestId("onboarding-content-scope-notes")).toHaveAttribute("aria-pressed", "true");
     await expect(first.page.getByTestId("onboarding-content-scope-all")).toHaveAttribute("aria-pressed", "false");
 
@@ -529,20 +529,13 @@ for (const viewport of [
       );
 
       await page.getByTestId("onboarding-continue").click();
-      await expect(page.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
-      await expectOnboardingGeometry(
-        page,
-        page.getByRole("button", { name: "Continue to tools" }),
-        expectedGeometry,
-      );
-
-      await page.getByRole("button", { name: "Continue to tools" }).click();
       await expect(page.getByRole("heading", { name: "Agent access" })).toBeVisible();
       await expectOnboardingGeometry(
         page,
         page.getByRole("button", { name: "Set up CLI agents" }),
         expectedGeometry,
       );
+
       await expectInternalScroll(page.getByTestId("onboarding-card-body"));
 
       await page.getByRole("button", { name: "Set up CLI agents" }).click();
@@ -601,8 +594,6 @@ test("completes and restarts the real packaged first-run journey", async () => {
     await page.screenshot({ path: path.join(evidenceRoot, "01-packaged-choose-wiki.png"), fullPage: true });
     await page.getByTestId("onboarding-choose-notes").click();
     await page.getByTestId("onboarding-continue").click();
-    await expect(page.getByTestId("onboarding-content-scope-all")).toHaveAttribute("aria-pressed", "true");
-    await page.getByRole("button", { name: "Continue to tools" }).click();
     await expect(page.getByRole("heading", { name: "Agent access" })).toBeVisible();
     await expect(page.locator(".onboarding-cli-installation")).not.toContainText("Contents/Resources");
     await page.screenshot({ path: path.join(evidenceRoot, "02-packaged-agent-access.png"), fullPage: true });
@@ -702,7 +693,7 @@ async function pathExists(filePath: string): Promise<boolean> {
 async function continueToAgents(page: import("@playwright/test").Page): Promise<void> {
   await page.getByTestId("onboarding-choose-notes").click();
   await page.getByTestId("onboarding-continue").click();
-  await page.getByRole("button", { name: "Continue to tools" }).click();
+  await continueFromContentPolicy(page);
   await page.getByRole("button", { name: "Set up CLI agents" }).click();
 }
 
@@ -711,8 +702,11 @@ async function readCommandDiscovery(runtimeRoot: string): Promise<{ port: number
 }
 
 async function continueFromContentPolicy(page: Page): Promise<void> {
-  await expect(page.getByRole("heading", { name: "Choose what becomes Notes" })).toBeVisible();
-  await page.getByRole("button", { name: "Continue to tools" }).click();
+  const scopeHeading = page.getByRole("heading", { name: "Code repository detected" });
+  if (await scopeHeading.isVisible().catch(() => false)) {
+    await page.getByRole("button", { name: "Continue to tools" }).click();
+  }
+  await expect(page.getByRole("heading", { name: "Agent access" })).toBeVisible();
 }
 
 interface OnboardingGeometry {
