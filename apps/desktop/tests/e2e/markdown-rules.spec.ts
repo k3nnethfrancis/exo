@@ -525,7 +525,7 @@ test("keeps cursor and shortcut selections out of rendered list markers", async 
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/list-cursor-boundaries.md");
-      await writeFile(target, "# List Cursor Boundaries\n\nBefore\n- first item\n- second item\n", "utf8");
+      await writeFile(target, "# List Cursor Boundaries\n\nBefore\n- first item\n- second item\n- [ ] task item\n", "utf8");
     },
   });
 
@@ -545,6 +545,8 @@ test("keeps cursor and shortcut selections out of rendered list markers", async 
       secondMarkerStart: doc.indexOf("- second item"),
       secondTextStart: doc.indexOf("- second item") + "- ".length,
       secondLineEnd: doc.indexOf("- second item") + "- second item".length,
+      taskTextStart: doc.indexOf("- [ ] task item") + "- [ ] ".length,
+      taskLineEnd: doc.indexOf("- [ ] task item") + "- [ ] task item".length,
     };
   });
 
@@ -586,6 +588,35 @@ test("keeps cursor and shortcut selections out of rendered list markers", async 
       }),
     )
     .toEqual({ anchor: positions.secondLineEnd, head: positions.secondTextStart });
+
+  await page.evaluate(({ taskLineEnd }) => {
+    const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+    const view = content?.cmView?.view;
+    if (!view) {
+      throw new Error("Unable to resolve CodeMirror view");
+    }
+    view.dispatch({ selection: { anchor: taskLineEnd } });
+    view.focus();
+  }, positions);
+  await page.keyboard.press(process.platform === "darwin" ? "Meta+Shift+ArrowLeft" : "Control+Shift+ArrowLeft");
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        const selection = content?.cmView?.view?.state.selection.main;
+        return selection ? { anchor: selection.anchor, head: selection.head } : null;
+      }),
+    )
+    .toEqual({ anchor: positions.taskLineEnd, head: positions.taskTextStart });
+
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const taskLine = document.querySelector(".stem-md-line--task") as HTMLElement | null;
+        return taskLine ? window.getComputedStyle(taskLine).paddingLeft : null;
+      }),
+    )
+    .toBe("35px");
 
   await page.evaluate(({ secondTextStart }) => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;

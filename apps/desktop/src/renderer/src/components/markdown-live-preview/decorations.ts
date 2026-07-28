@@ -244,27 +244,41 @@ function decorateLine(
     return;
   }
 
+  const task = text.match(/^(\s*[-*+]\s+)\[([ xX])\]\s+/);
   const listContext = listContexts.get(lineNumber);
   if (listContext) {
+    const taskClass = task
+      ? ` stem-md-line--task${task[2].toLowerCase() === "x" ? " stem-md-line--task-done" : ""}`
+      : "";
     out.push({
       from: lineFrom,
       to: lineFrom,
       decoration: Decoration.line({
         attributes: {
-          class: `stem-md-line ${listContext.isListStart ? "stem-md-line--list-start" : "stem-md-line--list-continuation"}`,
-          style: listLineStyle(listContext.depth),
+          class: `stem-md-line ${listContext.isListStart ? "stem-md-line--list-start" : "stem-md-line--list-continuation"}${taskClass}`,
+          style: listLineStyle(listContext.depth, Boolean(task)),
           "data-stem-list-depth": String(listContext.depth),
         },
       }),
     });
   }
 
-  const task = text.match(/^(\s*[-*+]\s+)\[([ xX])\]\s+/);
   if (task) {
     const isChecked = task[2].toLowerCase() === "x";
     const checkboxCharPos = lineFrom + task[1].length + 1;
     const prefixEnd = lineFrom + task[0].length;
-    out.push({ from: lineFrom, to: lineFrom, decoration: Decoration.line({ class: `stem-md-line stem-md-line--task${isChecked ? " stem-md-line--task-done" : ""}` }) });
+    if (!listContext) {
+      out.push({
+        from: lineFrom,
+        to: lineFrom,
+        decoration: Decoration.line({
+          attributes: {
+            class: `stem-md-line stem-md-line--task${isChecked ? " stem-md-line--task-done" : ""}`,
+            style: listLineStyle(0, true),
+          },
+        }),
+      });
+    }
     if (shouldRenderTaskPrefix(cursorPos, lineFrom, prefixEnd)) {
       out.push({
         from: lineFrom,
@@ -538,7 +552,10 @@ function applyMarkdownLinks(text: string, lineFrom: number, out: DecorationEntry
   }
 }
 
-function listLineStyle(depth: number) {
-  const padLeft = LIST_GEOMETRY.baseIndent + depth * LIST_GEOMETRY.indentStep;
+function listLineStyle(depth: number, isTask = false) {
+  // The checkbox occupies the marker lane. Preserve a small, literal-space-like
+  // separation before editable text instead of letting the caret touch its edge.
+  const taskTextGap = isTask ? 5 : 0;
+  const padLeft = LIST_GEOMETRY.baseIndent + depth * LIST_GEOMETRY.indentStep + taskTextGap;
   return `${listGeometryStyleVariables()};--stem-list-depth:${depth};padding-left:${padLeft}px;`;
 }

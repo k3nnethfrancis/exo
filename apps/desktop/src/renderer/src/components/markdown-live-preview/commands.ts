@@ -47,10 +47,13 @@ export const listPrefixAtomicRanges = EditorView.atomicRanges.of((view) => {
       continue;
     }
 
+    const taskMatch = line.text.match(taskListPrefixPattern);
     const marker = match[2] || "-";
     const markerStart = line.from + match[1].length;
     const markerEnd = markerStart + marker.length;
-    const prefixEnd = line.from + match[0].length;
+    // A task marker is one rendered unit. Keeping its full source prefix
+    // atomic prevents native word-selection from carrying `[ ]` into text.
+    const prefixEnd = line.from + (taskMatch?.[0].length ?? match[0].length);
 
     if (line.from < markerStart) {
       builder.add(line.from, markerStart, Decoration.replace({}));
@@ -402,10 +405,11 @@ function listPrefixPositionsAt(state: EditorState, pos: number): ListPrefixPosit
     return null;
   }
 
+  const taskMatch = line.text.match(taskListPrefixPattern);
   const marker = match[2] || "-";
   const markerStart = line.from + match[1].length;
   const markerEnd = markerStart + marker.length;
-  const prefixEnd = line.from + match[0].length;
+  const prefixEnd = line.from + (taskMatch?.[0].length ?? match[0].length);
   if (pos < line.from || pos > prefixEnd) {
     return null;
   }

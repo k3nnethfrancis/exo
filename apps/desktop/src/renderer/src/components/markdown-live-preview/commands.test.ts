@@ -36,6 +36,14 @@ describe("markdown editor list behavior", () => {
     expect(selection?.anchor).toBe(anchor);
     expect(selection?.head).toBe("- ".length);
   });
+
+  it("keeps the whole task marker out of shortcut selections", () => {
+    const state = EditorState.create({ doc: "- [ ] follow up" });
+    const anchor = state.doc.length;
+    const selection = clampSelectionToRenderedListText(state, anchor, "- ".length);
+    expect(selection?.anchor).toBe(anchor);
+    expect(selection?.head).toBe("- [ ] ".length);
+  });
 });
 
 describe("markdown editor slash date commands", () => {
