@@ -10,6 +10,7 @@ import {
   resolveWorkspaceModel,
   workspaceEnvOverrides,
   workspaceModelFromSettings,
+  WORKSPACE_RUNTIME_DIRECTORY,
   type WorkspaceModel,
   type IndexSearchResponse,
   type StemCommandIndexStatusResponse,
@@ -257,7 +258,7 @@ async function resolveCliRuntimeRoot(env: NodeJS.ProcessEnv, model?: WorkspaceMo
   if (env.EXO_RUNTIME_ROOT ?? env.STEM_RUNTIME_ROOT) {
     return env.EXO_RUNTIME_ROOT ?? env.STEM_RUNTIME_ROOT!;
   }
-  return path.join((model ?? await resolveCliWorkspaceModel(env)).workspaceRoot, ".stem");
+  return path.join((model ?? await resolveCliWorkspaceModel(env)).workspaceRoot, WORKSPACE_RUNTIME_DIRECTORY);
 }
 
 interface CliWorkspace {
@@ -370,7 +371,7 @@ async function appOffStatus(
 async function appOffSearch(workspace: CliWorkspace, query: string, options: { limit: number; offset: number }): Promise<IndexSearchResponse> {
   return filesystemSearchProvider.search(
     workspace.model,
-    path.join(workspace.model.workspaceRoot, ".stem"),
+    path.join(workspace.model.workspaceRoot, WORKSPACE_RUNTIME_DIRECTORY),
     query,
     options,
   );

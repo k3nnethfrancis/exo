@@ -100,12 +100,12 @@ if [ -z "$BIN_DIR" ]; then
   BIN_DIR="$PREFIX/bin"
 fi
 
-STEM_SOURCE="$REPO_ROOT/bin/exo"
-STEM_TARGET="$BIN_DIR/exo"
+EXO_SOURCE="$REPO_ROOT/bin/exo"
+EXO_TARGET="$BIN_DIR/exo"
 CLI_ARTIFACT="$REPO_ROOT/packages/cli/dist/index.cjs"
 
-if [ ! -x "$STEM_SOURCE" ]; then
-  echo "Expected executable not found: $STEM_SOURCE" >&2
+if [ ! -x "$EXO_SOURCE" ]; then
+  echo "Expected executable not found: $EXO_SOURCE" >&2
   exit 1
 fi
 
@@ -115,7 +115,7 @@ if ! command -v pnpm >/dev/null 2>&1; then
 fi
 
 log "repo: $REPO_ROOT"
-log "target: $STEM_TARGET"
+log "target: $EXO_TARGET"
 
 if [ "$RUN_INSTALL" -eq 1 ]; then
   log "installing dependencies"
@@ -135,31 +135,31 @@ if [ "$DRY_RUN" -ne 1 ] || [ "$RUN_BUILD" -ne 1 ]; then
   fi
 fi
 
-if [ -e "$STEM_TARGET" ] || [ -L "$STEM_TARGET" ]; then
-  if [ -L "$STEM_TARGET" ]; then
-    CURRENT_TARGET="$(readlink "$STEM_TARGET" 2>/dev/null || true)"
+if [ -e "$EXO_TARGET" ] || [ -L "$EXO_TARGET" ]; then
+  if [ -L "$EXO_TARGET" ]; then
+    CURRENT_TARGET="$(readlink "$EXO_TARGET" 2>/dev/null || true)"
     CURRENT_PATH="$CURRENT_TARGET"
     if [[ "$CURRENT_PATH" != /* ]]; then
-      CURRENT_PATH="$(dirname "$STEM_TARGET")/$CURRENT_PATH"
+      CURRENT_PATH="$(dirname "$EXO_TARGET")/$CURRENT_PATH"
     fi
 
-    if [ "$CURRENT_TARGET" = "$STEM_SOURCE" ]; then
+    if [ "$CURRENT_TARGET" = "$EXO_SOURCE" ]; then
       log "existing Exo CLI shim already points at this checkout"
     elif [ -f "$CURRENT_PATH" ] && grep -Fq 'packages/cli/dist/index.cjs' "$CURRENT_PATH"; then
       log "replacing legacy Exo CLI shim"
       log "old: $CURRENT_PATH"
-      log "new: $STEM_SOURCE"
-    elif [ ! -e "$STEM_TARGET" ] && [[ "$CURRENT_TARGET" == */bin/exo ]]; then
+      log "new: $EXO_SOURCE"
+    elif [ ! -e "$EXO_TARGET" ] && [[ "$CURRENT_TARGET" == */bin/exo ]]; then
       log "replacing dangling Exo CLI shim"
       log "old: $CURRENT_TARGET"
-      log "new: $STEM_SOURCE"
+      log "new: $EXO_SOURCE"
     elif [ "$FORCE" -ne 1 ]; then
-      echo "Refusing to replace non-Exo command: $STEM_TARGET -> $CURRENT_TARGET" >&2
+      echo "Refusing to replace non-Exo command: $EXO_TARGET -> $CURRENT_TARGET" >&2
       echo "Use --force only if you intend to replace that command." >&2
       exit 1
     fi
   elif [ "$FORCE" -ne 1 ]; then
-    echo "Refusing to replace non-Exo command: $STEM_TARGET" >&2
+    echo "Refusing to replace non-Exo command: $EXO_TARGET" >&2
     echo "Use --force only if you intend to replace that command." >&2
     exit 1
   fi
@@ -167,14 +167,14 @@ fi
 
 log "installing exo command"
 run mkdir -p "$BIN_DIR"
-run ln -sfn "$STEM_SOURCE" "$STEM_TARGET"
+run ln -sfn "$EXO_SOURCE" "$EXO_TARGET"
 
 cat <<EOF
 
-Stem local install complete.
+Exograph local install complete.
 
 Command:
-  $STEM_TARGET
+  $EXO_TARGET
 
 Try:
   exo start

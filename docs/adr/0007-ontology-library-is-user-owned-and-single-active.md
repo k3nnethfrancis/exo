@@ -10,7 +10,7 @@ require explicit Keep before changing the active interpretation.
 
 The first Workspace Ontology foundation reads one user-owned
 `<Workspace Root>/ontology.yaml` as a Candidate and stores the exact kept
-source under `.stem/ontology/activation.json`. That is sufficient for one
+source under `.exograph/ontology/activation.json`. That is sufficient for one
 reviewed interpretation, but not for the product requirement to compare and
 switch among several saved interpretations.
 
@@ -25,7 +25,7 @@ database or a hidden generated registry.
   ontologies/
     research.yaml               # optional additional saved sources
     publishing.yaml
-  .stem/ontology/
+  .exograph/ontology/
     activation.json             # derived exact accepted snapshot and selection
 ```
 
@@ -48,7 +48,7 @@ preview successfully, then receive an explicit Keep before it becomes Active.
 Reject leaves the current Active source untouched. Editing an inactive source
 has no graph effect; editing the selected source creates a new Candidate and
 invalidates its prior review. Stem records the exact accepted source, revision,
-and source-relative path under `.stem/` so restart and a later external edit are
+and source-relative path under `.exograph/` so restart and a later external edit are
 honest and recoverable.
 
 The current root `ontology.yaml` remains an ordinary library source. Stem does
@@ -61,7 +61,7 @@ explicit action. The root source can remain active forever.
 - Existing Workspaces retain their current contract and file layout.
 - Git can version and review saved Ontologies beside the Workspace.
 - Stem can offer Generic, Active, and saved alternatives without treating
-  `.stem/` as canonical knowledge.
+  `.exograph/` as canonical knowledge.
 - Candidate/Active revision guards expand to include source identity and path;
   a filename change or source replacement is stale rather than silently
   accepted.
@@ -75,7 +75,7 @@ explicit action. The root source can remain active forever.
 - **Copy the selected file into root `ontology.yaml`.** This mutates
   user-owned source merely to change a view and makes selection indistinguish-
   able from an external edit.
-- **Store saved Ontologies only under `.stem/`.** This makes durable user graph
+- **Store saved Ontologies only under `.exograph/`.** This makes durable user graph
   meaning derived/private rather than inspectable and versionable.
 - **Activate multiple sources together.** Conflicting path defaults, validation
   rules, and property meanings would create an opaque implicit schema.

@@ -198,7 +198,7 @@ const TEXT_FILE_EXTENSIONS = new Set([
   ".mjs", ".sh", ".toml", ".ts", ".tsx", ".txt", ".xml", ".yaml", ".yml",
 ]);
 const IGNORED_CAPTURE_DIRECTORIES = new Set([
-  ".stem", ".stem-dev", ".git", "node_modules",
+  ".exograph", ".exograph-dev", ".git", "node_modules",
 ]);
 
 /** Durable, invocation-scoped snapshots and recovery artifacts. */

@@ -32,7 +32,7 @@ describe("invocation artifacts", () => {
       writeFile(renamedFrom, shared),
       writeFile(largeBinary, binary),
       writeFile(path.join(rootB, "same-copy.bin"), binary),
-      mkdir(path.join(rootA, ".stem"), { recursive: true }).then(() => writeFile(path.join(rootA, ".stem", "ignored.md"), "ignore")),
+      mkdir(path.join(rootA, ".exograph"), { recursive: true }).then(() => writeFile(path.join(rootA, ".exograph", "ignored.md"), "ignore")),
     ]);
     const outside = path.join(workspaceRoot, "outside.md");
     await writeFile(outside, "outside");
@@ -56,7 +56,7 @@ describe("invocation artifacts", () => {
       path.join(canonicalRootA, "old-name.md"),
     ].sort());
     const canonicalLargeBinary = path.join(canonicalRootB, "large.bin");
-    expect(Object.keys(launch.launchManifest.files)).not.toContain(path.join(canonicalRootA, ".stem", "ignored.md"));
+    expect(Object.keys(launch.launchManifest.files)).not.toContain(path.join(canonicalRootA, ".exograph", "ignored.md"));
     expect(Object.keys(launch.launchManifest.files)).not.toContain(path.join(canonicalRootA, "outside-link.md"));
     expect(launch.launchManifest.files[canonicalLargeBinary]?.mediaType).toBe("binary");
     expect(launch.launchManifest.files[canonicalLargeBinary]?.byteLength).toBe(binary.byteLength);
@@ -88,7 +88,7 @@ describe("invocation artifacts", () => {
       before: { path: path.join(canonicalRootA, "old-name.md") },
       after: { path: path.join(canonicalRootA, "new-name.md") },
     });
-    const objectFiles = await readdir(path.join(workspaceRoot, ".stem", "invocations", invocationId, "files", "objects"));
+    const objectFiles = await readdir(path.join(workspaceRoot, ".exograph", "invocations", invocationId, "files", "objects"));
     expect(objectFiles.every((entry) => /^[a-f0-9]{64}$/.test(entry))).toBe(true);
     expect(objectFiles.filter((entry) => entry === launch.launchManifest.files[canonicalLargeBinary]?.sha256)).toHaveLength(1);
 
@@ -113,7 +113,7 @@ describe("invocation artifacts", () => {
     ].sort());
     await expect(store.readSnapshot(invocationId, changeset.files.find((entry) => entry.operation === "deleted")!.before!))
       .resolves.toEqual(Buffer.from("delete me\n"));
-    expect(await readdir(path.join(workspaceRoot, ".stem", "invocations", invocationId, "files", "objects")))
+    expect(await readdir(path.join(workspaceRoot, ".exograph", "invocations", invocationId, "files", "objects")))
       .not.toContain(launch.launchManifest.files[canonicalLargeBinary]?.sha256);
   });
 
@@ -158,7 +158,7 @@ describe("invocation artifacts", () => {
       { changeId: "modified:note", action: "reject" },
       { changeId: "created:other", action: "keep" },
     ], "later-is-ignored")).resolves.toMatchObject({ createdAt: "2026-07-20T01:00:00.000Z" });
-    const quarantinePath = path.join(noteRoot, ".note.md.stem-review-test.quarantine");
+    const quarantinePath = path.join(noteRoot, ".note.md.exograph-review-test.quarantine");
     const planned = await first.updateReviewJournalMutation("recover-me", "modified:note", {
       phase: "planned",
       quarantinePath,
@@ -189,7 +189,7 @@ describe("invocation artifacts", () => {
       status: "applied",
       acceptedSha256: "not-a-hash",
     })).rejects.toThrow("lowercase SHA-256");
-    const invocationDir = path.join(workspaceRoot, ".stem", "invocations", "recover-me");
+    const invocationDir = path.join(workspaceRoot, ".exograph", "invocations", "recover-me");
     await writeFile(path.join(invocationDir, ".launch-manifest.json-interrupted.tmp"), "not json");
 
     const restarted = new InvocationStore(workspaceRoot);
@@ -228,7 +228,7 @@ describe("invocation artifacts", () => {
     const store = new InvocationStore(workspaceRoot);
     await expect(store.captureManifest("missing-root", "launch", [path.join(workspaceRoot, "gone")]))
       .rejects.toThrow("Note Root is unavailable");
-    await expect(readFile(path.join(workspaceRoot, ".stem", "invocations", "missing-root", "launch-manifest.json")))
+    await expect(readFile(path.join(workspaceRoot, ".exograph", "invocations", "missing-root", "launch-manifest.json")))
       .rejects.toMatchObject({ code: "ENOENT" });
     await expect(store.captureManifest("no-roots", "launch", [])).rejects.toThrow("at least one Note Root");
 
@@ -260,7 +260,7 @@ describe("invocation artifacts", () => {
       expect(error).toBeInstanceOf(InvocationCaptureBudgetError);
       expect(error).toMatchObject({ code: "invocation-capture-budget-exceeded", budget });
     }
-    const objectsDir = path.join(workspaceRoot, ".stem", "invocations", `budget-${budget}`, "files", "objects");
+    const objectsDir = path.join(workspaceRoot, ".exograph", "invocations", `budget-${budget}`, "files", "objects");
     await expect(readdir(objectsDir)).resolves.toEqual([]);
   });
 
@@ -280,7 +280,7 @@ describe("invocation artifacts", () => {
     } finally {
       now.mockRestore();
     }
-    const objectsDir = path.join(workspaceRoot, ".stem", "invocations", "budget-elapsed", "files", "objects");
+    const objectsDir = path.join(workspaceRoot, ".exograph", "invocations", "budget-elapsed", "files", "objects");
     await expect(readdir(objectsDir)).resolves.toEqual([]);
   });
 
@@ -299,7 +299,7 @@ describe("invocation artifacts", () => {
     await writeFile(notePath, "after\n");
     const settled = await store.captureManifest(invocationId, "settled", [noteRoot]);
     const changeset = buildInvocationChangeset(launch, settled);
-    const objectsDir = path.join(workspaceRoot, ".stem", "invocations", invocationId, "files", "objects");
+    const objectsDir = path.join(workspaceRoot, ".exograph", "invocations", invocationId, "files", "objects");
     const malformedStaleArtifact = path.join(objectsDir, "stale-directory");
     await mkdir(malformedStaleArtifact);
 

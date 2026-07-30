@@ -609,7 +609,7 @@ async function waitForInvocation(
 }
 
 async function invocationRecords(workspaceRoot: string): Promise<Array<Record<string, any>>> {
-  const root = path.join(workspaceRoot, ".stem/invocations");
+  const root = path.join(workspaceRoot, ".exograph/invocations");
   const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
   const records = await Promise.all(entries.filter((entry) => entry.isDirectory()).map(async (entry) => {
     try {
@@ -673,7 +673,7 @@ async function assertDurableArtifacts(
   record: Record<string, any>,
   expected: { launchContains: string; settledContains: string },
 ): Promise<void> {
-  const invocationDir = path.join(fixture.workspaceRoot, ".stem/invocations", record.id);
+  const invocationDir = path.join(fixture.workspaceRoot, ".exograph/invocations", record.id);
   const cleanBase = JSON.parse(await readFile(path.join(invocationDir, "clean-base.json"), "utf8"));
   const launch = JSON.parse(await readFile(path.join(invocationDir, "launch-manifest.json"), "utf8"));
   const settled = JSON.parse(await readFile(path.join(invocationDir, "settled-manifest.json"), "utf8"));
@@ -689,7 +689,7 @@ async function assertDurableArtifacts(
 }
 
 async function readCleanBase(fixture: InvocationFixture, invocationId: string): Promise<string> {
-  const invocationDir = path.join(fixture.workspaceRoot, ".stem/invocations", invocationId);
+  const invocationDir = path.join(fixture.workspaceRoot, ".exograph/invocations", invocationId);
   const cleanBase = JSON.parse(await readFile(path.join(invocationDir, "clean-base.json"), "utf8"));
   return readFile(path.join(invocationDir, cleanBase.file.snapshotRef), "utf8");
 }

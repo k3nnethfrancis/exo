@@ -324,7 +324,7 @@ test("adds one Custom Command, removes it explicitly, and retains its History sn
         expect.objectContaining({ id: "claude" }),
         expect.objectContaining({ id: "codex" }),
       ]);
-    await expect(access(path.join(fixture.workspaceRoot, ".stem/invocations", historyId, "record.json"))).resolves.toBeUndefined();
+    await expect(access(path.join(fixture.workspaceRoot, ".exograph/invocations", historyId, "record.json"))).resolves.toBeUndefined();
     await expect(access(markerPath)).rejects.toMatchObject({ code: "ENOENT" });
 
     await expect.poll(() => fixture.page.evaluate((targetPath) =>

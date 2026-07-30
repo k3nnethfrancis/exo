@@ -392,7 +392,7 @@ async function ontologyStore(): Promise<{ workspace: string; runtime: string; st
   const root = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-store-"));
   roots.push(root);
   const workspace = path.join(root, "workspace");
-  const runtime = path.join(root, ".stem");
+  const runtime = path.join(root, ".exograph");
   await mkdir(workspace);
   return { workspace, runtime, store: new WorkspaceOntologyStore({ workspaceRoot: workspace, runtimeRoot: runtime }) };
 }

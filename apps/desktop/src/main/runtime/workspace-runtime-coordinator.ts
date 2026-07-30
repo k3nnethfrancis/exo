@@ -24,6 +24,7 @@ export interface WorkspaceActivationRequest {
 }
 
 export type WorkspaceActivationPhase =
+  | "runtime-root"
   | "recovery"
   | "note-roots"
   | "command-server"
@@ -66,6 +67,8 @@ export interface StagedWorkspaceWatcher {
 
 export interface WorkspaceRuntimeCoordinatorOptions {
   runtimeRootFor(settings: WorkspaceSettings): string;
+  /** One-time non-canonical state migration before recovery reads the candidate. */
+  prepareRuntimeRoot(candidate: Readonly<WorkspaceRuntimeCandidate>): Promise<void>;
   recoverInvocations(candidate: Readonly<WorkspaceRuntimeCandidate>): Promise<void>;
   modelFromSettings(settings: WorkspaceSettings): WorkspaceModel;
   prepareNoteRoots(candidate: Readonly<WorkspaceRuntimeCandidate>): Promise<void>;
@@ -154,6 +157,9 @@ export class WorkspaceRuntimeCoordinator {
     let stagedWatcher: StagedWorkspaceWatcher | null = null;
 
     try {
+      await this.runPhase("runtime-root", () => this.options.prepareRuntimeRoot(candidate));
+      if (!this.isCurrent(candidate)) return { status: "superseded" };
+
       await this.runPhase("recovery", () => this.options.recoverInvocations(candidate));
       if (!this.isCurrent(candidate)) return { status: "superseded" };
 

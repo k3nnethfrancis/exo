@@ -25,7 +25,7 @@ Markdown + frontmatter in a selected Note Root
   → WebGPU or Canvas presentation
 ```
 
-Markdown is canonical. `.stem/` holds local, rebuildable state: indexes,
+Markdown is canonical. `.exograph/` holds local, rebuildable state: indexes,
 command-server discovery, invocation review evidence, accepted ontology state,
 and other runtime artifacts. It must never become a competing source of truth.
 

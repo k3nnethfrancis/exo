@@ -8,6 +8,7 @@ import {
   resolveWorkspaceModel,
   workspaceEnvOverrides,
   workspaceModelFromSettings,
+  WORKSPACE_RUNTIME_DIRECTORY,
   type WorkspaceModel,
 } from "@stem/core";
 
@@ -89,7 +90,7 @@ async function createOperations(
     };
   }
   const { model } = scope;
-  const runtimeRoot = env.EXO_RUNTIME_ROOT ?? env.STEM_RUNTIME_ROOT ?? path.join(model.workspaceRoot, ".stem");
+  const runtimeRoot = env.EXO_RUNTIME_ROOT ?? env.STEM_RUNTIME_ROOT ?? path.join(model.workspaceRoot, WORKSPACE_RUNTIME_DIRECTORY);
   const client = await connectApp(runtimeRoot, env).catch(() => null);
   if (client && (await clientMatchesWorkspace(client, model))) {
     return {

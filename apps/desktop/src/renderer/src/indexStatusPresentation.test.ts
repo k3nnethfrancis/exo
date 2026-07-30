@@ -20,8 +20,8 @@ function indexStatusFixture(overrides: Partial<IndexStatus> = {}): IndexStatus {
     enabled: true,
     mode: "hybrid",
     backend: "qmd",
-    dbPath: "/workspace/.stem/qmd/index.sqlite",
-    runtimePath: "/workspace/.stem/qmd",
+    dbPath: "/workspace/.exograph/qmd/index.sqlite",
+    runtimePath: "/workspace/.exograph/qmd",
     indexedRoots: [
       {
         id: "index-root-1",

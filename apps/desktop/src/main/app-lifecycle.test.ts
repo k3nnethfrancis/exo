@@ -201,15 +201,15 @@ describe("AppLifecycleController", () => {
     expect(electronMock.trayImageCreateFromPath).not.toHaveBeenCalled();
     expect(electronMock.trayImageSetTemplateImage).toHaveBeenCalledWith(true);
     expect(electronMock.trayInstances).toHaveLength(1);
-    expect(electronMock.trayInstances[0].setToolTip).toHaveBeenCalledWith("Stem");
-    expect(menuLabels()).toContain("Show Stem");
+    expect(electronMock.trayInstances[0].setToolTip).toHaveBeenCalledWith("Exograph");
+    expect(menuLabels()).toContain("Show Exograph");
     expect(menuLabels()).toContain("Settings...");
-    expect(menuLabels()).toContain("Stem is Running");
+    expect(menuLabels()).toContain("Exograph is Running");
     expect(menuLabels()).toContain("Window: Hidden");
     expect(menuLabels()).toContain("Command Server: Running:4317");
     expect(menuLabels()).toContain("Live Terminals: 1");
     expect(menuLabels()).toContain("Restart Command Server");
-    expect(menuLabels()).toContain("Quit Stem");
+    expect(menuLabels()).toContain("Quit Exograph");
   });
 
   it("does not require a packaged tray asset on disk", () => {

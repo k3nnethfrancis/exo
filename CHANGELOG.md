@@ -201,7 +201,7 @@ Note-native workspace simplification: a filesystem-first Markdown editor with ti
 Installed-app readiness, direct-pty terminal reliability, Stem-on-Stem harness cleanup, and resident runtime support.
 
 - Makes the packaged macOS app the intended stable daily runtime and adds `./scripts/install-mac-app` / `pnpm install:mac-app` for local unsigned app installation.
-- Adds `pnpm dev:qa` so source QA uses isolated `.stem-dev/` runtime and user-data state while installed Stem keeps coordinating notes, agents, CLI, and MCP.
+- Adds `pnpm dev:qa` so source QA uses isolated `.exograph-dev/` runtime and user-data state while installed Stem keeps coordinating notes, agents, CLI, and MCP.
 - Adds a resident runtime menu-bar controller: closing the window hides Stem, the process keeps the command server/MCP/watchers/transcripts/live pty agents alive, and explicit Quit warns before stopping live terminals.
 - Replaces core tmux terminal runtime paths with direct `node-pty` sessions, disk-backed transcripts, bounded live-tail hydration, terminal health diagnostics, semantic agent-message delivery, and coalesced resize handling.
 - Refactors major desktop ownership boundaries out of the shell: app lifecycle, indexing, workspace notes, project review, agent instructions, workspace settings, renderer workspace/bootstrap/settings/mutation/open-document/terminal/pane-layout hooks, and typed desktop IPC.
@@ -230,7 +230,7 @@ Fresh setup and QMD integration hardening.
 - Hardens first launch by creating missing note roots, using portable workspace defaults, preserving empty folders in the explorer, and fixing the blank renderer hook-order crash.
 - Adds Stem-managed QMD indexing as an active optional substrate with lexical, semantic, and hybrid modes, Settings controls, status UI, sync/update/embed actions, and Explore indexed search on Enter.
 - Exposes QMD-backed index status, search, read, sync, update, and embed flows through the Stem CLI/MCP command server while keeping terminal-agent CLI/MCP tools intact.
-- Keeps QMD state under workspace-local `.stem/qmd`, credits upstream QMD by Tobi Lutke, and documents the adapter boundary and upgrade checklist.
+- Keeps QMD state under workspace-local `.exograph/qmd`, credits upstream QMD by Tobi Lutke, and documents the adapter boundary and upgrade checklist.
 - Fixes merge-blocking review issues: stale QMD docid read safety, multi-root hybrid search, long-running index command timeouts, workspace-root command-server refresh, and the ignored root `postinstall` script.
 
 ## 0.1.0-alpha.0 - 2026-05-12

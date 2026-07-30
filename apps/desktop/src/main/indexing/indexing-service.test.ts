@@ -52,7 +52,7 @@ describe("IndexingService", () => {
     service.applySettings({
       model: workspaceModel(settings),
       settings: { ...settings, indexUpdateStrategy: "manual" },
-      runtimeRoot: "/workspace/.stem",
+      runtimeRoot: "/workspace/.exograph",
     });
     service.applyCurrentAutomaticPolicy();
     service.scheduleForFile("/workspace/notes/daily.md", "note-save");
@@ -99,7 +99,7 @@ describe("IndexingService", () => {
 
     expect(maintenance.update).toHaveBeenCalledWith(
       expect.objectContaining({ indexing: expect.objectContaining({ mode: "hybrid" }) }),
-      "/workspace/.stem",
+      "/workspace/.exograph",
       ["index-notes"],
       expect.anything(),
     );
@@ -135,7 +135,7 @@ describe("IndexingService", () => {
 
     expect(maintenance.embed).toHaveBeenCalledWith(
       expect.objectContaining({ indexing: expect.objectContaining({ mode: "hybrid" }) }),
-      "/workspace/.stem",
+      "/workspace/.exograph",
       { maxDocuments: 4, maxDocsPerBatch: 1, maxDurationMs: 15_000 },
       expect.anything(),
     );
@@ -187,7 +187,7 @@ describe("IndexingService", () => {
     expect(maintenance.update).toHaveBeenCalledTimes(2);
     expect(maintenance.update).toHaveBeenLastCalledWith(
       expect.anything(),
-      "/workspace/.stem",
+      "/workspace/.exograph",
       ["index-notes"],
       expect.anything(),
     );
@@ -215,12 +215,12 @@ describe("IndexingService", () => {
     service.activateWorkspace({
       model: workspaceModel(settingsB),
       settings: settingsB,
-      runtimeRoot: "/workspace-b/.stem",
+      runtimeRoot: "/workspace-b/.exograph",
     });
     service.activateWorkspace({
       model: workspaceModel(settingsA),
       settings: settingsA,
-      runtimeRoot: "/workspace/.stem",
+      runtimeRoot: "/workspace/.exograph",
     });
     expect(firstSignal?.aborted).toBe(true);
 
@@ -247,11 +247,11 @@ describe("IndexingService", () => {
 
     const oldSearch = service.search("old");
     await Promise.resolve();
-    service.activateWorkspace({ model: workspaceModel(settingsB), settings: settingsB, runtimeRoot: "/workspace-b/.stem" });
+    service.activateWorkspace({ model: workspaceModel(settingsB), settings: settingsB, runtimeRoot: "/workspace-b/.exograph" });
     expect(searchSignal?.aborted).toBe(true);
     service.scheduleReconciliation("b", 0);
     await vi.advanceTimersByTimeAsync(0);
-    expect(maintenance.update).toHaveBeenCalledWith(expect.objectContaining({ workspaceRoot: "/workspace-b" }), "/workspace-b/.stem", ["index-notes"], expect.anything());
+    expect(maintenance.update).toHaveBeenCalledWith(expect.objectContaining({ workspaceRoot: "/workspace-b" }), "/workspace-b/.exograph", ["index-notes"], expect.anything());
 
     heldSearch.resolve({ results: [], query: "old", mode: "hybrid", source: "qmd", provider: "qmd", warnings: [] });
     await expect(oldSearch).rejects.toMatchObject({ name: "AbortError" });
@@ -274,11 +274,11 @@ describe("IndexingService", () => {
     service.scheduleReconciliation("a", 0);
     await vi.advanceTimersByTimeAsync(0);
     expect(workerA.update).toHaveBeenCalledOnce();
-    service.activateWorkspace({ model: workspaceModel(settingsB), settings: settingsB, runtimeRoot: "/workspace-b/.stem" });
+    service.activateWorkspace({ model: workspaceModel(settingsB), settings: settingsB, runtimeRoot: "/workspace-b/.exograph" });
     expect(workerA.dispose).toHaveBeenCalledOnce();
     service.scheduleReconciliation("b", 0);
     await vi.advanceTimersByTimeAsync(0);
-    expect(workerB.update).toHaveBeenCalledWith(expect.objectContaining({ workspaceRoot: "/workspace-b" }), "/workspace-b/.stem", ["index-notes"], expect.anything());
+    expect(workerB.update).toHaveBeenCalledWith(expect.objectContaining({ workspaceRoot: "/workspace-b" }), "/workspace-b/.exograph", ["index-notes"], expect.anything());
 
     heldA.resolve(indexStatus(0, "lexical"));
     await vi.advanceTimersByTimeAsync(0);
@@ -321,8 +321,8 @@ describe("IndexingService", () => {
     await service.embed("settings");
     await service.runSync("settings");
 
-    expect(maintenance.embed).toHaveBeenCalledWith(expect.anything(), "/workspace/.stem", undefined, expect.anything());
-    expect(maintenance.sync).toHaveBeenCalledWith(expect.anything(), "/workspace/.stem", expect.anything());
+    expect(maintenance.embed).toHaveBeenCalledWith(expect.anything(), "/workspace/.exograph", undefined, expect.anything());
+    expect(maintenance.sync).toHaveBeenCalledWith(expect.anything(), "/workspace/.exograph", expect.anything());
     service.dispose();
   });
 
@@ -343,7 +343,7 @@ describe("IndexingService", () => {
 
     expect(foreground.search).toHaveBeenCalledWith(
       expect.objectContaining({ searchEngine: "filesystem" }),
-      "/workspace/.stem",
+      "/workspace/.exograph",
       "needle",
       {},
       expect.anything(),
@@ -580,7 +580,7 @@ describe("IndexingService", () => {
 
     service.scheduleReconciliation("startup", 0);
     await vi.advanceTimersByTimeAsync(0);
-    expect(maintenance.update).toHaveBeenCalledWith(expect.anything(), "/workspace/.stem", ["index-notes"], expect.anything());
+    expect(maintenance.update).toHaveBeenCalledWith(expect.anything(), "/workspace/.exograph", ["index-notes"], expect.anything());
     expect(maintenance.sync).not.toHaveBeenCalled();
 
     service.scheduleForFile("/workspace/notes/later.md", "note-save");
@@ -607,7 +607,7 @@ function indexingService(
   return new IndexingService({
     getWorkspaceModel: () => workspaceModel(settings),
     getCurrentSettings: () => settings,
-    getRuntimeRoot: () => "/workspace/.stem",
+    getRuntimeRoot: () => "/workspace/.exograph",
     saveWorkspaceSettings,
     sendState: options.sendState ?? (() => {}),
     errorMessage: (error) => error instanceof Error ? error.message : String(error),
@@ -661,8 +661,8 @@ function indexStatus(pendingEmbeddings = 1, mode: IndexStatus["mode"] = "hybrid"
     enabled: true,
     mode,
     backend: "qmd",
-    dbPath: "/workspace/.stem/qmd/index.sqlite",
-    runtimePath: "/workspace/.stem/qmd",
+    dbPath: "/workspace/.exograph/qmd/index.sqlite",
+    runtimePath: "/workspace/.exograph/qmd",
     indexedRoots: workspaceSettings().indexedRoots,
     documentCount: 1,
     pendingEmbeddings,

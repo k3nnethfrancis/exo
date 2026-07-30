@@ -26,7 +26,7 @@ describe("InvocationContinuityStore", () => {
     });
 
     expect(await store.readHead(lane)).toEqual(written);
-    expect(store.headPath(lane)).toContain(`${path.sep}.stem${path.sep}invocation-continuity${path.sep}v1${path.sep}`);
+    expect(store.headPath(lane)).toContain(`${path.sep}.exograph${path.sep}invocation-continuity${path.sep}v1${path.sep}`);
     expect(await readFile(store.headPath(lane), "utf8")).toContain('"sourceInvocationId": "invocation-1"');
     expect(await store.readHead({ ...lane, commandFingerprint: "b".repeat(64) })).toBeNull();
     expect(await store.readHead({ ...lane, cwd: path.join(workspaceRoot, "other") })).toBeNull();

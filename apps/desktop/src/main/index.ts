@@ -49,6 +49,7 @@ import { resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace/workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace/workspace-watchers";
 import { WorkspaceRuntimeCoordinator } from "./runtime/workspace-runtime-coordinator";
+import { migrateLegacyWorkspaceRuntime, runtimeRootForWorkspace } from "./runtime/workspace-runtime-root";
 import { hasOperatorWorkspaceSetup, workspaceSetupDecision, type WorkspaceSetupDecision } from "./workspace/workspace-setup-gate";
 import { configureGpuStartup } from "./gpu-startup-policy";
 import { runStandaloneGraphGpuProbe } from "./gpu-probe-runner";
@@ -635,7 +636,7 @@ async function switchWorkspace(workspaceId: string, expectedRevision: string | n
 }
 
 function applyOnboardingRuntimeEnv() {
-  if (process.env.STEM_RUNTIME_ROOT) {
+  if (process.env.EXO_RUNTIME_ROOT ?? process.env.STEM_RUNTIME_ROOT) {
     return;
   }
   onboardingRuntimeRoot = path.join(app.getPath("userData"), "onboarding-runtime");
@@ -781,7 +782,15 @@ app.whenReady().then(async () => {
     logMain,
   });
   workspaceRuntimeCoordinator = new WorkspaceRuntimeCoordinator({
-    runtimeRootFor: (settings) => process.env.EXO_RUNTIME_ROOT ?? process.env.STEM_RUNTIME_ROOT ?? path.join(settings.workspaceRoot, ".stem"),
+    runtimeRootFor: (settings) => runtimeRootForWorkspace(settings.workspaceRoot),
+    prepareRuntimeRoot: async (candidate) => {
+      const result = await migrateLegacyWorkspaceRuntime(candidate.settings.workspaceRoot);
+      if (result.status === "migrated") {
+        logMain("migrated legacy Workspace runtime", result);
+      } else if (result.status === "deferred") {
+        logMain("legacy Workspace runtime migration deferred", result);
+      }
+    },
     recoverInvocations: (candidate) => invocationRunner.recoverWorkspace(candidate.settings),
     modelFromSettings: workspaceModelFromSettings,
     prepareNoteRoots: (candidate) => ensureNoteRoots(candidate.model),
@@ -921,8 +930,8 @@ async function ensureNoteRoots(model: WorkspaceModel): Promise<void> {
 }
 
 function resolveRuntimeRoot(): string {
-  if (process.env.STEM_RUNTIME_ROOT) {
-    return process.env.STEM_RUNTIME_ROOT;
+  if (process.env.EXO_RUNTIME_ROOT ?? process.env.STEM_RUNTIME_ROOT) {
+    return process.env.EXO_RUNTIME_ROOT ?? process.env.STEM_RUNTIME_ROOT!;
   }
 
   if (!workspaceSetupComplete && onboardingRuntimeRoot) {
@@ -930,10 +939,10 @@ function resolveRuntimeRoot(): string {
   }
 
   // Settings own the active workspace after startup. Falling back to the launch
-  // directory here made packaged Stem derive `/.stem`, because Electron launches
+  // directory here made packaged Exograph derive `/.exograph`, because Electron launches
   // the app from `/` rather than from the user's workspace.
   const workspaceRoot = workspaceSettings?.workspaceRoot ?? workspaceModel?.workspaceRoot ?? resolveWorkspaceModel().workspaceRoot;
-  return path.join(workspaceRoot, ".stem");
+  return runtimeRootForWorkspace(workspaceRoot);
 }
 
 app.on("before-quit", (event) => {

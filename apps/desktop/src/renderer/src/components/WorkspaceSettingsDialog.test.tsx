@@ -128,7 +128,7 @@ describe("workspace settings footer copy", () => {
 
 
   it("keeps provider failures out of the settings surface", () => {
-    const copy = indexSettingsStatusCopy(indexStatusFixture({ errors: ["ENOENT: mkdir '/.stem'"] }), null);
+    const copy = indexSettingsStatusCopy(indexStatusFixture({ errors: ["ENOENT: mkdir '/.exograph'"] }), null);
 
     expect(copy?.text).toBe("QMD is unavailable. Simple search still works; switch engines or sync QMD to recover.");
     expect(copy?.text).not.toContain("ENOENT");
@@ -234,8 +234,8 @@ function indexStatusFixture(overrides: Partial<IndexStatus> = {}): IndexStatus {
     enabled: true,
     mode: "hybrid",
     backend: "qmd",
-    dbPath: "/workspace/.stem/qmd/index.sqlite",
-    runtimePath: "/workspace/.stem/qmd",
+    dbPath: "/workspace/.exograph/qmd/index.sqlite",
+    runtimePath: "/workspace/.exograph/qmd",
     indexedRoots: [
       {
         id: "index-root-1",

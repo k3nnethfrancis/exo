@@ -6,6 +6,7 @@ import type { IndexReadOptions, IndexSearchOptions, IndexUpdateOptions, SearchPr
 import { readFilesystemDocument, searchFilesystem } from "./filesystem-provider";
 import { WorkspaceFiles } from "../workspace-files";
 import { normalizeWorkspaceContentPolicy } from "../workspace-content-policy";
+import { WORKSPACE_RUNTIME_DIRECTORY } from "../workspace-runtime";
 import type {
   IndexedRoot,
   IndexReadResponse,
@@ -185,10 +186,10 @@ async function getIndexStatus(model: WorkspaceModel, runtimeRoot: string): Promi
 }
 
 async function runtimeStateWarnings(runtimeRoot: string): Promise<string[]> {
-  // The packaged app intentionally puts derived state at <workspace>/.stem. Do
+  // The packaged app intentionally puts derived state at <workspace>/.exograph. Do
   // not silently write a user's repository configuration, but make a tracked
   // runtime directory visible before indexes/invocation records surprise them.
-  if (path.basename(runtimeRoot) !== ".stem") {
+  if (path.basename(runtimeRoot) !== WORKSPACE_RUNTIME_DIRECTORY) {
     return [];
   }
   const workspaceRoot = path.dirname(runtimeRoot);
@@ -197,18 +198,18 @@ async function runtimeStateWarnings(runtimeRoot: string): Promise<string[]> {
   }
   try {
     const gitignore = await readFile(path.join(workspaceRoot, ".gitignore"), "utf8");
-    if (gitignore.split(/\r?\n/).some(ignoresStemRuntimePath)) {
+    if (gitignore.split(/\r?\n/).some(ignoresRuntimePath)) {
       return [];
     }
   } catch {
     // A missing or unreadable .gitignore leaves the warning intentionally visible.
   }
-  return ["This Workspace is a Git repository and .stem/ is not ignored. Add .stem/ to .gitignore; Exograph will not modify repository files automatically."];
+  return ["This Workspace is a Git repository and .exograph/ is not ignored. Add .exograph/ to .gitignore; Exograph will not modify repository files automatically."];
 }
 
-function ignoresStemRuntimePath(line: string): boolean {
+function ignoresRuntimePath(line: string): boolean {
   const rule = line.trim();
-  return rule === ".stem" || rule === ".stem/" || rule === "/.stem" || rule === "/.stem/" || rule === "**/.stem" || rule === "**/.stem/";
+  return rule === ".exograph" || rule === ".exograph/" || rule === "/.exograph" || rule === "/.exograph/" || rule === "**/.exograph" || rule === "**/.exograph/";
 }
 
 async function pathExists(target: string): Promise<boolean> {

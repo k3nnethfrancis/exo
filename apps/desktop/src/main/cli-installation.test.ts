@@ -18,23 +18,23 @@ async function fixture() {
   const project = path.join(root, "project");
   await mkdir(path.join(project, "bin"), { recursive: true });
   await mkdir(bin, { recursive: true });
-  const source = path.join(project, "bin", "stem");
+  const source = path.join(project, "bin", "exo");
   await writeFile(source, "#!/usr/bin/env node\n", "utf8");
   await chmod(source, 0o755);
-  return { bin, project, root, source, command: path.join(bin, "stem") };
+  return { bin, project, root, source, command: path.join(bin, "exo") };
 }
 
 describe("CLI installation diagnosis", () => {
   it("does not mistake packaged resources for a source checkout", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "stem-cli-source-root-"));
     roots.push(root);
-    const resources = path.join(root, "Stem.app", "Contents", "Resources");
+    const resources = path.join(root, "Exograph.app", "Contents", "Resources");
     const project = path.join(root, "project");
     await mkdir(path.join(resources, "assets"), { recursive: true });
     await mkdir(path.join(project, "bin"), { recursive: true });
     await mkdir(path.join(project, "scripts"), { recursive: true });
     await writeFile(path.join(project, "package.json"), "{}\n", "utf8");
-    await writeFile(path.join(project, "bin", "stem"), "#!/bin/sh\n", "utf8");
+    await writeFile(path.join(project, "bin", "exo"), "#!/bin/sh\n", "utf8");
     await writeFile(path.join(project, "scripts", "install-local"), "#!/bin/sh\n", "utf8");
 
     expect(findSourceProjectRoot([resources])).toBeUndefined();
@@ -82,12 +82,12 @@ describe("CLI installation diagnosis", () => {
   it("installs and recognizes the CLI bundled with the desktop app", async () => {
     const { root } = await fixture();
     const packagedCli = {
-      appExecutablePath: "/Applications/Stem.app/Contents/MacOS/Stem",
-      scriptPath: "/Applications/Stem.app/Contents/Resources/app.asar/dist/main/cli.js",
+      appExecutablePath: "/Applications/Exograph.app/Contents/MacOS/Exograph",
+      scriptPath: "/Applications/Exograph.app/Contents/Resources/app.asar/dist/main/cli.js",
     };
 
     await expect(installPackagedCli(packagedCli, { env: { HOME: root, PATH: "/usr/bin:/bin" } }))
-      .resolves.toMatchObject({ state: "current", commandPath: path.join(root, ".local", "bin", "stem") });
+      .resolves.toMatchObject({ state: "current", commandPath: path.join(root, ".local", "bin", "exo") });
     await expect(inspectCliInstallation({
       env: { HOME: root, PATH: path.join(root, ".local", "bin") },
       packagedCli,
@@ -96,7 +96,7 @@ describe("CLI installation diagnosis", () => {
 
   it("will not overwrite an unrelated local command", async () => {
     const { root } = await fixture();
-    const target = path.join(root, ".local", "bin", "stem");
+    const target = path.join(root, ".local", "bin", "exo");
     await mkdir(path.dirname(target), { recursive: true });
     await writeFile(target, "#!/bin/sh\n", "utf8");
     await chmod(target, 0o755);

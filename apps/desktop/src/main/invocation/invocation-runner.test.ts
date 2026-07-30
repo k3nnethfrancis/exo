@@ -176,7 +176,7 @@ describe("InvocationRunner readiness parity", () => {
     activeSettings = settings(rootB, command);
     expect(prepared.terminalWorkspace).toMatchObject({
       workspaceRoot: rootA,
-      runtimeRoot: path.join(rootA, ".stem"),
+      runtimeRoot: path.join(rootA, ".exograph"),
     });
     expect(runner.workspaceRootForInvocation(prepared.id)).toBe(rootA);
     await expect(runner.authorizeAndStart(prepared, {
@@ -467,9 +467,9 @@ describe("InvocationRunner readiness parity", () => {
 
     const completed = await updated;
     expect(completed).toMatchObject({ status: "process-exited", workspaceRoot: workspaceA });
-    await expect(readFile(path.join(workspaceA, ".stem", "invocations", prepared.id, "record.json"), "utf8"))
+    await expect(readFile(path.join(workspaceA, ".exograph", "invocations", prepared.id, "record.json"), "utf8"))
       .resolves.toContain('"status": "process-exited"');
-    await expect(readFile(path.join(workspaceB, ".stem", "invocations", prepared.id, "record.json"), "utf8"))
+    await expect(readFile(path.join(workspaceB, ".exograph", "invocations", prepared.id, "record.json"), "utf8"))
       .rejects.toMatchObject({ code: "ENOENT" });
     const changedNote = completed.changeset!.files.find((change) => change.operation === "modified")!;
     await expect(runner.getInvocationFileReview(prepared.id, changedNote.id)).resolves.toMatchObject({
@@ -1239,7 +1239,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const original = createRunner(settings(root, command));
     const prepared = await original.prepare(invocationRequest(notePath, body));
     await original.authorizeAndStart(prepared, authorizationFor(prepared));
-    await rm(path.join(root, ".stem", "invocations", prepared.id, "process-ownership.json"));
+    await rm(path.join(root, ".exograph", "invocations", prepared.id, "process-ownership.json"));
 
     const recovering = createRunner(settings(root, command));
     await expect(recovering.markOrphanedRunningInvocations()).resolves.toBeUndefined();
@@ -1262,7 +1262,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const original = createRunner(settings(root, command));
     const prepared = await original.prepare(invocationRequest(notePath, body));
     await original.authorizeAndStart(prepared, authorizationFor(prepared));
-    await writeFile(path.join(root, ".stem", "invocations", prepared.id, "launch-manifest.json"), "{not-json\n");
+    await writeFile(path.join(root, ".exograph", "invocations", prepared.id, "launch-manifest.json"), "{not-json\n");
 
     const recovering = createRunner(settings(root, command));
     await expect(recovering.recoverWorkspace(settings(root, command))).resolves.toBeUndefined();
@@ -1300,7 +1300,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
     const body = protocolNoteBody("# Invalid record\n", command.handle, "Do not unlock this root.");
     await writeFile(notePath, body);
-    const invocationDir = path.join(root, ".stem", "invocations", "invalid-record");
+    const invocationDir = path.join(root, ".exograph", "invocations", "invalid-record");
     await mkdir(invocationDir, { recursive: true });
     await writeFile(path.join(invocationDir, "record.json"), JSON.stringify({ id: "invalid-record" }), "utf8");
     const runner = createRunner(settings(root, command));
@@ -1401,7 +1401,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const prepared = await runner.prepare(invocationRequest(notePath, body));
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
     await writeFile(notePath, withProtocolResponse(body, command.handle, "Durable response."));
-    const invocationDir = path.join(root, ".stem", "invocations", prepared.id);
+    const invocationDir = path.join(root, ".exograph", "invocations", prepared.id);
     await mkdir(path.join(invocationDir, "files", "objects", "stale-directory"));
     const compactionError = new Promise<{ invocationId: string; error: unknown }>((resolve) =>
       runner.once("artifact-compaction-error", resolve));

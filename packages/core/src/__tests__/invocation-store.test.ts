@@ -28,7 +28,7 @@ function invocationRecord(id: string, createdAt: string): InvocationRecord {
 }
 
 describe("invocation store", () => {
-  it("writes records under .stem/invocations/id/record.json", async () => {
+  it("writes records under .exograph/invocations/id/record.json", async () => {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-invocations-"));
     const store = new InvocationStore(workspaceRoot);
 
@@ -37,7 +37,7 @@ describe("invocation store", () => {
       const target = await store.writeRecord(record);
 
       expect(target).toBe(invocationRecordPath(resolveInvocationStoreLayout(workspaceRoot), "invocation/one"));
-      expect(target).toContain(`${path.sep}.stem${path.sep}invocations${path.sep}`);
+      expect(target).toContain(`${path.sep}.exograph${path.sep}invocations${path.sep}`);
       await expect(readFile(target, "utf8")).resolves.toContain("\"promptDelivery\": \"stdin\"");
       await expect(store.readRecord("invocation/one")).resolves.toMatchObject({
         id: "invocation/one",
@@ -169,9 +169,9 @@ describe("invocation store", () => {
     }
   });
 
-  it("keeps invocation records under the repository gitignored .stem runtime tree", () => {
+  it("keeps invocation records under the repository gitignored .exograph runtime tree", () => {
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
-    const result = spawnSync("git", ["check-ignore", "--quiet", ".stem/invocations/invocation-1/record.json"], {
+    const result = spawnSync("git", ["check-ignore", "--quiet", ".exograph/invocations/invocation-1/record.json"], {
       cwd: repoRoot,
     });
 

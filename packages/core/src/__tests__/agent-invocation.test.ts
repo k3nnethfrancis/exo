@@ -450,7 +450,7 @@ describe("agent invocation model", () => {
       noteRoots: ["/tmp/notes"],
       createdAt: "2026-07-08T00:00:00.000Z",
       changedFileRefs: [{ path: "/tmp/note.md", kind: "modified", attribution: "ambiguous", diffRefId: "diff-1" }],
-      diffRefs: [{ id: "diff-1", path: "/tmp/note.md", format: "unified", ref: ".stem/invocations/inv-1/diff.patch" }],
+      diffRefs: [{ id: "diff-1", path: "/tmp/note.md", format: "unified", ref: ".exograph/invocations/inv-1/diff.patch" }],
       attribution: { status: "ambiguous", reason: "user and agent touched the file during the invocation window" },
       providerSessionId: "ce4b9e26-2574-4433-a054-1110cd403792",
       continuity: { policy: "continuous", outcome: "resumed", resumedFromInvocationId: "inv-0" },

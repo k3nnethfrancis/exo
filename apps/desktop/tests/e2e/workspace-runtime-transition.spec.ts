@@ -24,19 +24,19 @@ test("keeps command discovery, status, and search scoped across A → B → A", 
   const rootB = path.join(rootA, "alternate-wiki");
 
   try {
-    await expect.poll(() => commandServerStatus(path.join(rootA, ".stem"))).toMatchObject({
+    await expect.poll(() => commandServerStatus(path.join(rootA, ".exograph"))).toMatchObject({
       workspace: { workspaceRoot: rootA, noteRoots: [{ path: noteRootA }] },
     });
 
     await saveActiveWorkspace(fixture.page, rootB, rootB);
-    await expect.poll(() => commandServerStatus(path.join(rootB, ".stem"))).toMatchObject({
+    await expect.poll(() => commandServerStatus(path.join(rootB, ".exograph"))).toMatchObject({
       workspace: { workspaceRoot: rootB, noteRoots: [{ path: rootB }] },
     });
     await expect.poll(() => fixture.page.evaluate(() => window.stem.workspace.searchWorkspace("runtime-b")))
       .toMatchObject({ notes: [expect.objectContaining({ title: "runtime-b" })] });
 
     await saveActiveWorkspace(fixture.page, rootA, noteRootA);
-    await expect.poll(() => commandServerStatus(path.join(rootA, ".stem"))).toMatchObject({
+    await expect.poll(() => commandServerStatus(path.join(rootA, ".exograph"))).toMatchObject({
       workspace: { workspaceRoot: rootA, noteRoots: [{ path: noteRootA }] },
     });
     await expect.poll(() => fixture.page.evaluate(() => window.stem.workspace.searchWorkspace("runtime-a")))

@@ -17,9 +17,9 @@ describe("UtilityDerivedIndexClient", () => {
     const worker = new FakeProcess();
     const client = new UtilityDerivedIndexClient({ spawn: () => worker, workerPath: "/app/derived-index-worker.js" });
 
-    const promise = client.status(model(), "/workspace/.stem");
+    const promise = client.status(model(), "/workspace/.exograph");
     expect(worker.messages).toEqual([
-      expect.objectContaining({ id: 1, operation: "status", context: expect.objectContaining({ runtimeRoot: "/workspace/.stem" }) }),
+      expect.objectContaining({ id: 1, operation: "status", context: expect.objectContaining({ runtimeRoot: "/workspace/.exograph" }) }),
     ]);
 
     worker.emit("message", { id: 1, ok: true, result: status() });
@@ -39,15 +39,15 @@ describe("UtilityDerivedIndexClient", () => {
       },
     });
 
-    const first = client.status(model(), "/workspace/.stem");
-    const second = client.search(model(), "/workspace/.stem", "needle");
+    const first = client.status(model(), "/workspace/.exograph");
+    const second = client.search(model(), "/workspace/.exograph", "needle");
     const firstRejected = expect(first).rejects.toThrow("timed out after 50 ms");
     const secondRejected = expect(second).rejects.toThrow("timed out after 50 ms");
     await vi.advanceTimersByTimeAsync(50);
     await Promise.all([firstRejected, secondRejected]);
     expect(workers[0].killed).toBe(true);
 
-    const restarted = client.status(model(), "/workspace/.stem");
+    const restarted = client.status(model(), "/workspace/.exograph");
     expect(workers).toHaveLength(2);
     workers[1].emit("message", { id: 3, ok: true, result: status() });
     await expect(restarted).resolves.toMatchObject({ backend: "qmd" });
@@ -58,7 +58,7 @@ describe("UtilityDerivedIndexClient", () => {
     const client = new UtilityDerivedIndexClient({ spawn: () => worker, workerPath: "/app/derived-index-worker.js" });
     const controller = new AbortController();
 
-    const promise = client.search(model(), "/workspace/.stem", "old query", {}, controller.signal);
+    const promise = client.search(model(), "/workspace/.exograph", "old query", {}, controller.signal);
     controller.abort();
 
     await expect(promise).rejects.toMatchObject({ name: "AbortError" });
@@ -70,12 +70,12 @@ describe("UtilityDerivedIndexClient", () => {
     const worker = new FakeProcess();
     const client = new UtilityDerivedIndexClient({ spawn: () => worker, workerPath: "/app/derived-index-worker.js" });
 
-    const context = client.graphContext(model(), "/workspace/.stem", "/workspace/notes/focus.md");
+    const context = client.graphContext(model(), "/workspace/.exograph", "/workspace/notes/focus.md");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-context", filePath: "/workspace/notes/focus.md" });
     worker.emit("message", { id: 1, ok: true, result: null });
     await expect(context).resolves.toBeNull();
 
-    const refresh = client.graphRefresh(model(), "/workspace/.stem", "/workspace/notes/focus.md");
+    const refresh = client.graphRefresh(model(), "/workspace/.exograph", "/workspace/notes/focus.md");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-refresh", filePath: "/workspace/notes/focus.md" });
     worker.emit("message", { id: 2, ok: true, result: null });
     await expect(refresh).resolves.toBeUndefined();
@@ -98,17 +98,17 @@ describe("UtilityDerivedIndexClient", () => {
       omittedDiagnostics: 0,
     };
 
-    const preview = client.ontologyPreview(model(), "/workspace/.stem");
+    const preview = client.ontologyPreview(model(), "/workspace/.exograph");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "ontology-preview" });
     worker.emit("message", { id: 1, ok: true, result: review });
     await expect(preview).resolves.toEqual(review);
 
-    const keep = client.ontologyKeep(model(), "/workspace/.stem", guard);
+    const keep = client.ontologyKeep(model(), "/workspace/.exograph", guard);
     expect(worker.messages.at(-1)).toMatchObject({ operation: "ontology-keep", guard });
     worker.emit("message", { id: 2, ok: true, result: { status: "applied", review } });
     await expect(keep).resolves.toMatchObject({ status: "applied" });
 
-    const reject = client.ontologyReject(model(), "/workspace/.stem", guard);
+    const reject = client.ontologyReject(model(), "/workspace/.exograph", guard);
     expect(worker.messages.at(-1)).toMatchObject({ operation: "ontology-reject", guard });
     worker.emit("message", { id: 3, ok: true, result: { status: "rejected", review } });
     await expect(reject).resolves.toMatchObject({ status: "rejected" });
@@ -118,7 +118,7 @@ describe("UtilityDerivedIndexClient", () => {
     const worker = new FakeProcess();
     const client = new UtilityDerivedIndexClient({ spawn: () => worker, workerPath: "/app/derived-index-worker.js" });
     const firstResult = topology();
-    const first = client.graphTopology(model(), "/workspace/.stem");
+    const first = client.graphTopology(model(), "/workspace/.exograph");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-topology" });
     expect(worker.messages.at(-1)).not.toHaveProperty("profileId");
     expect(worker.messages.at(-1)).not.toHaveProperty("formatId");
@@ -127,19 +127,19 @@ describe("UtilityDerivedIndexClient", () => {
     expect(resolvedFirst.nodes.identityKeys.byteLength).toBe(16);
 
     const secondResult = topology();
-    const second = client.graphTopology(model(), "/workspace/.stem");
+    const second = client.graphTopology(model(), "/workspace/.exograph");
     worker.emit("message", { id: 2, ok: true, result: secondResult });
     await expect(second).resolves.toMatchObject({ transportHash: firstResult.transportHash });
     expect(resolvedFirst.nodes.identityKeys.byteLength).toBe(16);
 
-    const summaries = client.graphConceptSummaries(model(), "/workspace/.stem", [0, 1], "snapshot:fixture");
+    const summaries = client.graphConceptSummaries(model(), "/workspace/.exograph", [0, 1], "snapshot:fixture");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-concept-summaries", indexes: [0, 1], sourceSnapshotId: "snapshot:fixture" });
     worker.emit("message", { id: 3, ok: true, result: { status: "ok", sourceSnapshotId: "snapshot:fixture", summaries: [], payloadBytes: 100 } });
     await expect(summaries).resolves.toMatchObject({ status: "ok" });
 
     const lookup = client.graphConceptLookup(
       model(),
-      "/workspace/.stem",
+      "/workspace/.exograph",
       { filePath: "/workspace/notes/focus.md" },
       "snapshot:fixture",
     );
@@ -155,7 +155,7 @@ describe("UtilityDerivedIndexClient", () => {
     });
     await expect(lookup).resolves.toMatchObject({ status: "ok", summary: { index: 1 } });
 
-    const detail = client.graphConceptDetailByIndex(model(), "/workspace/.stem", 1, "snapshot:fixture");
+    const detail = client.graphConceptDetailByIndex(model(), "/workspace/.exograph", 1, "snapshot:fixture");
     expect(worker.messages.at(-1)).toMatchObject({ operation: "graph-concept-detail-by-index", index: 1 });
     worker.emit("message", { id: 5, ok: true, result: { status: "missing", sourceSnapshotId: "snapshot:fixture", index: 1, payloadBytes: 100 } });
     await expect(detail).resolves.toMatchObject({ status: "missing" });
@@ -167,7 +167,7 @@ describe("UtilityDerivedIndexClient", () => {
     const foreground = new UtilityDerivedIndexClient({ spawn: () => foregroundWorker, workerPath: "/app/derived-index-worker.js" });
     const maintenance = new UtilityDerivedIndexClient({ spawn: () => maintenanceWorker, workerPath: "/app/derived-index-worker.js" });
 
-    const embedding = maintenance.embed(model(), "/workspace/.stem", {
+    const embedding = maintenance.embed(model(), "/workspace/.exograph", {
       maxDocuments: 4,
       maxDocsPerBatch: 1,
       maxDurationMs: 15_000,
@@ -177,7 +177,7 @@ describe("UtilityDerivedIndexClient", () => {
       options: { maxDocuments: 4, maxDocsPerBatch: 1, maxDurationMs: 15_000 },
     });
 
-    const searching = foreground.search(model(), "/workspace/.stem", "needle");
+    const searching = foreground.search(model(), "/workspace/.exograph", "needle");
     foregroundWorker.emit("message", {
       id: 1,
       ok: true,
@@ -199,10 +199,10 @@ describe("UtilityDerivedIndexClient", () => {
     const foreground = new UtilityDerivedIndexClient({ spawn: () => foregroundWorker, workerPath: "/app/derived-index-worker.js" });
     const graph = new UtilityDerivedIndexClient({ spawn: () => graphWorker, workerPath: "/app/derived-index-worker.js" });
 
-    const context = graph.graphContext(model(), "/workspace/.stem", "/workspace/notes/focus.md");
+    const context = graph.graphContext(model(), "/workspace/.exograph", "/workspace/notes/focus.md");
     expect(graphWorker.messages.at(-1)).toMatchObject({ operation: "graph-context" });
 
-    const searching = foreground.search(model(), "/workspace/.stem", "needle");
+    const searching = foreground.search(model(), "/workspace/.exograph", "needle");
     foregroundWorker.emit("message", {
       id: 1,
       ok: true,
@@ -229,11 +229,11 @@ describe("UtilityDerivedIndexClient", () => {
       },
     });
 
-    const interrupted = client.status(model(), "/workspace/.stem");
+    const interrupted = client.status(model(), "/workspace/.exograph");
     workerAt(workers, 0).emit("exit", 9);
     await expect(interrupted).rejects.toThrow("exited with code 9");
 
-    const restarted = client.status(model(), "/workspace/.stem");
+    const restarted = client.status(model(), "/workspace/.exograph");
     workerAt(workers, 1).emit("message", { id: 2, ok: true, result: status() });
     await expect(restarted).resolves.toMatchObject({ documentCount: 3 });
   });
@@ -276,8 +276,8 @@ function status(): IndexStatus {
     enabled: true,
     mode: "hybrid",
     backend: "qmd",
-    dbPath: "/workspace/.stem/qmd/index.sqlite",
-    runtimePath: "/workspace/.stem/qmd",
+    dbPath: "/workspace/.exograph/qmd/index.sqlite",
+    runtimePath: "/workspace/.exograph/qmd",
     indexedRoots: model().indexedRoots,
     documentCount: 3,
     pendingEmbeddings: 0,

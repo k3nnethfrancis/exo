@@ -31,7 +31,7 @@ Commands and their trust decisions remain Workspace-scoped. Skills are user-edit
 
 ## Derived-state and boundary rules
 
-- `.stem/` is derived runtime state, not canonical knowledge, and must be ignored when its Workspace root is inside a Git repository. Stem warns before/index status when that state may be tracked; it does not silently edit a user's `.gitignore`.
+- `.exograph/` is derived runtime state, not canonical knowledge, and must be ignored when its Workspace root is inside a Git repository. Stem warns before/index status when that state may be tracked; it does not silently edit a user's `.gitignore`.
 - Moving or copying a Workspace creates a new path-shaped local identity for index/runtime and trust state. Trust fails closed; users must explicitly re-authorize Commands after a move/copy. This is deliberate until a portable identity is earned.
 - Overlapping Note Roots are warned about but not prohibited. They can yield duplicate index work and scope-qualified result ambiguity; implicit graph or write authority is never widened.
 - A Command may execute with an explicitly chosen cwd outside Note Roots, but Stem's observed-change review is authoritative only for changes inside its Workspace's Note Roots. The UI and records must not imply a complete audit of external writes.

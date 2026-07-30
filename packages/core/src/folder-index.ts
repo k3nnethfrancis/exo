@@ -5,8 +5,8 @@ const FOLDER_INDEX_NAME = "index.md";
 const IGNORED_FOLDER_NAMES = new Set([
   ".git",
   ".cache",
-  ".stem",
-  ".stem-dev",
+  ".exograph",
+  ".exograph-dev",
   ".next",
   ".nuxt",
   ".pnpm-store",

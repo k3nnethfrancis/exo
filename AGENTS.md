@@ -47,7 +47,7 @@ an existing domain owner.
 ## Invariants
 
 - A Workspace has explicit Note Roots. No convenience path may widen filesystem authority.
-- Markdown and frontmatter are canonical. Derived indexes, proposals, inference, activity, and provenance remain under `.stem/` until accepted.
+- Markdown and frontmatter are canonical. Derived indexes, proposals, inference, activity, and provenance remain under `.exograph/` until accepted.
 - Renderer code never touches filesystem or processes directly; use typed preload APIs.
 - A Format projects Markdown, an optional Ontology interprets it afterward, and graph views only affect presentation.
 - Commands are provider-neutral executable configurations. Invocation is explicit and reviewable.

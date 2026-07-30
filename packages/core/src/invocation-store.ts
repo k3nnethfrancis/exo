@@ -24,6 +24,7 @@ import {
   type InvocationWorkspaceManifest,
 } from "./invocation-changeset";
 import { safeStoreSegment } from "./store-paths";
+import { WORKSPACE_RUNTIME_DIRECTORY } from "./workspace-runtime";
 
 export interface InvocationStoreLayout {
   workspaceRoot: string;
@@ -32,7 +33,7 @@ export interface InvocationStoreLayout {
 }
 
 export function resolveInvocationStoreLayout(workspaceRoot: string): InvocationStoreLayout {
-  const runtimeRoot = path.join(workspaceRoot, ".stem");
+  const runtimeRoot = path.join(workspaceRoot, WORKSPACE_RUNTIME_DIRECTORY);
   return {
     workspaceRoot,
     runtimeRoot,

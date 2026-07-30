@@ -57,7 +57,7 @@ describe("TerminalManager direct PTY", () => {
         workspaceRoot: "/workspace-a",
         noteRoots: ["/workspace-a/notes"],
         defaultTerminalCwd: "/workspace-a",
-        runtimeRoot: "/workspace-a/.stem",
+        runtimeRoot: "/workspace-a/.exograph",
       },
     );
 
@@ -65,7 +65,7 @@ describe("TerminalManager direct PTY", () => {
       STEM_WORKSPACE_ROOT: "/workspace-a",
       STEM_NOTE_ROOTS: "/workspace-a/notes",
       STEM_DEFAULT_TERMINAL_CWD: "/workspace-a",
-      STEM_RUNTIME_ROOT: "/workspace-a/.stem",
+      STEM_RUNTIME_ROOT: "/workspace-a/.exograph",
     });
   });
 });

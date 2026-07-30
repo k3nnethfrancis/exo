@@ -29,6 +29,7 @@ import {
   type InvocationActivityKind,
   type InvocationLaunchArtifacts,
   type InvocationWorkspaceManifest,
+  WORKSPACE_RUNTIME_DIRECTORY,
 } from "@stem/core";
 import { commandForClaudeResume as buildClaudeResumeCommand } from "@stem/core/provider-session";
 
@@ -1363,7 +1364,7 @@ function delay(milliseconds: number): Promise<void> {
 }
 
 function runtimeRootForWorkspace(workspaceRoot: string): string {
-  return process.env.EXO_RUNTIME_ROOT ?? process.env.STEM_RUNTIME_ROOT ?? path.join(workspaceRoot, ".stem");
+  return process.env.EXO_RUNTIME_ROOT ?? process.env.STEM_RUNTIME_ROOT ?? path.join(workspaceRoot, WORKSPACE_RUNTIME_DIRECTORY);
 }
 
 async function canonicalPathOrResolved(filePath: string): Promise<string> {

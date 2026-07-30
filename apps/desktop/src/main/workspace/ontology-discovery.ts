@@ -177,7 +177,7 @@ async function copyMarkdownTree(sourceRoot: string, targetRoot: string): Promise
   await mkdir(targetRoot, { recursive: true });
   const entries = await readdir(sourceRoot, { withFileTypes: true });
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-    if (entry.name === ".git" || entry.name === ".stem" || entry.name === "node_modules") continue;
+    if (entry.name === ".git" || entry.name === ".exograph" || entry.name === "node_modules") continue;
     const sourcePath = path.join(sourceRoot, entry.name);
     const targetPath = path.join(targetRoot, entry.name);
     if (entry.isSymbolicLink()) continue;

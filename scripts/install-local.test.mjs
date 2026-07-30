@@ -32,7 +32,7 @@ async function createFixture() {
 
   const installer = path.join(scripts, "install-local");
   const macInstaller = path.join(scripts, "install-mac-app");
-  const sourceLauncher = path.join(sourceBin, "stem");
+  const sourceLauncher = path.join(sourceBin, "exo");
   const pnpm = path.join(tools, "pnpm");
   const uname = path.join(tools, "uname");
   await writeFile(installer, await readFile(sourceScript, "utf8"), "utf8");
@@ -65,13 +65,13 @@ esac
     repo,
     sourceLauncher,
     targetBin,
-    targetLauncher: path.join(targetBin, "stem"),
+    targetLauncher: path.join(targetBin, "exo"),
     tools,
   };
 }
 
 async function createPackagedApp(repo, architecture, marker) {
-  const appContents = path.join(repo, "release", architecture, "Stem.app", "Contents");
+  const appContents = path.join(repo, "release", architecture, "Exograph.app", "Contents");
   await mkdir(appContents, { recursive: true });
   await writeFile(path.join(appContents, "marker"), marker, "utf8");
   return path.dirname(appContents);
@@ -124,9 +124,9 @@ test("skip-build refuses a missing CLI artifact before replacing an existing shi
 
 test("mac app install with CLI inherits the missing-artifact refusal", async () => {
   const fixture = await createFixture();
-  const appSource = path.join(fixture.repo, "release", "mac-arm64", "Stem.app", "Contents");
+  const appSource = path.join(fixture.repo, "release", "mac-arm64", "Exograph.app", "Contents");
   const priorLauncher = path.join(path.dirname(fixture.repo), "prior-stem");
-  const defaultTargetLauncher = path.join(path.dirname(fixture.repo), ".local", "bin", "stem");
+  const defaultTargetLauncher = path.join(path.dirname(fixture.repo), ".local", "bin", "exo");
   await mkdir(appSource, { recursive: true });
   await mkdir(path.dirname(defaultTargetLauncher), { recursive: true });
   await writeFile(path.join(appSource, "marker"), "fixture app\n", "utf8");
@@ -150,10 +150,10 @@ test("mac app install with CLI inherits the missing-artifact refusal", async () 
 
 test("mac app dry run remains non-mutating while reporting the CLI install handoff", async () => {
   const fixture = await createFixture();
-  const appSource = path.join(fixture.repo, "release", "mac-arm64", "Stem.app", "Contents");
-  const appTarget = path.join(path.dirname(fixture.repo), "Applications", "Stem.app");
+  const appSource = path.join(fixture.repo, "release", "mac-arm64", "Exograph.app", "Contents");
+  const appTarget = path.join(path.dirname(fixture.repo), "Applications", "Exograph.app");
   const priorLauncher = path.join(path.dirname(fixture.repo), "prior-stem");
-  const defaultTargetLauncher = path.join(path.dirname(fixture.repo), ".local", "bin", "stem");
+  const defaultTargetLauncher = path.join(path.dirname(fixture.repo), ".local", "bin", "exo");
   await mkdir(appSource, { recursive: true });
   await mkdir(appTarget, { recursive: true });
   await mkdir(path.dirname(defaultTargetLauncher), { recursive: true });
@@ -191,14 +191,14 @@ test("mac app install uses the bundle for the current architecture when multiple
   );
 
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /release\/mac-arm64\/Stem\.app/);
-  assert.equal(await readFile(path.join(appDir, "Stem.app", "Contents", "marker"), "utf8"), "arm build\n");
+  assert.match(result.stdout, /release\/mac-arm64\/Exograph\.app/);
+  assert.equal(await readFile(path.join(appDir, "Exograph.app", "Contents", "marker"), "utf8"), "arm build\n");
 });
 
 test("mac app install leaves a working app intact when staging the replacement fails", async () => {
   const fixture = await createFixture();
   const appDir = path.join(path.dirname(fixture.repo), "Applications");
-  const installedContents = path.join(appDir, "Stem.app", "Contents");
+  const installedContents = path.join(appDir, "Exograph.app", "Contents");
   await createPackagedApp(fixture.repo, "mac-arm64", "new build\n");
   await mkdir(installedContents, { recursive: true });
   await writeFile(path.join(installedContents, "marker"), "existing build\n", "utf8");
@@ -224,7 +224,7 @@ test("mac app install rejects a stale bundle for another architecture", async ()
   );
 
   assert.notEqual(result.code, 0);
-  assert.match(result.stderr, /No packaged Stem\.app found for mac-arm64/);
+  assert.match(result.stderr, /No packaged Exograph\.app found for mac-arm64/);
 });
 
 test("skip-build installs the repo-backed shim when the CLI artifact exists", async () => {
@@ -285,7 +285,7 @@ fi
   ]);
 
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /building Stem/);
+  assert.match(result.stdout, /building Exograph/);
   assert.equal(await readlink(fixture.targetLauncher), fixture.sourceLauncher);
 });
 

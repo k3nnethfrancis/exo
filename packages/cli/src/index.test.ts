@@ -234,7 +234,7 @@ describe("minimal Stem operator CLI", () => {
       expect(output).toContain('"available": false');
       expect(output).toContain("orientation.md");
       expect(output).toContain('"path"');
-      expect(discoveredRuntimeRoot).toBe(path.join(workspaceRoot, ".stem"));
+      expect(discoveredRuntimeRoot).toBe(path.join(workspaceRoot, ".exograph"));
     } finally {
       await rm(workspaceRoot, { recursive: true, force: true });
     }
@@ -242,7 +242,7 @@ describe("minimal Stem operator CLI", () => {
 
   it("adds a machine-readable discovery diagnostic while preserving app-off status and search", async () => {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-cli-runtime-diagnostic-"));
-    const runtimeRoot = path.join(workspaceRoot, ".stem");
+    const runtimeRoot = path.join(workspaceRoot, ".exograph");
     const notePath = path.join(workspaceRoot, "orientation.md");
     await mkdir(runtimeRoot);
     await writeFile(notePath, "# Orientation\n\nTruthful offline retrieval.\n", "utf8");
@@ -398,8 +398,8 @@ function statusResponse(workspaceRoot = "/workspace"): StemCommandStatusWithCont
     },
     terminals: [],
     controlPlane: {
-      runtimeRoot: "/workspace/.stem",
-      serverJsonPath: "/workspace/.stem/server.json",
+      runtimeRoot: "/workspace/.exograph",
+      serverJsonPath: "/workspace/.exograph/server.json",
       pid: 123,
       port: 456,
       baseUrl: "http://127.0.0.1:456",
@@ -412,8 +412,8 @@ function indexStatusResponse(): StemCommandIndexStatusResponse {
     enabled: true,
     mode: "hybrid",
     backend: "qmd",
-    dbPath: "/workspace/.stem/index.sqlite",
-    runtimePath: "/workspace/.stem",
+    dbPath: "/workspace/.exograph/index.sqlite",
+    runtimePath: "/workspace/.exograph",
     indexedRoots: [],
     documentCount: 0,
     pendingEmbeddings: 0,

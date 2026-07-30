@@ -91,7 +91,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   await activePage.getByTestId("onboarding-choose-notes").click();
   await expect(activePage.getByTestId("onboarding-notes-folder")).toContainText(noteRoot);
   await expect(readOptional(first.settingsPath)).resolves.toBeNull();
-  await expect(pathExists(path.join(noteRoot, ".stem"))).resolves.toBe(false);
+  await expect(pathExists(path.join(noteRoot, ".exograph"))).resolves.toBe(false);
   await activePage.reload();
   await expect(activePage.getByRole("heading", { name: "Choose your main wiki" })).toBeVisible();
   await expect(activePage.getByTestId("onboarding-notes-folder")).toContainText(noteRoot);
@@ -187,7 +187,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   await expect(activePage.getByRole("textbox", { name: "Claude command" })).toHaveValue(customClaudeCommand);
   await expect(activePage.getByTestId("onboarding-invocation-prompt")).toContainText(prompt);
   await expect(readOptional(first.settingsPath)).resolves.toBeNull();
-  await expect(pathExists(path.join(noteRoot, ".stem"))).resolves.toBe(false);
+  await expect(pathExists(path.join(noteRoot, ".exograph"))).resolves.toBe(false);
 
   await activeApp.close();
   resumed = await relaunchStemWorkspaceFixture(first, {
@@ -429,7 +429,7 @@ test("persists an explicit Note Root and edited recommended Commands across rest
   await first.page.getByRole("button", { name: "Open Stem" }).click();
 
   await expect(first.page.getByTestId("sidebar")).toBeVisible();
-  const workspaceRuntimeRoot = path.join(selectedNoteRoot, ".stem");
+  const workspaceRuntimeRoot = path.join(selectedNoteRoot, ".exograph");
   await expect.poll(() => readCommandDiscovery(workspaceRuntimeRoot)).toMatchObject({
     port: expect.any(Number),
     token: expect.any(String),

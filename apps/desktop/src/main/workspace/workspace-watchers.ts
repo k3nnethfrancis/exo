@@ -31,8 +31,8 @@ export interface StagedWorkspaceWatchers {
 const IGNORED_WORKSPACE_PATH_SEGMENTS = new Set([
   ".DS_Store",
   ".cache",
-  ".stem",
-  ".stem-dev",
+  ".exograph",
+  ".exograph-dev",
   ".git",
   ".next",
   ".nuxt",

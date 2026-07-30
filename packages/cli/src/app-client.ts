@@ -71,7 +71,7 @@ export type AppClientConnectResult =
 
 /**
  * HTTP client for communicating with the Stem desktop app's command server.
- * Discovers the server port from .stem/server.json.
+ * Discovers the server port from .exograph/server.json.
  */
 export class AppClient {
   private constructor(

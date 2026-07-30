@@ -92,7 +92,7 @@ active, and base-graph identities for Keep and Reject, preventing a stale
 review from accepting newer bytes.
 
 An explicitly kept source and revision are atomically persisted under the
-Workspace runtime's `.stem/ontology/activation.json`. This is reproducible
+Workspace runtime's `.exograph/ontology/activation.json`. This is reproducible
 derived state, not canonical knowledge. It allows restart to preserve the last
 kept interpreter while the user-owned candidate changes. A missing or invalid
 kept state falls back explicitly to the existing base graph without additional

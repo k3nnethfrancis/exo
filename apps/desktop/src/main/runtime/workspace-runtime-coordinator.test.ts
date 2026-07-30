@@ -21,7 +21,7 @@ describe("WorkspaceRuntimeCoordinator", () => {
     const activating = coordinator.activate(request(destination));
 
     await Promise.resolve();
-    expect(events).toEqual(["recover:/destination"]);
+    expect(events).toEqual(["runtime:/destination"]);
     expect(coordinator.current()).toBeNull();
     // The desktop composition root creates the renderer only after this
     // activation resolves; publishing is therefore the test seam for visible
@@ -31,9 +31,10 @@ describe("WorkspaceRuntimeCoordinator", () => {
     finishRecovery();
     await expect(activating).resolves.toMatchObject({
       status: "applied",
-      active: { settings: destination, revision: "destination-revision", runtimeRoot: "/destination/.stem" },
+      active: { settings: destination, revision: "destination-revision", runtimeRoot: "/destination/.exograph" },
     });
     expect(events).toEqual([
+      "runtime:/destination",
       "recover:/destination",
       "recovered",
       "prepare:/destination",
@@ -84,7 +85,7 @@ describe("WorkspaceRuntimeCoordinator", () => {
     expect(coordinator.current()).toMatchObject({
       settings: { workspaceRoot: "/workspace-a" },
       model: { workspaceRoot: "/workspace-a" },
-      runtimeRoot: "/workspace-a/.stem",
+      runtimeRoot: "/workspace-a/.exograph",
     });
     expect(events.filter((event) => event.startsWith("publish:"))).toEqual([
       "publish:/workspace-a:destination-revision",
@@ -327,7 +328,8 @@ function coordinatorFor(
   overrides: Partial<ConstructorParameters<typeof WorkspaceRuntimeCoordinator>[0]> = {},
 ): WorkspaceRuntimeCoordinator {
   return new WorkspaceRuntimeCoordinator({
-    runtimeRootFor: (settings) => `${settings.workspaceRoot}/.stem`,
+    runtimeRootFor: (settings) => `${settings.workspaceRoot}/.exograph`,
+    prepareRuntimeRoot: async (candidate) => { events.push(`runtime:${candidate.settings.workspaceRoot}`); },
     recoverInvocations: async (candidate) => { events.push(`recover:${candidate.settings.workspaceRoot}`); },
     modelFromSettings: (settings) => model(settings.workspaceRoot),
     prepareNoteRoots: async (candidate) => { events.push(`prepare:${candidate.model.workspaceRoot}`); },

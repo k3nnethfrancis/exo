@@ -11,7 +11,7 @@
   },
   "scripts": {
     "dev": "STEM_WORKSPACE_ROOT=${STEM_WORKSPACE_ROOT:-$PWD} STEM_DEFAULT_TERMINAL_CWD=${STEM_DEFAULT_TERMINAL_CWD:-$PWD} pnpm --filter @stem/desktop dev",
-    "dev:qa": "STEM_WORKSPACE_ROOT=${STEM_WORKSPACE_ROOT:-$PWD} STEM_RUNTIME_ROOT=${STEM_RUNTIME_ROOT:-$PWD/.stem-dev} STEM_USER_DATA_PATH=${STEM_USER_DATA_PATH:-$PWD/.stem-dev/user-data} STEM_DEFAULT_TERMINAL_CWD=${STEM_DEFAULT_TERMINAL_CWD:-$PWD} pnpm --filter @stem/desktop dev",
+    "dev:qa": "STEM_WORKSPACE_ROOT=${STEM_WORKSPACE_ROOT:-$PWD} STEM_RUNTIME_ROOT=${STEM_RUNTIME_ROOT:-$PWD/.exograph-dev} STEM_USER_DATA_PATH=${STEM_USER_DATA_PATH:-$PWD/.exograph-dev/user-data} STEM_DEFAULT_TERMINAL_CWD=${STEM_DEFAULT_TERMINAL_CWD:-$PWD} pnpm --filter @stem/desktop dev",
     "exo": "tsx packages/cli/src/index.ts",
     "install:local": "scripts/install-local",
     "install:mac-app": "scripts/install-mac-app",

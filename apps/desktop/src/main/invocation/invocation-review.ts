@@ -756,7 +756,7 @@ async function installSnapshotNoClobber(
   await assertAuthorizedPath(authority, state.path);
   await mkdir(path.dirname(state.path), { recursive: true });
   await assertAuthorizedPath(authority, state.path);
-  const temporaryPath = path.join(path.dirname(state.path), `.${path.basename(state.path)}.stem-review-${randomUUID()}.tmp`);
+  const temporaryPath = path.join(path.dirname(state.path), `.${path.basename(state.path)}.exograph-review-${randomUUID()}.tmp`);
   const handle = await open(temporaryPath, "wx", state.mode ?? 0o666);
   try {
     await handle.writeFile(bytes);
@@ -847,7 +847,7 @@ async function quarantineVerifiedProposal(
 
 function deterministicQuarantinePath(invocationId: string, changeId: string, target: string): string {
   const transaction = createHash("sha256").update(`${invocationId}\0${changeId}`).digest("hex").slice(0, 20);
-  return path.join(path.dirname(target), `.${path.basename(target)}.stem-review-${transaction}.quarantine`);
+  return path.join(path.dirname(target), `.${path.basename(target)}.exograph-review-${transaction}.quarantine`);
 }
 
 async function restoreQuarantine(authority: ReviewPathAuthority, quarantine: string, target: string): Promise<void> {

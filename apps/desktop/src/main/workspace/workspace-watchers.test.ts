@@ -20,7 +20,7 @@ describe("workspace watcher filtering", () => {
   it("drops noisy generated and vendor changes before they churn the renderer", () => {
     expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/.git/index")).toBe(true);
     expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/node_modules/.vite/deps.ts")).toBe(true);
-    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/.stem/server.json")).toBe(true);
+    expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/.exograph/server.json")).toBe(true);
     expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/dist/index.js")).toBe(true);
     expect(shouldIgnoreWorkspaceChange(rootPath, "/workspace/stem/coverage/index.html")).toBe(true);
   });

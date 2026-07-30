@@ -1,5 +1,6 @@
 export * from "./types";
 export * from "./workspace";
+export * from "./workspace-runtime";
 export * from "./workspace-content-policy";
 export * from "./workspace-content-inspection";
 export * from "./folder-index";

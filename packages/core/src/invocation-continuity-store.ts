@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promise
 import path from "node:path";
 
 import type { AgentCommandAdapter } from "./agent-invocation";
+import { WORKSPACE_RUNTIME_DIRECTORY } from "./workspace-runtime";
 
 export interface InvocationContinuityLane {
   workspaceRoot: string;
@@ -36,7 +37,7 @@ export class InvocationContinuityStore {
     const resolvedWorkspaceRoot = path.resolve(workspaceRoot);
     this.layout = {
       workspaceRoot: resolvedWorkspaceRoot,
-      continuityDir: path.join(resolvedWorkspaceRoot, ".stem", "invocation-continuity", "v1"),
+      continuityDir: path.join(resolvedWorkspaceRoot, WORKSPACE_RUNTIME_DIRECTORY, "invocation-continuity", "v1"),
     };
   }
 

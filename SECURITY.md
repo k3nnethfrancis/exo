@@ -16,17 +16,17 @@ fix before public disclosure.
 ## Local data
 
 Markdown and frontmatter inside authorized Note Roots are canonical user data.
-Stem's derived local state may include:
+Exograph's derived local state may include:
 
-- `.stem/server.json` — local command-server discovery;
-- `.stem/qmd/` — a rebuildable local search index;
-- `.stem/invocations/` — invocation records and review snapshots;
-- `.stem/invocation-continuity/` — scoped command-session continuity state;
-- `.stem/ontology/` — the accepted identity of an optional ontology source;
-- `.stem/artifacts/` — local generated artifacts when needed.
+- `.exograph/server.json` — local command-server discovery;
+- `.exograph/qmd/` — a rebuildable local search index;
+- `.exograph/invocations/` — invocation records and review snapshots;
+- `.exograph/invocation-continuity/` — scoped command-session continuity state;
+- `.exograph/ontology/` — the accepted identity of an optional ontology source;
+- `.exograph/artifacts/` — local generated artifacts when needed.
 
-Do not publish a workspace's `.stem/` directory. It can contain file paths,
-note content, prompts, or command metadata. Stem warns when `.stem/` is not
+Do not publish a workspace's `.exograph/` directory. It can contain file paths,
+note content, prompts, or command metadata. Exograph warns when `.exograph/` is not
 ignored by a Git workspace; it does not rewrite the user's `.gitignore`.
 
 Desktop settings and command-trust decisions live in the platform application

@@ -11,8 +11,8 @@ playwright-report/
 *.tsbuildinfo
 # Generated local development output.
 /artifacts/
-.stem/
-.stem-dev/
+.exograph/
+.exograph-dev/
 .env
 .env.*.local
 

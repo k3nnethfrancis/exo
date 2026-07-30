@@ -179,7 +179,7 @@ describe("public graph interoperability fixtures", () => {
     const workspace = path.join(temporary, "workspace");
     await cp(fixture, workspace, { recursive: true });
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(temporary, ".stem");
+    const runtimeRoot = path.join(temporary, ".exograph");
     const before = await treeSha256(notes);
 
     const formatOnly = await okfGraph(
@@ -233,7 +233,7 @@ describe("public graph interoperability fixtures", () => {
     const workspace = path.join(temporary, "workspace");
     const rootA = path.join(workspace, "a");
     const rootB = path.join(workspace, "b");
-    const runtimeRoot = path.join(temporary, ".stem");
+    const runtimeRoot = path.join(temporary, ".exograph");
     await mkdir(rootA, { recursive: true });
     await mkdir(rootB, { recursive: true });
     await writeFile(path.join(rootA, "source.md"), [
@@ -289,7 +289,7 @@ describe("public graph interoperability fixtures", () => {
     temporaryRoots.push(temporary);
     const workspace = path.join(temporary, "workspace");
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(temporary, ".stem");
+    const runtimeRoot = path.join(temporary, ".exograph");
     await mkdir(notes, { recursive: true });
     await writeFile(path.join(notes, "source.md"), [
       "---",

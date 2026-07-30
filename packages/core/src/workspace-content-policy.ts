@@ -11,7 +11,7 @@ export interface WorkspaceContentPolicy {
 }
 
 export const REPOSITORY_CONTENT_EXCLUSIONS = [
-  ".git/**", ".stem/**", ".next/**", ".nuxt/**", ".pnpm-store/**",
+  ".git/**", ".exograph/**", ".next/**", ".nuxt/**", ".pnpm-store/**",
   ".turbo/**", ".venv/**", "__pycache__/**", "artifacts/**", "build/**",
   "coverage/**", "dist/**", "node_modules/**", "out/**", "release/**",
   "target/**", "tmp/**", "vendor/**",

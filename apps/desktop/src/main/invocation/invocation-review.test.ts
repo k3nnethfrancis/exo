@@ -665,5 +665,5 @@ function invocationRecord(
 
 function testQuarantinePath(invocationId: string, changeId: string, target: string): string {
   const transaction = createHash("sha256").update(`${invocationId}\0${changeId}`).digest("hex").slice(0, 20);
-  return path.join(path.dirname(target), `.${path.basename(target)}.stem-review-${transaction}.quarantine`);
+  return path.join(path.dirname(target), `.${path.basename(target)}.exograph-review-${transaction}.quarantine`);
 }

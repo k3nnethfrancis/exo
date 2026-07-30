@@ -137,7 +137,7 @@ if ! run cp -R "$APP_SOURCE" "$APP_STAGING"; then
   if [ "$APP_DIR" = "/Applications" ]; then
     cat >&2 <<'EOF'
 
-Unable to copy Stem.app into /Applications.
+Unable to copy Exograph.app into /Applications.
 
 Install without elevated permissions instead:
   ./scripts/install-mac-app --app-dir "$HOME/Applications"

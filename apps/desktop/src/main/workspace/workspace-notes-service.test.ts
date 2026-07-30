@@ -339,19 +339,19 @@ describe("WorkspaceNotesService", () => {
     const modelB = workspaceModel(workspaceB, noteB);
     const service = new WorkspaceNotesService({
       getWorkspaceModel: () => modelA,
-      getRuntimeRoot: () => path.join(workspaceA, ".stem"),
+      getRuntimeRoot: () => path.join(workspaceA, ".exograph"),
       derivedIndex,
     });
 
     const staleRefresh = service.handleWorkspaceChange({ rootPath: noteA, eventType: "change", filePath: sourceA });
     await Promise.resolve();
-    service.activateWorkspace({ model: modelB, runtimeRoot: path.join(workspaceB, ".stem"), generation: 1 });
+    service.activateWorkspace({ model: modelB, runtimeRoot: path.join(workspaceB, ".exograph"), generation: 1 });
     expect(observedSignal?.aborted).toBe(true);
     held.resolve();
     await staleRefresh;
 
     expect(graphRefresh).toHaveBeenCalledTimes(1);
-    expect(graphRefresh).toHaveBeenLastCalledWith(modelA, path.join(workspaceA, ".stem"), sourceA, expect.anything());
+    expect(graphRefresh).toHaveBeenLastCalledWith(modelA, path.join(workspaceA, ".exograph"), sourceA, expect.anything());
     await Promise.all([rm(workspaceA, { recursive: true, force: true }), rm(workspaceB, { recursive: true, force: true })]);
   });
 
@@ -366,14 +366,14 @@ describe("WorkspaceNotesService", () => {
     const dispose = vi.fn();
     const service = new WorkspaceNotesService({
       getWorkspaceModel: () => model,
-      getRuntimeRoot: () => "/workspace/.stem",
+      getRuntimeRoot: () => "/workspace/.exograph",
       derivedIndex: { graphTopology, dispose } as unknown as DerivedIndexClient,
     });
 
     service.applyWorkspaceModel(nextModel);
 
     await expect(service.getGraphTopology()).rejects.toThrow("observed model");
-    expect(graphTopology).toHaveBeenCalledWith(nextModel, "/workspace/.stem", expect.anything());
+    expect(graphTopology).toHaveBeenCalledWith(nextModel, "/workspace/.exograph", expect.anything());
     expect(dispose).not.toHaveBeenCalled();
   });
 
@@ -449,7 +449,7 @@ describe("WorkspaceNotesService", () => {
     let graphChanged = 0;
     const service = new WorkspaceNotesService({
       getWorkspaceModel: () => model,
-      getRuntimeRoot: () => path.join(workspaceRoot, ".stem-test"),
+      getRuntimeRoot: () => path.join(workspaceRoot, ".exograph-test"),
       onGraphChanged: () => { graphChanged += 1; },
     });
 

@@ -307,7 +307,7 @@ describe("WorkspaceGraph", () => {
     const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-ontology-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(workspace, ".stem-test");
+    const runtimeRoot = path.join(workspace, ".exograph-test");
     await mkdir(notes);
     const sourcePath = path.join(notes, "source.md");
     const sourceBytes = "---\ntype: paper\nsupports: [missing]\n---\n# Source\n";
@@ -357,7 +357,7 @@ describe("WorkspaceGraph", () => {
     const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-format-parity-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(workspace, ".stem-test");
+    const runtimeRoot = path.join(workspace, ".exograph-test");
     await mkdir(notes);
     const sourcePath = path.join(notes, "source.md");
     await writeFile(sourcePath, "---\ntype: Claim\nsupports: target.md\n---\n# Source\n");
@@ -610,7 +610,7 @@ describe("WorkspaceGraph", () => {
     const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-review-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(workspace, ".stem-test");
+    const runtimeRoot = path.join(workspace, ".exograph-test");
     await mkdir(notes, { recursive: true });
     const sourcePath = path.join(notes, "source.md");
     const initialNote = "---\ntype: paper\nsupports: [target]\n---\n# Source\n";
@@ -713,7 +713,7 @@ describe("WorkspaceGraph", () => {
     const notes = path.join(workspace, "notes");
     await mkdir(notes, { recursive: true });
     await writeFile(path.join(notes, "note.md"), "# Note\n");
-    const graph = new WorkspaceGraph(model(workspace, notes), { runtimeRoot: path.join(workspace, ".stem-test") });
+    const graph = new WorkspaceGraph(model(workspace, notes), { runtimeRoot: path.join(workspace, ".exograph-test") });
 
     expect(await graph.status()).toEqual({ state: "stale", noteCount: 0, edgeCount: 0 });
     await expect(graph.previewOntology()).resolves.toMatchObject({
@@ -739,7 +739,7 @@ describe("WorkspaceGraph", () => {
     ].join("\n"));
 
     const graph = new WorkspaceGraph(model(workspace, workspace), {
-      runtimeRoot: path.join(workspace, ".stem-test"),
+      runtimeRoot: path.join(workspace, ".exograph-test"),
     });
 
     await expect(graph.previewOntology()).resolves.toMatchObject({
@@ -752,7 +752,7 @@ describe("WorkspaceGraph", () => {
     const workspace = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-library-"));
     roots.push(workspace);
     const notes = path.join(workspace, "notes");
-    const runtimeRoot = path.join(workspace, ".stem-test");
+    const runtimeRoot = path.join(workspace, ".exograph-test");
     await mkdir(path.join(workspace, "ontologies"), { recursive: true });
     await mkdir(notes);
     await writeFile(path.join(notes, "note.md"), "---\ntype: project\n---\n# Note\n");

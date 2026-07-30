@@ -8,7 +8,7 @@ import { _electron as electron, expect, type ElectronApplication, type Page } fr
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const fixtureRoot = path.join(repoRoot, "fixtures/test-workspace");
 const mutableFixtureExcludedNames = new Set([
-  ".stem",
+  ".exograph",
   ".git",
   ".turbo",
   ".vite",
