@@ -8,7 +8,7 @@ knowledge graph, local search, and reviewable work from terminal agents. Any
 agent that can run as a headless Command can participate; Claude Code, Codex,
 Pi, and Hermes are examples rather than privileged integrations.
 
-Markdown and frontmatter stay canonical. Exograph's indexes, layouts, invocation records, and review state live under `.exo/` as rebuildable local state.
+Markdown and frontmatter stay canonical. Exograph's indexes, layouts, invocation records, and review state live under `.exograph/` as rebuildable local state.
 
 ## What it does
 
