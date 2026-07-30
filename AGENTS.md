@@ -1,14 +1,14 @@
 # Exograph contributor map
 
-This file is provider-neutral guidance for coding agents. `CLAUDE.md` is a compatibility symlink to `AGENTS.md`; do not add provider-specific instructions.
+This file is provider-neutral guidance for coding agents. Do not add
+provider-specific instructions or duplicate this map in harness-specific files.
 
 ## Start here
 
 1. [README.md](README.md) — supported product surface and setup.
-2. [CONTRIBUTING.md](CONTRIBUTING.md) — development and validation workflow.
-3. [docs/glossary.md](docs/glossary.md) — product vocabulary.
-4. [docs/architecture.md](docs/architecture.md) — package boundaries and runtime ownership.
-5. [docs/README.md](docs/README.md) — current product and maintainer contracts.
+2. [docs/glossary.md](docs/glossary.md) — product vocabulary.
+3. [docs/architecture.md](docs/architecture.md) — package boundaries and runtime ownership.
+4. [docs/README.md](docs/README.md) — current product and maintainer contracts.
 
 If `docs/internal/` exists locally, read the relevant task, plan, roadmap, or
 ledger before planning work. It is an ignored maintainer workspace: use it for

@@ -44,7 +44,8 @@ pnpm dev
 
 Use `pnpm dev:qa` when an installed app is also running: it isolates the development app's settings and runtime. Use `pnpm pack:mac` when validating packaged-app or first-run behavior.
 
-See [Contributing](CONTRIBUTING.md) for validation and [Architecture](docs/architecture.md) for package boundaries.
+Read [AGENTS.md](AGENTS.md) for ownership and validation guidance and
+[Architecture](docs/architecture.md) for package boundaries.
 
 ## Core workflows
 
@@ -74,6 +75,30 @@ pnpm ci:check
 
 That runs unused-code checks, typechecks, tests, builds, and an install dry run. Graph changes also require the focused commands documented in [`evals/graph/README.md`](evals/graph/README.md).
 
+Before changing a cross-process boundary, find its owner in
+[AGENTS.md](AGENTS.md). Desktop-visible behavior requires the relevant Electron
+journey; browser-only tests do not prove Electron IPC or packaged-app behavior.
+Packaging, first-run, and native-module changes require an unsigned Mac package
+and installed-app evidence.
+
+Keep changes focused, update public documentation when behavior changes, and
+use GitHub Issues rather than committing task ledgers, review packets, or
+working notes.
+
+## Local trust boundary
+
+Exograph can launch explicitly configured native commands. It is a trusted
+local tool, not a sandbox. Note Roots bound the files Exograph reads, reviews,
+and presents; they do not restrict what an authorized command can do as the
+current operating-system user.
+
+Do not publish a workspace's `.exograph/` directory. It is rebuildable local
+state and may contain paths, note content, prompts, invocation evidence, or
+command metadata.
+
 ## Status
 
-Exograph is early software, not a signed public binary release. The current alpha supports source development and unsigned macOS packaging; Windows and Linux are not yet supported release targets. Published versions and downloads live in GitHub Releases. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
+Exograph is early software, not a signed public binary release. The current
+alpha supports source development and unsigned macOS packaging; Windows and
+Linux are not yet supported release targets. Published versions and downloads
+live in GitHub Releases.

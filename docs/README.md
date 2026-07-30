@@ -22,4 +22,6 @@ Exograph has two documentation audiences: people using a Markdown workspace and 
 - [Architecture decisions](adr/) — accepted decisions that remain live.
 - [Contributor skills](../skills/README.md) — reusable, provider-neutral working instructions.
 
-The repository root has [setup](../README.md), [contributing](../CONTRIBUTING.md), and [agent guidance](../AGENTS.md). `docs/internal/`, when it exists locally, is ignored maintainer context; it is never public product documentation.
+The repository root has [setup and contribution guidance](../README.md) plus
+[agent guidance](../AGENTS.md). `docs/internal/`, when it exists locally, is
+ignored maintainer context; it is never public product documentation.
