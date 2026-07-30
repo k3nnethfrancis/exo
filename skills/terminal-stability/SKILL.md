@@ -14,7 +14,10 @@ Read these current sources first:
 - `AGENTS.md`
 - the relevant GitHub Issue or pull request when one exists
 - `docs/terminal-runtime-decision.md`
+- `apps/desktop/src/main/terminal/terminal-runtime.ts`
+- `apps/desktop/src/main/terminal/terminal-runtime-pty.ts`
 - `apps/desktop/src/main/terminal/terminal-manager.ts`
+- `apps/desktop/src/main/terminal/terminal-tail-cache.ts`
 - `apps/desktop/src/renderer/src/components/TerminalView.tsx`
 - `apps/desktop/src/renderer/src/hooks/useTerminalSessions.ts`
 - `packages/core/src/agent-invocation.ts` when Command launch is involved
@@ -23,7 +26,7 @@ Treat terminal-era restore, persistent-history, and built-in-agent documents as 
 
 ## Current Decision
 
-As of the 2026-07-09 architecture review, Exograph's V1 terminal path is:
+Exograph's production terminal path is:
 
 ```text
 xterm.js live surface
@@ -41,7 +44,8 @@ Users who want tmux durability can run `tmux` inside a normal Exograph terminal.
 
 - xterm owns the live terminal screen, scrollback viewport, alternate-screen behavior, selection, and visible terminal state.
 - The direct pty runtime owns the child process, byte-for-byte input/output transport, resize, and process exit.
-- `TerminalManager` owns app-facing metadata and lifecycle APIs only: create/list/write/send/resize/kill/read-live-tail/diagnostics.
+- `TerminalManager` owns session metadata, shell and configured-Command process
+  creation, input delivery, resize, kill, bounded tail reads, and health state.
 - React state owns metadata only: sessions, active ids, health, and layout placement.
 - Invocation provenance belongs to `InvocationRecord`, observed file changes, and review references, not terminal transcript mirroring.
 
@@ -49,7 +53,8 @@ Users who want tmux durability can run `tmux` inside a normal Exograph terminal.
 
 - Terminal input bytes must pass through without Exograph re-encoding them into tmux commands or provider-specific key translations.
 - Spaces, paste, Enter, Ctrl-C, Escape, arrows, and resize must have focused tests before this branch is called done.
-- Mounted live terminals receive append events only.
+- After first-mount or renderer-reload hydration, mounted live terminals receive
+  append events only.
 - Do not call `terminal.reset()` or replay a full snapshot on normal tab switch, pane focus, pane move, preview focus, or metadata refresh.
 - Direct pty output is streamed to xterm and to a byte- or character-bounded live tail only where current UI/CLI callers need a short readback, including output without newlines.
 - No terminal transcript persistence, restore snapshot, or session-after-restart feature should be added without a new explicit architecture review.
@@ -66,7 +71,8 @@ Before changing CLI commands/flags, command-server routes, or shared protocol ty
 ## Preferred Change Shape
 
 - Delete tmux/session/transcript/recovery code when callers have moved; do not hide or freeze it.
-- Keep `TerminalManager` as a small facade over a direct pty runtime and bounded live-tail/diagnostics helpers.
+- Keep `TerminalManager` as a small facade over a direct pty runtime, bounded
+  tail cache, geometry policy, and session health metadata.
 - Keep terminal launch command-oriented. Shell is a terminal substrate; external harnesses are configured Commands.
 - Avoid provider-specific readiness, prompt scanning, queued-send, or semantic-message logic in terminal core.
 - Add regression tests for the exact input behavior that changed.
@@ -84,7 +90,10 @@ pnpm check
 pnpm --filter @exograph/desktop build
 ```
 
-Run focused Playwright coverage for terminal input and configured Command launch. `pnpm terminal:check` runs the focused direct-PTY unit suite; use `pnpm test:e2e` for the full browser-visible suite.
+`pnpm terminal:check` runs the focused direct-PTY unit suite. Run the terminal
+journeys in `apps/desktop/tests/e2e/shell.spec.ts` for input, scrolling,
+configured Command launch, pane movement, and renderer reload. Use
+`pnpm test:e2e` only when the change crosses the broader desktop surface.
 
 ## Manual QA
 

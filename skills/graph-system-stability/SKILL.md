@@ -14,11 +14,24 @@ Read these current sources first:
 
 - `AGENTS.md` and `docs/glossary.md`
 - `docs/architecture.md`
+- `docs/knowledge-graph.md`
 - `docs/note-root-formats.md` and `docs/workspace-ontology.md`
 - `evals/graph/README.md`
 
-For layout, scene, renderer, gestures, or labels also read:
+For graph meaning or projection also read the affected owners:
 
+- `packages/core/src/knowledge-graph.ts`
+- `packages/core/src/workspace-graph.ts`
+- `packages/core/src/graph-projection.ts`
+
+For layout, scene, rendering, gestures, or labels read only the affected owners:
+
+- `apps/desktop/src/renderer/src/spatialGraphRuntime.ts`
+- `apps/desktop/src/renderer/src/graphSceneFoundation.ts`
+- `apps/desktop/src/renderer/src/graphLayoutSimulation.ts`
+- `apps/desktop/src/renderer/src/graphInteraction.ts`
+- `apps/desktop/src/renderer/src/graphPresentation.ts`
+- `apps/desktop/src/renderer/src/graphRendererHost.ts`
 - `apps/desktop/src/renderer/src/components/SpatialGraphView.tsx`
 - `apps/desktop/src/renderer/src/graphWebGpuRenderer.ts`
 
@@ -29,10 +42,11 @@ second graph application or graph model.
 
 Choose the narrowest affected layer:
 
-1. **Knowledge Graph** — Concepts, Properties, Relations, Evidence, resolution,
-   origin, Format/Ontology interpretation, graph queries.
-2. **Graph projection** — semantic facts compiled into numeric topology, visual
-   classes, weights, and cold metadata.
+1. **Knowledge Graph** — `WorkspaceGraph` and `KnowledgeGraphSnapshot`: Concepts,
+   Properties, Relations, Evidence, resolution, origin, Format/Ontology
+   interpretation, and graph queries.
+2. **Graph projection** — `GraphTopology`: semantic facts compiled into numeric
+   topology, visual classes, weights, and snapshot-qualified cold metadata.
 3. **Layout and scene** — deterministic positions, camera, selection, paths,
    picking, focal labels, and mental-map continuity.
 4. **Renderer** — WebGPU or Canvas pixels and device recovery only.
@@ -67,12 +81,14 @@ Do not solve a lower-layer problem by moving ownership into a higher layer.
 Markdown → Knowledge Graph → Graph projection → Layout → Scene → Renderer
 ```
 
-- `WorkspaceGraph` is the one production knowledge-graph boundary.
-- Do not add a third graph representation while consolidating `GraphSnapshot`
-  and `WorkspaceGraph`.
+- `WorkspaceGraph` is the one production knowledge-graph boundary and emits
+  `KnowledgeGraphSnapshot`.
+- `GraphTopology` is the compact presentation projection of that snapshot, not
+  a second semantic model. Do not create a parallel production graph.
 - Closed numeric kinds may exist inside a compiled Graph View for performance;
   they must not become durable ontology enums.
-- The scene owns selection, paths, picking, and label policy.
+- Scene and interaction modules own camera, selection, paths, and picking.
+- `GraphPresentationCompiler` owns resolved visual classes and label policy.
 - Renderers draw resolved numeric state. They do not interpret properties,
   choose relations, run pathfinding, or mutate graph meaning.
 - The GPU owns reconstructible render copies only; CPU state remains sufficient
@@ -82,8 +98,9 @@ Markdown → Knowledge Graph → Graph projection → Layout → Scene → Rende
 
 - Known Note/editor state paints independently of graph, layout, or index
   freshness.
-- Graph extraction, Format/Ontology validation, layout, and enrichment stay off the
-  keystroke and navigation critical paths.
+- Graph extraction, Format/Ontology validation, topology compilation, layout,
+  and enrichment stay in derived workers and off keystroke and Note-navigation
+  critical paths.
 - Input mutates camera or selection synchronously; simulation never blocks a
   gesture.
 - The same topology, algorithm version, and seed produce deterministic settled
@@ -108,7 +125,8 @@ Markdown → Knowledge Graph → Graph projection → Layout → Scene → Rende
 
 1. State the affected layer and the invariant at risk.
 2. Inspect current consumers before changing shared graph types.
-3. Add a compatibility path before removing an existing graph representation.
+3. Preserve compatibility only for a proven public or durable contract; do not
+   retain parallel graph models as speculative fallbacks.
 4. Write the smallest test that distinguishes the intended contract from the
    old behavior.
 5. Run only the focused gates required by the affected layer, then broaden in
@@ -127,7 +145,10 @@ repository's required architecture approval.
 ### Knowledge Graph changes
 
 ```bash
-pnpm --filter @exograph/core test
+pnpm --filter @exograph/core exec vitest run \
+  src/__tests__/workspace-graph.test.ts \
+  src/__tests__/graph-projection.test.ts \
+  src/__tests__/graph-integrity.test.ts
 pnpm typecheck
 ```
 
@@ -137,6 +158,12 @@ resolution, Evidence, deterministic snapshots, and compatibility behavior.
 ### Spatial scene or renderer changes
 
 ```bash
+pnpm --filter @exograph/desktop exec vitest run \
+  src/renderer/src/graphSceneFoundation.test.ts \
+  src/renderer/src/graphLayoutSimulation.test.ts \
+  src/renderer/src/graphInteraction.test.ts \
+  src/renderer/src/graphPresentation.test.ts \
+  src/renderer/src/graphRendererHost.test.ts
 pnpm graph:eval:test
 pnpm graph:eval:smoke
 pnpm graph:eval:resilience
@@ -161,8 +188,9 @@ and idle quiescence.
 
 ### Graph integrity changes
 
-Run the versioned graph contract tests. Do not use layout or renderer metrics as
-a proxy for schema conformance, relation resolution, or Evidence coverage.
+Run the Core graph tests above plus the affected Format/Ontology tests. Do not
+use layout or renderer metrics as a proxy for schema conformance, relation
+resolution, or Evidence coverage.
 
 ## Red flags
 

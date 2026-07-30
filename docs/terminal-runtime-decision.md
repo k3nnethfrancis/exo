@@ -41,6 +41,6 @@ Ordinary shell wheel, trackpad, and selection stay with xterm. A full-screen TUI
 The production factory is direct `node-pty`; a deterministic fake exists only for tests. Automated coverage uses local shells and fake Commands, never live model inference.
 
 Required proof covers input fidelity, resize, ordinary and mouse-mode
-scrolling, mounted-tab preservation, bounded reload replay, renderer fallback,
-Command launch, and honest app-exit behavior. Run the focused terminal Electron
-journey as part of any terminal-runtime change.
+scrolling, mounted-tab preservation, bounded reload replay, Command launch, and
+honest app-exit behavior. Run the focused terminal Electron journey as part of
+any terminal-runtime change.

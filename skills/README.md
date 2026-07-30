@@ -6,8 +6,6 @@ or network authority.
 
 - [design-workspace-ontology](design-workspace-ontology/SKILL.md) — inspect a
   Markdown workspace and propose the smallest evidence-backed `ontology.yaml`.
-- [deslopify-frontend](deslopify-frontend/SKILL.md) — keep setup and review UI
-  compact, legible, and decision-oriented.
 - [graph-system-stability](graph-system-stability/SKILL.md) — preserve graph
   ownership, performance, and renderer boundaries.
 - [use-exograph-cli](use-exograph-cli/SKILL.md) — route workspace orientation,
