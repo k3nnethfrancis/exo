@@ -15,7 +15,7 @@ afterEach(async () => {
 });
 
 async function createFixture() {
-  const root = await mkdtemp(path.join(os.tmpdir(), "stem-install-local-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "exograph-install-local-"));
   roots.push(root);
 
   const repo = path.join(root, "repo");
@@ -105,7 +105,7 @@ function runInstaller(fixture, args) {
 
 test("skip-build refuses a missing CLI artifact before replacing an existing shim", async () => {
   const fixture = await createFixture();
-  const priorLauncher = path.join(path.dirname(fixture.repo), "prior-stem");
+  const priorLauncher = path.join(path.dirname(fixture.repo), "prior-exograph");
   await writeFile(priorLauncher, "packages/cli/dist/index.cjs\n", "utf8");
   await symlink(priorLauncher, fixture.targetLauncher);
 
@@ -125,7 +125,7 @@ test("skip-build refuses a missing CLI artifact before replacing an existing shi
 test("mac app install with CLI inherits the missing-artifact refusal", async () => {
   const fixture = await createFixture();
   const appSource = path.join(fixture.repo, "release", "mac-arm64", "Exograph.app", "Contents");
-  const priorLauncher = path.join(path.dirname(fixture.repo), "prior-stem");
+  const priorLauncher = path.join(path.dirname(fixture.repo), "prior-exograph");
   const defaultTargetLauncher = path.join(path.dirname(fixture.repo), ".local", "bin", "exo");
   await mkdir(appSource, { recursive: true });
   await mkdir(path.dirname(defaultTargetLauncher), { recursive: true });
@@ -152,7 +152,7 @@ test("mac app dry run remains non-mutating while reporting the CLI install hando
   const fixture = await createFixture();
   const appSource = path.join(fixture.repo, "release", "mac-arm64", "Exograph.app", "Contents");
   const appTarget = path.join(path.dirname(fixture.repo), "Applications", "Exograph.app");
-  const priorLauncher = path.join(path.dirname(fixture.repo), "prior-stem");
+  const priorLauncher = path.join(path.dirname(fixture.repo), "prior-exograph");
   const defaultTargetLauncher = path.join(path.dirname(fixture.repo), ".local", "bin", "exo");
   await mkdir(appSource, { recursive: true });
   await mkdir(appTarget, { recursive: true });

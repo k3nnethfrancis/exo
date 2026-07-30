@@ -1,4 +1,4 @@
-import type { AgentCommand, InvocationConversationHead } from "@stem/core";
+import type { AgentCommand, InvocationConversationHead } from "@exograph/core";
 
 import type { InvocationProcessExit } from "./invocation-process";
 

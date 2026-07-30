@@ -16,7 +16,7 @@ switch among several saved interpretations.
 
 ## Decision
 
-An Ontology library is user-owned Markdown-adjacent configuration, not an Stem
+An Ontology library is user-owned Markdown-adjacent configuration, not an Exograph
 database or a hidden generated registry.
 
 ```text
@@ -47,11 +47,11 @@ creates a Candidate against the current Active source. It must compile and
 preview successfully, then receive an explicit Keep before it becomes Active.
 Reject leaves the current Active source untouched. Editing an inactive source
 has no graph effect; editing the selected source creates a new Candidate and
-invalidates its prior review. Stem records the exact accepted source, revision,
+invalidates its prior review. Exograph records the exact accepted source, revision,
 and source-relative path under `.exograph/` so restart and a later external edit are
 honest and recoverable.
 
-The current root `ontology.yaml` remains an ordinary library source. Stem does
+The current root `ontology.yaml` remains an ordinary library source. Exograph does
 not migrate, move, rename, copy, or replace it. A user who wants a named saved
 alternative creates a separate `ontologies/<name>.yaml` file through an
 explicit action. The root source can remain active forever.
@@ -60,7 +60,7 @@ explicit action. The root source can remain active forever.
 
 - Existing Workspaces retain their current contract and file layout.
 - Git can version and review saved Ontologies beside the Workspace.
-- Stem can offer Generic, Active, and saved alternatives without treating
+- Exograph can offer Generic, Active, and saved alternatives without treating
   `.exograph/` as canonical knowledge.
 - Candidate/Active revision guards expand to include source identity and path;
   a filename change or source replacement is stale rather than silently

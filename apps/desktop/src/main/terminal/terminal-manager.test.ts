@@ -2,13 +2,13 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { createDefaultClaudeAgentCommand } from "@stem/core";
+import { createDefaultClaudeAgentCommand } from "@exograph/core";
 import type { TerminalProcess, TerminalProcessFactory, TerminalProcessOptions } from "./terminal-runtime";
 import { TerminalManager } from "./terminal-manager";
 
 describe("TerminalManager direct PTY", () => {
   it("keeps byte-faithful input and a bounded in-memory tail", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-terminal-manager-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-terminal-manager-"));
     const factory = new FakeTerminalProcessFactory();
     const manager = new TerminalManager(root, 1_024, {}, factory);
     const terminal = await manager.create({ terminalKind: "shell", cwd: root });
@@ -30,7 +30,7 @@ describe("TerminalManager direct PTY", () => {
   });
 
   it("reports direct message delivery through the shared write result", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-terminal-manager-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-terminal-manager-"));
     const factory = new FakeTerminalProcessFactory();
     const manager = new TerminalManager(root, 1_024, {}, factory);
     const terminal = await manager.create({ terminalKind: "shell", cwd: root });
@@ -62,10 +62,10 @@ describe("TerminalManager direct PTY", () => {
     );
 
     expect(factory.options?.env).toMatchObject({
-      STEM_WORKSPACE_ROOT: "/workspace-a",
-      STEM_NOTE_ROOTS: "/workspace-a/notes",
-      STEM_DEFAULT_TERMINAL_CWD: "/workspace-a",
-      STEM_RUNTIME_ROOT: "/workspace-a/.exograph",
+      EXOGRAPH_WORKSPACE_ROOT: "/workspace-a",
+      EXOGRAPH_NOTE_ROOTS: "/workspace-a/notes",
+      EXOGRAPH_DEFAULT_TERMINAL_CWD: "/workspace-a",
+      EXOGRAPH_RUNTIME_ROOT: "/workspace-a/.exograph",
     });
   });
 });

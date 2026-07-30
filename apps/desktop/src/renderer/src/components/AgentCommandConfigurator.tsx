@@ -4,11 +4,11 @@ import {
   normalizeAgentCommand,
   normalizeAgentHandle,
   type AgentCommand,
-} from "@stem/core/agent-command-configuration";
+} from "@exograph/core/agent-command-configuration";
 import {
   createDefaultClaudeAgentCommand,
   createDefaultCodexAgentCommand,
-} from "@stem/core/default-agent-command";
+} from "@exograph/core/default-agent-command";
 
 export type AgentCommandConfigurationChange = "edit" | "confirm";
 

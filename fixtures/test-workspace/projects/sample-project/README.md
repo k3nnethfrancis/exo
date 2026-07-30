@@ -1,4 +1,4 @@
-# Stem Demo Project
+# Exograph Demo Project
 
-This fixture project gives the first Stem shell a deterministic attached project root.
+This fixture project gives the first Exograph shell a deterministic attached project root.
 

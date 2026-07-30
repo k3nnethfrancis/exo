@@ -13,7 +13,7 @@ import {
   type InvocationRecord,
   type InvocationReviewAction,
   type InvocationReviewMutation,
-} from "@stem/core";
+} from "@exograph/core";
 
 export interface InvocationFileReviewPayload {
   invocation: InvocationRecord;
@@ -140,7 +140,7 @@ export class InvocationReviewService {
 
     // A failed Reject can leave the proposal safely quarantined while the
     // public path is absent. Replay that durable transaction before ordinary
-    // preflight; otherwise a same-process retry would misclassify Stem's own
+    // preflight; otherwise a same-process retry would misclassify Exograph's own
     // in-flight mutation as user drift and discard the only recovery locator.
     const replayed = await Promise.all(changes.map(async (change, index) => {
       const action = plan[index]!.action;
@@ -340,7 +340,7 @@ export class InvocationReviewService {
       if (entry.status === "conflict") {
         changeset = resolveInvocationFileChange(changeset, change.id, {
           status: "conflict",
-          reason: entry.reason ?? "The review encountered a file conflict before Stem could persist it.",
+          reason: entry.reason ?? "The review encountered a file conflict before Exograph could persist it.",
           currentSha256: check.currentSha256,
         });
         changed = true;
@@ -628,7 +628,7 @@ function drift(currentSha256: string | null): ReviewPreflight {
   return {
     state: "conflict",
     currentSha256,
-    reason: "The file changed after this proposal. Stem did not overwrite newer work.",
+    reason: "The file changed after this proposal. Exograph did not overwrite newer work.",
   };
 }
 
@@ -711,11 +711,11 @@ async function recoverRejectTransaction(
     }
     throw new InvocationReviewError(
       "review-unavailable",
-      "The durable review quarantine no longer contains the exact proposal. Stem preserved it for inspection.",
+      "The durable review quarantine no longer contains the exact proposal. Exograph preserved it for inspection.",
     );
   }
   if (afterCurrent.exists) {
-    // A newer file won the public path while Stem held the exact proposal in
+    // A newer file won the public path while Exograph held the exact proposal in
     // quarantine. The proposal remains durable in the invocation CAS, so the
     // hidden working copy can be removed before surfacing ordinary drift.
     await removeQuarantine(authority, expectedQuarantine!);
@@ -774,7 +774,7 @@ async function installSnapshotNoClobber(
   } catch (error) {
     await rm(temporaryPath, { force: true });
     if (isNodeErrorCode(error, "EEXIST")) {
-      throw new InvocationReviewError("review-drift", "The file changed during review. Stem did not overwrite it.");
+      throw new InvocationReviewError("review-drift", "The file changed during review. Exograph did not overwrite it.");
     }
     throw error;
   }
@@ -834,14 +834,14 @@ async function quarantineVerifiedProposal(
     await syncDirectory(path.dirname(quarantine));
   } catch (error) {
     if (isNodeErrorCode(error, "ENOENT")) {
-      throw new InvocationReviewError("review-drift", "The file changed during review. Stem did not delete it.");
+      throw new InvocationReviewError("review-drift", "The file changed during review. Exograph did not delete it.");
     }
     throw error;
   }
   const moved = await probeFile(authority, quarantine);
   if (!matchesState(moved, proposal)) {
     await restoreQuarantine(authority, quarantine, proposal.path);
-    throw new InvocationReviewError("review-drift", "The file changed during review. Stem restored it without applying Reject.");
+    throw new InvocationReviewError("review-drift", "The file changed during review. Exograph restored it without applying Reject.");
   }
 }
 
@@ -932,7 +932,7 @@ async function assertAuthorizedPath(authority: ReviewPathAuthority, filePath: st
   }
   // Node's macOS filesystem API does not expose openat/renameat-style dirfd
   // mutations, so this is defense-in-depth rather than an atomic sandbox
-  // boundary. Stem revalidates every observed ancestor immediately around each
+  // boundary. Exograph revalidates every observed ancestor immediately around each
   // mutation; the explicitly authorized native Command already runs with the
   // same user's direct filesystem authority. Immutable launch roots still
   // prevent accidental or stale review records from naming a different root.

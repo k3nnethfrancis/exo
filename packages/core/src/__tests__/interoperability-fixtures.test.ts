@@ -174,7 +174,7 @@ describe("public graph interoperability fixtures", () => {
 
   it("preserves Format facts until a kept Workspace Ontology adds separate meaning", async () => {
     const fixture = path.join(fixtureRoot, "format-ontology-boundary");
-    const temporary = await mkdtemp(path.join(os.tmpdir(), "stem-interop-boundary-"));
+    const temporary = await mkdtemp(path.join(os.tmpdir(), "exograph-interop-boundary-"));
     temporaryRoots.push(temporary);
     const workspace = path.join(temporary, "workspace");
     await cp(fixture, workspace, { recursive: true });
@@ -228,7 +228,7 @@ describe("public graph interoperability fixtures", () => {
   });
 
   it("contains root-absolute document and Ontology references inside the source Note Root", async () => {
-    const temporary = await mkdtemp(path.join(os.tmpdir(), "stem-okf-root-links-"));
+    const temporary = await mkdtemp(path.join(os.tmpdir(), "exograph-okf-root-links-"));
     temporaryRoots.push(temporary);
     const workspace = path.join(temporary, "workspace");
     const rootA = path.join(workspace, "a");
@@ -285,7 +285,7 @@ describe("public graph interoperability fixtures", () => {
   });
 
   it("does not create document or Ontology endpoints for reserved OKF targets", async () => {
-    const temporary = await mkdtemp(path.join(os.tmpdir(), "stem-okf-reserved-targets-"));
+    const temporary = await mkdtemp(path.join(os.tmpdir(), "exograph-okf-reserved-targets-"));
     temporaryRoots.push(temporary);
     const workspace = path.join(temporary, "workspace");
     const notes = path.join(workspace, "notes");

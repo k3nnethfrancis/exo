@@ -88,7 +88,7 @@ function laneFor(workspaceRoot: string, commandId: string, commandFingerprint: s
 }
 
 async function temporaryWorkspace(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "stem-continuity-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "exograph-continuity-"));
   roots.push(root);
   return root;
 }

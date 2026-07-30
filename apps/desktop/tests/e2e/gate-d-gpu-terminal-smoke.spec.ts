@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-import { launchStemTerminalFixture } from "../helpers";
+import { launchExographTerminalFixture } from "../helpers";
 
 test("keeps the direct PTY and xterm stable with Electron hardware acceleration", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
-    env: { STEM_SHELL: "/bin/sh", STEM_SHELL_ARGS: "" },
+  const { page, cleanup } = await launchExographTerminalFixture({
+    env: { EXOGRAPH_SHELL: "/bin/sh", EXOGRAPH_SHELL_ARGS: "" },
   });
   try {
     const surface = page.getByTestId("terminal-surface");
@@ -36,7 +36,7 @@ test("keeps the direct PTY and xterm stable with Electron hardware acceleration"
     await page.keyboard.press("Enter");
     await expect(surface).toContainText("after-control-c");
 
-    const beforeGeometry = await page.evaluate(async () => (await window.stem.terminals.list())[0]?.geometry?.cols ?? 0);
+    const beforeGeometry = await page.evaluate(async () => (await window.exograph.terminals.list())[0]?.geometry?.cols ?? 0);
     const resizer = page.getByTestId("utility-pane-resizer");
     const handle = await resizer.boundingBox();
     expect(handle).not.toBeNull();
@@ -44,14 +44,14 @@ test("keeps the direct PTY and xterm stable with Electron hardware acceleration"
     await page.mouse.down();
     await page.mouse.move(handle!.x - 160, handle!.y + 180, { steps: 8 });
     await page.mouse.up();
-    await expect.poll(async () => (await page.evaluate(async () => (await window.stem.terminals.list())[0]?.geometry?.cols ?? 0))).toBeGreaterThan(beforeGeometry);
+    await expect.poll(async () => (await page.evaluate(async () => (await window.exograph.terminals.list())[0]?.geometry?.cols ?? 0))).toBeGreaterThan(beforeGeometry);
 
     await surface.click();
     await page.keyboard.type("i=1; while [ $i -le 300 ]; do echo gpu-scroll-$i; i=$((i+1)); done", { delay: 0 });
     await page.keyboard.press("Enter");
     await expect.poll(async () => page.evaluate(async () => {
-      const session = (await window.stem.terminals.list())[0];
-      return session ? window.stem.terminals.read(session.id) : "";
+      const session = (await window.exograph.terminals.list())[0];
+      return session ? window.exograph.terminals.read(session.id) : "";
     })).toContain("gpu-scroll-300");
     await surface.hover();
     await page.mouse.wheel(0, -50_000);
@@ -61,8 +61,8 @@ test("keeps the direct PTY and xterm stable with Electron hardware acceleration"
     await expect(page.getByTestId("preview-empty-state")).toBeVisible();
     await page.getByTestId("utility-pane-terminal").click();
     await expect.poll(async () => page.evaluate(async () => {
-      const session = (await window.stem.terminals.list())[0];
-      return session ? window.stem.terminals.read(session.id) : "";
+      const session = (await window.exograph.terminals.list())[0];
+      return session ? window.exograph.terminals.read(session.id) : "";
     })).toContain("gpu-scroll-300");
     await expect(surface).toBeVisible();
     await expect(page.locator(".pane-leaf--editor")).toBeVisible();

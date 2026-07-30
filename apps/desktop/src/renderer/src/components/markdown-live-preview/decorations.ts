@@ -17,11 +17,11 @@ interface DecorationEntry {
   decoration: Decoration;
 }
 
-const concealDecoration = Decoration.mark({ class: "stem-md-syntax-hidden" });
-const boldDecoration = Decoration.mark({ class: "stem-md-strong" });
-const italicDecoration = Decoration.mark({ class: "stem-md-emphasis" });
-const strikeDecoration = Decoration.mark({ class: "stem-md-strike" });
-const codeDecoration = Decoration.mark({ class: "stem-md-inline-code" });
+const concealDecoration = Decoration.mark({ class: "exograph-md-syntax-hidden" });
+const boldDecoration = Decoration.mark({ class: "exograph-md-strong" });
+const italicDecoration = Decoration.mark({ class: "exograph-md-emphasis" });
+const strikeDecoration = Decoration.mark({ class: "exograph-md-strike" });
+const codeDecoration = Decoration.mark({ class: "exograph-md-inline-code" });
 function foldedListLineNumbers(doc: Text, listContexts: Map<number, ListContext>, anchors: ReadonlySet<number>) {
   const lines = new Set<number>();
   for (const anchor of anchors) {
@@ -83,7 +83,7 @@ export function buildDecorations(view: EditorView, options: MarkdownLivePreviewO
       lineDecorations.push({
         from: line.from,
         to: line.from,
-        decoration: Decoration.line({ class: "stem-md-line--suppressed-title" }),
+        decoration: Decoration.line({ class: "exograph-md-line--suppressed-title" }),
       });
       if (line.from < line.to) {
         lineDecorations.push({ from: line.from, to: line.to, decoration: Decoration.replace({}) });
@@ -95,7 +95,7 @@ export function buildDecorations(view: EditorView, options: MarkdownLivePreviewO
       lineDecorations.push({
         from: line.from,
         to: line.from,
-        decoration: Decoration.line({ class: "stem-md-line--folded-hidden" }),
+        decoration: Decoration.line({ class: "exograph-md-line--folded-hidden" }),
       });
       continue;
     }
@@ -111,8 +111,8 @@ export function buildDecorations(view: EditorView, options: MarkdownLivePreviewO
           to: line.from,
           decoration: Decoration.line({
             attributes: {
-              class: "stem-md-line stem-md-line--codefence",
-              ...(codeFenceCtx.language ? { "data-stem-code-language": codeFenceCtx.language } : {}),
+              class: "exograph-md-line exograph-md-line--codefence",
+              ...(codeFenceCtx.language ? { "data-exograph-code-language": codeFenceCtx.language } : {}),
             },
           }),
         });
@@ -128,10 +128,10 @@ export function buildDecorations(view: EditorView, options: MarkdownLivePreviewO
 
       if (!isFenceLine) {
         const classes = [
-          "stem-md-line",
-          "stem-md-line--codeblock",
-          lineNumber === codeFenceCtx.startLine + 1 ? "stem-md-line--codeblock-start" : "",
-          lineNumber === codeFenceCtx.endLine - 1 ? "stem-md-line--codeblock-end" : "",
+          "exograph-md-line",
+          "exograph-md-line--codeblock",
+          lineNumber === codeFenceCtx.startLine + 1 ? "exograph-md-line--codeblock-start" : "",
+          lineNumber === codeFenceCtx.endLine - 1 ? "exograph-md-line--codeblock-end" : "",
         ].filter(Boolean);
         lineDecorations.push({
           from: line.from,
@@ -139,7 +139,7 @@ export function buildDecorations(view: EditorView, options: MarkdownLivePreviewO
           decoration: Decoration.line({
             attributes: {
               class: classes.join(" "),
-              ...(codeFenceCtx.language ? { "data-stem-code-language": codeFenceCtx.language } : {}),
+              ...(codeFenceCtx.language ? { "data-exograph-code-language": codeFenceCtx.language } : {}),
             },
           }),
         });
@@ -178,7 +178,7 @@ export function buildDecorations(view: EditorView, options: MarkdownLivePreviewO
           lineDecorations.push({
             from: line.from,
             to: line.from,
-            decoration: Decoration.line({ class: "stem-md-line--folded-hidden" }),
+            decoration: Decoration.line({ class: "exograph-md-line--folded-hidden" }),
           });
         }
         continue;
@@ -236,7 +236,7 @@ function decorateLine(
 ) {
   const heading = text.match(/^(#{1,6})\s+/);
   if (heading) {
-    out.push({ from: lineFrom, to: lineFrom, decoration: Decoration.line({ class: `stem-md-line stem-md-line--heading stem-md-line--h${heading[1].length}` }) });
+    out.push({ from: lineFrom, to: lineFrom, decoration: Decoration.line({ class: `exograph-md-line exograph-md-line--heading exograph-md-line--h${heading[1].length}` }) });
     const prefixEnd = lineFrom + heading[0].length;
     if (!cursorWithin(cursorPos, lineFrom, prefixEnd)) {
       out.push({ from: lineFrom, to: prefixEnd, decoration: concealDecoration });
@@ -248,16 +248,16 @@ function decorateLine(
   const listContext = listContexts.get(lineNumber);
   if (listContext) {
     const taskClass = task
-      ? ` stem-md-line--task${task[2].toLowerCase() === "x" ? " stem-md-line--task-done" : ""}`
+      ? ` exograph-md-line--task${task[2].toLowerCase() === "x" ? " exograph-md-line--task-done" : ""}`
       : "";
     out.push({
       from: lineFrom,
       to: lineFrom,
       decoration: Decoration.line({
         attributes: {
-          class: `stem-md-line ${listContext.isListStart ? "stem-md-line--list-start" : "stem-md-line--list-continuation"}${taskClass}`,
+          class: `exograph-md-line ${listContext.isListStart ? "exograph-md-line--list-start" : "exograph-md-line--list-continuation"}${taskClass}`,
           style: listLineStyle(listContext.depth, Boolean(task)),
-          "data-stem-list-depth": String(listContext.depth),
+          "data-exograph-list-depth": String(listContext.depth),
         },
       }),
     });
@@ -273,7 +273,7 @@ function decorateLine(
         to: lineFrom,
         decoration: Decoration.line({
           attributes: {
-            class: `stem-md-line stem-md-line--task${isChecked ? " stem-md-line--task-done" : ""}`,
+            class: `exograph-md-line exograph-md-line--task${isChecked ? " exograph-md-line--task-done" : ""}`,
             style: listLineStyle(0, true),
           },
         }),
@@ -294,12 +294,12 @@ function decorateLine(
       const prefixEnd = lineFrom + listContext.prefixLength;
       const cursorInPrefix = cursorPos >= lineFrom && cursorPos < prefixEnd;
       const lineClass = [
-        "stem-md-line",
-        "stem-md-line--list",
-        listContext.ordered ? "stem-md-line--list-ordered" : "",
-        hasChildren ? "stem-md-line--list-has-children" : "",
-        isFolded ? "stem-md-line--list-folded" : "",
-        cursorInPrefix ? "stem-md-line--list-raw" : "",
+        "exograph-md-line",
+        "exograph-md-line--list",
+        listContext.ordered ? "exograph-md-line--list-ordered" : "",
+        hasChildren ? "exograph-md-line--list-has-children" : "",
+        isFolded ? "exograph-md-line--list-folded" : "",
+        cursorInPrefix ? "exograph-md-line--list-raw" : "",
       ].filter(Boolean).join(" ");
       out.push({
         from: lineFrom,
@@ -308,9 +308,9 @@ function decorateLine(
           attributes: {
             class: lineClass,
             style: listLineStyle(listContext.depth),
-            "data-stem-list-depth": String(listContext.depth),
-            "data-stem-list-marker": listContext.marker,
-            ...(cursorInPrefix ? { "data-stem-list-raw": listContext.marker } : {}),
+            "data-exograph-list-depth": String(listContext.depth),
+            "data-exograph-list-marker": listContext.marker,
+            ...(cursorInPrefix ? { "data-exograph-list-raw": listContext.marker } : {}),
           },
         }),
       });
@@ -331,7 +331,7 @@ function decorateLine(
         if (lineFrom < markerStart) {
           out.push({ from: lineFrom, to: markerStart, decoration: Decoration.replace({}) });
         }
-        out.push({ from: markerStart, to: markerEnd, decoration: Decoration.mark({ class: "stem-md-list-marker-raw" }) });
+        out.push({ from: markerStart, to: markerEnd, decoration: Decoration.mark({ class: "exograph-md-list-marker-raw" }) });
         if (markerEnd < prefixEnd) {
           out.push({ from: markerEnd, to: prefixEnd, decoration: Decoration.replace({}) });
         }
@@ -342,9 +342,9 @@ function decorateLine(
         to: lineFrom,
         decoration: Decoration.line({
           attributes: {
-            class: "stem-md-line stem-md-line--list stem-md-line--list-continuation",
+            class: "exograph-md-line exograph-md-line--list exograph-md-line--list-continuation",
             style: listLineStyle(listContext.depth),
-            "data-stem-list-depth": String(listContext.depth),
+            "data-exograph-list-depth": String(listContext.depth),
           },
         }),
       });
@@ -355,7 +355,7 @@ function decorateLine(
   const quoteMatch = text.match(/^(>\s*)/);
   if (quoteMatch) {
     const prefixLen = quoteMatch[1].length;
-    out.push({ from: lineFrom, to: lineFrom, decoration: Decoration.line({ class: "stem-md-line stem-md-line--quote" }) });
+    out.push({ from: lineFrom, to: lineFrom, decoration: Decoration.line({ class: "exograph-md-line exograph-md-line--quote" }) });
     if (!cursorWithin(cursorPos, lineFrom, lineFrom + prefixLen)) {
       out.push({ from: lineFrom, to: lineFrom + prefixLen, decoration: concealDecoration });
     }
@@ -363,7 +363,7 @@ function decorateLine(
   }
 
   if (isThematicBreak(text)) {
-    out.push({ from: lineFrom, to: lineFrom, decoration: Decoration.line({ class: "stem-md-line stem-md-line--rule" }) });
+    out.push({ from: lineFrom, to: lineFrom, decoration: Decoration.line({ class: "exograph-md-line exograph-md-line--rule" }) });
     if (!cursorWithin(cursorPos, lineFrom, lineFrom + text.length)) {
       out.push({ from: lineFrom, to: lineFrom + text.length, decoration: concealDecoration });
     }
@@ -406,8 +406,8 @@ function decorateInline(
   applyDelimited(text, lineFrom, /`([^`\n]+)`/g, 1, codeDecoration, out, cursorPos);
   applyInteractiveMarks(text, lineFrom, /(^|[\s(])#([A-Za-z][\w/-]*)\b/g, out, (match, start) => {
     const offset = match[1] ? match[1].length : 0;
-    return [start + offset, start + offset + match[2].length + 1, { "data-stem-tag": match[2] }];
-  }, "stem-md-tag");
+    return [start + offset, start + offset + match[2].length + 1, { "data-exograph-tag": match[2] }];
+  }, "exograph-md-tag");
 }
 
 /**
@@ -494,7 +494,7 @@ function applyInteractiveMarks(
   pattern: RegExp,
   out: DecorationEntry[],
   rangeResolver: (match: RegExpMatchArray, start: number) => [number, number, Record<string, string>?],
-  className = "stem-md-link",
+  className = "exograph-md-link",
 ) {
   for (const match of text.matchAll(pattern)) {
     const start = lineFrom + (match.index ?? 0);
@@ -516,13 +516,13 @@ function applyWikilinks(text: string, lineFrom: number, out: DecorationEntry[], 
 
     if (cursorWithin(cursorPos, start, end)) {
       // Cursor inside — show raw wikilink, still make the label clickable
-      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "stem-md-link", attributes: { "data-stem-link-target": target, "data-stem-link-kind": "wikilink" } }) });
+      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "exograph-md-link", attributes: { "data-exograph-link-target": target, "data-exograph-link-kind": "wikilink" } }) });
     } else {
       out.push({ from: start, to: start + 2, decoration: concealDecoration });
       if (match[2]) {
         out.push({ from: start + 2, to: labelStart, decoration: concealDecoration });
       }
-      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "stem-md-link", attributes: { "data-stem-link-target": target, "data-stem-link-kind": "wikilink" } }) });
+      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "exograph-md-link", attributes: { "data-exograph-link-target": target, "data-exograph-link-kind": "wikilink" } }) });
       out.push({ from: end - 2, to: end, decoration: concealDecoration });
     }
   }
@@ -543,10 +543,10 @@ function applyMarkdownLinks(text: string, lineFrom: number, out: DecorationEntry
 
     if (cursorWithin(cursorPos, start, end)) {
       // Cursor inside — show raw markdown link, still make label clickable
-      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "stem-md-link", attributes: { "data-stem-link-target": match[2].trim() } }) });
+      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "exograph-md-link", attributes: { "data-exograph-link-target": match[2].trim() } }) });
     } else {
       out.push({ from: start, to: start + 1, decoration: concealDecoration });
-      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "stem-md-link", attributes: { "data-stem-link-target": match[2].trim() } }) });
+      out.push({ from: labelStart, to: labelEnd, decoration: Decoration.mark({ class: "exograph-md-link", attributes: { "data-exograph-link-target": match[2].trim() } }) });
       out.push({ from: labelEnd, to: end, decoration: concealDecoration });
     }
   }
@@ -557,5 +557,5 @@ function listLineStyle(depth: number, isTask = false) {
   // separation before editable text instead of letting the caret touch its edge.
   const taskTextGap = isTask ? 5 : 0;
   const padLeft = LIST_GEOMETRY.baseIndent + depth * LIST_GEOMETRY.indentStep + taskTextGap;
-  return `${listGeometryStyleVariables()};--stem-list-depth:${depth};padding-left:${padLeft}px;`;
+  return `${listGeometryStyleVariables()};--exograph-list-depth:${depth};padding-left:${padLeft}px;`;
 }

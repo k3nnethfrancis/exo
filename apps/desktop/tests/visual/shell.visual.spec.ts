@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { test, expect, type Page } from "@playwright/test";
 
-import { launchStemTerminalFixture, launchStemWorkspaceFixture } from "../helpers";
+import { launchExographTerminalFixture, launchExographWorkspaceFixture } from "../helpers";
 
 async function settleForScreenshot(page: Page) {
   await page.evaluate(() => {
@@ -31,7 +31,7 @@ async function cycleAppearanceTo(page: Page, targetMode: "system" | "light" | "d
 }
 
 test("captures the default workspace shell", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
   await cycleAppearanceTo(page, "dark");
   await settleForScreenshot(page);
   await expect(page).toHaveScreenshot("workspace-default.png", screenshotOptions);
@@ -39,7 +39,7 @@ test("captures the default workspace shell", async () => {
 });
 
 test("captures terminal pane with shell tabs", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture();
+  const { page, cleanup } = await launchExographTerminalFixture();
   await cycleAppearanceTo(page, "dark");
   await page.getByTestId("new-terminal").click();
   await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
@@ -49,7 +49,7 @@ test("captures terminal pane with shell tabs", async () => {
 });
 
 test("captures the expanded workspace menu", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
   await cycleAppearanceTo(page, "dark");
   await page.getByTestId("workspace-menu-toggle").click();
   await settleForScreenshot(page);
@@ -58,7 +58,7 @@ test("captures the expanded workspace menu", async () => {
 });
 
 test("captures the warm light mode shell", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
   await cycleAppearanceTo(page, "light");
   await settleForScreenshot(page);
   await expect(page).toHaveScreenshot("workspace-light-mode.png", screenshotOptions);
@@ -66,8 +66,8 @@ test("captures the warm light mode shell", async () => {
 });
 
 test("captures nested list geometry", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({
-    env: { STEM_FORCE_THEME: "light" },
+  const { page, cleanup } = await launchExographWorkspaceFixture({
+    env: { EXOGRAPH_FORCE_THEME: "light" },
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(

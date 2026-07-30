@@ -2,20 +2,20 @@
 
 **Status:** Current document-envelope and Changeset review contract.
 
-Stem keeps Markdown as the canonical user document. It adds two inert, XML-like
+Exograph keeps Markdown as the canonical user document. It adds two inert, XML-like
 envelopes so a human request and an agent's durable result can be identified
 without turning the note into a proprietary chat object.
 
 ```md
-<stem-invocation id="4f86cda4-0b11-4d83-873c-166ba38ab378" agent="claude" status="sent">
+<exograph-invocation id="4f86cda4-0b11-4d83-873c-166ba38ab378" agent="claude" status="sent">
 @claude Compare these alternatives and recommend one.
-</stem-invocation>
+</exograph-invocation>
 
-<stem-agent-response invocation="4f86cda4-0b11-4d83-873c-166ba38ab378" agent="claude">
+<exograph-agent-response invocation="4f86cda4-0b11-4d83-873c-166ba38ab378" agent="claude">
 ## Recommendation
 
 Choose the first approach because it preserves ordinary Markdown portability.
-</stem-agent-response>
+</exograph-agent-response>
 ```
 
 ## Grammar and rendering
@@ -35,27 +35,27 @@ Choose the first approach because it preserves ordinary Markdown portability.
 
 The protocol is data, not authority.
 
-- A human can authorize a run only through Stem's explicit invocation action;
+- A human can authorize a run only through Exograph's explicit invocation action;
   parsing an invocation tag never launches a command.
-- Stem owns command trust, executable identity, lifecycle state, local invocation
+- Exograph owns command trust, executable identity, lifecycle state, local invocation
   records, provider session provenance, and changed-file review.
 - The configured agent may write one linked response envelope and ordinary
   Markdown/file edits. It cannot grant itself trust, claim a diff was accepted,
   or change invocation lifecycle state through a tag.
-- Stem's filesystem observer and stored before/after snapshots remain the
+- Exograph's filesystem observer and stored before/after snapshots remain the
   authority for reviewable changes. A response block is useful durable prose,
   not evidence that an edit happened.
 
 The invoked Command is an explicitly authorized native process, not a sandbox.
 It can use the files, credentials, network, and provider tools available to the
-current operating-system user. Note Roots bound what Stem snapshots, reviews,
+current operating-system user. Note Roots bound what Exograph snapshots, reviews,
 and restores; they do not restrict what that process can read or write. Trust is
 Workspace-scoped and bound to the executable fingerprint, so a changed binary
-requires a new decision before its pre-exec gate opens. Stem resolves and hashes
+requires a new decision before its pre-exec gate opens. Exograph resolves and hashes
 the canonical executable immediately before release, then launches that exact
 path rather than asking the shell to resolve `PATH` again.
 
-Stem reports exact file state, not guessed authorship. Launch and settled
+Exograph reports exact file state, not guessed authorship. Launch and settled
 manifests produce one Changeset of created, modified, deleted, and conservatively
 proven-renamed files. Every Keep or Reject decision is hash-guarded and
 serialized. Dirty editor buffers drain before a decision; newer bytes become an
@@ -64,12 +64,12 @@ prove the owned process group dead before settlement or root unlock. Filesystem
 mutations revalidate immutable launch roots and reject symlinked ancestors, but
 this defense-in-depth is not a sandbox against a separately authorized
 same-user native process. Node/Electron on macOS does not expose
-directory-handle-relative mutation APIs that could make Stem's path check and
+directory-handle-relative mutation APIs that could make Exograph's path check and
 mutation atomic.
 
 ## Agent instruction contract
 
-For a V1 inline run, Stem sends the saved document snapshot and the exact
+For a V1 inline run, Exograph sends the saved document snapshot and the exact
 invocation UUID. The configured command is instructed to preserve the request
 envelope, do the requested durable workspace work, and append exactly one
 linked response envelope directly after the request. For direct-edit work the
@@ -84,7 +84,7 @@ user chooses Run or Cancel. It is not a progress surface.
 
 | State | Surface | Exit |
 | --- | --- | --- |
-| Checking | Same-frame cursor-adjacent acknowledgement while Stem verifies executable identity and trust | Run, authorize, or restore the draft |
+| Checking | Same-frame cursor-adjacent acknowledgement while Exograph verifies executable identity and trust | Run, authorize, or restore the draft |
 | Running | Cursor glyph plus one bounded bottom-left activity state | Stop the full process tree |
 | Review | Inline diff, anchored Keep/Reject, file position, and optional batch actions | Resolve every file or explicitly keep a drifted current file |
 | Completed | Brief result that gets out of the way | Dismiss or resume session |
@@ -97,13 +97,13 @@ restart. Reject is hash-guarded and never overwrites a path that drifted after
 settlement; that file remains an explicit conflict until the user keeps the
 current bytes.
 
-After settlement, Stem compacts invocation artifacts to the clean base and exact
+After settlement, Exograph compacts invocation artifacts to the clean base and exact
 before/after snapshots referenced by the Changeset. Unrelated whole-Workspace
 capture objects are removed only after every retained object passes integrity
 validation; cleanup failure leaves all review and History bytes intact and is
 reported separately from invocation success.
 
-Provider resume is an explicit handoff. Stem exposes a single outward-arrow
+Provider resume is an explicit handoff. Exograph exposes a single outward-arrow
 action, opens the configured resume command in Terminal, and otherwise keeps
 the command and session identifier out of the ordinary surface. Invocation
 history and document envelopes remain durable; the transient activity surface
@@ -123,4 +123,4 @@ review controls.
 - No rewriting of user-authored Markdown envelopes; raw source stays portable
   in every Markdown editor.
 
--- Stem | 2026-07-13
+-- Exograph | 2026-07-13

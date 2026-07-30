@@ -61,8 +61,8 @@ export class GraphReferencesWidget extends WidgetType {
       const button = document.createElement("button");
       button.className = "markdown-graph-references__item";
       button.type = "button";
-      button.dataset.stemLinkTarget = item.target;
-      button.dataset.stemLinkKind = "wikilink";
+      button.dataset.exographLinkTarget = item.target;
+      button.dataset.exographLinkKind = "wikilink";
       button.textContent = item.label;
       list.appendChild(button);
     }
@@ -88,30 +88,30 @@ export class MarkdownImageWidget extends WidgetType {
 
   toDOM() {
     const wrap = document.createElement("span");
-    wrap.className = "stem-md-image stem-md-image--loading";
+    wrap.className = "exograph-md-image exograph-md-image--loading";
     wrap.contentEditable = "false";
     wrap.dataset.testid = "markdown-image";
     wrap.setAttribute("aria-label", this.alt || "Markdown image");
 
     const fallback = document.createElement("span");
-    fallback.className = "stem-md-image__fallback";
+    fallback.className = "exograph-md-image__fallback";
     fallback.textContent = this.alt || "Image";
     wrap.appendChild(fallback);
 
     const appendImage = (url: string) => {
       const image = document.createElement("img");
-      image.className = "stem-md-image__asset";
+      image.className = "exograph-md-image__asset";
       image.src = url;
       image.alt = this.alt;
       image.loading = "lazy";
       image.decoding = "async";
       image.addEventListener("load", () => {
-        wrap.classList.remove("stem-md-image--loading", "stem-md-image--missing");
+        wrap.classList.remove("exograph-md-image--loading", "exograph-md-image--missing");
         fallback.remove();
       }, { once: true });
       image.addEventListener("error", () => {
-        wrap.classList.remove("stem-md-image--loading");
-        wrap.classList.add("stem-md-image--missing");
+        wrap.classList.remove("exograph-md-image--loading");
+        wrap.classList.add("exograph-md-image--missing");
         image.remove();
       }, { once: true });
       wrap.appendChild(image);
@@ -126,8 +126,8 @@ export class MarkdownImageWidget extends WidgetType {
     void this.resolveImage(this.target, { lookupByFilename: this.lookupByFilename }).then(({ url }) => {
       appendImage(url);
     }).catch(() => {
-      wrap.classList.remove("stem-md-image--loading");
-      wrap.classList.add("stem-md-image--missing");
+      wrap.classList.remove("exograph-md-image--loading");
+      wrap.classList.add("exograph-md-image--missing");
     });
     return wrap;
   }
@@ -165,12 +165,12 @@ export class TaskPrefixWidget extends WidgetType {
 
   toDOM() {
     const span = document.createElement("span");
-    span.className = "stem-md-list-prefix stem-md-list-prefix--task";
+    span.className = "exograph-md-list-prefix exograph-md-list-prefix--task";
     const bulletLeft = LIST_GEOMETRY.baseIndent + this.depth * LIST_GEOMETRY.indentStep - LIST_GEOMETRY.markerLaneWidth;
     span.style.left = `${bulletLeft}px`;
     const checkbox = document.createElement("span");
-    checkbox.className = `stem-md-checkbox ${this.checked ? "stem-md-checkbox--checked" : ""}`;
-    checkbox.dataset.stemCheckboxPos = String(this.checkboxPos);
+    checkbox.className = `exograph-md-checkbox ${this.checked ? "exograph-md-checkbox--checked" : ""}`;
+    checkbox.dataset.exographCheckboxPos = String(this.checkboxPos);
     span.appendChild(checkbox);
     return span;
   }
@@ -195,14 +195,14 @@ export class ListFoldToggleWidget extends WidgetType {
 
   toDOM() {
     const span = document.createElement("span");
-    span.className = "stem-md-list-prefix stem-md-list-prefix--fold";
+    span.className = "exograph-md-list-prefix exograph-md-list-prefix--fold";
     const bulletLeft = LIST_GEOMETRY.baseIndent + this.depth * LIST_GEOMETRY.indentStep - LIST_GEOMETRY.markerLaneWidth;
     span.style.left = `${bulletLeft - 14}px`;
     span.style.width = "14px";
 
     const fold = document.createElement("span");
-    fold.className = `stem-md-fold-toggle ${this.isFolded ? "stem-md-fold-toggle--folded" : ""}`;
-    fold.dataset.stemFoldAnchor = String(this.parentAnchor);
+    fold.className = `exograph-md-fold-toggle ${this.isFolded ? "exograph-md-fold-toggle--folded" : ""}`;
+    fold.dataset.exographFoldAnchor = String(this.parentAnchor);
     span.appendChild(fold);
     return span;
   }
@@ -222,10 +222,10 @@ export class TableWidget extends WidgetType {
 
   toDOM() {
     const wrap = document.createElement("div");
-    wrap.className = "stem-md-table-wrap";
+    wrap.className = "exograph-md-table-wrap";
 
     const table = document.createElement("table");
-    table.className = "stem-md-table";
+    table.className = "exograph-md-table";
 
     const thead = document.createElement("thead");
     const headerRow = document.createElement("tr");

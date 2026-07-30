@@ -13,20 +13,20 @@ import {
   WORKSPACE_RUNTIME_DIRECTORY,
   type WorkspaceModel,
   type IndexSearchResponse,
-  type StemCommandIndexStatusResponse,
-  type StemCommandIndexSyncResponse,
-  type StemCommandSearchResponse,
-  type StemCommandStatusWithControlPlane,
-  type StemSpawnAgentCommandResponse,
+  type ExographCommandIndexStatusResponse,
+  type ExographCommandIndexSyncResponse,
+  type ExographCommandSearchResponse,
+  type ExographCommandStatusWithControlPlane,
+  type ExographSpawnAgentCommandResponse,
   type WorkspaceRegistryEntry,
-} from "@stem/core";
-import { STEM_CLI_USAGE } from "@stem/core/operator-help";
+} from "@exograph/core";
+import { EXOGRAPH_CLI_USAGE } from "@exograph/core/operator-help";
 import {
   AppClient,
   formatAppClientDiscoveryFailure,
   type AppClientDiscoveryFailure,
 } from "./app-client";
-import { runStemMcpServer } from "./mcp-server";
+import { runExographMcpServer } from "./mcp-server";
 import {
   MAX_AGENT_SEARCH_LIMIT,
   agentSearchResponse,
@@ -35,13 +35,13 @@ import {
 import { workspaceMatches } from "./workspace-match";
 
 interface AppClientLike {
-  getStatus(): Promise<StemCommandStatusWithControlPlane>;
+  getStatus(): Promise<ExographCommandStatusWithControlPlane>;
   showWindow(): Promise<void>;
-  search(query: string, options?: { limit?: number; offset?: number }): Promise<StemCommandSearchResponse>;
-  getIndexStatus(): Promise<StemCommandIndexStatusResponse>;
-  syncIndex(): Promise<StemCommandIndexSyncResponse>;
+  search(query: string, options?: { limit?: number; offset?: number }): Promise<ExographCommandSearchResponse>;
+  getIndexStatus(): Promise<ExographCommandIndexStatusResponse>;
+  syncIndex(): Promise<ExographCommandIndexSyncResponse>;
   openFile(filePath: string): Promise<void>;
-  spawnAgentCommand(handle: string, task: string): Promise<StemSpawnAgentCommandResponse>;
+  spawnAgentCommand(handle: string, task: string): Promise<ExographSpawnAgentCommandResponse>;
 }
 
 type AppClientConnector = (runtimeRoot: string, env: NodeJS.ProcessEnv) => Promise<AppClientLike | null>;
@@ -70,7 +70,7 @@ type CliRuntimeDiagnostic = AppClientDiscoveryFailure | WorkspaceMismatchDiagnos
 
 interface CliConnection {
   client: AppClientLike | null;
-  status?: StemCommandStatusWithControlPlane;
+  status?: ExographCommandStatusWithControlPlane;
   diagnostic?: CliRuntimeDiagnostic;
 }
 
@@ -101,7 +101,7 @@ export async function runCli(argv: string[], options: {
   const [command, subcommand, ...args] = argv.slice(2);
 
   if (!command) {
-    return startStemApp(env, stderr, launchApp);
+    return startExographApp(env, stderr, launchApp);
   }
 
   if (command === "--help" || command === "-h" || command === "help") {
@@ -120,12 +120,12 @@ export async function runCli(argv: string[], options: {
 
   if (command === "start") {
     assertNoUnexpectedArguments([subcommand, ...args]);
-    return startStemApp(env, stderr, launchApp);
+    return startExographApp(env, stderr, launchApp);
   }
 
   if (command === "mcp" && subcommand === "serve") {
     assertNoUnexpectedArguments(args);
-    await runStemMcpServer({ env, input: process.stdin, output: process.stdout, error: process.stderr });
+    await runExographMcpServer({ env, input: process.stdin, output: process.stdout, error: process.stderr });
     return 0;
   }
 
@@ -221,7 +221,7 @@ async function connectIfAvailable(
 ): Promise<CliConnection> {
   const runtimeRoot = await resolveCliRuntimeRoot(env);
   let client: AppClientLike | null;
-  let status: StemCommandStatusWithControlPlane | undefined;
+  let status: ExographCommandStatusWithControlPlane | undefined;
   if (connect === defaultAppClientConnector) {
     const result = await AppClient.connectDetailed(runtimeRoot, env);
     if (!result.ok) return { client: null, diagnostic: result.failure };
@@ -237,7 +237,7 @@ async function connectIfAvailable(
       client: null,
       diagnostic: {
         code: "workspace-mismatch",
-        message: `The running Stem app serves ${status.workspace.workspaceRoot}, not the selected Workspace ${workspace.model.workspaceRoot}. Filesystem retrieval was used for the selected Workspace; switch the app or pass --workspace explicitly.`,
+        message: `The running Exograph app serves ${status.workspace.workspaceRoot}, not the selected Workspace ${workspace.model.workspaceRoot}. Filesystem retrieval was used for the selected Workspace; switch the app or pass --workspace explicitly.`,
         selectedWorkspaceRoot: workspace.model.workspaceRoot,
         appWorkspaceRoot: status.workspace.workspaceRoot,
       },
@@ -255,8 +255,8 @@ async function resolveCliWorkspaceModel(env: NodeJS.ProcessEnv): Promise<Workspa
 }
 
 async function resolveCliRuntimeRoot(env: NodeJS.ProcessEnv, model?: WorkspaceModel): Promise<string> {
-  if (env.EXO_RUNTIME_ROOT ?? env.STEM_RUNTIME_ROOT) {
-    return env.EXO_RUNTIME_ROOT ?? env.STEM_RUNTIME_ROOT!;
+  if (env.EXOGRAPH_RUNTIME_ROOT) {
+    return env.EXOGRAPH_RUNTIME_ROOT;
   }
   return path.join((model ?? await resolveCliWorkspaceModel(env)).workspaceRoot, WORKSPACE_RUNTIME_DIRECTORY);
 }
@@ -271,7 +271,7 @@ interface CliWorkspace {
 async function resolveCliWorkspace(env: NodeJS.ProcessEnv, selector?: string): Promise<CliWorkspace> {
   if (workspaceEnvOverrides(env)) {
     if (selector) {
-      throw new Error("`--workspace` cannot be combined with STEM workspace environment overrides.");
+      throw new Error("`--workspace` cannot be combined with EXOGRAPH workspace environment overrides.");
     }
     return { model: resolveWorkspaceModel(env), id: null, label: null, active: true };
   }
@@ -294,7 +294,7 @@ async function resolveCliWorkspace(env: NodeJS.ProcessEnv, selector?: string): P
   );
   if (matches.length === 0) {
     const available = entries.map((entry) => `${entry.label} (${entry.id})`).join(", ") || "none";
-    throw new Error(`Unknown Stem Workspace: ${selector}. Available Workspaces: ${available}.`);
+    throw new Error(`Unknown Exograph Workspace: ${selector}. Available Workspaces: ${available}.`);
   }
   if (matches.length > 1) {
     throw new Error(`Workspace selector is ambiguous: ${selector}. Use the Workspace id from \`exo workspaces\`.`);
@@ -377,7 +377,7 @@ async function appOffSearch(workspace: CliWorkspace, query: string, options: { l
   );
 }
 
-async function startStemApp(
+async function startExographApp(
   env: NodeJS.ProcessEnv,
   stderr: { write(text: string): void },
   launchApp: AppLauncher,
@@ -386,11 +386,11 @@ async function startStemApp(
     stderr.write("`exo start` launches the packaged macOS app. Use `pnpm dev:qa` for source QA.\n");
     return 1;
   }
-  const candidates = [env.EXO_APP_PATH, env.STEM_APP_PATH, path.join(env.HOME ?? "", "Applications", "Exograph.app"), "/Applications/Exograph.app"]
+  const candidates = [env.EXOGRAPH_APP_PATH, path.join(env.HOME ?? "", "Applications", "Exograph.app"), "/Applications/Exograph.app"]
     .filter((candidate): candidate is string => Boolean(candidate));
   const appPath = candidates.find((candidate) => existsSync(candidate));
   if (!appPath) {
-    stderr.write("Unable to find Exograph.app. Install it with `scripts/install-mac-app --with-cli`, or set EXO_APP_PATH.\n");
+    stderr.write("Unable to find Exograph.app. Install it with `scripts/install-mac-app --with-cli`, or set EXOGRAPH_APP_PATH.\n");
     return 1;
   }
   try {
@@ -497,7 +497,7 @@ function commandHelp(command: string): string {
 
 function help(): string {
   return [
-    STEM_CLI_USAGE,
+    EXOGRAPH_CLI_USAGE,
     "",
     "Workspace selection: exo workspaces; status/search accept --workspace <id|label|path>.",
     "App-off: status and search use the configured workspace's filesystem roots.",

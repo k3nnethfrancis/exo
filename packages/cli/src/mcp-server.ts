@@ -10,7 +10,7 @@ import {
   workspaceModelFromSettings,
   WORKSPACE_RUNTIME_DIRECTORY,
   type WorkspaceModel,
-} from "@stem/core";
+} from "@exograph/core";
 
 import { AppClient } from "./app-client";
 import { agentSearchResponse, boundedSearchLimit, parseSearchCursor } from "./search-response";
@@ -35,11 +35,11 @@ type WorkspaceScope =
   | { status: "unresolved" | "ambiguous"; cwd: string; candidateCount: number };
 
 /**
- * Read-only MCP adapter for the active Stem Workspace. The same command-server
+ * Read-only MCP adapter for the active Exograph Workspace. The same command-server
  * client is used when the app is running; filesystem retrieval is the honest
  * app-off fallback. This is intentionally not a mutation or agent-launch API.
  */
-export async function runStemMcpServer(options: {
+export async function runExographMcpServer(options: {
   env?: NodeJS.ProcessEnv;
   input?: NodeJS.ReadableStream;
   output?: NodeJS.WritableStream;
@@ -65,13 +65,13 @@ export async function runStemMcpServer(options: {
       if (response) output.write(`${JSON.stringify(response)}\n`);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      error.write(`[stem mcp] ${message}\n`);
+      error.write(`[exograph mcp] ${message}\n`);
       output.write(`${JSON.stringify(jsonRpcError(null, -32700, "Parse error"))}\n`);
     }
   }
 }
 
-interface StemMcpOperations {
+interface ExographMcpOperations {
   status(): Promise<JsonRecord>;
   search(query: string, input: { limit: number; cursor?: string }): Promise<object>;
 }
@@ -80,7 +80,7 @@ async function createOperations(
   env: NodeJS.ProcessEnv,
   scope: WorkspaceScope,
   connectApp: (runtimeRoot: string, env: NodeJS.ProcessEnv) => Promise<AppClientLike | null>,
-): Promise<StemMcpOperations> {
+): Promise<ExographMcpOperations> {
   if (scope.status !== "resolved") {
     return {
       status: async () => workspaceStatus(scope, false, null),
@@ -90,7 +90,7 @@ async function createOperations(
     };
   }
   const { model } = scope;
-  const runtimeRoot = env.EXO_RUNTIME_ROOT ?? env.STEM_RUNTIME_ROOT ?? path.join(model.workspaceRoot, WORKSPACE_RUNTIME_DIRECTORY);
+  const runtimeRoot = env.EXOGRAPH_RUNTIME_ROOT ?? path.join(model.workspaceRoot, WORKSPACE_RUNTIME_DIRECTORY);
   const client = await connectApp(runtimeRoot, env).catch(() => null);
   if (client && (await clientMatchesWorkspace(client, model))) {
     return {
@@ -197,11 +197,11 @@ function isWithin(root: string, target: string): boolean {
 
 function scopeError(scope: Extract<WorkspaceScope, { status: "unresolved" | "ambiguous" }>): string {
   return scope.status === "ambiguous"
-    ? `Caller cwd matches ${scope.candidateCount} Stem Workspaces; search is refused until the scope is unambiguous.`
-    : `No Stem Workspace matches caller cwd (${scope.cwd}); search is refused.`;
+    ? `Caller cwd matches ${scope.candidateCount} Exograph Workspaces; search is refused until the scope is unambiguous.`
+    : `No Exograph Workspace matches caller cwd (${scope.cwd}); search is refused.`;
 }
 
-async function handleRequest(request: JsonRecord, operations: StemMcpOperations): Promise<JsonRecord | null> {
+async function handleRequest(request: JsonRecord, operations: ExographMcpOperations): Promise<JsonRecord | null> {
   const method = typeof request.method === "string" ? request.method : "";
   const id = isJsonRpcId(request.id) ? request.id : null;
   if (!method) return jsonRpcError(id, -32600, "Invalid request");
@@ -211,8 +211,8 @@ async function handleRequest(request: JsonRecord, operations: StemMcpOperations)
     return jsonRpcResult(id, {
       protocolVersion: MCP_PROTOCOL_VERSION,
       capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: "stem", version: "0.1.0-alpha.3" },
-      instructions: "Use Stem to orient within the current Markdown workspace. Search returns paths, metadata, and an optional next_cursor; use returned paths with your native file tools only when your own permissions allow it. Stem MCP tools do not read or write notes.",
+      serverInfo: { name: "exograph", version: "0.1.0-alpha.3" },
+      instructions: "Use Exograph to orient within the current Markdown workspace. Search returns paths, metadata, and an optional next_cursor; use returned paths with your native file tools only when your own permissions allow it. Exograph MCP tools do not read or write notes.",
     });
   }
   if (method === "ping") return jsonRpcResult(id, {});
@@ -225,12 +225,12 @@ function toolDefinitions(): JsonRecord[] {
   return [
     {
       name: "workspace_status",
-      description: "Describe the current Stem workspace: its roots and indexing configuration, application availability, and retrieval health.",
+      description: "Describe the current Exograph workspace: its roots and indexing configuration, application availability, and retrieval health.",
       inputSchema: { type: "object", additionalProperties: false, properties: {} },
     },
     {
       name: "search_notes",
-      description: "Search the current Stem workspace. Returns one bounded, ranked page of note metadata and an optional next_cursor. Read returned paths with native file tools when permitted; Stem does not read or write notes through MCP.",
+      description: "Search the current Exograph workspace. Returns one bounded, ranked page of note metadata and an optional next_cursor. Read returned paths with native file tools when permitted; Exograph does not read or write notes through MCP.",
       inputSchema: {
         type: "object", additionalProperties: false,
         properties: { query: { type: "string", minLength: 1 }, limit: { type: "integer", minimum: 1, maximum: MAX_SEARCH_RESULTS }, cursor: { type: "string", minLength: 1 } },
@@ -240,7 +240,7 @@ function toolDefinitions(): JsonRecord[] {
   ];
 }
 
-async function callTool(rawParams: unknown, operations: StemMcpOperations): Promise<JsonRecord> {
+async function callTool(rawParams: unknown, operations: ExographMcpOperations): Promise<JsonRecord> {
   const params = isRecord(rawParams) ? rawParams : {};
   const name = typeof params.name === "string" ? params.name : "";
   const args = isRecord(params.arguments) ? params.arguments : {};
@@ -253,7 +253,7 @@ async function callTool(rawParams: unknown, operations: StemMcpOperations): Prom
         ...(typeof args.cursor === "string" ? { cursor: args.cursor } : {}),
       }));
     }
-    return toolError(`Unknown Stem tool: ${name || "(missing name)"}`);
+    return toolError(`Unknown Exograph tool: ${name || "(missing name)"}`);
   } catch (cause) {
     return toolError(cause instanceof Error ? cause.message : String(cause));
   }

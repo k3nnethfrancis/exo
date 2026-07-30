@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { WorkspaceSettings } from "@stem/core";
+import type { WorkspaceSettings } from "@exograph/core";
 
 import { activateWorkspaceAfterRecovery } from "./workspace-activation";
 

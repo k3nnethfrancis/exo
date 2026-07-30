@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a reproducible problem in Stem.
+description: Report a reproducible problem in Exograph.
 title: "bug: "
 labels: [bug]
 body:
@@ -23,7 +23,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Stem version or commit
+      label: Exograph version or commit
     validations:
       required: true
   - type: textarea

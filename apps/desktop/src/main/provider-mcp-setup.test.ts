@@ -12,7 +12,7 @@ afterEach(async () => {
 });
 
 async function providerEnvironment(): Promise<NodeJS.ProcessEnv> {
-  const home = await mkdtemp(path.join(os.tmpdir(), "stem-provider-mcp-"));
+  const home = await mkdtemp(path.join(os.tmpdir(), "exograph-provider-mcp-"));
   temporaryRoots.push(home);
   const bin = path.join(home, ".local", "bin");
   await mkdir(bin, { recursive: true });
@@ -23,12 +23,12 @@ async function providerEnvironment(): Promise<NodeJS.ProcessEnv> {
 }
 
 describe("provider MCP handoff", () => {
-  it("uses Claude's user-scoped command for Stem's read-only server", () => {
+  it("uses Claude's user-scoped command for Exograph's read-only server", () => {
     expect(providerMcpCommand("claude", { providers: ["claude"] }))
       .toEqual(["claude", ["mcp", "add", "--scope", "user", "exo", "--", "exo", "mcp", "serve"]]);
   });
 
-  it("uses Codex's stdio command for Stem's read-only server", () => {
+  it("uses Codex's stdio command for Exograph's read-only server", () => {
     expect(providerMcpCommand("codex", { providers: ["codex"] }))
       .toEqual(["codex", ["mcp", "add", "exo", "--", "exo", "mcp", "serve"]]);
   });

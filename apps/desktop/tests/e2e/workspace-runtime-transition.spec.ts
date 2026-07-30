@@ -2,12 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { WorkspaceSettings } from "@stem/core";
+import type { WorkspaceSettings } from "@exograph/core";
 
-import { launchStemWorkspaceFixture } from "../helpers";
+import { launchExographWorkspaceFixture } from "../helpers";
 
 test("keeps command discovery, status, and search scoped across A → B → A", async () => {
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     runtimeRootEnv: false,
@@ -32,14 +32,14 @@ test("keeps command discovery, status, and search scoped across A → B → A", 
     await expect.poll(() => commandServerStatus(path.join(rootB, ".exograph"))).toMatchObject({
       workspace: { workspaceRoot: rootB, noteRoots: [{ path: rootB }] },
     });
-    await expect.poll(() => fixture.page.evaluate(() => window.stem.workspace.searchWorkspace("runtime-b")))
+    await expect.poll(() => fixture.page.evaluate(() => window.exograph.workspace.searchWorkspace("runtime-b")))
       .toMatchObject({ notes: [expect.objectContaining({ title: "runtime-b" })] });
 
     await saveActiveWorkspace(fixture.page, rootA, noteRootA);
     await expect.poll(() => commandServerStatus(path.join(rootA, ".exograph"))).toMatchObject({
       workspace: { workspaceRoot: rootA, noteRoots: [{ path: noteRootA }] },
     });
-    await expect.poll(() => fixture.page.evaluate(() => window.stem.workspace.searchWorkspace("runtime-a")))
+    await expect.poll(() => fixture.page.evaluate(() => window.exograph.workspace.searchWorkspace("runtime-a")))
       .toMatchObject({ notes: [expect.objectContaining({ title: "runtime-a" })] });
   } finally {
     await fixture.cleanup();
@@ -48,8 +48,8 @@ test("keeps command discovery, status, and search scoped across A → B → A", 
 
 async function saveActiveWorkspace(page: Page, workspaceRoot: string, noteRoot: string): Promise<void> {
   const outcome = await page.evaluate(async ({ workspaceRoot, noteRoot }) => {
-    const snapshot = await window.stem.workspace.getSettings();
-    return window.stem.workspace.saveSettings({
+    const snapshot = await window.exograph.workspace.getSettings();
+    return window.exograph.workspace.saveSettings({
       settings: {
         ...snapshot.settings,
         workspaceRoot,
@@ -71,7 +71,7 @@ async function commandServerStatus(runtimeRoot: string): Promise<unknown> {
     token: string;
   };
   const response = await fetch(`http://127.0.0.1:${discovery.port}/status`, {
-    headers: { "x-stem-command-token": discovery.token },
+    headers: { "x-exograph-command-token": discovery.token },
   });
   expect(response.ok).toBe(true);
   return response.json();

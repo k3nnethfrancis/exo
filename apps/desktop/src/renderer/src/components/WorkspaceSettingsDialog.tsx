@@ -1,7 +1,7 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Bot, FolderOpen, Palette, Search, TerminalSquare, X } from "lucide-react";
-import type { AgentCommand, IndexStatus, WorkspaceSettings } from "@stem/core";
-import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@stem/core/workspace-content-policy";
+import type { AgentCommand, IndexStatus, WorkspaceSettings } from "@exograph/core";
+import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@exograph/core/workspace-content-policy";
 
 import type { AppearanceMode } from "../appearance";
 import { THEME_FAMILIES, normalizeColorThemeId } from "../theme/registry";
@@ -163,15 +163,15 @@ export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSecti
   }
 
   if (section === "index") {
-    return "Choose how Stem searches this workspace.";
+    return "Choose how Exograph searches this workspace.";
   }
 
   if (section === "workspace") {
-    return "Choose where Stem reads notes and opens terminals.";
+    return "Choose where Exograph reads notes and opens terminals.";
   }
 
   if (section === "appearance") {
-    return "Adjust how Stem looks and reads.";
+    return "Adjust how Exograph looks and reads.";
   }
   if (section === "terminal") {
     return "Adjust terminal text.";
@@ -491,7 +491,7 @@ export function indexSettingsStatusCopy(
     }
     return {
       tone: "warn",
-      text: `${waitingEmbeddingsCopy(indexStatus.pendingEmbeddings)}. Small changes catch up automatically while Stem is idle; lexical search remains available. Build embeddings runs now.`,
+      text: `${waitingEmbeddingsCopy(indexStatus.pendingEmbeddings)}. Small changes catch up automatically while Exograph is idle; lexical search remains available. Build embeddings runs now.`,
     };
   }
   return null;
@@ -645,7 +645,7 @@ function AgentCommandContinuityRow({ command }: { command: AgentCommand }) {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
-    void window.stem.workspace.getAgentCommandContinuity(command.id)
+    void window.exograph.workspace.getAgentCommandContinuity(command.id)
       .then((status) => {
         if (!active) return;
         setHasContext(status.hasHead);
@@ -666,7 +666,7 @@ function AgentCommandContinuityRow({ command }: { command: AgentCommand }) {
           onClick={() => {
             setBusy(true);
             setError(null);
-            void window.stem.workspace.resetAgentCommandContinuity(command.id)
+            void window.exograph.workspace.resetAgentCommandContinuity(command.id)
               .then(() => setHasContext(false))
               .catch((cause) => setError(cause instanceof Error ? cause.message : String(cause)))
               .finally(() => setBusy(false));

@@ -18,7 +18,7 @@ afterEach(async () => {
 
 describe("direct invocation process", () => {
   it.runIf(process.platform !== "win32")("does not execute the command before its durable launch gate is released", async () => {
-    const root = await temporaryRoot("stem-invocation-process-gate-");
+    const root = await temporaryRoot("exograph-invocation-process-gate-");
     const marker = path.join(root, "executed");
     const invocation = new DirectInvocationProcessFactory().launch({
       command: `${shellQuote(globalThis.process.execPath)} -e ${shellQuote(`require("node:fs").writeFileSync(${JSON.stringify(marker)}, "yes")`)}`,
@@ -91,7 +91,7 @@ describe("direct invocation process", () => {
   });
 
   it.runIf(process.platform !== "win32")("stops the shell and its descendant process group", async () => {
-    const root = await temporaryRoot("stem-invocation-process-tree-");
+    const root = await temporaryRoot("exograph-invocation-process-tree-");
     const childReadyPath = path.join(root, "child-ready");
     const childStoppedPath = path.join(root, "child-stopped");
     const scriptPath = path.join(root, "agent.mjs");
@@ -120,7 +120,7 @@ setInterval(() => {}, 1000);
   });
 
   it.runIf(process.platform !== "win32")("reaps stdio-detached descendants before publishing natural exit", async () => {
-    const root = await temporaryRoot("stem-invocation-process-natural-descendant-");
+    const root = await temporaryRoot("exograph-invocation-process-natural-descendant-");
     const childReadyPath = path.join(root, "child-ready");
     const childStoppedPath = path.join(root, "child-stopped");
     const childScriptPath = path.join(root, "child.mjs");
@@ -189,7 +189,7 @@ const ready = setInterval(() => {
   });
 
   it.runIf(process.platform !== "win32")("escalates when the process group ignores graceful Stop", async () => {
-    const root = await temporaryRoot("stem-invocation-process-escalation-");
+    const root = await temporaryRoot("exograph-invocation-process-escalation-");
     const readyPath = path.join(root, "ready");
     const termPath = path.join(root, "term-seen");
     const scriptPath = path.join(root, "stubborn.mjs");

@@ -1,4 +1,4 @@
 interface:
   display_name: "Graph System Stability"
-  short_description: "Guard Stem graph architecture and performance"
-  default_prompt: "Use $graph-system-stability to change Stem graph models, layout, rendering, or integration safely."
+  short_description: "Guard Exograph graph architecture and performance"
+  default_prompt: "Use $graph-system-stability to change Exograph graph models, layout, rendering, or integration safely."

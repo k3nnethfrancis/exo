@@ -1,5 +1,5 @@
 /** Build the provider-native Claude handoff shown to the user and executed by
- * Stem. Keeping this shared prevents the renderer label and terminal command
+ * Exograph. Keeping this shared prevents the renderer label and terminal command
  * from drifting apart. */
 export function commandForClaudeResume(command: { command: string }, sessionId: string): string {
   const executable = command.command

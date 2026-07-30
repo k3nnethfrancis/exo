@@ -3,11 +3,11 @@ import path from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { launchStemWorkspaceFixture } from "../helpers";
+import { launchExographWorkspaceFixture } from "../helpers";
 
 test("edits durable note properties with clear key validation", async () => {
   const noteName = "metadata-behavior";
-  const { page, workspaceRoot, cleanup } = await launchStemWorkspaceFixture({
+  const { page, workspaceRoot, cleanup } = await launchExographWorkspaceFixture({
     prepareWorkspace: async (root) => {
       await writeFile(
         path.join(root, "notes/test-notes", "filename-fallback.md"),
@@ -16,7 +16,7 @@ test("edits durable note properties with clear key validation", async () => {
       );
       await writeFile(
         path.join(root, "notes/test-notes", `${noteName}.md`),
-        "---\ndate: 2026-07-11\ntags: [stem]\n---\n\n# Heading Alias\n\nBody.\n",
+        "---\ndate: 2026-07-11\ntags: [exograph]\n---\n\n# Heading Alias\n\nBody.\n",
         "utf8",
       );
     },
@@ -25,13 +25,13 @@ test("edits durable note properties with clear key validation", async () => {
   const notePath = path.join(workspaceRoot, "notes/test-notes", `${noteName}.md`);
 
   try {
-    await expect.poll(() => page.evaluate(async (filePath) => (await window.stem.notes.read(filePath)).title, path.join(workspaceRoot, "notes/test-notes", "filename-fallback.md"))).toBe("filename-fallback");
+    await expect.poll(() => page.evaluate(async (filePath) => (await window.exograph.notes.read(filePath)).title, path.join(workspaceRoot, "notes/test-notes", "filename-fallback.md"))).toBe("filename-fallback");
     await page.getByTestId("editor-panel").hover();
     await page.getByTestId("toggle-properties").click();
     await expect(page.getByTestId("properties-panel")).toBeVisible();
     await expect(page.locator("#property-title")).toHaveValue("Heading Alias");
     await expect(page.locator("#property-date")).toHaveValue("2026-07-11");
-    await expect(page.locator("#property-tags")).toHaveValue("stem");
+    await expect(page.locator("#property-tags")).toHaveValue("exograph");
 
     const propertyKey = page.locator("#property-new-key");
     await propertyKey.fill("bad key");
@@ -61,14 +61,14 @@ test("edits durable note properties with clear key validation", async () => {
     await expect(page.locator("#property-title")).toHaveValue("Explicit Alias");
     await expect(page.locator("#property-status")).toHaveValue("draft");
 
-    await expect.poll(() => page.evaluate(async (filePath) => (await window.stem.notes.read(filePath)).title, notePath)).toBe("Explicit Alias");
+    await expect.poll(() => page.evaluate(async (filePath) => (await window.exograph.notes.read(filePath)).title, notePath)).toBe("Explicit Alias");
   } finally {
     await cleanup();
   }
 });
 
 test("keeps the properties control reachable through repeated open and close", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   try {
     const editor = page.getByTestId("editor-panel");
@@ -91,7 +91,7 @@ test("keeps the properties control reachable through repeated open and close", a
 });
 
 test("keeps properties visibility independent across split editor panes", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   try {
     const source = await page.getByRole("button", { name: "related-note" }).first().boundingBox();

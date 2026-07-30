@@ -1,4 +1,4 @@
-import type { FolderIndexResult, FolderOverview, TreeNode } from "@stem/core";
+import type { FolderIndexResult, FolderOverview, TreeNode } from "@exograph/core";
 
 export interface WorkspaceFilesystemApi {
   listTree: (

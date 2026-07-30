@@ -1,7 +1,7 @@
 ontology_schema: 1
-id: stem-repository
+id: exograph-repository
 version: 1
-label: Stem repository
+label: Exograph repository
 
 types:
   product-context:
@@ -46,7 +46,7 @@ types:
       - docs/provider-mcp-onboarding.md
       - docs/search.md
       - docs/troubleshooting.md
-      - docs/using-stem.md
+      - docs/using-exograph.md
       - docs/workspace-ontology.md
 
   decision-record:

@@ -63,7 +63,7 @@ async function executeProviderMcpCommand(
 
 function isExistingMcpRegistration(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return /mcp server\s+(?:exo|stem)\s+already exists|server\s+(?:exo|stem)\s+already exists/i.test(message);
+  return /mcp server\s+(?:exo|exograph)\s+already exists|server\s+(?:exo|exograph)\s+already exists/i.test(message);
 }
 
 function isExecutableMissing(error: unknown): boolean {
@@ -74,12 +74,12 @@ function providerLabel(provider: ProviderMcpTarget): string {
   return provider === "claude" ? "Claude" : "Codex";
 }
 
-export function providerMcpCommand(provider: ProviderMcpTarget, input: ProviderMcpSetupInput, stemCommand = "exo"): [string, string[]] {
+export function providerMcpCommand(provider: ProviderMcpTarget, input: ProviderMcpSetupInput, exographCommand = "exo"): [string, string[]] {
   normalizeInput(input);
   if (provider === "claude") {
-    return ["claude", ["mcp", "add", "--scope", "user", "exo", "--", stemCommand, "mcp", "serve"]];
+    return ["claude", ["mcp", "add", "--scope", "user", "exo", "--", exographCommand, "mcp", "serve"]];
   }
-  return ["codex", ["mcp", "add", "exo", "--", stemCommand, "mcp", "serve"]];
+  return ["codex", ["mcp", "add", "exo", "--", exographCommand, "mcp", "serve"]];
 }
 
 function normalizeInput(input: ProviderMcpSetupInput): { providers: ProviderMcpTarget[] } {
@@ -89,7 +89,7 @@ function normalizeInput(input: ProviderMcpSetupInput): { providers: ProviderMcpT
 }
 
 async function resolveExographCliCommand(env: NodeJS.ProcessEnv = process.env): Promise<string> {
-  const explicit = env.EXO_CLI_PATH?.trim() || env.STEM_CLI_PATH?.trim();
+  const explicit = env.EXOGRAPH_CLI_PATH?.trim();
   if (explicit && await isExecutable(explicit)) return explicit;
   for (const directory of (env.PATH ?? "").split(path.delimiter).filter(Boolean)) {
     const candidate = path.join(directory, "exo");

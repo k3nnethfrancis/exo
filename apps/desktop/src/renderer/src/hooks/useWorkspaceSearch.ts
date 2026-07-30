@@ -1,6 +1,6 @@
 import { startTransition, useEffect, useRef, useState } from "react";
 
-import type { WorkspaceSearchResults } from "@stem/core";
+import type { WorkspaceSearchResults } from "@exograph/core";
 
 export type WorkspaceSearchResultMode = "idle" | "filename" | "index-loading" | "index" | "index-unavailable" | "error";
 
@@ -40,7 +40,7 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean; qmdSelect
       });
     }
 
-    void window.stem.workspace.searchWorkspace(normalizedQuery).then(
+    void window.exograph.workspace.searchWorkspace(normalizedQuery).then(
       (nextResults) => {
         if (runRef.current !== runId) return;
         filenameResultsByQueryRef.current.set(normalizedQuery, nextResults);
@@ -53,7 +53,7 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean; qmdSelect
       },
       (error) => {
         if (runRef.current !== runId) return;
-        console.warn("[stem] workspace search failed", error);
+        console.warn("[exograph] workspace search failed", error);
         startTransition(() => {
           setResults(emptySearchResults);
           setResultMode("error");
@@ -87,7 +87,7 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean; qmdSelect
     setResultQuery(trimmedQuery);
     setMessage(null);
     try {
-      const response = await window.stem.workspace.searchIndex(trimmedQuery, { limit: 30, forceMode: "lexical" });
+      const response = await window.exograph.workspace.searchIndex(trimmedQuery, { limit: 30, forceMode: "lexical" });
       if (runRef.current !== runId) {
         return;
       }
@@ -110,7 +110,7 @@ export function useWorkspaceSearch(options: { indexedOnEnter: boolean; qmdSelect
       if (runRef.current !== runId) {
         return;
       }
-      console.warn("[stem] QMD workspace search failed", error);
+      console.warn("[exograph] QMD workspace search failed", error);
       startTransition(() => {
         setResultMode("error");
         setResultQuery(trimmedQuery);

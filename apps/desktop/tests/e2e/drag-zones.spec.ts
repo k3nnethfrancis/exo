@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { launchStemWorkspaceFixture } from "../helpers";
+import { launchExographWorkspaceFixture } from "../helpers";
 
 test("splits editor panes without creating terminal or preview canvas leaves", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   try {
     const source = await page.getByRole("button", { name: "related-note" }).first().boundingBox();

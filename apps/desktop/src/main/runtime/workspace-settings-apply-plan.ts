@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 
-import type { WorkspaceSettings } from "@stem/core";
+import type { WorkspaceSettings } from "@exograph/core";
 
 export interface WorkspaceSettingsApplyPlan {
   reactivateWorkspace: boolean;

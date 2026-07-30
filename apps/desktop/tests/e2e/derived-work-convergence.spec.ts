@@ -4,21 +4,21 @@ import path from "node:path";
 
 import { expect, test } from "@playwright/test";
 
-import { launchStemTerminalFixture } from "../helpers";
+import { launchExographTerminalFixture } from "../helpers";
 
-const RUN_REAL_MODEL_GATE = process.env.STEM_REAL_EMBEDDING_GATE === "1";
+const RUN_REAL_MODEL_GATE = process.env.EXOGRAPH_REAL_EMBEDDING_GATE === "1";
 
-test.skip(!RUN_REAL_MODEL_GATE, "Set STEM_REAL_EMBEDDING_GATE=1 for the opt-in local-model convergence gate.");
+test.skip(!RUN_REAL_MODEL_GATE, "Set EXOGRAPH_REAL_EMBEDDING_GATE=1 for the opt-in local-model convergence gate.");
 test.setTimeout(240_000);
 
 test("converges automatic embeddings without blocking canonical workspace surfaces", async () => {
-  const fixture = await launchStemTerminalFixture({
+  const fixture = await launchExographTerminalFixture({
     mutable: true,
     initialNoteLabel: "model-convergence",
     env: {
       // Keep CI network-independent. An operator opting into this gate may
       // point at an existing QMD model cache or allow QMD to populate it.
-      XDG_CACHE_HOME: process.env.STEM_REAL_EMBEDDING_CACHE_ROOT ?? path.join(os.homedir(), ".cache"),
+      XDG_CACHE_HOME: process.env.EXOGRAPH_REAL_EMBEDDING_CACHE_ROOT ?? path.join(os.homedir(), ".cache"),
     },
     prepareWorkspace: async (workspaceRoot) => {
       const noteRoot = path.join(workspaceRoot, "notes/model-gate");
@@ -44,7 +44,7 @@ test("converges automatic embeddings without blocking canonical workspace surfac
         indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
         searchEngine: "qmd",
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -58,8 +58,8 @@ test("converges automatic embeddings without blocking canonical workspace surfac
     const focusPath = path.join(fixture.workspaceRoot, "notes/model-gate/model-convergence.md");
     await fixture.page.evaluate((filePath) => {
       const scoped = window as typeof window & {
-        __stemAutoEmbeddingEvents?: Array<{ state: string; reason: string; at: number }>;
-        __stemAutoEmbeddingSurfaces?: Promise<{
+        __exographAutoEmbeddingEvents?: Array<{ state: string; reason: string; at: number }>;
+        __exographAutoEmbeddingSurfaces?: Promise<{
           graphAvailable: boolean;
           searchSource: string;
           searchWarnings: string[];
@@ -67,17 +67,17 @@ test("converges automatic embeddings without blocking canonical workspace surfac
           terminalAvailable: boolean;
         }>;
       };
-      scoped.__stemAutoEmbeddingEvents = [];
-      window.stem.workspace.onIndexSyncState((event) => {
-        scoped.__stemAutoEmbeddingEvents?.push({ state: event.state, reason: event.reason, at: performance.now() });
-        if (event.state !== "running" || event.reason !== "automatic-embedding" || scoped.__stemAutoEmbeddingSurfaces) return;
-        scoped.__stemAutoEmbeddingSurfaces = Promise.all([
-          window.stem.notes.getGraphContext(filePath),
-          window.stem.workspace.searchIndex("convergence sentinel", { limit: 5 }),
-          window.stem.workspace.getIndexStatus(),
-          window.stem.terminals.list().then(async ([terminal]) => {
+      scoped.__exographAutoEmbeddingEvents = [];
+      window.exograph.workspace.onIndexSyncState((event) => {
+        scoped.__exographAutoEmbeddingEvents?.push({ state: event.state, reason: event.reason, at: performance.now() });
+        if (event.state !== "running" || event.reason !== "automatic-embedding" || scoped.__exographAutoEmbeddingSurfaces) return;
+        scoped.__exographAutoEmbeddingSurfaces = Promise.all([
+          window.exograph.notes.getGraphContext(filePath),
+          window.exograph.workspace.searchIndex("convergence sentinel", { limit: 5 }),
+          window.exograph.workspace.getIndexStatus(),
+          window.exograph.terminals.list().then(async ([terminal]) => {
             if (!terminal) return false;
-            await window.stem.terminals.write(terminal.id, "automatic-embedding-terminal-alive\n");
+            await window.exograph.terminals.write(terminal.id, "automatic-embedding-terminal-alive\n");
             return true;
           }),
         ]).then(([graph, search, status, terminalAvailable]) => ({
@@ -95,32 +95,32 @@ test("converges automatic embeddings without blocking canonical workspace surfac
     await fixture.page.getByRole("button", { name: "model-convergence" }).first().click();
     await expect(fixture.page.getByTestId("editor-title")).toHaveText("model-convergence");
 
-    const baseline = await fixture.page.evaluate(() => window.stem.workspace.syncIndex());
+    const baseline = await fixture.page.evaluate(() => window.exograph.workspace.syncIndex());
     console.info(`Real-model baseline sync: ${JSON.stringify(baseline)}`);
     expect(baseline.status).toMatchObject({ hasVectorIndex: true, pendingEmbeddings: 0 });
     expect(baseline.status.errors).toEqual([]);
 
-    await fixture.page.evaluate(({ filePath, body }) => window.stem.notes.save(filePath, {}, body), {
+    await fixture.page.evaluate(({ filePath, body }) => window.exograph.notes.save(filePath, {}, body), {
       filePath: focusPath,
       body: "# Model convergence\n\nConvergence sentinel appears only after the automatic local embedding slice. [[linked]]\n",
     });
 
     const pendingObservedAt = Date.now();
     await expect.poll(
-      () => fixture.page.evaluate(() => window.stem.workspace.getIndexStatus().then((status) => status.pendingEmbeddings)),
+      () => fixture.page.evaluate(() => window.exograph.workspace.getIndexStatus().then((status) => status.pendingEmbeddings)),
       { timeout: 60_000, intervals: [250, 500, 1_000] },
     ).toBeGreaterThan(0);
 
     await fixture.page.waitForFunction(() => {
       const events = (window as typeof window & {
-        __stemAutoEmbeddingEvents?: Array<{ state: string; reason: string }>;
-      }).__stemAutoEmbeddingEvents ?? [];
+        __exographAutoEmbeddingEvents?: Array<{ state: string; reason: string }>;
+      }).__exographAutoEmbeddingEvents ?? [];
       return events.some((event) => event.state === "running" && event.reason === "automatic-embedding");
     }, undefined, { timeout: 90_000, polling: 100 });
 
     const during = await fixture.page.evaluate(() => (
       window as typeof window & {
-        __stemAutoEmbeddingSurfaces?: Promise<{
+        __exographAutoEmbeddingSurfaces?: Promise<{
           graphAvailable: boolean;
           searchSource: string;
           searchWarnings: string[];
@@ -128,30 +128,30 @@ test("converges automatic embeddings without blocking canonical workspace surfac
           terminalAvailable: boolean;
         }>;
       }
-    ).__stemAutoEmbeddingSurfaces);
+    ).__exographAutoEmbeddingSurfaces);
     expect(during).toMatchObject({ graphAvailable: true, searchSource: "filesystem", terminalAvailable: true });
     expect(during?.searchWarnings).toContain("Index maintenance is running; showing Simple search results until it completes.");
     expect(during?.statusWarnings).toContain("Index maintenance is running; showing the last available index status until it finishes.");
     expect(during?.statusWarnings.join(" ")).toContain("waiting for automatic catch-up");
-    expect(during?.statusWarnings.join(" ")).not.toContain("stem index sync");
+    expect(during?.statusWarnings.join(" ")).not.toContain("exograph index sync");
 
     await fixture.page.waitForFunction(() => {
       const events = (window as typeof window & {
-        __stemAutoEmbeddingEvents?: Array<{ state: string; reason: string }>;
-      }).__stemAutoEmbeddingEvents ?? [];
+        __exographAutoEmbeddingEvents?: Array<{ state: string; reason: string }>;
+      }).__exographAutoEmbeddingEvents ?? [];
       return events.some((event) => event.state === "idle" && event.reason === "automatic-embedding");
     }, undefined, { timeout: 60_000, polling: 100 });
 
     await expect.poll(
-      () => fixture.page.evaluate(() => window.stem.workspace.getIndexStatus().then((status) => status.pendingEmbeddings)),
+      () => fixture.page.evaluate(() => window.exograph.workspace.getIndexStatus().then((status) => status.pendingEmbeddings)),
       { timeout: 60_000, intervals: [250, 500, 1_000] },
     ).toBe(0);
-    const converged = await fixture.page.evaluate(() => window.stem.workspace.getIndexStatus());
+    const converged = await fixture.page.evaluate(() => window.exograph.workspace.getIndexStatus());
     const events = await fixture.page.evaluate(() => (
       window as typeof window & {
-        __stemAutoEmbeddingEvents?: Array<{ state: string; reason: string; at: number }>;
+        __exographAutoEmbeddingEvents?: Array<{ state: string; reason: string; at: number }>;
       }
-    ).__stemAutoEmbeddingEvents ?? []);
+    ).__exographAutoEmbeddingEvents ?? []);
     console.info(`Real-model automatic events: ${JSON.stringify(events)}`);
     expect(converged).toMatchObject({ hasVectorIndex: true, pendingEmbeddings: 0, errors: [] });
     expect(converged.recentJobs).toContainEqual(expect.objectContaining({
@@ -160,7 +160,7 @@ test("converges automatic embeddings without blocking canonical workspace surfac
       status: "completed",
       pendingEmbeddings: 0,
     }));
-    const semantic = await fixture.page.evaluate(() => window.stem.workspace.searchIndex(
+    const semantic = await fixture.page.evaluate(() => window.exograph.workspace.searchIndex(
       "convergence sentinel",
       { limit: 5, forceMode: "semantic" },
     ));

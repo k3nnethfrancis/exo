@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { AgentCommandTrustStore, agentCommandExecutableFingerprint, agentCommandSnapshot, createDefaultClaudeAgentCommand, formatDocumentAgentInvocation, formatDocumentAgentResponse, InvocationContinuityStore, InvocationStore, removeDocumentAgentInvocation, type WorkspaceSettings } from "@stem/core";
+import { AgentCommandTrustStore, agentCommandExecutableFingerprint, agentCommandSnapshot, createDefaultClaudeAgentCommand, formatDocumentAgentInvocation, formatDocumentAgentResponse, InvocationContinuityStore, InvocationStore, removeDocumentAgentInvocation, type WorkspaceSettings } from "@exograph/core";
 
 import type { TerminalManager } from "../terminal/terminal-manager";
 import { commandForClaudeResume, commandForHeadlessInvocation, extractClaudeSessionId, InvocationRunner, InvocationRunnerError } from "./invocation-runner";
@@ -21,7 +21,7 @@ afterEach(async () => {
 
 describe("InvocationRunner readiness parity", () => {
   it("rejects an absent @claude command instead of launching an implicit default", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const runner = createRunner({ ...settings(root, createDefaultClaudeAgentCommand()), agentCommands: [] });
 
@@ -31,7 +31,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("keeps a disabled @claude command disabled", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const disabledClaude = { ...createDefaultClaudeAgentCommand(), enabled: false };
     const runner = createRunner(settings(root, disabledClaude));
@@ -42,7 +42,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("keeps historical snapshots readable after removal and rejects the removed handle for new work", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-removed-command-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-removed-command-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "history.md");
     await writeFile(notePath, "# History\n", "utf8");
@@ -97,7 +97,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("uses the same facts and cwd as prepare", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     const runner = createRunner(settings(root, command));
@@ -111,7 +111,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("blocks prepare when the readiness facts block launch", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const command = { ...createDefaultClaudeAgentCommand(), id: "missing", handle: "missing", command: "definitely-not-an-executable", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     const runner = createRunner(settings(root, command));
@@ -126,7 +126,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("rejects fingerprint drift before creating a terminal", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     const terminalManager = new FakeTerminalManager();
@@ -137,7 +137,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("creates a normal visible CLI invocation record after confirmed one-shot authorization", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     const terminalManager = new FakeTerminalManager();
@@ -158,8 +158,8 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("captures immutable A terminal context before a later active settings change", async () => {
-    const rootA = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-a-"));
-    const rootB = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-b-"));
+    const rootA = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-a-"));
+    const rootB = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-b-"));
     temporaryRoots.push(rootA, rootB);
     const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     let activeSettings = settings(rootA, command);
@@ -186,7 +186,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("derives note authorization facts and trust from the exact main-process context", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-authorization-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-authorization-"));
     temporaryRoots.push(root);
     const noteDirectory = path.join(root, "notes");
     const notePath = path.join(noteDirectory, "note.md");
@@ -212,7 +212,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("runs once without persisting Command trust", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-run-once-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-run-once-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -229,7 +229,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("durably records process ownership before releasing the pre-exec gate", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-launch-gate-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-launch-gate-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -250,7 +250,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("revalidates tagged bytes after whole-root capture and preserves a concurrent edit without executing", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-pre-exec-drift-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-pre-exec-drift-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -283,7 +283,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("coalesces structured provider activity into bounded renderer events", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-activity-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-activity-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -291,7 +291,7 @@ describe("InvocationRunner readiness parity", () => {
     await writeFile(notePath, documentBody, "utf8");
     const processFactory = new FakeInvocationProcessFactory();
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
-    const events: import("@stem/core").InvocationActivityEvent[] = [];
+    const events: import("@exograph/core").InvocationActivityEvent[] = [];
     runner.on("activity", (event) => events.push(event));
 
     const result = await startPrepared(runner, invocationRequest(notePath, documentBody));
@@ -313,7 +313,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("persists trust only for the exact always-allowed Command fingerprint", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-always-allow-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-always-allow-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -338,7 +338,7 @@ describe("InvocationRunner readiness parity", () => {
   it.each(["run-once", "always-allow"] as const)(
     "rejects %s after Command drift without launching or persisting trust",
     async (kind) => {
-      const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-fingerprint-drift-"));
+      const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-fingerprint-drift-"));
       temporaryRoots.push(root);
       const notePath = path.join(root, "note.md");
       const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -368,7 +368,7 @@ describe("InvocationRunner readiness parity", () => {
   );
 
   it("rejects an in-place executable replacement before launch", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-executable-drift-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-executable-drift-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const executable = path.join(root, "agent");
@@ -394,7 +394,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("runs inline invocations headlessly and delivers the current note body and frontmatter once", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const command = { ...createDefaultClaudeAgentCommand(), id: "echo", handle: "echo", label: "Echo", command: "/bin/echo", adapter: "generic" as const, continuityPolicy: "fresh" as const };
     const terminalManager = new FakeTerminalManager();
@@ -424,13 +424,13 @@ describe("InvocationRunner readiness parity", () => {
     expect(processFactory.process.prompts).toHaveLength(1);
     expect(processFactory.process.prompts[0]).toContain("This is the current editor content.");
     expect(processFactory.process.prompts[0]).toContain('"project"');
-    expect(processFactory.process.prompts[0]).toContain("Stem document-agent protocol:");
-    expect(processFactory.process.prompts[0]).toContain(`<stem-agent-response invocation="${TEST_PROTOCOL_INVOCATION_ID}" agent="echo">`);
+    expect(processFactory.process.prompts[0]).toContain("Exograph document-agent protocol:");
+    expect(processFactory.process.prompts[0]).toContain(`<exograph-agent-response invocation="${TEST_PROTOCOL_INVOCATION_ID}" agent="echo">`);
   });
 
   it("pins record settlement to the Workspace where the invocation was prepared", async () => {
-    const workspaceA = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-workspace-a-"));
-    const workspaceB = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-workspace-b-"));
+    const workspaceA = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-workspace-a-"));
+    const workspaceB = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-workspace-b-"));
     temporaryRoots.push(workspaceA, workspaceB);
     const notePath = path.join(workspaceA, "note.md");
     const documentBody = protocolNoteBody("# Workspace A\n", "echo", "Update this note.");
@@ -454,7 +454,7 @@ describe("InvocationRunner readiness parity", () => {
       protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID,
       documentBody,
     });
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
     activeSettings = settings(workspaceB, command);
@@ -484,7 +484,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("continues a Claude conversation from the validated Workspace-local head", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-continuity-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-continuity-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
@@ -493,14 +493,14 @@ describe("InvocationRunner readiness parity", () => {
     const processFactory = new FakeInvocationProcessFactory();
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
 
-    const firstUpdated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const firstUpdated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     const firstPrepared = await runner.prepare(invocationRequest(notePath, documentBody));
     await runner.authorizeAndStart(firstPrepared, authorizationFor(firstPrepared));
     processFactory.process.exit(0, JSON.stringify({ session_id: "ce4b9e26-2574-4433-a054-1110cd403792" }));
     const first = await firstUpdated;
     expect(first.continuity).toEqual({ policy: "continuous", outcome: "fresh" });
 
-    const secondUpdated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const secondUpdated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     const secondPrepared = await runner.prepare(invocationRequest(notePath, documentBody));
     await runner.authorizeAndStart(secondPrepared, authorizationFor(secondPrepared));
     expect(processFactory.inputs.at(-1)?.command).toContain("--resume 'ce4b9e26-2574-4433-a054-1110cd403792'");
@@ -511,7 +511,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("falls back fresh once only for the proven pre-turn stale Claude signature", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-stale-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-stale-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
@@ -529,7 +529,7 @@ describe("InvocationRunner readiness parity", () => {
     }, { providerSessionId: staleId, sourceInvocationId: "prior-invocation" });
     const processFactory = new FakeInvocationProcessFactory();
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     const prepared = await runner.prepare(invocationRequest(notePath, documentBody));
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
@@ -545,7 +545,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("does not launch a fresh fallback after Stop wins a stale-resume race", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-stale-stop-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-stale-stop-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
@@ -573,7 +573,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("retains the Note Root lock when fallback prompt delivery and Stop both fail", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-fallback-stop-failure-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-fallback-stop-failure-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
@@ -608,7 +608,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("does not retry or advance the head after an unknown resume failure", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-resume-failure-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-resume-failure-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
@@ -626,7 +626,7 @@ describe("InvocationRunner readiness parity", () => {
     await continuityStore.writeHead(lane, { providerSessionId: staleId, sourceInvocationId: "prior-invocation" });
     const processFactory = new FakeInvocationProcessFactory();
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     const prepared = await runner.prepare(invocationRequest(notePath, documentBody));
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
@@ -644,7 +644,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("rejects concurrent work in one continuity lane and releases the lane after exit", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-busy-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-busy-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
@@ -657,7 +657,7 @@ describe("InvocationRunner readiness parity", () => {
 
     const second = await runner.prepare(invocationRequest(notePath, documentBody));
     await expect(runner.authorizeAndStart(second, authorizationFor(second))).rejects.toMatchObject({ code: "continuity-busy" });
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     processFactory.process.exit(0, JSON.stringify({ session_id: "ce4b9e26-2574-4433-a054-1110cd403792" }));
     await updated;
 
@@ -666,7 +666,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("reports and resets only the current Workspace Command context", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-reset-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-reset-"));
     temporaryRoots.push(root);
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
     const lane = {
@@ -694,7 +694,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("refuses to baseline an editor snapshot that is not the saved document", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     await writeFile(notePath, "# Saved\n", "utf8");
@@ -712,7 +712,7 @@ describe("InvocationRunner readiness parity", () => {
   });
 
   it("executes a configured note command through stdin without creating a terminal", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const promptPath = path.join(root, "received-prompt.txt");
@@ -741,7 +741,7 @@ writeFileSync(${JSON.stringify(notePath)}, ${JSON.stringify(afterBody)});
 
     expect(result.terminal).toBeUndefined();
     expect(terminalManager.created).toBe(0);
-    const completed = await updated as import("@stem/core").InvocationRecord;
+    const completed = await updated as import("@exograph/core").InvocationRecord;
     expect(completed).toMatchObject({ status: "process-exited" });
     expect(completed.changeset?.files).toEqual(expect.arrayContaining([
       expect.objectContaining({ operation: "modified", after: expect.objectContaining({ path: expect.stringMatching(/note\.md$/) }) }),
@@ -751,7 +751,7 @@ writeFileSync(${JSON.stringify(notePath)}, ${JSON.stringify(afterBody)});
   });
 
   it("records a failed headless command instead of implying it completed without changes", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const documentBody = protocolNoteBody("# Before\n", "fails", "Test failure.");
@@ -763,7 +763,7 @@ writeFileSync(${JSON.stringify(notePath)}, ${JSON.stringify(afterBody)});
     };
     const terminalManager = new FakeTerminalManager();
     const runner = createRunner(settings(root, command), terminalManager, new DirectInvocationProcessFactory());
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     await startPrepared(runner, {
       context: "note", handle: command.handle, documentPath: notePath, mentionText: "@fails",
@@ -782,7 +782,7 @@ writeFileSync(${JSON.stringify(notePath)}, ${JSON.stringify(afterBody)});
   });
 
   it("keeps an exact failed-process changeset reviewable", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-failed-review-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-failed-review-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const createdPath = path.join(root, "partial.md");
@@ -794,7 +794,7 @@ writeFileSync(${JSON.stringify(notePath)}, ${JSON.stringify(afterBody)});
       command: `/bin/sh -c 'printf "partial\\n" > "${createdPath}"; exit 17'`,
     };
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), new DirectInvocationProcessFactory());
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     await startPrepared(runner, {
       context: "note", handle: command.handle, documentPath: notePath, mentionText: "@partial",
@@ -818,7 +818,7 @@ writeFileSync(${JSON.stringify(notePath)}, ${JSON.stringify(afterBody)});
   });
 
   it("captures only a real Claude JSON session id and stores it with the reviewed change", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const documentBody = protocolNoteBody("# Before\n", "claude", "Update this.");
@@ -837,7 +837,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     };
     const terminalManager = new FakeTerminalManager();
     const runner = createRunner(settings(root, command), terminalManager, new DirectInvocationProcessFactory());
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     await startPrepared(runner, {
       context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude", message: "Update this.", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody,
     });
@@ -875,7 +875,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("reports structured Claude permission denials as failures instead of successful no-change runs", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const documentBody = protocolNoteBody("# Before\n", "claude", "Update this.");
@@ -886,7 +886,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     // on CI and on machines without Claude installed.
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath };
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     await startPrepared(runner, {
       context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude",
@@ -901,20 +901,20 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("fails a protocol invocation when the command prints a response but never writes it into the note", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const documentBody = protocolNoteBody("# Before\n", "claude", "What do you think?");
     await writeFile(notePath, documentBody, "utf8");
     const processFactory = new FakeInvocationProcessFactory();
     const runner = createRunner(settings(root, { ...createDefaultClaudeAgentCommand(), command: process.execPath }), new FakeTerminalManager(), processFactory);
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     await startPrepared(runner, {
       context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude",
       message: "What do you think?", protocolInvocationId: TEST_PROTOCOL_INVOCATION_ID, documentBody,
     });
-    processFactory.process.exit(0, `<stem-agent-response invocation="${TEST_PROTOCOL_INVOCATION_ID}" agent="claude">Chat only</stem-agent-response>`);
+    processFactory.process.exit(0, `<exograph-agent-response invocation="${TEST_PROTOCOL_INVOCATION_ID}" agent="claude">Chat only</exograph-agent-response>`);
 
     await expect(updated).resolves.toMatchObject({
       status: "failed",
@@ -924,7 +924,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("does not accept a matching response from another file or a detached response in the invoked note", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-runner-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-runner-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const decoyPath = path.join(root, "decoy.md");
@@ -937,7 +937,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     }), "utf8");
     const processFactory = new FakeInvocationProcessFactory();
     const runner = createRunner(settings(root, { ...createDefaultClaudeAgentCommand(), command: process.execPath }), new FakeTerminalManager(), processFactory);
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     await startPrepared(runner, {
       context: "note", handle: "claude", documentPath: notePath, mentionText: "@claude",
@@ -957,7 +957,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("serializes overlapping Note Roots until the prior changeset is reviewed, then releases them", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-root-lock-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-root-lock-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -973,7 +973,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
 
     const cleanBase = removeDocumentAgentInvocation(documentBody, TEST_PROTOCOL_INVOCATION_ID, command.handle)!;
     await writeFile(notePath, withProtocolResponse(documentBody, command.handle, "Updated."));
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     processFactory.process.exit(0, "done");
     const completed = await updated;
 
@@ -992,7 +992,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("keeps a conflicted review listed and blocks its Note Root until Keep-current resolves it", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-conflict-lock-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-conflict-lock-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -1004,7 +1004,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const overlapping = await runner.prepare(invocationRequest(notePath, body));
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
     await writeFile(notePath, withProtocolResponse(body, command.handle, "Updated."));
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     processFactory.process.exit(0, "done");
     const completed = await updated;
     const changedNote = completed.changeset!.files.find((change) => change.operation === "modified")!;
@@ -1023,7 +1023,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("reports pending review and maps a fully resolved mixed decision to kept history", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-history-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-history-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const createdPath = path.join(root, "created.md");
@@ -1036,7 +1036,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
     await writeFile(notePath, withProtocolResponse(body, command.handle, "History response."));
     await writeFile(createdPath, "created\n");
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     processFactory.process.exit(0, "done");
     let completed = await updated;
     await expect(runner.listPendingReviews()).resolves.toEqual([
@@ -1135,7 +1135,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("stops every headless process once and settles active runs before returning", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-stop-all-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-stop-all-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -1153,7 +1153,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("memoizes concurrent settlement and publishes one durable terminal record", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-settlement-memo-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-settlement-memo-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -1163,7 +1163,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const runner = createRunner(settings(root, command), new FakeTerminalManager(), processFactory);
     const prepared = await runner.prepare(invocationRequest(notePath, body));
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
-    const updates: import("@stem/core").InvocationRecord[] = [];
+    const updates: import("@exograph/core").InvocationRecord[] = [];
     runner.on("updated", (record) => updates.push(record));
 
     const [first, second] = await Promise.all([
@@ -1178,7 +1178,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("does not settle or unlock an invocation whose process Stop fails", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-stop-failure-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-stop-failure-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -1200,7 +1200,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("recovers an orphaned settlement failure with launch artifacts into an exact changeset", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-orphan-recovery-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-orphan-recovery-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const extraPath = path.join(root, "created.md");
@@ -1210,7 +1210,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const original = createRunner(settings(root, command));
     const prepared = await original.prepare(invocationRequest(notePath, body));
     await original.authorizeAndStart(prepared, authorizationFor(prepared));
-    await writeFile(extraPath, "created while Stem was gone\n");
+    await writeFile(extraPath, "created while Exograph was gone\n");
     const store = new InvocationStore(root);
     const running = await store.readRecord(prepared.id);
     await store.writeRecord({
@@ -1230,7 +1230,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("persists an unresolved orphan and keeps overlapping roots blocked when process ownership is missing", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-missing-ownership-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-missing-ownership-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -1253,7 +1253,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("isolates malformed recovery artifacts, persists the failure, and returns control to startup", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-malformed-recovery-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-malformed-recovery-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -1273,7 +1273,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("enumerates a missing record, proves its owned process absent, and keeps the Note Root blocked", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-missing-record-recovery-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-missing-record-recovery-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -1294,7 +1294,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("enumerates a semantically invalid record and keeps its Note Root blocked", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-invalid-record-recovery-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-invalid-record-recovery-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -1315,8 +1315,8 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("does not recover or settle an active invocation twice across an A to B to A switch", async () => {
-    const workspaceA = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-active-switch-a-"));
-    const workspaceB = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-active-switch-b-"));
+    const workspaceA = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-active-switch-a-"));
+    const workspaceB = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-active-switch-b-"));
     temporaryRoots.push(workspaceA, workspaceB);
     const notePath = path.join(workspaceA, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -1343,9 +1343,9 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
 
     expect(processFactory.process.stopCalls).toBe(0);
     expect(processFactory.process.releaseCalls).toBe(1);
-    const updates: import("@stem/core").InvocationRecord[] = [];
+    const updates: import("@exograph/core").InvocationRecord[] = [];
     runner.on("updated", (record) => updates.push(record));
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     await writeFile(notePath, withProtocolResponse(body, command.handle, "Finished after returning to Workspace A."));
     processFactory.process.exit(0, "done");
     const completed = await updated;
@@ -1356,7 +1356,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("resets the settlement quiet window when a late watcher event arrives", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-quiet-window-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-quiet-window-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const command = { ...createDefaultClaudeAgentCommand(), command: process.execPath, continuityPolicy: "fresh" as const };
@@ -1376,7 +1376,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     const prepared = await runner.prepare(invocationRequest(notePath, body));
     await runner.authorizeAndStart(prepared, authorizationFor(prepared));
     const startedAt = Date.now();
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
     processFactory.process.exit(0, "done");
     await new Promise((resolve) => setTimeout(resolve, 30));
     await writeFile(notePath, withProtocolResponse(body, command.handle, "Late response."));
@@ -1388,7 +1388,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
   });
 
   it("keeps settlement reviewable and reports artifact cleanup failure after the exact record is durable", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-compaction-error-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-compaction-error-"));
     temporaryRoots.push(root);
     const notePath = path.join(root, "note.md");
     const unrelatedPath = path.join(root, "unrelated.md");
@@ -1405,7 +1405,7 @@ process.stdout.write(${JSON.stringify(`${JSON.stringify({ session_id: sessionId 
     await mkdir(path.join(invocationDir, "files", "objects", "stale-directory"));
     const compactionError = new Promise<{ invocationId: string; error: unknown }>((resolve) =>
       runner.once("artifact-compaction-error", resolve));
-    const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+    const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
 
     processFactory.process.exit(0, "done");
 
@@ -1487,7 +1487,7 @@ async function startPrepared(
 }
 
 async function multiFileReviewFixture() {
-  const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-concurrent-review-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-concurrent-review-"));
   temporaryRoots.push(root);
   const notePath = path.join(root, "note.md");
   const createdPath = path.join(root, "created.md");
@@ -1500,7 +1500,7 @@ async function multiFileReviewFixture() {
   await runner.authorizeAndStart(prepared, authorizationFor(prepared));
   await writeFile(notePath, withProtocolResponse(body, command.handle, "Bulk-safe response."));
   await writeFile(createdPath, "created\n");
-  const updated = new Promise<import("@stem/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
+  const updated = new Promise<import("@exograph/core").InvocationRecord>((resolve) => runner.once("updated", resolve));
   processFactory.process.exit(0, "done");
   const completed = await updated;
   return { root, notePath, createdPath, runner, completed };
@@ -1642,7 +1642,7 @@ function settings(workspaceRoot: string, command: ReturnType<typeof createDefaul
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     agentCommands: [command],
     appearanceMode: "system",
-    colorThemeId: "stem-neutral",
+    colorThemeId: "exograph-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,

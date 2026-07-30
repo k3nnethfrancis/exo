@@ -1,10 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 
-import type { AgentCommand, InvocationSkillContext, NoteDocument, WorkspaceGraphContext } from "@stem/core";
+import type { AgentCommand, InvocationSkillContext, NoteDocument, WorkspaceGraphContext } from "@exograph/core";
 import type { InvocationFileReviewPayload } from "../../../shared/api";
 import type { InvocationReviewQueueProjection } from "./invocation";
 import type { DragManager } from "../hooks/useDragManager";
-import type { StemThemeVariant } from "../theme/types";
+import type { ExographThemeVariant } from "../theme/types";
 
 import { ChromeTab } from "./Chrome";
 import { getDocumentDisplayTitle } from "./documentDisplay";
@@ -64,7 +64,7 @@ interface EditorPaneProps {
   editingFrozen: boolean;
   historyAvailable: boolean;
   onOpenHistory: () => void;
-  theme: StemThemeVariant;
+  theme: ExographThemeVariant;
   fontSize: number;
   onZoomEditor: (direction: -1 | 0 | 1) => void;
   compact: boolean;

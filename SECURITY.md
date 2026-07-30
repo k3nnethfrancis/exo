@@ -1,6 +1,6 @@
 # Security
 
-Stem is local-first desktop software. It reads and writes files only within the
+Exograph is local-first desktop software. It reads and writes files only within the
 Note Roots a user authorizes, and it can launch explicitly configured local
 commands. Treat it as a trusted local tool, not as a sandbox.
 

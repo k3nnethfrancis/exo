@@ -4,7 +4,7 @@ import type {
   IndexSyncResult,
   SearchResult,
   WorkspaceSearchResults,
-} from "@stem/core";
+} from "@exograph/core";
 
 export interface IndexSyncStateEvent {
   state: "running" | "idle" | "error";

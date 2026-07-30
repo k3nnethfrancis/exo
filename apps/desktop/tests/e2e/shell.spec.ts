@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 import { test, expect } from "@playwright/test";
 
 import {
-  launchStemTerminalFixture,
-  launchStemWorkspaceFixture,
+  launchExographTerminalFixture,
+  launchExographWorkspaceFixture,
 } from "../helpers";
 import {
   latencySummary,
@@ -52,7 +52,7 @@ async function cycleAppearanceTo(page: import("@playwright/test").Page, targetMo
 
 async function pageShellSession(page: import("@playwright/test").Page) {
   const shell = await page.evaluate(async () => {
-    const sessions = await window.stem.terminals.list();
+    const sessions = await window.exograph.terminals.list();
     return sessions.find((session) => session.kind === "shell") ?? null;
   });
   if (!shell) {
@@ -98,12 +98,12 @@ async function selectFocusedGraphNode(
   expect(box).not.toBeNull();
   await canvas.click({ position: { x: projected.x, y: projected.y } });
   await expect.poll(async () => canvas.evaluate((element) => {
-    return (element as HTMLCanvasElement & { __stemGraphSnapshot?: () => { selected: number } }).__stemGraphSnapshot?.().selected ?? -1;
+    return (element as HTMLCanvasElement & { __exographGraphSnapshot?: () => { selected: number } }).__exographGraphSnapshot?.().selected ?? -1;
   })).toBe(projected.index);
   await expect.poll(async () => canvas.evaluate((element) => {
     return (element as HTMLCanvasElement & {
-      __stemGraphSnapshot?: () => { inspectedFilePath: string | null };
-    }).__stemGraphSnapshot?.().inspectedFilePath ?? null;
+      __exographGraphSnapshot?: () => { inspectedFilePath: string | null };
+    }).__exographGraphSnapshot?.().inspectedFilePath ?? null;
   })).toBe(filePath);
   await expect(detailTitle).toHaveText(expectedTitle);
   return { x: box!.x + projected.x, y: box!.y + projected.y, localX: projected.x, localY: projected.y, index: projected.index };
@@ -112,29 +112,29 @@ async function selectFocusedGraphNode(
 async function projectedGraphNode(canvas: import("@playwright/test").Locator, filePath: string) {
   await expect.poll(async () => canvas.evaluate((element) => {
     return (element as HTMLCanvasElement & {
-      __stemGraphSnapshot?: () => { pendingWork: number; moving: boolean };
-    }).__stemGraphSnapshot?.();
+      __exographGraphSnapshot?: () => { pendingWork: number; moving: boolean };
+    }).__exographGraphSnapshot?.();
   })).toMatchObject({ pendingWork: 0, moving: false });
   const projected = await canvas.evaluate(async (element, targetPath) => {
     const graphCanvas = element as HTMLCanvasElement & {
-      __stemGraphSnapshot?: () => { sourceSnapshotId: string | null } | null;
-      __stemGraphPointForIndex?: (index: number) => { x: number; y: number; visible: boolean } | null;
-      __stemGraphPickAt?: (x: number, y: number) => number;
+      __exographGraphSnapshot?: () => { sourceSnapshotId: string | null } | null;
+      __exographGraphPointForIndex?: (index: number) => { x: number; y: number; visible: boolean } | null;
+      __exographGraphPickAt?: (x: number, y: number) => number;
     };
-    const sourceSnapshotId = graphCanvas.__stemGraphSnapshot?.()?.sourceSnapshotId;
+    const sourceSnapshotId = graphCanvas.__exographGraphSnapshot?.()?.sourceSnapshotId;
     if (!sourceSnapshotId) return null;
-    const lookup = await window.stem.notes.graphConceptLookup(
+    const lookup = await window.exograph.notes.graphConceptLookup(
       { filePath: targetPath },
       sourceSnapshotId,
       "generic-markdown",
     );
     if (lookup.status !== "ok" || !lookup.summary) return null;
-    const point = graphCanvas.__stemGraphPointForIndex?.(lookup.summary.index) ?? null;
+    const point = graphCanvas.__exographGraphPointForIndex?.(lookup.summary.index) ?? null;
     if (!point) return null;
     return {
       ...point,
       index: lookup.summary.index,
-      picked: graphCanvas.__stemGraphPickAt?.(point.x, point.y) ?? -1,
+      picked: graphCanvas.__exographGraphPickAt?.(point.x, point.y) ?? -1,
     };
   }, filePath);
   expect(projected, `Expected a projected point for ${filePath}`).not.toBeNull();
@@ -152,7 +152,7 @@ function runGit(cwd: string, args: string[]) {
 test.describe.configure({ mode: "parallel" });
 
 test("preserves unknown Workspace settings during startup", async () => {
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     configured: false,
     expectOnboarding: false,
     initialNoteLabel: null,
@@ -166,7 +166,7 @@ test("preserves unknown Workspace settings during startup", async () => {
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         appearanceMode: "dark",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -187,7 +187,7 @@ test("preserves unknown Workspace settings during startup", async () => {
 });
 
 test("boots the shell, opens notes, and creates terminals on demand", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({ mutable: true });
+  const { page, cleanup } = await launchExographWorkspaceFixture({ mutable: true });
 
   await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
   await expect(page.getByTestId("editor-panel")).toContainText("Linked references:");
@@ -207,7 +207,7 @@ test("boots the shell, opens notes, and creates terminals on demand", async () =
   await expect(page.locator('[data-testid="launch-claude"]')).toHaveCount(0);
   await expect(page.locator('[data-testid="launch-codex"]')).toHaveCount(0);
   await expect.poll(async () =>
-    page.evaluate(async () => (await window.stem.terminals.list()).map((session) => session.kind)),
+    page.evaluate(async () => (await window.exograph.terminals.list()).map((session) => session.kind)),
   ).toEqual(["shell"]);
 
   await page.getByTestId("utility-pane-connections").click();
@@ -233,7 +233,7 @@ test("boots the shell, opens notes, and creates terminals on demand", async () =
 });
 
 test("keeps editor, full graph, and backlink-only Connections on one navigation contract", async () => {
-  const { page, workspaceRoot, cleanup } = await launchStemWorkspaceFixture({
+  const { page, workspaceRoot, cleanup } = await launchExographWorkspaceFixture({
     mutable: true,
     initialNoteLabel: "graph-target",
     prepareWorkspace: async (workspaceRoot) => {
@@ -254,12 +254,12 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     await expect(graphPane).toBeVisible();
     await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
-      return (canvas as HTMLCanvasElement & { __stemGraphSnapshot?: () => unknown }).__stemGraphSnapshot?.();
+      return (canvas as HTMLCanvasElement & { __exographGraphSnapshot?: () => unknown }).__exographGraphSnapshot?.();
     })).toMatchObject({ pendingWork: 0, pendingFrame: false, moving: false });
 
     const beforeFallback = await graphCanvas.evaluate((canvas) => {
       const debug = canvas as HTMLCanvasElement & {
-        __stemGraphSnapshot?: () => {
+        __exographGraphSnapshot?: () => {
           selected: number;
           pathTarget: number;
           sourceSnapshotId: string | null;
@@ -268,7 +268,7 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
           rendererRecoveryState: string;
         };
       };
-      return debug.__stemGraphSnapshot?.() ?? null;
+      return debug.__exographGraphSnapshot?.() ?? null;
     });
     expect(beforeFallback).not.toBeNull();
 
@@ -313,11 +313,11 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     expect(sourceAfterPan.y).toBeGreaterThan(sourceAfterZoom.y + 16);
 
     await graphCanvas.evaluate(async (canvas) => {
-      const debug = canvas as HTMLCanvasElement & { __stemGraphForceCanvasFallback?: () => Promise<void> };
-      await debug.__stemGraphForceCanvasFallback?.();
+      const debug = canvas as HTMLCanvasElement & { __exographGraphForceCanvasFallback?: () => Promise<void> };
+      await debug.__exographGraphForceCanvasFallback?.();
     });
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
-      return (canvas as HTMLCanvasElement & { __stemGraphSnapshot?: () => unknown }).__stemGraphSnapshot?.();
+      return (canvas as HTMLCanvasElement & { __exographGraphSnapshot?: () => unknown }).__exographGraphSnapshot?.();
     })).toMatchObject({
       rendererKind: "canvas2d",
       rendererTransitionReason: "recovery-fallback",
@@ -333,10 +333,10 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     await expect.poll(async () => Number.parseInt((await graphPane.locator(".spatial-graph__count").textContent()) ?? "0", 10))
       .toBeGreaterThan(initialNodeCount);
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
-      return (canvas as HTMLCanvasElement & { __stemGraphSnapshot?: () => unknown }).__stemGraphSnapshot?.();
+      return (canvas as HTMLCanvasElement & { __exographGraphSnapshot?: () => unknown }).__exographGraphSnapshot?.();
     })).toMatchObject({ pendingWork: 0, pendingFrame: false, moving: false });
     expect(await graphCanvas.evaluate((canvas) => {
-      return (canvas as HTMLCanvasElement & { __stemGraphSnapshot?: () => { metadataCacheEntries: number } }).__stemGraphSnapshot?.().metadataCacheEntries ?? 0;
+      return (canvas as HTMLCanvasElement & { __exographGraphSnapshot?: () => { metadataCacheEntries: number } }).__exographGraphSnapshot?.().metadataCacheEntries ?? 0;
     })).toBeLessThanOrEqual(192);
 
     await page.getByTestId("sidebar").getByRole("button", { name: "graph-source" }).click();
@@ -365,12 +365,12 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     await page.mouse.click(focusPoint.x, focusPoint.y);
     await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Target");
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
-      return (canvas as HTMLCanvasElement & { __stemGraphSnapshot?: () => { moving: boolean; pendingFrame: boolean } }).__stemGraphSnapshot?.();
+      return (canvas as HTMLCanvasElement & { __exographGraphSnapshot?: () => { moving: boolean; pendingFrame: boolean } }).__exographGraphSnapshot?.();
     })).toMatchObject({ moving: false, pendingFrame: false });
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
       return (canvas as HTMLCanvasElement & {
-        __stemGraphSnapshot?: () => { graphReturnPath: string | null; inspectedFilePath: string | null };
-      }).__stemGraphSnapshot?.();
+        __exographGraphSnapshot?: () => { graphReturnPath: string | null; inspectedFilePath: string | null };
+      }).__exographGraphSnapshot?.();
     })).toMatchObject({
       graphReturnPath: path.join(workspaceRoot, "notes/test-notes/graph-source.md"),
       inspectedFilePath: path.join(workspaceRoot, "notes/test-notes/graph-target.md"),
@@ -379,8 +379,8 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     await page.keyboard.press("Escape");
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
       return (canvas as HTMLCanvasElement & {
-        __stemGraphSnapshot?: () => { inspectedFilePath: string | null; moving: boolean };
-      }).__stemGraphSnapshot?.();
+        __exographGraphSnapshot?: () => { inspectedFilePath: string | null; moving: boolean };
+      }).__exographGraphSnapshot?.();
     })).toMatchObject({
       inspectedFilePath: path.join(workspaceRoot, "notes/test-notes/graph-source.md"),
       moving: false,
@@ -395,7 +395,7 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
       path.join(workspaceRoot, "notes/test-notes/graph-target.md"),
     );
     expect(await graphCanvas.evaluate((canvas) => {
-      return (canvas as HTMLCanvasElement & { __stemGraphSnapshot?: () => { selected: number } }).__stemGraphSnapshot?.().selected ?? -1;
+      return (canvas as HTMLCanvasElement & { __exographGraphSnapshot?: () => { selected: number } }).__exographGraphSnapshot?.().selected ?? -1;
     })).toBe(sourceRoutePoint.index);
     expect(targetRoutePoint.picked).toBe(targetRoutePoint.index);
     await graphCanvas.click({ position: targetRoutePoint, modifiers: ["Shift"] });
@@ -452,8 +452,8 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Graph Unopened");
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
       return (canvas as HTMLCanvasElement & {
-        __stemGraphSnapshot?: () => { selected: number; inspectedFilePath: string | null };
-      }).__stemGraphSnapshot?.();
+        __exographGraphSnapshot?: () => { selected: number; inspectedFilePath: string | null };
+      }).__exographGraphSnapshot?.();
     })).toMatchObject({
       selected: unopenedPoint.index,
       inspectedFilePath: path.join(workspaceRoot, "notes/test-notes/graph-unopened.md"),
@@ -501,7 +501,7 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
 });
 
 test("preserves Graph Target detail when Connections opens the full Graph", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({
+  const { page, cleanup } = await launchExographWorkspaceFixture({
     mutable: true,
     initialNoteLabel: "graph-target",
     prepareWorkspace: async (workspaceRoot) => {
@@ -528,7 +528,7 @@ test("preserves Graph Target detail when Connections opens the full Graph", asyn
 });
 
 test("recovers graph Canvas initialization without taking down the workspace", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({ initialNoteLabel: "focus-note" });
+  const { page, cleanup } = await launchExographWorkspaceFixture({ initialNoteLabel: "focus-note" });
   try {
     await page.evaluate(() => {
       const prototype = HTMLCanvasElement.prototype as HTMLCanvasElement["getContext"] extends never
@@ -556,7 +556,7 @@ test("recovers graph Canvas initialization without taking down the workspace", a
     await expect(graphCanvas).toBeVisible();
     await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Focus Note");
     await expect.poll(async () => graphCanvas.evaluate((canvas) => {
-      return (canvas as HTMLCanvasElement & { __stemGraphSnapshot?: () => unknown }).__stemGraphSnapshot?.();
+      return (canvas as HTMLCanvasElement & { __exographGraphSnapshot?: () => unknown }).__exographGraphSnapshot?.();
     })).toMatchObject({ pendingWork: 0, pendingFrame: false, moving: false });
   } finally {
     await cleanup();
@@ -564,7 +564,7 @@ test("recovers graph Canvas initialization without taking down the workspace", a
 });
 
 test("shows a visible BrowserWindow on startup", async () => {
-  const { electronApp, page, cleanup } = await launchStemWorkspaceFixture();
+  const { electronApp, page, cleanup } = await launchExographWorkspaceFixture();
 
   const openWindows = await electronApp.evaluate(({ BrowserWindow }) =>
     BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed()).length,
@@ -578,7 +578,7 @@ test("shows a visible BrowserWindow on startup", async () => {
 });
 
 test("starts with an empty editor when no saved layout chooses a note", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({ initialNoteLabel: null });
+  const { page, cleanup } = await launchExographWorkspaceFixture({ initialNoteLabel: null });
 
   try {
     await expect(page.getByTestId("editor-empty")).toContainText("Open a note from the left sidebar to begin.");
@@ -589,13 +589,13 @@ test("starts with an empty editor when no saved layout chooses a note", async ()
 });
 
 test("restores a note chosen by the saved layout", async () => {
-  const { page, workspaceRoot, cleanup } = await launchStemWorkspaceFixture({ initialNoteLabel: null });
+  const { page, workspaceRoot, cleanup } = await launchExographWorkspaceFixture({ initialNoteLabel: null });
 
   try {
     const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
     const savedLayout = await page.evaluate(async (filePath) => {
-      const snapshot = await window.stem.workspace.getSettings();
-      const saved = await window.stem.workspace.saveSettings({
+      const snapshot = await window.exograph.workspace.getSettings();
+      const saved = await window.exograph.workspace.saveSettings({
         settings: {
           ...snapshot.settings,
           layout: {
@@ -612,7 +612,7 @@ test("restores a note chosen by the saved layout", async () => {
     }, notePath);
     expect(savedLayout).not.toBeNull();
     await page.reload();
-    await expect.poll(() => page.evaluate(async () => (await window.stem.workspace.getSettings()).settings.layout ?? null)).not.toBeNull();
+    await expect.poll(() => page.evaluate(async () => (await window.exograph.workspace.getSettings()).settings.layout ?? null)).not.toBeNull();
     await expect(page.getByTestId("editor-title")).toHaveText("focus-note");
   } finally {
     await cleanup();
@@ -620,7 +620,7 @@ test("restores a note chosen by the saved layout", async () => {
 });
 
 test("opens a browser preview in the utility destination", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   await page.getByTestId("utility-pane-toggle").click();
   await page.getByTestId("utility-pane-preview").click();
@@ -638,7 +638,7 @@ test("opens a browser preview in the utility destination", async () => {
 });
 
 test("creates, renames, and deletes notes from the explorer", async () => {
-  const { page, workspaceRoot, cleanup } = await launchStemWorkspaceFixture({
+  const { page, workspaceRoot, cleanup } = await launchExographWorkspaceFixture({
     prepareWorkspace: async (root) => {
       await mkdir(path.join(root, "notes/test-notes/mutation-dir"), { recursive: true });
       await writeFile(path.join(root, "notes/test-notes/mutation-dir/existing.md"), "# Existing\n", "utf8");
@@ -658,7 +658,7 @@ test("creates, renames, and deletes notes from the explorer", async () => {
   await page.getByTestId("workspace-dialog-confirm").click();
   await expect(page.getByTestId("editor-title")).toHaveText("mutation-qa");
   await expect.poll(async () => readFile(createdPath, "utf8")).toMatch(initialMarkdownNotePattern);
-  await expect(page.locator(".stem-md-line--h1")).toContainText("# mutation-qa");
+  await expect(page.locator(".exograph-md-line--h1")).toContainText("# mutation-qa");
   await expect
     .poll(() =>
       page.evaluate(() => {
@@ -690,7 +690,7 @@ test("creates, renames, and deletes notes from the explorer", async () => {
 });
 
 test("handles global save and daily-note keybindings", async () => {
-  const { page, workspaceRoot, cleanup } = await launchStemWorkspaceFixture({ mutable: true });
+  const { page, workspaceRoot, cleanup } = await launchExographWorkspaceFixture({ mutable: true });
   const modifier = process.platform === "darwin" ? "Meta" : "Control";
   const focusNotePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
   const now = new Date();
@@ -727,7 +727,7 @@ test("handles global save and daily-note keybindings", async () => {
 });
 
 test("preserves selection when opening and revisiting an existing H1-only note", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({
+  const { page, cleanup } = await launchExographWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
@@ -758,7 +758,7 @@ test("preserves selection when opening and revisiting an existing H1-only note",
 });
 
 test("reopens today's Note beside a terminal after closing the sole editor", async () => {
-  const { page, workspaceRoot, cleanup } = await launchStemTerminalFixture({ mutable: true });
+  const { page, workspaceRoot, cleanup } = await launchExographTerminalFixture({ mutable: true });
   const now = new Date();
   const dailyName = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const dailyPath = path.join(workspaceRoot, "notes/test-notes", `${dailyName}.md`);
@@ -803,7 +803,7 @@ test("suppresses generated daily-note titles but preserves explicit H1s", async 
   const generatedDailyName = "2026-06-14";
   const explicitDailyName = "2026-06-15";
   const explicitNormalName = "explicit-heading";
-  const { page, cleanup } = await launchStemWorkspaceFixture({
+  const { page, cleanup } = await launchExographWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const noteRoot = path.join(workspaceRoot, "notes/test-notes");
       await writeFile(path.join(noteRoot, `${generatedDailyName}.md`), `# ${generatedDailyName}\n\nToday has notes.\n`);
@@ -817,7 +817,7 @@ test("suppresses generated daily-note titles but preserves explicit H1s", async 
 
   await sidebar.getByRole("button", { name: generatedDailyName }).click();
   await expect(page.getByTestId("editor-title")).toHaveText(generatedDailyName);
-  await expect(page.locator(".stem-md-line--h1", { hasText: generatedDailyName })).toHaveCount(0);
+  await expect(page.locator(".exograph-md-line--h1", { hasText: generatedDailyName })).toHaveCount(0);
   await expect(page.getByTestId("editor-panel")).toContainText("Today has notes.");
   await expect(page.getByTestId("toggle-markdown-mode")).toBeVisible();
   await expect(page.getByTestId("editor-save")).toBeVisible();
@@ -827,25 +827,25 @@ test("suppresses generated daily-note titles but preserves explicit H1s", async 
   await expect(page.getByTestId("properties-panel")).toBeVisible();
 
   await sidebar.getByRole("button", { name: explicitDailyName }).click();
-  await expect(page.locator(".stem-md-line--h1", { hasText: "Daily Review" })).toBeVisible();
+  await expect(page.locator(".exograph-md-line--h1", { hasText: "Daily Review" })).toBeVisible();
 
   await sidebar.getByRole("button", { name: explicitNormalName }).click();
-  await expect(page.locator(".stem-md-line--h1", { hasText: "Explicit Heading" })).toBeVisible();
+  await expect(page.locator(".exograph-md-line--h1", { hasText: "Explicit Heading" })).toBeVisible();
 
   await cleanup();
 });
 
 test("shows terminals created outside renderer controls", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/sh",
-      STEM_SHELL_ARGS: "-lc,pwd; cat",
+      EXOGRAPH_SHELL: "/bin/sh",
+      EXOGRAPH_SHELL_ARGS: "-lc,pwd; cat",
     },
   });
 
   const initialTabs = await page.getByTestId("terminal-tab-shell").count();
   await page.evaluate(async () => {
-    await window.stem.terminals.create({ kind: "shell" });
+    await window.exograph.terminals.create({ kind: "shell" });
   });
 
   await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(initialTabs + 1);
@@ -855,7 +855,7 @@ test("shows terminals created outside renderer controls", async () => {
 });
 
 test("matches system appearance by default and supports light mode override", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
   const systemTheme = await page.evaluate(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
   );
@@ -875,31 +875,31 @@ test("matches system appearance by default and supports light mode override", as
 });
 
 test("accepts terminal keyboard input", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/cat",
-      STEM_SHELL_ARGS: "",
+      EXOGRAPH_SHELL: "/bin/cat",
+      EXOGRAPH_SHELL_ARGS: "",
     },
   });
 
 
   await page.getByTestId("terminal-surface").click();
-  await page.keyboard.type("hello stem");
-  await expect(page.getByTestId("terminal-surface")).toContainText("hello stem");
+  await page.keyboard.type("hello exograph");
+  await expect(page.getByTestId("terminal-surface")).toContainText("hello exograph");
 
   await page.getByTestId("editor-panel").click();
   await page.getByTestId("terminal-surface").click();
   await page.keyboard.type("after editor");
-  await expect(page.getByTestId("terminal-surface")).toContainText("hello stemafter editor");
+  await expect(page.getByTestId("terminal-surface")).toContainText("hello exograph after editor");
 
   await cleanup();
 });
 
 test("does not rehydrate an already rendered terminal when focusing its active tab", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/cat",
-      STEM_SHELL_ARGS: "",
+      EXOGRAPH_SHELL: "/bin/cat",
+      EXOGRAPH_SHELL_ARGS: "",
     },
   });
 
@@ -908,13 +908,13 @@ test("does not rehydrate an already rendered terminal when focusing its active t
   await expect(page.locator(".xterm-rows")).toContainText("stable terminal viewport");
 
   await page.evaluate(() => {
-    const originalRead = window.stem.terminals.read;
+    const originalRead = window.exograph.terminals.read;
     let readCount = 0;
-    window.stem.terminals.read = ((...args: Parameters<typeof originalRead>) => {
+    window.exograph.terminals.read = ((...args: Parameters<typeof originalRead>) => {
       readCount += 1;
       return originalRead(...args);
     }) as typeof originalRead;
-    Object.defineProperty(window, "__stemTerminalReadCount", {
+    Object.defineProperty(window, "__exographTerminalReadCount", {
       configurable: true,
       value: () => readCount,
     });
@@ -923,17 +923,17 @@ test("does not rehydrate an already rendered terminal when focusing its active t
   await page.getByTestId("terminal-tab-shell").click();
   await page.waitForTimeout(150);
 
-  const readCount = await page.evaluate(() => (window as unknown as { __stemTerminalReadCount: () => number }).__stemTerminalReadCount());
+  const readCount = await page.evaluate(() => (window as unknown as { __exographTerminalReadCount: () => number }).__exographTerminalReadCount());
   expect(readCount).toBe(0);
 
   await cleanup();
 });
 
 test("measures terminal input echo latency against p50 and p90 targets", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/cat",
-      STEM_SHELL_ARGS: "",
+      EXOGRAPH_SHELL: "/bin/cat",
+      EXOGRAPH_SHELL_ARGS: "",
     },
   });
 
@@ -941,7 +941,7 @@ test("measures terminal input echo latency against p50 and p90 targets", async (
     await page.getByTestId("terminal-surface").click();
     const samples: number[] = [];
     for (let index = 0; index < 20; index += 1) {
-      const marker = `stem-latency-${index}-${Date.now()}`;
+      const marker = `exograph-latency-${index}-${Date.now()}`;
       const startedAt = performance.now();
       await page.keyboard.type(`${marker}\n`);
       await waitForTerminalText(page, marker);
@@ -957,16 +957,16 @@ test("measures terminal input echo latency against p50 and p90 targets", async (
 });
 
 test("keeps terminal input latency within targets while another terminal streams output", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/sh",
-      STEM_SHELL_ARGS: "",
+      EXOGRAPH_SHELL: "/bin/sh",
+      EXOGRAPH_SHELL_ARGS: "",
     },
   });
 
   try {
     const activeShellId = await page.evaluate(async () => {
-      const shell = (await window.stem.terminals.list()).find((session) => session.kind === "shell");
+      const shell = (await window.exograph.terminals.list()).find((session) => session.kind === "shell");
       if (!shell) {
         throw new Error("No shell terminal found");
       }
@@ -977,17 +977,17 @@ test("keeps terminal input latency within targets while another terminal streams
     await waitForTerminalInputEnabled(page);
     await page.keyboard.type("cat\n");
     await page.evaluate(async () => {
-      const streamingShell = await window.stem.terminals.create({ kind: "shell" });
-      await window.stem.terminals.write(
+      const streamingShell = await window.exograph.terminals.create({ kind: "shell" });
+      await window.exograph.terminals.write(
         streamingShell.id,
         "i=1; while [ $i -le 260 ]; do printf 'stream-latency-%03d\\n' \"$i\"; i=$((i+1)); sleep 0.01; done\n",
       );
     });
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
     await expect.poll(async () => {
-      const sessions = await page.evaluate(() => window.stem.terminals.list());
+      const sessions = await page.evaluate(() => window.exograph.terminals.list());
       const streamingShell = sessions.find((session) => session.kind === "shell" && session.id !== activeShellId);
-      return streamingShell ? page.evaluate((id) => window.stem.terminals.read(id), streamingShell.id) : "";
+      return streamingShell ? page.evaluate((id) => window.exograph.terminals.read(id), streamingShell.id) : "";
     }).toContain("stream-latency-010");
 
     await page.locator(`[data-tab-item-id="${activeShellId}"]`).click();
@@ -995,7 +995,7 @@ test("keeps terminal input latency within targets while another terminal streams
 
     const samples: number[] = [];
     for (let index = 0; index < 20; index += 1) {
-      const marker = `stem-stream-latency-${index}-${Date.now()}`;
+      const marker = `exograph-stream-latency-${index}-${Date.now()}`;
       const startedAt = performance.now();
       await page.keyboard.type(`${marker}\n`);
       await waitForTerminalText(page, marker);
@@ -1011,16 +1011,16 @@ test("keeps terminal input latency within targets while another terminal streams
 });
 
 test("keeps terminal interactive after large output, tab switches, and semantic sends", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/sh",
-      STEM_SHELL_ARGS: "",
+      EXOGRAPH_SHELL: "/bin/sh",
+      EXOGRAPH_SHELL_ARGS: "",
     },
   });
 
   try {
     const shellId = await page.evaluate(async () => {
-      const sessions = await window.stem.terminals.list();
+      const sessions = await window.exograph.terminals.list();
       const shell = sessions.find((session) => session.kind === "shell");
       if (!shell) {
         throw new Error("No shell terminal found");
@@ -1029,12 +1029,12 @@ test("keeps terminal interactive after large output, tab switches, and semantic 
     });
 
     await page.evaluate(async (id) => {
-      await window.stem.terminals.write(
+      await window.exograph.terminals.write(
         id,
         "python3 - <<'PY'\nfor i in range(1500): print(f'qa-line-{i}')\nPY\n",
       );
     }, shellId);
-    await expect.poll(async () => page.evaluate((id) => window.stem.terminals.read(id), shellId)).toContain("qa-line-1499");
+    await expect.poll(async () => page.evaluate((id) => window.exograph.terminals.read(id), shellId)).toContain("qa-line-1499");
 
     await page.getByTestId("utility-pane-terminal").click();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
@@ -1045,45 +1045,45 @@ test("keeps terminal interactive after large output, tab switches, and semantic 
     await expect(page.getByTestId("terminal-surface")).toContainText("qa-line-1499");
 
     await page.evaluate(async (id) => {
-      await window.stem.terminals.sendMessage(id, "printf 'semantic qa: %s\\n' 'one   two'", true);
+      await window.exograph.terminals.sendMessage(id, "printf 'semantic qa: %s\\n' 'one   two'", true);
     }, shellId);
-    await expect.poll(async () => page.evaluate((id) => window.stem.terminals.read(id), shellId)).toContain("semantic qa: one   two");
+    await expect.poll(async () => page.evaluate((id) => window.exograph.terminals.read(id), shellId)).toContain("semantic qa: one   two");
   } finally {
     await cleanup();
   }
 });
 
 test("hides and reopens the utility terminal without ending direct PTYs or losing tabs and tail", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/sh",
-      STEM_SHELL_ARGS: "-lc,while IFS= read -r line; do printf 'alive:%s\\n' \"$line\"; done",
+      EXOGRAPH_SHELL: "/bin/sh",
+      EXOGRAPH_SHELL_ARGS: "-lc,while IFS= read -r line; do printf 'alive:%s\\n' \"$line\"; done",
     },
   });
 
   try {
     await page.getByTestId("new-terminal").click();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
-    const sessionIds = await page.evaluate(async () => (await window.stem.terminals.list()).map((session) => session.id));
+    const sessionIds = await page.evaluate(async () => (await window.exograph.terminals.list()).map((session) => session.id));
     expect(sessionIds).toHaveLength(2);
     const activeSessionId = sessionIds.at(-1)!;
 
     await page.evaluate(async ({ ids, activeId }) => {
-      await Promise.all(ids.map((id) => window.stem.terminals.sendMessage(id, `before-hide-${id}`, true)));
-      await window.stem.terminals.sendMessage(activeId, "active-before-hide", true);
+      await Promise.all(ids.map((id) => window.exograph.terminals.sendMessage(id, `before-hide-${id}`, true)));
+      await window.exograph.terminals.sendMessage(activeId, "active-before-hide", true);
     }, { ids: sessionIds, activeId: activeSessionId });
     await expect.poll(async () => page.evaluate(
-      async ({ ids }) => Promise.all(ids.map((id) => window.stem.terminals.read(id))),
+      async ({ ids }) => Promise.all(ids.map((id) => window.exograph.terminals.read(id))),
       { ids: sessionIds },
     )).toEqual(sessionIds.map((id) => expect.stringContaining(`alive:before-hide-${id}`)));
 
     await page.getByTestId("utility-pane-toggle").click();
     await expect(page.getByTestId("utility-pane")).toBeHidden();
     await page.evaluate(async (id) => {
-      await window.stem.terminals.sendMessage(id, "while-hidden", true);
+      await window.exograph.terminals.sendMessage(id, "while-hidden", true);
     }, activeSessionId);
     await expect.poll(async () => page.evaluate(
-      (id) => window.stem.terminals.read(id),
+      (id) => window.exograph.terminals.read(id),
       activeSessionId,
     )).toContain("alive:while-hidden");
 
@@ -1091,7 +1091,7 @@ test("hides and reopens the utility terminal without ending direct PTYs or losin
     await expect(page.getByTestId("utility-pane")).toBeVisible();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(2);
     await expect.poll(async () => page.evaluate(
-      async () => (await window.stem.terminals.list()).map((session) => session.id),
+      async () => (await window.exograph.terminals.list()).map((session) => session.id),
     )).toEqual(sessionIds);
     await expect(page.locator(".xterm-rows")).toContainText("alive:while-hidden");
   } finally {
@@ -1100,7 +1100,7 @@ test("hides and reopens the utility terminal without ending direct PTYs or losin
 });
 
 test("removes the last terminal session without hiding the workspace", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture();
+  const { page, cleanup } = await launchExographTerminalFixture();
 
   await page.getByTestId("close-terminal-shell").click();
   await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(0);
@@ -1113,10 +1113,10 @@ test("removes the last terminal session without hiding the workspace", async () 
 
 test("replays bounded terminal history after renderer reload before input", async () => {
   const beforeReloadMarker = `before-reload-${Date.now()}`;
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/sh",
-      STEM_SHELL_ARGS: "-lc,while IFS= read -r line; do printf 'persist:%s\\n' \"$line\"; done",
+      EXOGRAPH_SHELL: "/bin/sh",
+      EXOGRAPH_SHELL_ARGS: "-lc,while IFS= read -r line; do printf 'persist:%s\\n' \"$line\"; done",
     },
     initialNoteLabel: null,
   });
@@ -1125,11 +1125,11 @@ test("replays bounded terminal history after renderer reload before input", asyn
     const shell = await pageShellSession(page);
     await page.evaluate(
       async ({ id, marker }) => {
-        await window.stem.terminals.sendMessage(id, marker, true);
+        await window.exograph.terminals.sendMessage(id, marker, true);
       },
       { id: shell.id, marker: beforeReloadMarker },
     );
-    await expect.poll(async () => page.evaluate((id) => window.stem.terminals.read(id), shell.id)).toContain(
+    await expect.poll(async () => page.evaluate((id) => window.exograph.terminals.read(id), shell.id)).toContain(
       `persist:${beforeReloadMarker}`,
     );
 
@@ -1138,7 +1138,7 @@ test("replays bounded terminal history after renderer reload before input", asyn
     await page.getByTestId("utility-pane-toggle").click();
     await page.getByTestId("utility-pane-terminal").click();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
-    await expect.poll(async () => page.evaluate((id) => window.stem.terminals.read(id), shell.id)).toContain(
+    await expect.poll(async () => page.evaluate((id) => window.exograph.terminals.read(id), shell.id)).toContain(
       `persist:${beforeReloadMarker}`,
     );
     await expect(
@@ -1147,16 +1147,16 @@ test("replays bounded terminal history after renderer reload before input", asyn
     ).toContainText(`persist:${beforeReloadMarker}`);
 
     await page.evaluate(async (id) => {
-      await window.stem.terminals.sendMessage(id, "after-reload", true);
+      await window.exograph.terminals.sendMessage(id, "after-reload", true);
     }, shell.id);
-    await expect.poll(async () => page.evaluate((id) => window.stem.terminals.read(id), shell.id)).toContain("persist:after-reload");
+    await expect.poll(async () => page.evaluate((id) => window.exograph.terminals.read(id), shell.id)).toContain("persist:after-reload");
   } finally {
     await cleanup();
   }
 });
 
 test("lets you close editor tabs", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   await page.getByTestId("utility-pane-toggle").click();
   await page.getByTestId("utility-pane-connections").click();
@@ -1170,7 +1170,7 @@ test("lets you close editor tabs", async () => {
 });
 
 test("renders inspector content when expanded", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   await page.getByTestId("utility-pane-toggle").click();
   await page.getByTestId("utility-pane-connections").click();
@@ -1188,11 +1188,11 @@ test("renders inspector content when expanded", async () => {
 });
 
 test("opens workspace settings from the workspace menu", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({
+  const { page, cleanup } = await launchExographWorkspaceFixture({
     env: {
-      STEM_INDEX_ENABLED: "0",
-      STEM_INDEX_MODE: "off",
-      STEM_INDEXED_ROOTS: "[]",
+      EXOGRAPH_INDEX_ENABLED: "0",
+      EXOGRAPH_INDEX_MODE: "off",
+      EXOGRAPH_INDEXED_ROOTS: "[]",
     },
   });
 
@@ -1203,13 +1203,13 @@ test("opens workspace settings from the workspace menu", async () => {
   const settingsFrame = await page.getByTestId("workspace-settings-dialog").boundingBox();
   expect(settingsFrame).not.toBeNull();
   await expect(page.getByTestId("workspace-settings-note-roots")).toContainText("test-notes");
-  await page.screenshot({ path: "/tmp/stem-workspace-settings-workspace.png", fullPage: false });
+  await page.screenshot({ path: "/tmp/exograph-workspace-settings-workspace.png", fullPage: false });
   await page.getByTestId("workspace-settings-tab-index").click();
   await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
   await expect(page.getByTestId("workspace-settings-search-engine-simple")).toBeChecked();
   await expect(page.getByTestId("workspace-settings-search-engine-qmd")).not.toBeChecked();
   await expect(page.getByTestId("workspace-settings-simple-search-note")).toContainText("Simple search is active");
-  await page.screenshot({ path: "/tmp/stem-workspace-settings-index.png", fullPage: false });
+  await page.screenshot({ path: "/tmp/exograph-workspace-settings-index.png", fullPage: false });
   await page.getByTestId("workspace-settings-close").click();
   await expect(page.getByTestId("workspace-settings-dialog")).not.toBeVisible();
 
@@ -1217,11 +1217,11 @@ test("opens workspace settings from the workspace menu", async () => {
 });
 
 test("keeps workspace settings frame stable across tabs", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({
+  const { page, cleanup } = await launchExographWorkspaceFixture({
     env: {
-      STEM_INDEX_ENABLED: "0",
-      STEM_INDEX_MODE: "off",
-      STEM_INDEXED_ROOTS: "[]",
+      EXOGRAPH_INDEX_ENABLED: "0",
+      EXOGRAPH_INDEX_MODE: "off",
+      EXOGRAPH_INDEXED_ROOTS: "[]",
     },
   });
 
@@ -1237,16 +1237,16 @@ test("keeps workspace settings frame stable across tabs", async () => {
     await expectStableOuterFrame(page.getByTestId("workspace-settings-dialog"), settingsFrame!);
   }
 
-  await page.screenshot({ path: "/tmp/stem-issue-32-settings-tabs.png", fullPage: false });
+  await page.screenshot({ path: "/tmp/exograph-issue-32-settings-tabs.png", fullPage: false });
   await cleanup();
 });
 
 test("stacks workspace settings cleanly in a narrow window", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({
+  const { page, cleanup } = await launchExographWorkspaceFixture({
     env: {
-      STEM_INDEX_ENABLED: "0",
-      STEM_INDEX_MODE: "off",
-      STEM_INDEXED_ROOTS: "[]",
+      EXOGRAPH_INDEX_ENABLED: "0",
+      EXOGRAPH_INDEX_MODE: "off",
+      EXOGRAPH_INDEXED_ROOTS: "[]",
     },
   });
 
@@ -1288,16 +1288,16 @@ test("stacks workspace settings cleanly in a narrow window", async () => {
     }
   }
   expect(scrollingSections).toContain("workspace");
-  await page.screenshot({ path: "/tmp/stem-workspace-settings-narrow.png", fullPage: false });
+  await page.screenshot({ path: "/tmp/exograph-workspace-settings-narrow.png", fullPage: false });
 
   await cleanup();
 });
 
 test("keeps the command server available while the window is hidden", async () => {
-  const { electronApp, page, runtimeRoot, cleanup } = await launchStemTerminalFixture({
+  const { electronApp, page, runtimeRoot, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/cat",
-      STEM_SHELL_ARGS: "",
+      EXOGRAPH_SHELL: "/bin/cat",
+      EXOGRAPH_SHELL_ARGS: "",
     },
   });
 
@@ -1309,7 +1309,7 @@ test("keeps the command server available while the window is hidden", async () =
   expect(hidden).toBe(true);
 
   const serverInfo = JSON.parse(await readFile(path.join(runtimeRoot, "server.json"), "utf8")) as { port: number; token: string };
-  const headers = { "x-stem-command-token": serverInfo.token };
+  const headers = { "x-exograph-command-token": serverInfo.token };
   const unauthorizedStatus = await fetch(`http://127.0.0.1:${serverInfo.port}/status`);
   expect(unauthorizedStatus.status).toBe(401);
   const statusResponse = await fetch(`http://127.0.0.1:${serverInfo.port}/status`, { headers });
@@ -1338,8 +1338,8 @@ test("keeps the command server available while the window is hidden", async () =
   await cleanup();
 });
 
-function runStemCli(args: string[], env: NodeJS.ProcessEnv) {
-  return spawnSync(path.join(repoRoot, "bin/stem"), args, {
+function runExographCli(args: string[], env: NodeJS.ProcessEnv) {
+  return spawnSync(path.join(repoRoot, "bin/exograph"), args, {
     cwd: repoRoot,
     env,
     encoding: "utf8",
@@ -1354,7 +1354,7 @@ function stringEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 
 
 test("switch workspace opens the workspace picker", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   await page.getByTestId("workspace-menu-toggle").click();
   await page.getByTestId("workspace-menu-settings").click();
@@ -1370,7 +1370,7 @@ test("switch workspace opens the workspace picker", async () => {
 });
 
 test("shows first-run notes setup before the app shell", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({
+  const { page, cleanup } = await launchExographWorkspaceFixture({
     configured: false,
     cwd: "/",
     workspaceRootEnv: false,
@@ -1390,7 +1390,7 @@ test("shows first-run notes setup before the app shell", async () => {
 });
 
 test("shows first-run setup from a packaged-style launch without workspace env", async () => {
-  const { page, cleanup, settingsPath } = await launchStemWorkspaceFixture({
+  const { page, cleanup, settingsPath } = await launchExographWorkspaceFixture({
     configured: false,
     cwd: "/",
     workspaceRootEnv: false,
@@ -1399,7 +1399,7 @@ test("shows first-run setup from a packaged-style launch without workspace env",
 
   await expect(page.getByTestId("onboarding")).toContainText("Choose your main wiki");
   await expect(page.getByTestId("workspace-picker-open")).toHaveCount(0);
-  const model = await page.evaluate(() => window.stem.workspace.getModel());
+  const model = await page.evaluate(() => window.exograph.workspace.getModel());
   expect(model.workspaceRoot).not.toBe("/");
   expect(model.noteRoots).toEqual([]);
   expect(existsSync(settingsPath)).toBe(false);
@@ -1411,13 +1411,13 @@ test("shows first-run setup from a packaged-style launch without workspace env",
 test("opens an existing notes folder from first-run setup", async () => {
   const fixtureWorkspaceRoot = path.join(repoRoot, "fixtures/test-workspace");
   const notesFolder = path.join(fixtureWorkspaceRoot, "notes/test-notes");
-  const { page, cleanup, workspaceRoot } = await launchStemWorkspaceFixture({
+  const { page, cleanup, workspaceRoot } = await launchExographWorkspaceFixture({
     configured: false,
     cwd: "/",
     workspaceRootEnv: false,
     runtimeRootEnv: false,
     env: {
-      STEM_TEST_SELECT_FOLDER_PATH: notesFolder,
+      EXOGRAPH_TEST_SELECT_FOLDER_PATH: notesFolder,
     },
   });
   const expectedTerminalCwd = path.join(workspaceRoot, "notes");
@@ -1432,12 +1432,12 @@ test("opens an existing notes folder from first-run setup", async () => {
   await page.getByTestId("onboarding-continue").click();
   await page.getByRole("button", { name: "Continue to tools" }).click();
   await page.getByRole("button", { name: "Set up CLI agents" }).click();
-  await page.getByRole("button", { name: "Open Stem" }).click();
+  await page.getByRole("button", { name: "Open Exograph" }).click();
   await expect(page.getByTestId("sidebar")).toBeVisible();
   await expect(page.locator('[data-testid="editor-panel"], [data-testid="editor-empty"]')).toBeVisible();
   await page.getByTestId("utility-pane-toggle").click();
   await expect(page.getByTestId("utility-pane-terminal")).toBeVisible();
-  await expect.poll(async () => page.evaluate(() => window.stem.workspace.getSetupState()))
+  await expect.poll(async () => page.evaluate(() => window.exograph.workspace.getSetupState()))
     .toMatchObject({
       complete: true,
       onboardingComplete: true,
@@ -1446,7 +1446,7 @@ test("opens an existing notes folder from first-run setup", async () => {
         phase: "done",
       },
     });
-  await expect.poll(async () => page.evaluate(() => window.stem.workspace.getSettings()))
+  await expect.poll(async () => page.evaluate(() => window.exograph.workspace.getSettings()))
     .toMatchObject({
       settings: {
         noteRoots: [notesFolder],
@@ -1458,7 +1458,7 @@ test("opens an existing notes folder from first-run setup", async () => {
 });
 
 test("collapses and reopens the workspace explorer", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   await page.getByTestId("workspace-titlebar-sidebar").click();
   await expect(page.locator(".workspace-shell")).toHaveClass(/workspace-shell--sidebar-collapsed/);
@@ -1473,7 +1473,7 @@ test("collapses and reopens the workspace explorer", async () => {
 });
 
 test("shows the editor beside the right-side terminal destination", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture();
+  const { page, cleanup } = await launchExographTerminalFixture();
 
   await expect(page.locator(".pane-leaf--editor")).toBeVisible();
   await expect(page.getByTestId("utility-pane").getByTestId("terminal-dock")).toBeVisible();
@@ -1485,16 +1485,16 @@ test("shows the editor beside the right-side terminal destination", async () => 
 });
 
 test("accepts terminal keyboard input in pane tree", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/cat",
-      STEM_SHELL_ARGS: "",
+      EXOGRAPH_SHELL: "/bin/cat",
+      EXOGRAPH_SHELL_ARGS: "",
     },
   });
 
   await page.getByTestId("terminal-surface").click();
-  await page.keyboard.type("hello from stem");
-  await expect(page.locator(".xterm-rows")).toContainText("hello from stem");
+  await page.keyboard.type("hello from exograph");
+  await expect(page.locator(".xterm-rows")).toContainText("hello from exograph");
 
   await page.getByTestId("terminal-surface").click();
   await page.keyboard.type("\nsecond line");
@@ -1504,10 +1504,10 @@ test("accepts terminal keyboard input in pane tree", async () => {
 });
 
 test("keeps large terminal bursts available above the visible viewport", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/sh",
-      STEM_SHELL_ARGS:
+      EXOGRAPH_SHELL: "/bin/sh",
+      EXOGRAPH_SHELL_ARGS:
         "-c,i=1; while [ $i -le 900 ]; do printf 'scrollback-%03d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n' \"$i\"; i=$((i+1)); done; sleep 30",
     },
   });
@@ -1526,10 +1526,10 @@ test("keeps large terminal bursts available above the visible viewport", async (
 });
 
 test("retains app terminal output within the bounded in-memory tail", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/sh",
-      STEM_SHELL_ARGS:
+      EXOGRAPH_SHELL: "/bin/sh",
+      EXOGRAPH_SHELL_ARGS:
         "-c,sleep 0.2; i=1; while [ $i -le 220 ]; do printf 'buffer-%03d-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\\n' \"$i\"; i=$((i+1)); done; sleep 5",
     },
   });
@@ -1537,8 +1537,8 @@ test("retains app terminal output within the bounded in-memory tail", async () =
   try {
     await expect(page.locator(".xterm-rows")).toContainText("buffer-220");
     const buffer = await page.evaluate(async () => {
-      const sessions = await window.stem.terminals.list();
-      return sessions[0] ? window.stem.terminals.read(sessions[0].id) : "";
+      const sessions = await window.exograph.terminals.list();
+      return sessions[0] ? window.exograph.terminals.read(sessions[0].id) : "";
     });
 
     expect(buffer.length).toBeGreaterThan(12_000);
@@ -1549,18 +1549,18 @@ test("retains app terminal output within the bounded in-memory tail", async () =
 });
 
 test("renders emoji-heavy terminal output without replacement glyph corruption", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: process.execPath,
-      STEM_SHELL_ARGS: '-e,process.stdout.write("── 🙂 terminal-border\\n"+"🙂".repeat(20000)+"\\nterminal-emoji-end\\n");process.stdin.resume()',
+      EXOGRAPH_SHELL: process.execPath,
+      EXOGRAPH_SHELL_ARGS: '-e,process.stdout.write("── 🙂 terminal-border\\n"+"🙂".repeat(20000)+"\\nterminal-emoji-end\\n");process.stdin.resume()',
     },
   });
 
   try {
     await expect(page.locator(".xterm-rows")).toContainText("terminal-emoji-end");
     const buffer = await page.evaluate(async () => {
-      const sessions = await window.stem.terminals.list();
-      return sessions[0] ? window.stem.terminals.read(sessions[0].id) : "";
+      const sessions = await window.exograph.terminals.list();
+      return sessions[0] ? window.exograph.terminals.read(sessions[0].id) : "";
     });
     expect(buffer).toContain("── 🙂 terminal-border");
     await expect(page.locator(".xterm-rows")).not.toContainText("�");
@@ -1570,25 +1570,25 @@ test("renders emoji-heavy terminal output without replacement glyph corruption",
 });
 
 test("does not feed xterm device responses back into terminal input", async () => {
-  const { page, cleanup } = await launchStemTerminalFixture({
+  const { page, cleanup } = await launchExographTerminalFixture({
     env: {
-      STEM_SHELL: "/bin/cat",
-      STEM_SHELL_ARGS: "",
+      EXOGRAPH_SHELL: "/bin/cat",
+      EXOGRAPH_SHELL_ARGS: "",
     },
   });
 
   await page.evaluate(async () => {
-    const sessions = await window.stem.terminals.list();
+    const sessions = await window.exograph.terminals.list();
     if (!sessions[0]) {
       throw new Error("Missing terminal session.");
     }
-    await window.stem.terminals.write(sessions[0].id, "\x1b[>c");
+    await window.exograph.terminals.write(sessions[0].id, "\x1b[>c");
   });
   await page.waitForTimeout(300);
 
   const buffer = await page.evaluate(async () => {
-    const sessions = await window.stem.terminals.list();
-    return sessions[0] ? window.stem.terminals.read(sessions[0].id) : "";
+    const sessions = await window.exograph.terminals.list();
+    return sessions[0] ? window.exograph.terminals.read(sessions[0].id) : "";
   });
   expect(buffer).not.toContain("0;276;0c");
   expect(buffer).not.toContain("\x1b[>0;");
@@ -1597,7 +1597,7 @@ test("does not feed xterm device responses back into terminal input", async () =
 });
 
 test("keeps nested list text and continuation lanes aligned", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({
+  const { page, cleanup } = await launchExographWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
@@ -1608,12 +1608,12 @@ test("keeps nested list text and continuation lanes aligned", async () => {
   });
 
   const metrics = await page.evaluate(() => {
-    const lines = Array.from(document.querySelectorAll<HTMLElement>(".cm-line.stem-md-line--list-start, .cm-line.stem-md-line--list-continuation"));
+    const lines = Array.from(document.querySelectorAll<HTMLElement>(".cm-line.exograph-md-line--list-start, .cm-line.exograph-md-line--list-continuation"));
 
     return lines
       .map((line) => {
-        const depth = Number(line.dataset.stemListDepth ?? "0");
-        const guideXs = (line.dataset.stemGuideXs ?? "")
+        const depth = Number(line.dataset.exographListDepth ?? "0");
+        const guideXs = (line.dataset.exographGuideXs ?? "")
           .split(",")
           .map((value) => value.trim())
           .filter(Boolean)
@@ -1632,7 +1632,7 @@ test("keeps nested list text and continuation lanes aligned", async () => {
         while (walker.nextNode()) {
           const node = walker.currentNode as Text;
           const parent = node.parentElement;
-          if (parent && !parent.classList.contains("stem-md-list-prefix")) {
+          if (parent && !parent.classList.contains("exograph-md-list-prefix")) {
             textNode = node;
             break;
           }
@@ -1680,7 +1680,7 @@ test("keeps nested list text and continuation lanes aligned", async () => {
 });
 
 test("toggles markdown task checkboxes from live preview", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({
+  const { page, cleanup } = await launchExographWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
@@ -1701,18 +1701,18 @@ test("toggles markdown task checkboxes from live preview", async () => {
     });
   }
 
-  await expect(page.locator(".stem-md-checkbox")).toHaveCount(2);
-  await page.locator(".stem-md-checkbox").first().click();
+  await expect(page.locator(".exograph-md-checkbox")).toHaveCount(2);
+  await page.locator(".exograph-md-checkbox").first().click();
   await expect.poll(editorText).toContain("- [x] Pull IRS SOI ZIP Code");
 
-  await page.locator(".stem-md-checkbox").nth(1).click();
+  await page.locator(".exograph-md-checkbox").nth(1).click();
   await expect.poll(editorText).toContain("- [ ] test");
 
   await cleanup();
 });
 
 test("keeps list text aligned when editing a bullet marker", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({
+  const { page, cleanup } = await launchExographWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
@@ -1765,7 +1765,7 @@ test("keeps list text aligned when editing a bullet marker", async () => {
       const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT, {
         acceptNode(node) {
           const parent = node.parentElement;
-          if (parent?.closest(".stem-md-syntax-hidden, .stem-md-list-prefix")) {
+          if (parent?.closest(".exograph-md-syntax-hidden, .exograph-md-list-prefix")) {
             return NodeFilter.FILTER_SKIP;
           }
           return node.textContent?.includes(lineText) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP;
@@ -1784,9 +1784,9 @@ test("keeps list text aligned when editing a bullet marker", async () => {
       const lineRect = line.getBoundingClientRect();
       const textRect = range.getBoundingClientRect();
       return {
-        raw: line.classList.contains("stem-md-line--list-raw"),
-        rawMarkerText: line.querySelector(".stem-md-list-marker-raw")?.textContent ?? null,
-        hasBullet: line.classList.contains("stem-md-line--list") && !line.classList.contains("stem-md-line--list-raw"),
+        raw: line.classList.contains("exograph-md-line--list-raw"),
+        rawMarkerText: line.querySelector(".exograph-md-list-marker-raw")?.textContent ?? null,
+        hasBullet: line.classList.contains("exograph-md-line--list") && !line.classList.contains("exograph-md-line--list-raw"),
         textLeftX: textRect.left - lineRect.left,
       };
     }, text);
@@ -1841,7 +1841,7 @@ test("keeps list text aligned when editing a bullet marker", async () => {
   await expect.poll(cursorLocation).toMatchObject({ lineText: "  - today" });
 
   await setCursorOnLineContaining("  - ", 3);
-  await expect(page.locator(".cm-line .stem-md-list-marker-raw")).toHaveText("-");
+  await expect(page.locator(".cm-line .exograph-md-list-marker-raw")).toHaveText("-");
 
   await setCursorOnLineContaining("  - ", 4);
   await page.keyboard.type("draft");
@@ -1866,7 +1866,7 @@ test("keeps list text aligned when editing a bullet marker", async () => {
 });
 
 test("outdents blank list continuation lines in live preview", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture({
+  const { page, cleanup } = await launchExographWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(
@@ -1924,7 +1924,7 @@ test("outdents blank list continuation lines in live preview", async () => {
     const element = document.querySelectorAll<HTMLElement>(".cm-line")[lineIndex];
     return Array.from(element?.classList ?? []);
   });
-  expect(blankLineClassList).not.toContain("stem-md-line--list-continuation");
+  expect(blankLineClassList).not.toContain("exograph-md-line--list-continuation");
 
   await page.keyboard.press("Enter");
   await expect.poll(cursorLocation).toEqual({ lineText: "", offset: 0 });
@@ -1934,7 +1934,7 @@ test("outdents blank list continuation lines in live preview", async () => {
 
 test("keeps the inspector pinned while long notes scroll", async () => {
   const longDocument = Array.from({ length: 120 }, (_, index) => `- line ${index + 1}`).join("\n");
-  const longFixture = await launchStemWorkspaceFixture({
+  const longFixture = await launchExographWorkspaceFixture({
     prepareWorkspace: async (workspaceRoot) => {
       const notePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
       await writeFile(

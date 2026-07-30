@@ -118,7 +118,7 @@ interface GraphEntry {
 }
 
 interface ResolutionIndex {
-  byRelativeStem: ReadonlyMap<string, readonly GraphEntry[]>;
+  byRelativeExograph: ReadonlyMap<string, readonly GraphEntry[]>;
   byBasename: ReadonlyMap<string, readonly GraphEntry[]>;
 }
 
@@ -1014,7 +1014,7 @@ export class WorkspaceGraph {
       const exact = graph.get(candidate);
       if (exact) return { status: "resolved", note: exact.note };
     }
-    const relative = index.byRelativeStem.get(normalized) ?? [];
+    const relative = index.byRelativeExograph.get(normalized) ?? [];
     if (relative.length === 1) return { status: "resolved", note: relative[0].note };
     if (relative.length > 1) return { status: "ambiguous" };
     const basename = index.byBasename.get(path.basename(normalized).toLowerCase()) ?? [];
@@ -1345,13 +1345,13 @@ function artifactKindForTarget(target: string): ArtifactKind | null {
 }
 
 function resolutionIndex(graph: ReadonlyMap<string, GraphEntry>): ResolutionIndex {
-  const byRelativeStem = new Map<string, GraphEntry[]>();
+  const byRelativeExograph = new Map<string, GraphEntry[]>();
   const byBasename = new Map<string, GraphEntry[]>();
   for (const entry of graph.values()) {
-    append(byRelativeStem, normalize(entry.note.relativePath.replace(/\.md$/i, "")), entry);
+    append(byRelativeExograph, normalize(entry.note.relativePath.replace(/\.md$/i, "")), entry);
     append(byBasename, path.basename(entry.note.relativePath, ".md").toLowerCase(), entry);
   }
-  return { byRelativeStem, byBasename };
+  return { byRelativeExograph, byBasename };
 }
 
 function append(map: Map<string, GraphEntry[]>, key: string, entry: GraphEntry): void {

@@ -37,7 +37,7 @@ describe("bin/exo launcher", () => {
     await writeCompiledMarker();
 
     const result = spawnSync(binPath, ["--launcher-test"], {
-      env: { ...process.env, STEM_LAUNCHER_MARKER: marker },
+      env: { ...process.env, EXOGRAPH_LAUNCHER_MARKER: marker },
       encoding: "utf8",
     });
 
@@ -50,14 +50,14 @@ describe("bin/exo launcher", () => {
     const marker = path.join(tempRoot, "launcher-marker.txt");
     const fakePnpm = path.join(tempRoot, "pnpm");
     await writeCompiledMarker();
-    await writeFile(fakePnpm, "#!/usr/bin/env bash\nprintf tsx > \"$STEM_LAUNCHER_MARKER\"\n", "utf8");
+    await writeFile(fakePnpm, "#!/usr/bin/env bash\nprintf tsx > \"$EXOGRAPH_LAUNCHER_MARKER\"\n", "utf8");
     await chmod(fakePnpm, 0o755);
 
     const result = spawnSync(binPath, ["--launcher-test"], {
       env: {
         ...process.env,
-        STEM_CLI_USE_TSX: "1",
-        STEM_LAUNCHER_MARKER: marker,
+        EXOGRAPH_CLI_USE_TSX: "1",
+        EXOGRAPH_LAUNCHER_MARKER: marker,
         PATH: `${tempRoot}${path.delimiter}${process.env.PATH ?? ""}`,
       },
       encoding: "utf8",
@@ -75,7 +75,7 @@ async function writeCompiledMarker(): Promise<void> {
     [
       "#!/usr/bin/env node",
       "const { writeFileSync } = require('node:fs');",
-      "writeFileSync(process.env.STEM_LAUNCHER_MARKER, 'compiled');",
+      "writeFileSync(process.env.EXOGRAPH_LAUNCHER_MARKER, 'compiled');",
       "",
     ].join("\n"),
     "utf8",
@@ -84,7 +84,7 @@ async function writeCompiledMarker(): Promise<void> {
 }
 
 async function tempDir(): Promise<string> {
-  const target = await mkdir(path.join(os.tmpdir(), `stem-launcher-${Date.now()}-${Math.random().toString(16).slice(2)}`), { recursive: true });
+  const target = await mkdir(path.join(os.tmpdir(), `exograph-launcher-${Date.now()}-${Math.random().toString(16).slice(2)}`), { recursive: true });
   const value = target ?? os.tmpdir();
   tempPaths.push(value);
   return value;

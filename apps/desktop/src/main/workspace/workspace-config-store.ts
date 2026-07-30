@@ -16,7 +16,7 @@ import {
   type WorkspaceSettings,
   type WorkspaceSettingsRevision,
   type WorkspaceSettingsSnapshot,
-} from "@stem/core";
+} from "@exograph/core";
 
 export interface WorkspaceConfigStoreOptions {
   userDataPath: string;
@@ -93,7 +93,7 @@ export class WorkspaceConfigStore {
   }
 
   private persistenceEnv(): NodeJS.ProcessEnv {
-    return { ...this.env, STEM_USER_DATA_PATH: this.options.userDataPath };
+    return { ...this.env, EXOGRAPH_USER_DATA_PATH: this.options.userDataPath };
   }
 }
 

@@ -2,12 +2,12 @@ import { expect, test } from "@playwright/test";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchStemWorkspaceFixture } from "../helpers";
+import { launchExographWorkspaceFixture } from "../helpers";
 
 test("an external open reactivates an already-open background tab", async () => {
   let firstNotePath = "";
   let secondNotePath = "";
-  const { electronApp, page, cleanup } = await launchStemWorkspaceFixture({
+  const { electronApp, page, cleanup } = await launchExographWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {

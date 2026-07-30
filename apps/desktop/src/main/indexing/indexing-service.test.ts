@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { IndexStatus, WorkspaceModel, WorkspaceSettings } from "@stem/core";
+import type { IndexStatus, WorkspaceModel, WorkspaceSettings } from "@exograph/core";
 import type { DerivedIndexClient } from "./derived-index-process";
 import type { AutoEmbeddingPolicy } from "./indexing-auto-scheduler";
 import { IndexingService, type IndexingServiceOptions } from "./indexing-service";
@@ -11,7 +11,7 @@ vi.mock("electron", () => ({
       if (name === "home") return "/Users/tester";
       if (name === "desktop") return "/Users/tester/Desktop";
       if (name === "documents") return "/Users/tester/Documents";
-      return "/tmp/stem-test";
+      return "/tmp/exograph-test";
     },
   },
 }));
@@ -430,7 +430,7 @@ describe("IndexingService", () => {
     const status = await service.getMeasuredStatus();
     expect(status.warnings).toContain("runtime warning");
     expect(status.warnings).toContain(warning);
-    expect(status.warnings.join(" ")).not.toContain("stem index sync");
+    expect(status.warnings.join(" ")).not.toContain("exograph index sync");
     service.dispose();
   });
 
@@ -702,7 +702,7 @@ function workspaceSettings(): WorkspaceSettings {
     indexing: { enabled: true, mode: "lexical", backend: "qmd" },
     searchEngine: "qmd",
     appearanceMode: "system",
-    colorThemeId: "stem-neutral",
+    colorThemeId: "exograph-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,

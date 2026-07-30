@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import { test, expect } from "@playwright/test";
 
-import { launchStemWorkspaceFixture } from "../helpers";
+import { launchExographWorkspaceFixture } from "../helpers";
 
 test("renders visible content from a localhost preview", async () => {
   const server = createServer((_request, response) => {
@@ -22,7 +22,7 @@ test("renders visible content from a localhost preview", async () => {
     throw new Error("Preview fixture server did not expose a TCP port");
   }
   const url = `http://127.0.0.1:${address.port}/preview`;
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   try {
     await page.getByTestId("utility-pane-toggle").click();
@@ -41,7 +41,7 @@ test("renders visible content from a localhost preview", async () => {
 });
 
 test("uses one full-width preview surface in the utility pane", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   try {
     await page.getByTestId("utility-pane-toggle").click();
@@ -66,7 +66,7 @@ test("uses one full-width preview surface in the utility pane", async () => {
 });
 
 test("resizes the utility pane from its left edge", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   try {
     await page.getByTestId("utility-pane-toggle").click();
@@ -89,13 +89,13 @@ test("resizes the utility pane from its left edge", async () => {
 });
 
 test("opens absolute local HTML paths in the preview pane", async () => {
-  const { page, workspaceRoot, cleanup } = await launchStemWorkspaceFixture({
+  const { page, workspaceRoot, cleanup } = await launchExographWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (root) => {
       const artifactRoot = path.join(root, "notes", "test-notes", "artifacts");
       await mkdir(artifactRoot, { recursive: true });
       await writeFile(
-        path.join(artifactRoot, "overall-stem-architecture.html"),
+        path.join(artifactRoot, "overall-exograph-architecture.html"),
         `<!doctype html>
 <html>
   <head>
@@ -138,7 +138,7 @@ test("opens absolute local HTML paths in the preview pane", async () => {
   });
 
   try {
-    const firstPath = path.join(workspaceRoot, "notes", "test-notes", "artifacts", "overall-stem-architecture.html");
+    const firstPath = path.join(workspaceRoot, "notes", "test-notes", "artifacts", "overall-exograph-architecture.html");
     const secondPath = path.join(workspaceRoot, "notes", "test-notes", "artifacts", "core-plugin-boundary.html");
     const secondUrl = pathToFileURL(secondPath).toString();
 
@@ -246,7 +246,7 @@ async function getPreviewLayoutMetrics(page: Page): Promise<{
 }
 
 test("keeps an empty preview destination isolated from the editor and terminal", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   try {
     await page.getByTestId("utility-pane-toggle").click();
@@ -262,7 +262,7 @@ test("keeps an empty preview destination isolated from the editor and terminal",
 });
 
 test("returns to the Preview empty state after its final tab closes", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   try {
     await page.getByTestId("utility-pane-toggle").click();
@@ -278,10 +278,10 @@ test("returns to the Preview empty state after its final tab closes", async () =
 });
 
 test("switches one utility pane between independent Preview, Terminal, and Connections destinations", async () => {
-  const { page, cleanup } = await launchStemWorkspaceFixture();
+  const { page, cleanup } = await launchExographWorkspaceFixture();
 
   try {
-    await expect.poll(async () => page.evaluate(() => window.stem.terminals.list())).toEqual([]);
+    await expect.poll(async () => page.evaluate(() => window.exograph.terminals.list())).toEqual([]);
 
     await page.getByTestId("utility-pane-toggle").click();
     await page.getByTestId("utility-pane-preview").click();
@@ -298,11 +298,11 @@ test("switches one utility pane between independent Preview, Terminal, and Conne
     await expect(page.getByTestId("terminal-dock")).toBeVisible();
     await expect(page.getByTestId("browser-pane")).toHaveCount(0);
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(0);
-    await expect.poll(async () => page.evaluate(() => window.stem.terminals.list())).toEqual([]);
+    await expect.poll(async () => page.evaluate(() => window.exograph.terminals.list())).toEqual([]);
 
     await page.getByTestId("new-terminal").click();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
-    await expect.poll(async () => page.evaluate(async () => (await window.stem.terminals.list()).length)).toBe(1);
+    await expect.poll(async () => page.evaluate(async () => (await window.exograph.terminals.list()).length)).toBe(1);
 
     await page.getByTestId("utility-pane-connections").click();
     await expect(page.getByTestId("utility-pane-connections")).toHaveAttribute("aria-pressed", "true");
@@ -322,7 +322,7 @@ test("switches one utility pane between independent Preview, Terminal, and Conne
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
     await expect(page.getByTestId("browser-pane")).toHaveCount(0);
     await expect(page.getByTestId("inspector-panel")).toHaveCount(0);
-    await expect.poll(async () => page.evaluate(async () => (await window.stem.terminals.list()).length)).toBe(1);
+    await expect.poll(async () => page.evaluate(async () => (await window.exograph.terminals.list()).length)).toBe(1);
   } finally {
     await cleanup();
   }

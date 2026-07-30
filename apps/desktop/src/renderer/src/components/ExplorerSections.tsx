@@ -1,5 +1,5 @@
 import { ChevronDown, ChevronLeft, ChevronRight, FileText, Folder, FolderOpen, FolderTree, Hash } from "lucide-react";
-import type { SearchResult, TreeNode } from "@stem/core";
+import type { SearchResult, TreeNode } from "@exograph/core";
 import type { CSSProperties } from "react";
 import type { DragManager } from "../hooks/useDragManager";
 import type { ExplorerRootKind } from "./FileTree";

@@ -25,7 +25,7 @@ export function createFixture({ nodes: nodeCount, edgeRatio, seed }) {
 
   return {
     schemaVersion: 1,
-    source: 'Stem graph evaluation deterministic synthetic fixture',
+    source: 'Exograph graph evaluation deterministic synthetic fixture',
     generatorVersion: GENERATOR_VERSION,
     seed,
     nodeCount,

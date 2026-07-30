@@ -80,7 +80,7 @@ describe("folder indexes", () => {
   });
 
   async function temporaryRoot(): Promise<string> {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-folder-index-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-folder-index-"));
     roots.push(root);
     return root;
   }

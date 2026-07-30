@@ -26,7 +26,7 @@ window.addEventListener(
 );
 
 const api: DesktopApi = {
-  ...(process.env.STEM_TEST === "1" ? { test: { graphHooks: true as const } } : {}),
+  ...(process.env.EXOGRAPH_TEST === "1" ? { test: { graphHooks: true as const } } : {}),
   workspace: {
     getModel: () => invokeDesktop("workspace:get-model"),
     getSettings: () => invokeDesktop("workspace:get-settings"),
@@ -165,7 +165,7 @@ const api: DesktopApi = {
   },
 };
 
-contextBridge.exposeInMainWorld("stem", api);
+contextBridge.exposeInMainWorld("exograph", api);
 
 function fileKey(file: File): string {
   return [file.name, file.size, file.lastModified, file.type].join("\0");

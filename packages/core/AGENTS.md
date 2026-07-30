@@ -1,6 +1,6 @@
 # Core domain map
 
-`@stem/core` owns portable domain rules and shared data contracts. It must stay
+`@exograph/core` owns portable domain rules and shared data contracts. It must stay
 free of Electron, renderer, CLI process, and user-machine assumptions.
 
 ## Start with the owner
@@ -42,10 +42,10 @@ free of Electron, renderer, CLI process, and user-machine assumptions.
 ## Focused gates
 
 ```bash
-pnpm --filter @stem/core exec vitest run src/__tests__/workspace-files.test.ts
-pnpm --filter @stem/core exec vitest run src/__tests__/workspace-graph.test.ts src/__tests__/ontology-review.test.ts
-pnpm --filter @stem/core typecheck
-pnpm --filter @stem/core check:unused
+pnpm --filter @exograph/core exec vitest run src/__tests__/workspace-files.test.ts
+pnpm --filter @exograph/core exec vitest run src/__tests__/workspace-graph.test.ts src/__tests__/ontology-review.test.ts
+pnpm --filter @exograph/core typecheck
+pnpm --filter @exograph/core check:unused
 ```
 
 For graph changes, read `../../docs/architecture.md`,

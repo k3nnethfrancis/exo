@@ -1,4 +1,4 @@
-# Stem contributor map
+# Exograph contributor map
 
 This file is provider-neutral guidance for coding agents. `CLAUDE.md` is a compatibility symlink to `AGENTS.md`; do not add provider-specific instructions.
 
@@ -20,7 +20,7 @@ documentation.
 - `apps/desktop` — Electron main process, preload, renderer, and shared API.
 - `packages/core` — Workspace, Markdown graph, search, invocations, and shared protocol types.
 - `packages/cli` — local CLI and MCP presentation.
-- `evals/graph` — Stem's internal graph-rendering regression suite.
+- `evals/graph` — Exograph's internal graph-rendering regression suite.
 - `skills` — reusable provider-neutral instructions for contributors and coding agents.
 - `scripts` and `.github/workflows` — build, installation, and CI.
 
@@ -62,7 +62,7 @@ pnpm check
 ```
 
 Use `pnpm dev` for source iteration, `pnpm dev:qa` for isolated source QA, and
-a packaged `Stem.app` for first-run or installed-app evidence. Run focused owner
+a packaged `Exograph.app` for first-run or installed-app evidence. Run focused owner
 tests before the broad gate and update public documentation for user-visible
 changes.
 

@@ -36,7 +36,7 @@ export class AppLifecycleController {
 
   createWindow(): BrowserWindow {
     const preloadPath = this.resolvePreloadPath();
-    const isTestWindow = process.env.STEM_TEST === "1";
+    const isTestWindow = process.env.EXOGRAPH_TEST === "1";
     const window = new BrowserWindow({
       width: 1680,
       height: 1060,
@@ -129,9 +129,9 @@ export class AppLifecycleController {
       this.options.logMain("renderer failed to load", details);
 
       // A native hard reload can occasionally leave a packaged file:// renderer
-      // navigating to a bundled asset instead of Stem's document. Recover only
+      // navigating to a bundled asset instead of Exograph's document. Recover only
       // the actual renderer entry point; Preview navigation errors must remain
-      // visible to the person using Stem.
+      // visible to the person using Exograph.
       if (this.isRendererEntryUrl(validatedURL)) {
         this.rendererReady = false;
         this.scheduleRendererRecovery(window, "load-failed");
@@ -297,7 +297,7 @@ export class AppLifecycleController {
   }
 
   private scheduleRendererRecovery(window: BrowserWindow, reason: string) {
-    if (process.env.STEM_AUTO_RECOVER_RENDERER === "0") {
+    if (process.env.EXOGRAPH_AUTO_RECOVER_RENDERER === "0") {
       return;
     }
     if (!shouldRecoverRenderer(reason)) {
@@ -330,7 +330,7 @@ export class AppLifecycleController {
   }
 
   private shouldDestroyWindowOnClose(): boolean {
-    return this.quitRequested || process.env.STEM_TEST === "1";
+    return this.quitRequested || process.env.EXOGRAPH_TEST === "1";
   }
 
   private async confirmQuit(): Promise<boolean> {

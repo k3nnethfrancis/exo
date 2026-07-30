@@ -17,7 +17,7 @@ import type {
   WorkspaceGraphContext,
   WorkspaceIndexSearchResponse,
   WorkspaceModel,
-} from "@stem/core";
+} from "@exograph/core";
 
 import {
   isDerivedIndexResponse,
@@ -99,7 +99,7 @@ export class UtilityDerivedIndexClient implements DerivedIndexClient {
     this.requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     this.workerPath = options.workerPath ?? fileURLToPath(new URL("./derived-index-worker.js", import.meta.url));
     this.spawnProcess = options.spawn ?? ((workerPath) => utilityProcess.fork(workerPath, [], {
-      serviceName: "Stem Derived Index",
+      serviceName: "Exograph Derived Index",
       stdio: "ignore",
     }) as UtilityProcess);
   }

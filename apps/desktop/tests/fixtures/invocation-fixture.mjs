@@ -64,9 +64,9 @@ switch (scenario) {
 async function appendLinkedResponse(message) {
   const response = [
     "",
-    `<stem-agent-response invocation="${invocation.id}" agent="${invocation.agent}">`,
+    `<exograph-agent-response invocation="${invocation.id}" agent="${invocation.agent}">`,
     message,
-    "</stem-agent-response>",
+    "</exograph-agent-response>",
     "",
   ].join("\n");
   await appendFile(taggedNote, response, "utf8");
@@ -113,7 +113,7 @@ async function runResume(fail = false) {
 }
 
 async function emitProviderActivity() {
-  const adapter = process.env.STEM_FIXTURE_ADAPTER ?? "generic";
+  const adapter = process.env.EXOGRAPH_FIXTURE_ADAPTER ?? "generic";
   if (adapter === "claude-code") {
     writeJsonLines([
       { type: "system", subtype: "init" },
@@ -145,11 +145,11 @@ function writeJsonLines(events) {
 }
 
 function invocationIdentity(source) {
-  const opening = source.match(/<stem-invocation\b([^>]*)>/i)?.[1] ?? "";
+  const opening = source.match(/<exograph-invocation\b([^>]*)>/i)?.[1] ?? "";
   const id = opening.match(/\bid="([^"]+)"/i)?.[1];
   const agent = opening.match(/\bagent="([^"]+)"/i)?.[1];
   if (!id || !agent) {
-    throw new Error("Invocation fixture did not receive an Stem invocation envelope.");
+    throw new Error("Invocation fixture did not receive an Exograph invocation envelope.");
   }
   return { id, agent };
 }

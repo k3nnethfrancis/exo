@@ -4,7 +4,7 @@ import {
   createDefaultClaudeAgentCommand,
   createDefaultCodexAgentCommand,
   type IndexStatus,
-} from "@stem/core";
+} from "@exograph/core";
 
 import {
   WorkspaceSettingsDialog,
@@ -23,7 +23,7 @@ describe("workspace settings footer copy", () => {
 
   it("keeps the dialog intro from mentioning Apply when no Apply action is visible", () => {
     expect(workspaceSettingsDialogIntroCopy("index", false)).not.toContain("Apply");
-    expect(workspaceSettingsDialogIntroCopy("index", false)).toContain("Choose how Stem searches");
+    expect(workspaceSettingsDialogIntroCopy("index", false)).toContain("Choose how Exograph searches");
     expect(workspaceSettingsDialogIntroCopy("appearance", false)).not.toContain("Apply");
     expect(workspaceSettingsDialogIntroCopy("index", true)).toContain("apply");
   });
@@ -117,7 +117,7 @@ describe("workspace settings footer copy", () => {
     const manual = indexSettingsStatusCopy(pending, null, "manual")?.text;
 
     expect(automatic).toContain("3 content embeddings waiting");
-    expect(automatic).toContain("catch up automatically while Stem is idle");
+    expect(automatic).toContain("catch up automatically while Exograph is idle");
     expect(automatic).toContain("lexical search remains available");
     expect(automatic).toContain("Build embeddings runs now");
     expect(manual).toContain("3 content embeddings waiting");
@@ -177,7 +177,7 @@ describe("workspace settings footer copy", () => {
     );
 
     expect(html).toContain("3 content embeddings waiting");
-    expect(html).toContain("catch up automatically while Stem is idle");
+    expect(html).toContain("catch up automatically while Exograph is idle");
     expect(html).toContain("Search engine");
     expect(html).toContain("QMD retrieval");
     expect(html).not.toContain("3 pending embeddings");

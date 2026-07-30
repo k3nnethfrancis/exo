@@ -1,4 +1,4 @@
-import type { GraphConceptSummary, GraphTopology } from "@stem/core";
+import type { GraphConceptSummary, GraphTopology } from "@exograph/core";
 
 import { GraphCanvasRenderer, type GraphCanvasSurface } from "./graphCanvasRenderer";
 import {

@@ -2,11 +2,11 @@ import { expect, test } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchStemWorkspaceFixture } from "../helpers";
+import { launchExographWorkspaceFixture } from "../helpers";
 
 test("wraps a Markdown selection in bold markers with Command-B", async () => {
   let notePath = "";
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       notePath = path.join(workspaceRoot, "notes/test-notes/inline-formatting.md");
@@ -28,7 +28,7 @@ test("wraps a Markdown selection in bold markers with Command-B", async () => {
 });
 
 test("wraps a Markdown selection in italic markers with Command-I", async () => {
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       await writeFile(
@@ -52,7 +52,7 @@ test("wraps a Markdown selection in italic markers with Command-I", async () => 
 });
 
 test("places the caret inside italic markers when Command-I has no selection", async () => {
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       await writeFile(

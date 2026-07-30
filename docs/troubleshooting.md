@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Start with the smallest repair. Your Markdown is canonical; Stem's indexes,
+Start with the smallest repair. Your Markdown is canonical; Exograph's indexes,
 layouts, and review artifacts are derived state.
 
 ## A file is missing from Explorer, search, or graph
@@ -19,7 +19,7 @@ enabling QMD in **Settings → Search** and choosing **Use QMD when I press Ente
 in Explore**. Lexical search favors exact terms; semantic search favors related
 meaning; hybrid uses both.
 
-If QMD is catching up or recovering, Stem keeps foreground retrieval available
+If QMD is catching up or recovering, Exograph keeps foreground retrieval available
 through its simple filesystem path and reports that state. Use **Sync documents**
 for the current corpus or **Reconcile documents** when the index may be stale.
 Read [Search](search.md) before changing a retrieval mode or rebuilding
@@ -28,7 +28,7 @@ embeddings.
 ## An `@` request cannot run
 
 Confirm the command is enabled in **Settings → Agents** and that its executable
-is installed and reachable by the desktop app. Stem asks for explicit trust when
+is installed and reachable by the desktop app. Exograph asks for explicit trust when
 the executable or its fingerprint changes. It can review changes inside the
 workspace's Note Root, but it does not sandbox the native command.
 
@@ -36,7 +36,7 @@ If a command was removed, its old History entries remain readable but new
 `@handle` requests are rejected until that handle is configured again.
 
 Inline requests run headlessly and must produce a linked response envelope or a
-reviewable file change. When a provider returns a resumable session, Stem exposes
+reviewable file change. When a provider returns a resumable session, Exograph exposes
 the terminal handoff after the run settles. Read [Agent invocations](document-agent-protocol.md)
 for the full lifecycle and review rules.
 
@@ -44,14 +44,14 @@ for the full lifecycle and review rules.
 
 MCP and the CLI are independent:
 
-- Install the local `stem` command with `./scripts/install-local`, or install
+- Install the local `exograph` command with `./scripts/install-local`, or install
   the macOS app and CLI together with `./scripts/install-mac-app --with-cli`.
-- The selected provider's own CLI must be installed before Stem can add its MCP
+- The selected provider's own CLI must be installed before Exograph can add its MCP
   configuration.
 - An existing provider registration means the server is already installed; MCP
-  setup does not replace the local `stem` launcher.
+  setup does not replace the local `exograph` launcher.
 
-`stem status` and `stem search` can work without the desktop app. `stem show`,
-`stem index`, `stem open`, and `stem invoke` require the resident app. See [CLI and
+`exograph status` and `exograph search` can work without the desktop app. `exograph show`,
+`exograph index`, `exograph open`, and `exograph invoke` require the resident app. See [CLI and
 MCP](cli.md) for the exact command surface and [MCP onboarding](provider-mcp-onboarding.md)
 for scope and security boundaries.

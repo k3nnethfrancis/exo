@@ -7,7 +7,7 @@ import { inspectWorkspaceContent } from "../workspace-content-inspection";
 
 describe("inspectWorkspaceContent", () => {
   it("keeps an ordinary Markdown folder fully in scope", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-content-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-content-"));
     await writeFile(path.join(root, "note.md"), "# Note\n");
 
     await expect(inspectWorkspaceContent(root)).resolves.toEqual({
@@ -18,7 +18,7 @@ describe("inspectWorkspaceContent", () => {
   });
 
   it("recommends a repository content policy from visible repository markers", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-content-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-content-"));
     await Promise.all([mkdir(path.join(root, ".git")), writeFile(path.join(root, "package.json"), "{}")]);
 
     const inspection = await inspectWorkspaceContent(root);

@@ -7,9 +7,9 @@ import type {
   InvocationSkillContext,
   WorkspaceModel,
   WorkspaceSettings,
-} from "@stem/core";
-import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@stem/core/workspace-content-policy";
-import type { InvocationActivityEvent } from "@stem/core/invocation-activity";
+} from "@exograph/core";
+import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@exograph/core/workspace-content-policy";
+import type { InvocationActivityEvent } from "@exograph/core/invocation-activity";
 
 import type { CliInstallationStatus, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
 
@@ -184,7 +184,7 @@ export function App() {
     setCliInstallStatus("idle");
     setCliInstallError(null);
     let cancelled = false;
-    void window.stem.workspace.getCliInstallationStatus()
+    void window.exograph.workspace.getCliInstallationStatus()
       .then((status) => { if (!cancelled) setCliInstallation(status); })
       .catch(() => { if (!cancelled) setCliInstallation({ state: "unavailable" }); });
     return () => { cancelled = true; };
@@ -301,7 +301,7 @@ export function App() {
   }, [activeDocumentPath, graphInspection.inspect]);
 
   useEffect(() => {
-    return window.stem.workspace.onInvocationUpdated((record) => {
+    return window.exograph.workspace.onInvocationUpdated((record) => {
       if (record.workspaceRoot && record.workspaceRoot !== workspaceModel?.workspaceRoot) {
         return;
       }
@@ -316,7 +316,7 @@ export function App() {
   }, [invocationReviewController.applyRecord, scheduleOpenDocumentRefresh, workspaceModel?.workspaceRoot]);
 
   useEffect(() => {
-    return window.stem.workspace.onInvocationActivity((event) => {
+    return window.exograph.workspace.onInvocationActivity((event) => {
       setInvocationActivity((current) => {
         if (current?.invocationId === null && current.kind !== "done" && current.kind !== "failed") {
           bufferEarlyInvocationActivityEvent(invocationActivityEarlyEventsRef.current, event);
@@ -422,7 +422,7 @@ export function App() {
       await Promise.all(
         Array.from(restoredPaths).map((filePath) =>
           ensureDocumentLoaded(filePath).catch((error) => {
-            console.warn("[stem] failed to restore open document", { filePath, error });
+            console.warn("[exograph] failed to restore open document", { filePath, error });
           }),
         ),
       );
@@ -489,7 +489,7 @@ export function App() {
 
   async function refreshWorkspaceModel() {
     const [model] = await Promise.all([
-      window.stem.workspace.getModel(),
+      window.exograph.workspace.getModel(),
       refreshIndexStatus(),
     ]);
     setWorkspaceModel(model);
@@ -497,7 +497,7 @@ export function App() {
   }
 
   async function refreshIndexStatus() {
-    const status = await window.stem.workspace.getIndexStatus();
+    const status = await window.exograph.workspace.getIndexStatus();
     setIndexStatus(status);
     return status;
   }
@@ -521,7 +521,7 @@ export function App() {
     flushSync(() => updateBody(document.filePath, draft.documentBody));
     let authorization;
     try {
-      authorization = await window.stem.workspace.getAgentInvocationAuthorization({
+      authorization = await window.exograph.workspace.getAgentInvocationAuthorization({
         handle: draft.handle,
         documentPath: document.filePath,
       });
@@ -563,11 +563,11 @@ export function App() {
     setInvocationActivity(beginInvocationActivity(pending.command));
     try {
       await saveDocument(pending.document.filePath);
-      const persisted = await window.stem.notes.read(pending.document.filePath);
+      const persisted = await window.exograph.notes.read(pending.document.filePath);
       if (persisted.body !== pending.draft.documentBody) {
         throw new Error("The document changed after this invocation was composed. Review the note and send it again.");
       }
-      const result = await window.stem.workspace.launchAgentInvocation({
+      const result = await window.exograph.workspace.launchAgentInvocation({
         handle: pending.draft.handle,
         protocolInvocationId: pending.draft.protocolInvocationId,
         documentPath: pending.document.filePath,
@@ -600,7 +600,7 @@ export function App() {
       ? { ...current, kind: "finishing", label: undefined }
       : current);
     try {
-      const finalized = await window.stem.workspace.endAgentInvocation(invocationId);
+      const finalized = await window.exograph.workspace.endAgentInvocation(invocationId);
       if (!finalized) return;
       if (finalized.taggedDocumentPath) {
         scheduleOpenDocumentRefresh(finalized.taggedDocumentPath);
@@ -675,7 +675,7 @@ export function App() {
     command?: Pick<AgentCommand, "handle" | "label">,
   ) {
     try {
-      await window.stem.workspace.resumeInvocationInTerminal(invocationId);
+      await window.exograph.workspace.resumeInvocationInTerminal(invocationId);
       setInvocationActivity(null);
       dispatchUtility({ type: "select", destination: "terminal" });
     } catch (error) {
@@ -697,7 +697,7 @@ export function App() {
 
   async function openKnowledgeTarget(target: string) {
     if (/^https?:\/\//.test(target)) {
-      await window.stem.shell.openExternal(target);
+      await window.exograph.shell.openExternal(target);
       return;
     }
 
@@ -712,10 +712,10 @@ export function App() {
     if (!activeDocumentPath) return;
 
     const resolved = target.endsWith(".md") || target.includes("/")
-      ? await window.stem.notes.resolveTarget(activeDocumentPath, target)
-      : await window.stem.notes.resolveTarget(activeDocumentPath, `${target}.md`);
+      ? await window.exograph.notes.resolveTarget(activeDocumentPath, target)
+      : await window.exograph.notes.resolveTarget(activeDocumentPath, `${target}.md`);
 
-    const ensured = resolved ?? await window.stem.notes.ensureTarget(activeDocumentPath, target);
+    const ensured = resolved ?? await window.exograph.notes.ensureTarget(activeDocumentPath, target);
     if (!resolved) {
       requestGeneratedTitleSelection(ensured);
     }
@@ -730,7 +730,7 @@ export function App() {
       return;
     }
     try {
-      const prepared = await window.stem.workspace.prepareGraphMaintenanceSkill({ documentPath: filePath });
+      const prepared = await window.exograph.workspace.prepareGraphMaintenanceSkill({ documentPath: filePath });
       await canvasNavigation.openFile(filePath, findEditorLeaf(canvasTree)?.id);
       const nonce = agentComposeNonceRef.current + 1;
       agentComposeNonceRef.current = nonce;
@@ -760,13 +760,13 @@ export function App() {
     }
 
     const resolved = target.endsWith(".md") || target.includes("/")
-      ? await window.stem.notes.resolveTarget(activeDocumentPath, target)
-      : await window.stem.notes.resolveTarget(activeDocumentPath, `${target}.md`);
+      ? await window.exograph.notes.resolveTarget(activeDocumentPath, target)
+      : await window.exograph.notes.resolveTarget(activeDocumentPath, `${target}.md`);
     if (!resolved) {
       return null;
     }
 
-    const document = await window.stem.notes.read(resolved);
+    const document = await window.exograph.notes.read(resolved);
     return {
       title: document.title || getPreviewTitle(resolved),
       excerpt: markdownPreviewExcerpt(document.body),
@@ -915,9 +915,9 @@ export function App() {
     const dailyPath = joinPath(noteRoot, `${yyyy}-${mm}-${dd}.md`);
 
     try {
-      await window.stem.notes.read(dailyPath);
+      await window.exograph.notes.read(dailyPath);
     } catch {
-      await window.stem.workspace.createFile(dailyPath);
+      await window.exograph.workspace.createFile(dailyPath);
       requestGeneratedTitleSelection(dailyPath);
       await reloadTrees();
     }
@@ -937,7 +937,7 @@ export function App() {
   if (!workspaceModel) {
     return (
       <div className="shell shell--loading">
-        <div>Loading Stem…</div>
+        <div>Loading Exograph…</div>
         {bootstrapError ? <div className="dialog-card__status dialog-card__status--error">{bootstrapError}</div> : null}
       </div>
     );
@@ -1040,7 +1040,7 @@ export function App() {
                   {onboardingState.mode === "first-run" ? "Choose your main wiki" : "Choose a main wiki"}
                 </h1>
                 <p className="onboarding-card__copy">
-                  Pick the Markdown folder Stem should treat as this workspace. You can make another Workspace for a separate wiki later.
+                  Pick the Markdown folder Exograph should treat as this workspace. You can make another Workspace for a separate wiki later.
                 </p>
                 <div className="onboarding-grid">
                   <div className="onboarding-section onboarding-section--primary">
@@ -1164,7 +1164,7 @@ export function App() {
               <div className="onboarding-card__body" data-testid="onboarding-card-body">
                 <h1 className="onboarding-card__title">Set up agents</h1>
                 <p className="onboarding-card__copy">
-                  Stem invokes agents through their installed local CLIs. These commands stay on this computer and can be edited later in Settings.
+                  Exograph invokes agents through their installed local CLIs. These commands stay on this computer and can be edited later in Settings.
                 </p>
                 <AgentCommandConfigurator
                   commands={onboardingState.agentCommands}
@@ -1255,7 +1255,7 @@ export function App() {
                         setOnboardingMcp((current) => ({ ...current, status: "saving", errorMessage: null, results: [] }));
                         try {
                           await workspaceBootstrap.persistCurrentOnboardingState();
-                          const results = await window.stem.workspace.configureProviderMcp({ providers: onboardingState.selectedMcpProviders });
+                          const results = await window.exograph.workspace.configureProviderMcp({ providers: onboardingState.selectedMcpProviders });
                           setOnboardingMcp((current) => ({ ...current, status: results.every((result) => result.ok) ? "done" : "error", results, errorMessage: results.some((result) => !result.ok) ? "MCP setup needs attention." : null }));
                         } catch (error) {
                           setOnboardingMcp((current) => ({ ...current, status: "error", errorMessage: error instanceof Error ? error.message : String(error), results: [] }));
@@ -1275,15 +1275,15 @@ export function App() {
                     <div className={`onboarding-cli-installation onboarding-cli-installation--${cliInstallation?.state ?? "checking"}`} aria-live="polite">
                       {cliInstallation?.state === "current" ? <Check aria-hidden="true" size={15} strokeWidth={2.2} /> : <SquareTerminal aria-hidden="true" size={15} strokeWidth={1.8} />}
                       <span>
-                        <strong>{cliReady ? "CLI ready" : cliInstallation?.state === "non-stem" ? "Existing command kept" : "CLI not installed"}</strong>
-                        {cliReady ? <small>stem is available to shells and MCP hosts</small> : <small>Installs the CLI bundled with this app.</small>}
+                        <strong>{cliReady ? "CLI ready" : cliInstallation?.state === "non-exograph" ? "Existing command kept" : "CLI not installed"}</strong>
+                        {cliReady ? <small>exograph is available to shells and MCP hosts</small> : <small>Installs the CLI bundled with this app.</small>}
                       </span>
                     </div>
                     {!cliReady ? <button className="toolbar-button" disabled={cliInstallStatus === "saving"} onClick={() => void (async () => {
                       setCliInstallStatus("saving");
                       setCliInstallError(null);
                       try {
-                        const status = await window.stem.workspace.installCli();
+                        const status = await window.exograph.workspace.installCli();
                         setCliInstallation(status);
                         setCliInstallStatus("idle");
                       } catch (error) {
@@ -1330,7 +1330,7 @@ export function App() {
       compact={false}
       onFocus={() => undefined}
       onNavigate={async (target) => {
-        const result = await window.stem.workspace.resolvePreviewTarget(target);
+        const result = await window.exograph.workspace.resolvePreviewTarget(target);
         setPreviewTabs((current) => updatePreviewTabUrl(current, activePreview.id, result.url));
         return result.url;
       }}
@@ -1369,8 +1369,8 @@ export function App() {
       onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
       onHydrated={(id) => terminalState.markTerminalHydrated(id)}
       onSetActiveTerminal={(id) => void terminalState.activateTerminal(id)}
-      onWrite={(id, data) => void window.stem.terminals.write(id, data)}
-      onGeometryMeasured={(id, cols, rows) => void window.stem.terminals.resize(id, cols, rows)}
+      onWrite={(id, data) => void window.exograph.terminals.write(id, data)}
+      onGeometryMeasured={(id, cols, rows) => void window.exograph.terminals.resize(id, cols, rows)}
       onKill={(id) => void terminalState.killTerminal(id)}
       onCreateTerminal={() => void createUtilityTerminal("shell")}
       dragManager={dragManager}
@@ -1451,8 +1451,8 @@ export function App() {
               onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
               onHydrated={(id) => terminalState.markTerminalHydrated(id)}
               onSetActiveTerminal={(id) => void terminalState.activateTerminal(id)}
-              onWrite={(id, data) => void window.stem.terminals.write(id, data)}
-              onGeometryMeasured={(id, cols, rows) => void window.stem.terminals.resize(id, cols, rows)}
+              onWrite={(id, data) => void window.exograph.terminals.write(id, data)}
+              onGeometryMeasured={(id, cols, rows) => void window.exograph.terminals.resize(id, cols, rows)}
               onKill={(id) => void terminalState.killTerminal(id)}
               onCreateTerminal={() => void createUtilityTerminal("shell")}
               onClosePane={() => canvasActions.removeLeaf(leaf.id)}
@@ -1473,7 +1473,7 @@ export function App() {
               compact={false}
               onFocus={() => canvasNavigation.focusPane(leaf.id)}
               onNavigate={async (target) => {
-                const result = await window.stem.workspace.resolvePreviewTarget(target);
+                const result = await window.exograph.workspace.resolvePreviewTarget(target);
                 setPreviewTabs((current) => updatePreviewTabUrl(current, tab.id, result.url));
                 return result.url;
               }}
@@ -1584,7 +1584,7 @@ export function App() {
       }} onResumeInvocation={(id) => {
         const item = invocationHistory.find((candidate) => candidate.invocationId === id);
         void resumeInvocationInTerminal(id, item?.command);
-      }} onToggle={toggleConnectionsSurface} onOpenGraphCanvas={openGraphCanvas} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.stem.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
+      }} onToggle={toggleConnectionsSurface} onOpenGraphCanvas={openGraphCanvas} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exograph.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
       connectionsOpen={isUtilityDestinationActive(utilityState, "connections")}

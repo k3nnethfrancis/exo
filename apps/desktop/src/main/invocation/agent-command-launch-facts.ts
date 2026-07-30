@@ -8,7 +8,7 @@ import {
   deriveAgentCommandLaunch,
   type AgentCommand,
   type AgentCommandLaunchContext,
-} from "@stem/core";
+} from "@exograph/core";
 
 import type { AgentCommandLaunchFacts } from "../../shared/api";
 import { commandEnvironment } from "../command/command-environment";

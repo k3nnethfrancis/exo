@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { WorkspaceModel } from "@stem/core";
+import type { WorkspaceModel } from "@exograph/core";
 import { workspaceMatches } from "./workspace-match";
 
 describe("workspaceMatches", () => {

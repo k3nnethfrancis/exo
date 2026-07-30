@@ -3,7 +3,7 @@ import type { WorkspaceGraphContext } from "./workspace-graph";
 import type { WorkspaceContentPolicy } from "./workspace-content-policy";
 
 export type DocumentKind = "markdown" | "text";
-export type ColorThemeId = "stem-neutral" | "stem-solar";
+export type ColorThemeId = "exograph-neutral" | "exograph-solar";
 
 /** A user-authorized mutable Markdown root. */
 export interface NoteRoot {

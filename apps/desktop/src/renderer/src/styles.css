@@ -1,9 +1,9 @@
 :root {
   color-scheme: dark;
   --window-top-pad: 44px;
-  --stem-list-indent-step: 28px;
-  --stem-list-base-indent: 30px;
-  --stem-list-marker-lane-width: 18px;
+  --exograph-list-indent-step: 28px;
+  --exograph-list-base-indent: 30px;
+  --exograph-list-marker-lane-width: 18px;
   --bg-top: #1f1f1f;
   --bg-bottom: #1f1f1f;
   --bg-glow-a: rgba(0, 0, 0, 0);
@@ -52,7 +52,7 @@
   --shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
   --sans: "IBM Plex Sans", "Helvetica Neue", sans-serif;
   --mono: "IBM Plex Mono", "SF Mono", monospace;
-  --stem-list-bullet: #98a1b2;
+  --exograph-list-bullet: #98a1b2;
 }
 
 :root[data-theme="light"] {
@@ -106,7 +106,7 @@
   --warning-strong: #9b6b1f;
   --warning-border: rgba(166, 113, 31, 0.20);
   --shadow: 0 24px 64px rgba(154, 119, 52, 0.12);
-  --stem-list-bullet: #626a78;
+  --exograph-list-bullet: #626a78;
 }
 
 * {
@@ -973,7 +973,7 @@ button svg,
   padding: 0;
 }
 
-.editor-surface--live-preview .stem-md-line--heading {
+.editor-surface--live-preview .exograph-md-line--heading {
   line-height: 1.12;
   letter-spacing: -0.012em;
   color: var(--text);
@@ -981,34 +981,34 @@ button svg,
   text-decoration: none;
 }
 
-.editor-surface--live-preview .stem-md-line--heading * {
+.editor-surface--live-preview .exograph-md-line--heading * {
   text-decoration: none !important;
   color: inherit;
 }
 
-.editor-surface--live-preview .stem-md-line--h1 {
+.editor-surface--live-preview .exograph-md-line--h1 {
   font-size: 1.9rem;
   letter-spacing: -0.024em;
   margin: 0.32em 0 0.6em;
 }
 
-.editor-surface--live-preview .stem-md-line--suppressed-title {
+.editor-surface--live-preview .exograph-md-line--suppressed-title {
   display: none !important;
 }
 
-.editor-surface--live-preview .stem-md-line--h2 {
+.editor-surface--live-preview .exograph-md-line--h2 {
   font-size: 1.42rem;
   margin: 1.02em 0 0.46em;
 }
 
-.editor-surface--live-preview .stem-md-line--h3 {
+.editor-surface--live-preview .exograph-md-line--h3 {
   font-size: 1.16rem;
   margin: 1.1em 0 0.38em;
 }
 
-.editor-surface--live-preview .stem-md-line--h4,
-.editor-surface--live-preview .stem-md-line--h5,
-.editor-surface--live-preview .stem-md-line--h6 {
+.editor-surface--live-preview .exograph-md-line--h4,
+.editor-surface--live-preview .exograph-md-line--h5,
+.editor-surface--live-preview .exograph-md-line--h6 {
   font-size: 1.02rem;
   margin: 0.9em 0 0.32em;
   text-transform: uppercase;
@@ -1016,47 +1016,47 @@ button svg,
   color: var(--text-soft);
 }
 
-.editor-surface--live-preview .stem-md-line--list {
+.editor-surface--live-preview .exograph-md-line--list {
   position: relative;
   line-height: 1.58;
 }
 
-.editor-surface--live-preview .stem-md-line--task {
+.editor-surface--live-preview .exograph-md-line--task {
   position: relative;
 }
 
-.editor-surface--live-preview .stem-md-line--task-done {
+.editor-surface--live-preview .exograph-md-line--task-done {
   opacity: 0.55;
   text-decoration: line-through;
   text-decoration-color: var(--muted);
 }
 
-.editor-surface--live-preview .stem-md-line--list-start,
-.editor-surface--live-preview .stem-md-line--list-continuation {
+.editor-surface--live-preview .exograph-md-line--list-start,
+.editor-surface--live-preview .exograph-md-line--list-continuation {
   min-height: 1.58em;
 }
 
-.editor-surface--live-preview .stem-md-line--quote {
+.editor-surface--live-preview .exograph-md-line--quote {
   margin: 0.22em 0;
   padding-left: 1em;
   border-left: 2px solid color-mix(in srgb, var(--accent) 38%, transparent);
   color: var(--text-soft);
 }
 
-.editor-surface--live-preview .stem-md-line--rule {
+.editor-surface--live-preview .exograph-md-line--rule {
   height: 1.2em;
   border-top: 1px solid var(--divider);
   margin: 0.85em 0;
 }
 
-.editor-surface--live-preview .stem-md-line--codefence {
+.editor-surface--live-preview .exograph-md-line--codefence {
   height: 0.4em;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 0.84em;
 }
 
-.editor-surface--live-preview .stem-md-line--codeblock {
+.editor-surface--live-preview .exograph-md-line--codeblock {
   background: color-mix(in srgb, var(--surface-2) 58%, transparent);
   border-left: 1px solid var(--surface-border);
   border-right: 1px solid var(--surface-border);
@@ -1073,7 +1073,7 @@ button svg,
   white-space: pre-wrap;
 }
 
-.editor-surface--live-preview .stem-md-line--codeblock-start {
+.editor-surface--live-preview .exograph-md-line--codeblock-start {
   border-top: 1px solid var(--surface-border);
   border-top-left-radius: 6px;
   border-top-right-radius: 6px;
@@ -1081,7 +1081,7 @@ button svg,
   padding-top: 8px;
 }
 
-.editor-surface--live-preview .stem-md-line--codeblock-end {
+.editor-surface--live-preview .exograph-md-line--codeblock-end {
   border-bottom: 1px solid var(--surface-border);
   border-bottom-left-radius: 6px;
   border-bottom-right-radius: 6px;
@@ -1089,7 +1089,7 @@ button svg,
   padding-bottom: 8px;
 }
 
-.editor-surface--live-preview .stem-md-syntax-hidden {
+.editor-surface--live-preview .exograph-md-syntax-hidden {
   font-size: 0;
   width: 0;
   display: inline-block;
@@ -1097,7 +1097,7 @@ button svg,
   color: transparent;
 }
 
-.editor-surface--live-preview .stem-md-inline-code {
+.editor-surface--live-preview .exograph-md-inline-code {
   font-family: var(--mono);
   font-size: 0.86em;
   background: color-mix(in srgb, var(--surface-3) 68%, transparent);
@@ -1107,7 +1107,7 @@ button svg,
   padding: 0.04em 0.3em;
 }
 
-.editor-surface--live-preview .stem-md-image {
+.editor-surface--live-preview .exograph-md-image {
   display: block;
   vertical-align: top;
   width: 100%;
@@ -1118,7 +1118,7 @@ button svg,
   border-radius: 8px;
 }
 
-.editor-surface--live-preview .stem-md-image__asset {
+.editor-surface--live-preview .exograph-md-image__asset {
   display: block;
   width: auto;
   max-width: min(100%, 760px);
@@ -1129,7 +1129,7 @@ button svg,
   background: var(--surface-2);
 }
 
-.editor-surface--live-preview .stem-md-image__fallback {
+.editor-surface--live-preview .exograph-md-image__fallback {
   display: inline-block;
   min-width: 9rem;
   padding: 0.45rem 0.65rem;
@@ -1140,23 +1140,23 @@ button svg,
   font-size: 0.84em;
 }
 
-.editor-surface--live-preview .stem-md-image--loading .stem-md-image__fallback::after {
+.editor-surface--live-preview .exograph-md-image--loading .exograph-md-image__fallback::after {
   content: "Loading image…";
 }
 
-.editor-surface--live-preview .stem-md-image--loading .stem-md-image__fallback {
+.editor-surface--live-preview .exograph-md-image--loading .exograph-md-image__fallback {
   font-size: 0;
 }
 
-.editor-surface--live-preview .stem-md-image--loading .stem-md-image__fallback::after {
+.editor-surface--live-preview .exograph-md-image--loading .exograph-md-image__fallback::after {
   font-size: 12px;
 }
 
-.editor-surface--live-preview .stem-md-image--missing .stem-md-image__fallback::before {
+.editor-surface--live-preview .exograph-md-image--missing .exograph-md-image__fallback::before {
   content: "Image unavailable: ";
 }
 
-.editor-surface--live-preview .stem-md-link {
+.editor-surface--live-preview .exograph-md-link {
   color: var(--accent);
   text-decoration: underline;
   text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
@@ -1241,7 +1241,7 @@ button svg,
   transform: translateX(2px);
 }
 
-.editor-surface--live-preview .stem-md-tag {
+.editor-surface--live-preview .exograph-md-tag {
   border-radius: 4px;
   background: var(--tag);
   color: var(--tag-text);
@@ -1251,27 +1251,27 @@ button svg,
   transition: background-color 120ms ease, color 120ms ease;
 }
 
-.editor-surface--live-preview .stem-md-tag:hover {
+.editor-surface--live-preview .exograph-md-tag:hover {
   background: color-mix(in srgb, var(--tag) 72%, var(--accent) 28%);
   color: var(--accent-strong);
 }
 
-.editor-surface--live-preview .stem-md-strong {
+.editor-surface--live-preview .exograph-md-strong {
   font-weight: 620;
   color: var(--text);
 }
 
-.editor-surface--live-preview .stem-md-emphasis {
+.editor-surface--live-preview .exograph-md-emphasis {
   font-style: italic;
   color: var(--text-soft);
 }
 
-.editor-surface--live-preview .stem-md-strike {
+.editor-surface--live-preview .exograph-md-strike {
   text-decoration: line-through;
   color: var(--muted);
 }
 
-.editor-surface--live-preview .stem-md-checkbox {
+.editor-surface--live-preview .exograph-md-checkbox {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1287,22 +1287,22 @@ button svg,
   pointer-events: auto;
 }
 
-.editor-surface--live-preview .stem-md-checkbox:hover {
+.editor-surface--live-preview .exograph-md-checkbox:hover {
   opacity: 0.8;
   border-color: var(--accent);
 }
 
-.editor-surface--live-preview .stem-md-checkbox--checked {
+.editor-surface--live-preview .exograph-md-checkbox--checked {
   background: var(--accent);
   border-color: var(--accent);
   opacity: 0.85;
 }
 
-.editor-surface--live-preview .stem-md-checkbox--checked:hover {
+.editor-surface--live-preview .exograph-md-checkbox--checked:hover {
   opacity: 1;
 }
 
-.editor-surface--live-preview .stem-md-checkbox--checked::after {
+.editor-surface--live-preview .exograph-md-checkbox--checked::after {
   content: "";
   display: block;
   width: 5px;
@@ -1313,32 +1313,32 @@ button svg,
 }
 
 /* A small geometric marker leaves hierarchy to indentation and type, not decoration. */
-.editor-surface--live-preview .stem-md-line--list::before {
+.editor-surface--live-preview .exograph-md-line--list::before {
   content: "";
   position: absolute;
-  left: calc(var(--stem-list-base-indent, 30px) + var(--stem-list-depth, 0) * var(--stem-list-indent-step, 28px) - var(--stem-list-marker-lane-width, 18px) + 6px);
+  left: calc(var(--exograph-list-base-indent, 30px) + var(--exograph-list-depth, 0) * var(--exograph-list-indent-step, 28px) - var(--exograph-list-marker-lane-width, 18px) + 6px);
   top: calc(0.5lh - 2px);
   width: 4px;
   height: 4px;
   border-radius: 999px;
-  background: var(--stem-list-bullet);
+  background: var(--exograph-list-bullet);
   pointer-events: none;
   user-select: none;
 }
 
 
 /* Ordered lists show the number from the marker attribute. */
-.editor-surface--live-preview .stem-md-line--list-ordered::before {
-  content: attr(data-stem-list-marker);
+.editor-surface--live-preview .exograph-md-line--list-ordered::before {
+  content: attr(data-exograph-list-marker);
   top: 0;
-  left: calc(var(--stem-list-base-indent, 30px) + var(--stem-list-depth, 0) * var(--stem-list-indent-step, 28px) - var(--stem-list-marker-lane-width, 18px));
-  width: var(--stem-list-marker-lane-width, 18px);
+  left: calc(var(--exograph-list-base-indent, 30px) + var(--exograph-list-depth, 0) * var(--exograph-list-indent-step, 28px) - var(--exograph-list-marker-lane-width, 18px));
+  width: var(--exograph-list-marker-lane-width, 18px);
   height: 1.58em;
   box-sizing: border-box;
   display: inline-flex;
   align-items: baseline;
   background: transparent;
-  color: var(--stem-list-bullet);
+  color: var(--exograph-list-bullet);
   font-family: var(--sans);
   font-size: 1em;
   font-variant-numeric: tabular-nums;
@@ -1350,21 +1350,21 @@ button svg,
 }
 
 /* Continuation lines have no bullet. */
-.editor-surface--live-preview .stem-md-line--list-continuation::before {
+.editor-surface--live-preview .exograph-md-line--list-continuation::before {
   content: none;
 }
 
 /* Raw mode uses visible marker text and suppresses ::before. */
-.editor-surface--live-preview .stem-md-line--list[data-stem-list-raw]::before {
+.editor-surface--live-preview .exograph-md-line--list[data-exograph-list-raw]::before {
   content: none;
 }
 
 /* Raw marker: visible in the bullet lane while preserving text alignment. */
-.editor-surface--live-preview .stem-md-list-marker-raw {
+.editor-surface--live-preview .exograph-md-list-marker-raw {
   display: inline-flex;
-  width: var(--stem-list-marker-lane-width, 26px);
+  width: var(--exograph-list-marker-lane-width, 26px);
   box-sizing: border-box;
-  margin-left: calc(-1 * var(--stem-list-marker-lane-width, 26px));
+  margin-left: calc(-1 * var(--exograph-list-marker-lane-width, 26px));
   align-items: center;
   justify-content: flex-end;
   font-family: inherit;
@@ -1378,21 +1378,21 @@ button svg,
   padding-right: 9px;
 }
 
-.editor-surface--live-preview .stem-md-list-prefix {
+.editor-surface--live-preview .exograph-md-list-prefix {
   position: absolute;
   left: 0;
   top: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--stem-list-marker-lane-width);
+  width: var(--exograph-list-marker-lane-width);
   height: 1lh;
-  color: var(--stem-list-bullet);
+  color: var(--exograph-list-bullet);
   user-select: none;
   pointer-events: none;
 }
 
-.editor-surface--live-preview .stem-md-fold-toggle {
+.editor-surface--live-preview .exograph-md-fold-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1408,13 +1408,13 @@ button svg,
   pointer-events: auto;
 }
 
-.editor-surface--live-preview .stem-md-list-prefix:hover .stem-md-fold-toggle,
-.editor-surface--live-preview .stem-md-fold-toggle:hover,
-.editor-surface--live-preview .stem-md-fold-toggle--folded {
+.editor-surface--live-preview .exograph-md-list-prefix:hover .exograph-md-fold-toggle,
+.editor-surface--live-preview .exograph-md-fold-toggle:hover,
+.editor-surface--live-preview .exograph-md-fold-toggle--folded {
   opacity: 1;
 }
 
-.editor-surface--live-preview .stem-md-fold-toggle::after {
+.editor-surface--live-preview .exograph-md-fold-toggle::after {
   content: "";
   display: block;
   width: 4px;
@@ -1424,19 +1424,19 @@ button svg,
   transform: rotate(45deg) translate(-1px, -1px);
 }
 
-.editor-surface--live-preview .stem-md-fold-toggle--folded::after {
+.editor-surface--live-preview .exograph-md-fold-toggle--folded::after {
   transform: rotate(-45deg) translate(0px, -1px);
 }
 
-.editor-surface--live-preview .stem-md-fold-toggle:hover {
+.editor-surface--live-preview .exograph-md-fold-toggle:hover {
   color: var(--text);
 }
 
-.stem-md-line--folded-hidden {
+.exograph-md-line--folded-hidden {
   display: none !important;
 }
 
-.editor-surface--live-preview .stem-md-table-wrap {
+.editor-surface--live-preview .exograph-md-table-wrap {
   width: 100%;
   overflow-x: auto;
   margin: 0.8em 0;
@@ -1444,27 +1444,27 @@ button svg,
   border-radius: 6px;
 }
 
-.editor-surface--live-preview .stem-md-table {
+.editor-surface--live-preview .exograph-md-table {
   border-collapse: collapse;
   width: 100%;
   font-size: 0.94em;
 }
 
-.editor-surface--live-preview .stem-md-table th,
-.editor-surface--live-preview .stem-md-table td {
+.editor-surface--live-preview .exograph-md-table th,
+.editor-surface--live-preview .exograph-md-table td {
   border: 1px solid color-mix(in srgb, var(--divider-strong) 72%, transparent);
   padding: 6px 10px;
   vertical-align: top;
   line-height: 1.45;
 }
 
-.editor-surface--live-preview .stem-md-table th {
+.editor-surface--live-preview .exograph-md-table th {
   background: color-mix(in srgb, var(--surface-2) 72%, transparent);
   font-weight: 600;
   color: var(--text);
 }
 
-.editor-surface--live-preview .stem-md-table tr:nth-child(even) td {
+.editor-surface--live-preview .exograph-md-table tr:nth-child(even) td {
   background: var(--surface-1);
 }
 

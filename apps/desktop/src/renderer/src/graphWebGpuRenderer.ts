@@ -291,9 +291,9 @@ export class GraphWebGpuRenderer {
       this.frameData[3] = 1 / this.height;
       this.device.queue.writeBuffer(this.frameBuffer!, 0, this.frameData.buffer, 0, this.frameData.byteLength);
 
-      const encoder = this.device.createCommandEncoder({ label: "stem graph frame" });
+      const encoder = this.device.createCommandEncoder({ label: "exograph graph frame" });
       const pass = encoder.beginRenderPass({
-        label: "stem graph pixels",
+        label: "exograph graph pixels",
         colorAttachments: [{
           view: this.context.getCurrentTexture().createView(),
           clearValue: clearValue(plan.clearColor),
@@ -356,16 +356,16 @@ export class GraphWebGpuRenderer {
     let initializationError: unknown = null;
     try {
       this.bindGroupLayout = device.createBindGroupLayout({
-        label: "stem graph presentation layout",
+        label: "exograph graph presentation layout",
         entries: [
           { binding: 0, visibility: this.runtime.shaderStage.vertex | this.runtime.shaderStage.fragment, buffer: { type: "uniform", minBindingSize: FRAME_BYTES } },
           { binding: 1, visibility: this.runtime.shaderStage.vertex | this.runtime.shaderStage.fragment, buffer: { type: "read-only-storage", minBindingSize: NODE_FLOATS * 4 } },
           { binding: 2, visibility: this.runtime.shaderStage.vertex | this.runtime.shaderStage.fragment, buffer: { type: "read-only-storage", minBindingSize: EDGE_FLOATS * 4 } },
         ],
       });
-      const pipelineLayout = device.createPipelineLayout({ label: "stem graph pipeline layout", bindGroupLayouts: [this.bindGroupLayout] });
-      const nodeModule = device.createShaderModule({ label: "stem graph nodes", code: NODE_SHADER });
-      const edgeModule = device.createShaderModule({ label: "stem graph edges", code: EDGE_SHADER });
+      const pipelineLayout = device.createPipelineLayout({ label: "exograph graph pipeline layout", bindGroupLayouts: [this.bindGroupLayout] });
+      const nodeModule = device.createShaderModule({ label: "exograph graph nodes", code: NODE_SHADER });
+      const edgeModule = device.createShaderModule({ label: "exograph graph edges", code: EDGE_SHADER });
       await Promise.all([
         assertShaderCompiles(nodeModule, "node"),
         assertShaderCompiles(edgeModule, "edge"),
@@ -376,14 +376,14 @@ export class GraphWebGpuRenderer {
       };
       [this.edgePipeline, this.nodePipeline] = await Promise.all([
         device.createRenderPipelineAsync({
-          label: "stem graph edge pipeline",
+          label: "exograph graph edge pipeline",
           layout: pipelineLayout,
           vertex: { module: edgeModule, entryPoint: "vertexMain" },
           fragment: { module: edgeModule, entryPoint: "fragmentMain", targets: [{ format: this.format, blend }] },
           primitive: { topology: "triangle-list", cullMode: "none" },
         }),
         device.createRenderPipelineAsync({
-          label: "stem graph node pipeline",
+          label: "exograph graph node pipeline",
           layout: pipelineLayout,
           vertex: { module: nodeModule, entryPoint: "vertexMain" },
           fragment: { module: nodeModule, entryPoint: "fragmentMain", targets: [{ format: this.format, blend }] },
@@ -391,7 +391,7 @@ export class GraphWebGpuRenderer {
         }),
       ]);
       this.frameBuffer = device.createBuffer({
-        label: "stem graph viewport",
+        label: "exograph graph viewport",
         size: FRAME_BYTES,
         usage: this.runtime.bufferUsage.uniform | this.runtime.bufferUsage.copyDestination,
       });
@@ -424,7 +424,7 @@ export class GraphWebGpuRenderer {
       this.checkStorageLimit(bytes, "node");
       this.nodeBuffer?.destroy();
       this.nodeBuffer = this.device.createBuffer({
-        label: "stem graph nodes",
+        label: "exograph graph nodes",
         size: align(bytes, 16),
         usage: this.runtime.bufferUsage.storage | this.runtime.bufferUsage.copyDestination,
       });
@@ -437,7 +437,7 @@ export class GraphWebGpuRenderer {
       this.checkStorageLimit(bytes, "edge");
       this.edgeBuffer?.destroy();
       this.edgeBuffer = this.device.createBuffer({
-        label: "stem graph edges",
+        label: "exograph graph edges",
         size: align(bytes, 16),
         usage: this.runtime.bufferUsage.storage | this.runtime.bufferUsage.copyDestination,
       });
@@ -446,7 +446,7 @@ export class GraphWebGpuRenderer {
     }
     if (changed || !this.bindGroup) {
       this.bindGroup = this.device.createBindGroup({
-        label: "stem graph presentation",
+        label: "exograph graph presentation",
         layout: this.bindGroupLayout,
         entries: [
           { binding: 0, resource: { buffer: this.frameBuffer } },

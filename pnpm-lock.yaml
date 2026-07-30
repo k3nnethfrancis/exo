@@ -86,12 +86,12 @@ importers:
       '@codemirror/view':
         specifier: 6.38.8
         version: 6.38.8
+      '@exograph/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
-      '@stem/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@tobilu/qmd':
         specifier: 2.5.3
         version: 2.5.3(patch_hash=45da17b726095a447487137a06f4eb902a7f5299769415205924f2acf495dbdb)(typescript@5.9.3)
@@ -146,7 +146,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@stem/core':
+      '@exograph/core':
         specifier: workspace:*
         version: link:../core
 

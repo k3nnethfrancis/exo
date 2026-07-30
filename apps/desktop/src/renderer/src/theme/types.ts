@@ -1,11 +1,11 @@
-import type { ColorThemeId } from "@stem/core";
+import type { ColorThemeId } from "@exograph/core";
 import type { ResolvedAppearance } from "../appearance";
 
 export type { ColorThemeId };
 
 export type ThemeCssVariable = `--${string}`;
 
-export interface StemSyntaxTheme {
+export interface ExographSyntaxTheme {
   keyword: string;
   atom: string;
   string: string;
@@ -21,7 +21,7 @@ export interface StemSyntaxTheme {
   meta: string;
 }
 
-export interface StemTerminalTheme {
+export interface ExographTerminalTheme {
   background: string;
   foreground: string;
   cursor: string;
@@ -45,18 +45,18 @@ export interface StemTerminalTheme {
   brightWhite: string;
 }
 
-export interface StemThemeVariant {
+export interface ExographThemeVariant {
   id: string;
   appearance: ResolvedAppearance;
   colorScheme: "light" | "dark";
   css: Record<ThemeCssVariable, string>;
-  syntax: StemSyntaxTheme;
-  terminal: StemTerminalTheme;
+  syntax: ExographSyntaxTheme;
+  terminal: ExographTerminalTheme;
 }
 
-export interface StemThemeFamily {
+export interface ExographThemeFamily {
   id: ColorThemeId;
   label: string;
   description: string;
-  variants: Partial<Record<ResolvedAppearance, StemThemeVariant>>;
+  variants: Partial<Record<ResolvedAppearance, ExographThemeVariant>>;
 }

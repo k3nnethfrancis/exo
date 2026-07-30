@@ -21,13 +21,13 @@ test('repoRoot resolves the workspace containing apps/desktop', () => {
 });
 
 test('macOutputDirectories returns only generated mac app output directories', () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'stem-pack-mac-test-'));
+  const root = mkdtempSync(path.join(os.tmpdir(), 'exograph-pack-mac-test-'));
   const release = path.join(root, 'release');
   mkdirSync(path.join(release, 'mac-arm64', 'Electron.app'), { recursive: true });
-  mkdirSync(path.join(release, 'mac-x64', 'Stem.app'), { recursive: true });
+  mkdirSync(path.join(release, 'mac-x64', 'Exograph.app'), { recursive: true });
   mkdirSync(path.join(release, 'mac'), { recursive: true });
   mkdirSync(path.join(release, 'macos-docs'), { recursive: true });
-  writeFileSync(path.join(release, 'Stem-0.1.0-alpha.3-mac-arm64.dmg'), '');
+  writeFileSync(path.join(release, 'Exograph-0.1.0-alpha.3-mac-arm64.dmg'), '');
 
   assert.deepEqual(
     macOutputDirectories(release).map((directory) => path.basename(directory)).sort(),
@@ -36,11 +36,11 @@ test('macOutputDirectories returns only generated mac app output directories', (
 });
 
 test('cleanMacOutputDirectories removes partial and stale mac app bundles without touching other release artifacts', () => {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'stem-pack-mac-clean-test-'));
+  const root = mkdtempSync(path.join(os.tmpdir(), 'exograph-pack-mac-clean-test-'));
   const release = path.join(root, 'release');
   const partialBundle = path.join(release, 'mac-arm64', 'Electron.app');
-  const staleBundle = path.join(release, 'mac-x64', 'Stem.app');
-  const dmg = path.join(release, 'Stem-0.1.0-alpha.3-mac-arm64.dmg');
+  const staleBundle = path.join(release, 'mac-x64', 'Exograph.app');
+  const dmg = path.join(release, 'Exograph-0.1.0-alpha.3-mac-arm64.dmg');
   mkdirSync(partialBundle, { recursive: true });
   mkdirSync(staleBundle, { recursive: true });
   writeFileSync(dmg, '');
@@ -66,11 +66,11 @@ test('packMacTimeouts uses conservative defaults with environment overrides', ()
     timeoutMs: 20 * 60 * 1000,
     idleTimeoutMs: 5 * 60 * 1000,
   });
-  assert.deepEqual(packMacTimeouts({ STEM_PACK_MAC_TIMEOUT_MS: '120000', STEM_PACK_MAC_IDLE_TIMEOUT_MS: '30000' }), {
+  assert.deepEqual(packMacTimeouts({ EXOGRAPH_PACK_MAC_TIMEOUT_MS: '120000', EXOGRAPH_PACK_MAC_IDLE_TIMEOUT_MS: '30000' }), {
     timeoutMs: 120000,
     idleTimeoutMs: 30000,
   });
-  assert.deepEqual(packMacTimeouts({ STEM_PACK_MAC_TIMEOUT_MS: '0', STEM_PACK_MAC_IDLE_TIMEOUT_MS: 'nope' }), {
+  assert.deepEqual(packMacTimeouts({ EXOGRAPH_PACK_MAC_TIMEOUT_MS: '0', EXOGRAPH_PACK_MAC_IDLE_TIMEOUT_MS: 'nope' }), {
     timeoutMs: 20 * 60 * 1000,
     idleTimeoutMs: 5 * 60 * 1000,
   });
@@ -86,7 +86,7 @@ test('packagingTimeoutDiagnostic names dependency collection as the likely stuck
   assert.match(diagnostic, /produced no output for 5m/);
   assert.match(diagnostic, /searching for node modules/);
   assert.match(diagnostic, /dependency collection/);
-  assert.match(diagnostic, /STEM_PACK_MAC_IDLE_TIMEOUT_MS/);
+  assert.match(diagnostic, /EXOGRAPH_PACK_MAC_IDLE_TIMEOUT_MS/);
 });
 
 test('mac packaging restores the local Electron runtime after electron-builder consumes its path marker', async () => {
@@ -98,7 +98,7 @@ test('mac packaging restores the local Electron runtime after electron-builder c
 
   assert.deepEqual(calls, [[
     'pnpm',
-    ['--filter', '@stem/desktop', 'setup:runtime'],
+    ['--filter', '@exograph/desktop', 'setup:runtime'],
     { label: 'restore local Electron runtime' },
   ]]);
 });

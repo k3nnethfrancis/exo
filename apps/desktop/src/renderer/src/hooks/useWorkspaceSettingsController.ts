@@ -3,11 +3,11 @@ import type {
   IndexStatus,
   WorkspaceSettings,
   WorkspaceSettingsRevision,
-} from "@stem/core";
-import { agentCommandConfigurationError } from "@stem/core/agent-command-configuration";
+} from "@exograph/core";
+import { agentCommandConfigurationError } from "@exograph/core/agent-command-configuration";
 import type { IndexSyncStateEvent, WorkspaceSettingsSaveOutcome } from "../../../shared/api";
-import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@stem/core/agent-invocation-prompt";
-import { normalizeWorkspaceContentPolicy } from "@stem/core/workspace-content-policy";
+import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exograph/core/agent-invocation-prompt";
+import { normalizeWorkspaceContentPolicy } from "@exograph/core/workspace-content-policy";
 import type { AppearanceMode } from "../appearance";
 import { normalizeColorThemeId } from "../theme/registry";
 import {
@@ -70,11 +70,11 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
               settings: optionsRef.current.workspaceSettingsRef.current,
               revision: optionsRef.current.workspaceSettingsRevisionRef.current,
             }
-          : await window.stem.workspace.getSettings();
+          : await window.exograph.workspace.getSettings();
         const nextSettings: WorkspaceSettings = {
           ...buildSettings(baseSnapshot.settings),
         };
-        const saved = await window.stem.workspace.saveSettings({
+        const saved = await window.exograph.workspace.saveSettings({
           settings: nextSettings,
           expectedRevision: baseSnapshot.revision,
         });
@@ -121,7 +121,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
         if (savedSettings.runtimeApply.status === "failed") return;
         optionsRef.current.applyWorkspaceSettings(savedSettings.settings);
         await optionsRef.current.refreshWorkspaceModel();
-        optionsRef.current.setIndexStatus(await window.stem.workspace.getIndexStatus());
+        optionsRef.current.setIndexStatus(await window.exograph.workspace.getIndexStatus());
         await optionsRef.current.onSettingsSaved?.();
         if (savedSettings.runtimeApply.status === "applied") reconcileRuntimeApply(savedSettings);
       },
@@ -137,7 +137,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
   }, [options]);
 
   useEffect(() => {
-    return window.stem.workspace.onIndexSyncState((event) => {
+    return window.exograph.workspace.onIndexSyncState((event) => {
       if (event.state === "running") {
         setIndexBusy((current) => indexBusyStateForEvent(event, current));
         return;
@@ -180,7 +180,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     if (dialogSessionIdRef.current !== dialogSessionId) {
       return;
     }
-    const snapshot = await window.stem.workspace.getSettings();
+    const snapshot = await window.exograph.workspace.getSettings();
     if (dialogSessionIdRef.current !== dialogSessionId) {
       return;
     }
@@ -208,8 +208,8 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       applyStatus: "idle",
       applyErrorMessage: null,
     });
-    void window.stem.workspace.getIndexStatus().then(optionsRef.current.setIndexStatus).catch((error) => {
-      console.warn("[stem] failed to load index status", error);
+    void window.exograph.workspace.getIndexStatus().then(optionsRef.current.setIndexStatus).catch((error) => {
+      console.warn("[exograph] failed to load index status", error);
       optionsRef.current.setIndexStatus(null);
     });
   }
@@ -232,7 +232,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
   }
 
   async function chooseFolder(target: "workspaceRoot" | "defaultTerminalCwd" | "noteRoot") {
-    const folders = await window.stem.workspace.selectFolder({
+    const folders = await window.exograph.workspace.selectFolder({
       title:
         target === "noteRoot"
           ? "Choose notes folder"
@@ -273,10 +273,10 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
 
     try {
       const status = action === "syncing"
-        ? (await window.stem.workspace.syncIndex()).status
+        ? (await window.exograph.workspace.syncIndex()).status
         : action === "embedding"
-          ? await window.stem.workspace.embedIndex()
-          : await window.stem.workspace.updateIndex();
+          ? await window.exograph.workspace.embedIndex()
+          : await window.exograph.workspace.updateIndex();
       optionsRef.current.setIndexStatus(status);
     } catch (error) {
       setDialog((current) =>
@@ -338,9 +338,9 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
           if (saveOptions.includeStructural) {
             await optionsRef.current.refreshWorkspaceModel();
             try {
-              optionsRef.current.setIndexStatus(await window.stem.workspace.getIndexStatus());
+              optionsRef.current.setIndexStatus(await window.exograph.workspace.getIndexStatus());
             } catch (error) {
-              console.warn("[stem] failed to refresh search status", error);
+              console.warn("[exograph] failed to refresh search status", error);
               optionsRef.current.setIndexStatus(null);
             }
           }

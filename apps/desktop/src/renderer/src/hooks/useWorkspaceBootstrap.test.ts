@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "@stem/core/default-agent-command";
+import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "@exograph/core/default-agent-command";
 import {
   onboardingDraftFromState,
   onboardingRuntimeApplyDecision,

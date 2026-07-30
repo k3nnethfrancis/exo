@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/
 import os from "node:os";
 import path from "node:path";
 
-import { parseWorkspaceOntology, type AgentCommand } from "@stem/core";
+import { parseWorkspaceOntology, type AgentCommand } from "@exograph/core";
 import { ensureUserOwnedSkill, type UserOwnedSkill } from "./user-owned-skill";
 
 const DISCOVERY_SKILL_ID = "design-workspace-ontology";
@@ -55,7 +55,7 @@ export async function runOntologyDiscovery(input: {
   if (input.command.adapter !== "claude-code" && input.command.adapter !== "codex-cli") {
     throw new Error("Ontology discovery currently requires a configured Claude or Codex Command.");
   }
-  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-discovery-"));
+  const temporaryRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-ontology-discovery-"));
   try {
     const snapshotRoot = path.join(temporaryRoot, "workspace");
     await createFrozenMarkdownSnapshot(snapshotRoot, input.noteRoots);

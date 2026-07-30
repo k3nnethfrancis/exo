@@ -1,6 +1,6 @@
 # Search
 
-Stem has two local search paths. They share the same workspace content policy: only Markdown selected as workspace content becomes a searchable Note.
+Exograph has two local search paths. They share the same workspace content policy: only Markdown selected as workspace content becomes a searchable Note.
 
 ## Immediate search
 

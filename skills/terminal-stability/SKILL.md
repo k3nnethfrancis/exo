@@ -1,11 +1,11 @@
 ---
 name: terminal-stability
-description: Use before changing Stem terminal runtime, rendering, settings, tests, or terminal-backed Command launch behavior. Keeps the current direct-PTY, xterm-owned, provider-neutral terminal aligned with byte fidelity, bounded replay, honest lifetime, and real Electron QA invariants.
+description: Use before changing Exograph terminal runtime, rendering, settings, tests, or terminal-backed Command launch behavior. Keeps the current direct-PTY, xterm-owned, provider-neutral terminal aligned with byte fidelity, bounded replay, honest lifetime, and real Electron QA invariants.
 ---
 
 # Terminal Stability
 
-Use this skill before changing Stem terminal runtime, terminal rendering, terminal settings, terminal tests, or terminal-backed Command launch behavior.
+Use this skill before changing Exograph terminal runtime, terminal rendering, terminal settings, terminal tests, or terminal-backed Command launch behavior.
 
 ## Required Orientation
 
@@ -23,19 +23,19 @@ Treat terminal-era restore, persistent-history, and built-in-agent documents as 
 
 ## Current Decision
 
-As of the 2026-07-09 architecture review, Stem's V1 terminal path is:
+As of the 2026-07-09 architecture review, Exograph's V1 terminal path is:
 
 ```text
 xterm.js live surface
-  -> Stem renderer terminal bridge
-  -> Stem main TerminalManager facade
+  -> Exograph renderer terminal bridge
+  -> Exograph main TerminalManager facade
   -> direct node-pty runtime
   -> shell or configured Command
 ```
 
 The previous tmux-control-mode architecture is superseded for this branch. Do not rebuild it, preserve it as a hidden fallback, or treat tmux durability, restore snapshots, or terminal transcripts as V1 product requirements.
 
-Users who want tmux durability can run `tmux` inside a normal Stem terminal. External tools should resume through their own session mechanisms. Stem records explicit invocations and reviewed file outcomes without interpreting provider semantics.
+Users who want tmux durability can run `tmux` inside a normal Exograph terminal. External tools should resume through their own session mechanisms. Exograph records explicit invocations and reviewed file outcomes without interpreting provider semantics.
 
 ## Ownership Rules
 
@@ -47,7 +47,7 @@ Users who want tmux durability can run `tmux` inside a normal Stem terminal. Ext
 
 ## Hard Invariants
 
-- Terminal input bytes must pass through without Stem re-encoding them into tmux commands or provider-specific key translations.
+- Terminal input bytes must pass through without Exograph re-encoding them into tmux commands or provider-specific key translations.
 - Spaces, paste, Enter, Ctrl-C, Escape, arrows, and resize must have focused tests before this branch is called done.
 - Mounted live terminals receive append events only.
 - Do not call `terminal.reset()` or replay a full snapshot on normal tab switch, pane focus, pane move, preview focus, or metadata refresh.
@@ -57,7 +57,7 @@ Users who want tmux durability can run `tmux` inside a normal Stem terminal. Ext
   provider inference in CI.
 - Command launch must route through configured data-only Commands and InvocationRunner, not a built-in harness registry or readiness manager.
 - Ordinary shell wheel, trackpad, and selection stay with xterm. A mouse-mode TUI may own wheel input only with a visible indicator and documented modifier escape to local scrollback.
-- App exit ends the PTY. Renderer reload may replay bounded memory, but Stem must not imply durable process persistence.
+- App exit ends the PTY. Renderer reload may replay bounded memory, but Exograph must not imply durable process persistence.
 
 ## Before Editing
 
@@ -78,17 +78,17 @@ For terminal runtime or renderer changes, run the focused terminal tests that co
 Before handoff of user-visible terminal work:
 
 ```bash
-pnpm --filter @stem/desktop typecheck
-pnpm --filter @stem/desktop test
+pnpm --filter @exograph/desktop typecheck
+pnpm --filter @exograph/desktop test
 pnpm check
-pnpm --filter @stem/desktop build
+pnpm --filter @exograph/desktop build
 ```
 
 Run focused Playwright coverage for terminal input and configured Command launch. `pnpm terminal:check` runs the focused direct-PTY unit suite; use `pnpm test:e2e` for the full browser-visible suite.
 
 ## Manual QA
 
-After code changes, restart Stem and test in the real Electron app. Use the packaged app for installed-path or lifecycle claims:
+After code changes, restart Exograph and test in the real Electron app. Use the packaged app for installed-path or lifecycle claims:
 
 1. Open a shell terminal.
 2. Type words with spaces quickly.

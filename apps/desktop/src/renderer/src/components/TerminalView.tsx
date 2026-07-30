@@ -5,8 +5,8 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { Terminal } from "@xterm/xterm";
 
 import type { TerminalSessionInfo } from "../../../shared/api";
-import type { StemThemeVariant } from "../theme/types";
-import { stemXtermTheme } from "../theme/xterm";
+import type { ExographThemeVariant } from "../theme/types";
+import { exographXtermTheme } from "../theme/xterm";
 import { TERMINAL_CUSTOM_GLYPHS, TERMINAL_FONT_FAMILY } from "./terminalFonts";
 import {
   initialTerminalHydrationViewState,
@@ -22,7 +22,7 @@ import { registerTerminal, unregisterTerminal } from "./terminalRegistry";
 const TERMINAL_RESIZE_DEBOUNCE_MS = 16;
 
 interface TerminalViewProps {
-  theme: StemThemeVariant;
+  theme: ExographThemeVariant;
   session: TerminalSessionInfo;
   focused: boolean;
   hydrationSnapshot: string;
@@ -90,7 +90,7 @@ export function TerminalView(props: TerminalViewProps) {
       cursorBlink: false,
       minimumContrastRatio: 4.5,
       scrollback: scrollbackLines,
-      theme: stemXtermTheme(theme),
+      theme: exographXtermTheme(theme),
     });
     const fitAddon = new FitAddon();
     const unicode11Addon = new Unicode11Addon();
@@ -183,7 +183,7 @@ export function TerminalView(props: TerminalViewProps) {
       event.preventDefault();
       event.stopPropagation();
 
-      const paths = window.stem.terminals.resolveDroppedFilePaths(Array.from(event.dataTransfer.files));
+      const paths = window.exograph.terminals.resolveDroppedFilePaths(Array.from(event.dataTransfer.files));
       if (paths.length === 0) {
         return;
       }
@@ -271,7 +271,7 @@ export function TerminalView(props: TerminalViewProps) {
       return;
     }
 
-    terminal.options.theme = stemXtermTheme(theme);
+    terminal.options.theme = exographXtermTheme(theme);
   }, [theme]);
 
   useEffect(() => {
@@ -529,7 +529,7 @@ function focusTerminalElement(
   viewport: HTMLDivElement | null,
   terminal: Terminal,
 ) {
-  void window.stem.shell.focusWindow().catch(() => {});
+  void window.exograph.shell.focusWindow().catch(() => {});
   window.focus();
   if (document.activeElement instanceof HTMLElement) {
     document.activeElement.blur();

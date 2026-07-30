@@ -11,7 +11,7 @@ describe("GPU startup policy", () => {
 
   it("offers only an explicit diagnostic hardware-acceleration disable", () => {
     const disableHardwareAcceleration = vi.fn();
-    expect(configureGpuStartup({ disableHardwareAcceleration }, { STEM_DISABLE_GPU: "1" })).toBe("diagnostic-disabled");
+    expect(configureGpuStartup({ disableHardwareAcceleration }, { EXOGRAPH_DISABLE_GPU: "1" })).toBe("diagnostic-disabled");
     expect(disableHardwareAcceleration).toHaveBeenCalledOnce();
   });
 });

@@ -2,29 +2,29 @@ import { readFile, rename, rm, stat } from "node:fs/promises";
 import path from "node:path";
 
 import {
-  STEM_COMMAND_ROUTES,
-  STEM_COMMAND_TOKEN_HEADER,
-  type StemCommandIndexStatusResponse,
-  type StemCommandIndexSyncResponse,
-  type StemCommandIndexSyncRequest,
-  type StemCommandOkResponse,
-  type StemCommandSearchRequest,
-  type StemCommandSearchResponse,
-  type StemCommandServerInfo,
-  type StemCommandStatusResponse,
-  type StemCommandStatusTerminalInfo,
-  type StemCommandStatusWithControlPlane,
-  type StemCommandTerminalInfo,
-  type StemCommandShowRequest,
-  type StemOpenFileRequest,
-  type StemSpawnAgentCommandRequest,
-  type StemSpawnAgentCommandResponse,
+  EXOGRAPH_COMMAND_ROUTES,
+  EXOGRAPH_COMMAND_TOKEN_HEADER,
+  type ExographCommandIndexStatusResponse,
+  type ExographCommandIndexSyncResponse,
+  type ExographCommandIndexSyncRequest,
+  type ExographCommandOkResponse,
+  type ExographCommandSearchRequest,
+  type ExographCommandSearchResponse,
+  type ExographCommandServerInfo,
+  type ExographCommandStatusResponse,
+  type ExographCommandStatusTerminalInfo,
+  type ExographCommandStatusWithControlPlane,
+  type ExographCommandTerminalInfo,
+  type ExographCommandShowRequest,
+  type ExographOpenFileRequest,
+  type ExographSpawnAgentCommandRequest,
+  type ExographSpawnAgentCommandResponse,
   type IndexedRoot,
   type IndexSearchResponse,
   type IndexStatus,
   type IndexSyncResult,
   type WorkspaceModel,
-} from "@stem/core";
+} from "@exograph/core";
 
 const defaultRequestTimeoutMs = 2_000;
 const defaultSearchRequestTimeoutMs = 30_000;
@@ -65,12 +65,12 @@ export type AppClientConnectResult =
     ok: true;
     client: AppClient;
     discovery: AppClientDiscoveryMetadata;
-    status: StemCommandStatusWithControlPlane;
+    status: ExographCommandStatusWithControlPlane;
   }
   | { ok: false; failure: AppClientDiscoveryFailure };
 
 /**
- * HTTP client for communicating with the Stem desktop app's command server.
+ * HTTP client for communicating with the Exograph desktop app's command server.
  * Discovers the server port from .exograph/server.json.
  */
 export class AppClient {
@@ -84,7 +84,7 @@ export class AppClient {
   ) {}
 
   /**
-   * Attempt to connect to a running Stem desktop app.
+   * Attempt to connect to a running Exograph desktop app.
    * Returns null if the app isn't running or server.json doesn't exist.
    */
   static async connect(runtimeRoot: string, env: NodeJS.ProcessEnv = process.env): Promise<AppClient | null> {
@@ -94,7 +94,7 @@ export class AppClient {
 
   static async connectDetailed(runtimeRoot: string, env: NodeJS.ProcessEnv = process.env): Promise<AppClientConnectResult> {
     const serverJsonPath = path.join(runtimeRoot, "server.json");
-    let info: StemCommandServerInfo;
+    let info: ExographCommandServerInfo;
 
     try {
       const runtimeRootStat = await stat(runtimeRoot);
@@ -119,10 +119,10 @@ export class AppClient {
     }
 
     const baseUrl = `http://127.0.0.1:${info.port}`;
-    const requestTimeoutMs = parsePositiveInt(env.STEM_APP_CLIENT_REQUEST_TIMEOUT_MS) ?? defaultRequestTimeoutMs;
-    const searchRequestTimeoutMs = parsePositiveInt(env.STEM_APP_CLIENT_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
+    const requestTimeoutMs = parsePositiveInt(env.EXOGRAPH_APP_CLIENT_REQUEST_TIMEOUT_MS) ?? defaultRequestTimeoutMs;
+    const searchRequestTimeoutMs = parsePositiveInt(env.EXOGRAPH_APP_CLIENT_SEARCH_TIMEOUT_MS) ?? defaultSearchRequestTimeoutMs;
     const maintenanceRequestTimeoutMs =
-      parsePositiveInt(env.STEM_APP_CLIENT_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
+      parsePositiveInt(env.EXOGRAPH_APP_CLIENT_MAINTENANCE_TIMEOUT_MS) ?? defaultMaintenanceRequestTimeoutMs;
     const discovery: ConnectedAppClientDiscovery = { runtimeRoot, serverJsonPath, port: info.port, pid: info.pid };
     const client = new AppClient(baseUrl, discovery, info.token, requestTimeoutMs, searchRequestTimeoutMs, maintenanceRequestTimeoutMs);
 
@@ -149,8 +149,8 @@ export class AppClient {
     }
   }
 
-  async getStatus(): Promise<StemCommandStatusWithControlPlane> {
-    const status = await this.get(STEM_COMMAND_ROUTES.status, decodeStemCommandStatusResponse);
+  async getStatus(): Promise<ExographCommandStatusWithControlPlane> {
+    const status = await this.get(EXOGRAPH_COMMAND_ROUTES.status, decodeExographCommandStatusResponse);
     return {
       ...status,
       controlPlane: {
@@ -164,35 +164,35 @@ export class AppClient {
   }
 
   async openFile(filePath: string): Promise<void> {
-    const request: StemOpenFileRequest = { path: filePath };
-    await this.post(STEM_COMMAND_ROUTES.open, request, decodeStemCommandOkResponse);
+    const request: ExographOpenFileRequest = { path: filePath };
+    await this.post(EXOGRAPH_COMMAND_ROUTES.open, request, decodeExographCommandOkResponse);
   }
 
   async showWindow(): Promise<void> {
-    const request: StemCommandShowRequest = {};
-    await this.post(STEM_COMMAND_ROUTES.show, request, decodeStemCommandOkResponse);
+    const request: ExographCommandShowRequest = {};
+    await this.post(EXOGRAPH_COMMAND_ROUTES.show, request, decodeExographCommandOkResponse);
   }
 
-  async search(query: string, options: { limit?: number; offset?: number } = {}): Promise<StemCommandSearchResponse> {
-    const request: StemCommandSearchRequest = { q: query, ...options };
+  async search(query: string, options: { limit?: number; offset?: number } = {}): Promise<ExographCommandSearchResponse> {
+    const request: ExographCommandSearchRequest = { q: query, ...options };
     const params = new URLSearchParams({ q: request.q });
     if (request.limit) params.set("limit", String(request.limit));
     if (request.offset) params.set("offset", String(request.offset));
-    return this.get(`${STEM_COMMAND_ROUTES.search}?${params.toString()}`, decodeStemIndexSearchResponse, this.searchRequestTimeoutMs);
+    return this.get(`${EXOGRAPH_COMMAND_ROUTES.search}?${params.toString()}`, decodeExographIndexSearchResponse, this.searchRequestTimeoutMs);
   }
 
-  async getIndexStatus(): Promise<StemCommandIndexStatusResponse> {
-    return this.get(STEM_COMMAND_ROUTES.indexStatus, decodeStemIndexStatusResponse);
+  async getIndexStatus(): Promise<ExographCommandIndexStatusResponse> {
+    return this.get(EXOGRAPH_COMMAND_ROUTES.indexStatus, decodeExographIndexStatusResponse);
   }
 
-  async syncIndex(): Promise<StemCommandIndexSyncResponse> {
-    const request: StemCommandIndexSyncRequest = {};
-    return this.post(STEM_COMMAND_ROUTES.indexSync, request, decodeStemIndexSyncResponse, this.maintenanceRequestTimeoutMs);
+  async syncIndex(): Promise<ExographCommandIndexSyncResponse> {
+    const request: ExographCommandIndexSyncRequest = {};
+    return this.post(EXOGRAPH_COMMAND_ROUTES.indexSync, request, decodeExographIndexSyncResponse, this.maintenanceRequestTimeoutMs);
   }
 
-  async spawnAgentCommand(handle: string, task: string): Promise<StemSpawnAgentCommandResponse> {
-    const request: StemSpawnAgentCommandRequest = { handle, task };
-    return this.post(STEM_COMMAND_ROUTES.spawnAgentCommand, request, decodeStemSpawnAgentCommandResponse, this.maintenanceRequestTimeoutMs);
+  async spawnAgentCommand(handle: string, task: string): Promise<ExographSpawnAgentCommandResponse> {
+    const request: ExographSpawnAgentCommandRequest = { handle, task };
+    return this.post(EXOGRAPH_COMMAND_ROUTES.spawnAgentCommand, request, decodeExographSpawnAgentCommandResponse, this.maintenanceRequestTimeoutMs);
   }
 
   private async get<T>(path: string, decode: (value: unknown) => T, timeoutMs = this.requestTimeoutMs): Promise<T> {
@@ -226,48 +226,48 @@ export class AppClient {
   private authHeaders(): Record<string, string> {
     return {
       Authorization: `Bearer ${this.token}`,
-      [STEM_COMMAND_TOKEN_HEADER]: this.token,
+      [EXOGRAPH_COMMAND_TOKEN_HEADER]: this.token,
     };
   }
 }
 
-function decodeStemCommandStatusResponse(value: unknown): StemCommandStatusResponse {
-  if (!isStemCommandStatusResponse(value)) {
+function decodeExographCommandStatusResponse(value: unknown): ExographCommandStatusResponse {
+  if (!isExographCommandStatusResponse(value)) {
     throw protocolShapeError("a valid status response");
   }
   return value;
 }
 
-function decodeStemCommandOkResponse(value: unknown): StemCommandOkResponse {
-  if (!isStemCommandOkResponse(value)) {
+function decodeExographCommandOkResponse(value: unknown): ExographCommandOkResponse {
+  if (!isExographCommandOkResponse(value)) {
     throw protocolShapeError("an { ok: true } response");
   }
   return value;
 }
 
-function decodeStemIndexSearchResponse(value: unknown): IndexSearchResponse {
+function decodeExographIndexSearchResponse(value: unknown): IndexSearchResponse {
   if (!isIndexSearchResponse(value)) {
     throw protocolShapeError("a valid search response");
   }
   return value;
 }
 
-function decodeStemIndexStatusResponse(value: unknown): IndexStatus {
+function decodeExographIndexStatusResponse(value: unknown): IndexStatus {
   if (!isIndexStatus(value)) {
     throw protocolShapeError("a valid index status response");
   }
   return value;
 }
 
-function decodeStemIndexSyncResponse(value: unknown): IndexSyncResult {
+function decodeExographIndexSyncResponse(value: unknown): IndexSyncResult {
   if (!isIndexSyncResult(value)) {
     throw protocolShapeError("a valid index sync response");
   }
   return value;
 }
 
-function decodeStemSpawnAgentCommandResponse(value: unknown): StemSpawnAgentCommandResponse {
-  if (!isStemSpawnAgentCommandResponse(value)) {
+function decodeExographSpawnAgentCommandResponse(value: unknown): ExographSpawnAgentCommandResponse {
+  if (!isExographSpawnAgentCommandResponse(value)) {
     throw protocolShapeError("a valid agent command spawn response");
   }
   return value;
@@ -284,23 +284,23 @@ function decodeSuccessfulResponse<T>(body: string, method: string, targetPath: s
     return decode(value);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
-    throw protocolError(method, targetPath, detail.replace("Stem command-server protocol error: ", ""));
+    throw protocolError(method, targetPath, detail.replace("Exograph command-server protocol error: ", ""));
   }
 }
 
 function protocolShapeError(expected: string): Error {
-  return new Error(`Stem command-server protocol error: expected ${expected}`);
+  return new Error(`Exograph command-server protocol error: expected ${expected}`);
 }
 
 function protocolError(method: string, targetPath: string, detail: string): Error {
-  return new Error(`Stem command-server protocol error for ${method} ${targetPath}: ${detail}.`);
+  return new Error(`Exograph command-server protocol error for ${method} ${targetPath}: ${detail}.`);
 }
 
-function isStemCommandStatusResponse(value: unknown): value is StemCommandStatusResponse {
+function isExographCommandStatusResponse(value: unknown): value is ExographCommandStatusResponse {
   return isRecord(value) && isWorkspaceModel(value.workspace) && Array.isArray(value.terminals) && value.terminals.every(isCommandStatusTerminal);
 }
 
-function isStemCommandOkResponse(value: unknown): value is StemCommandOkResponse {
+function isExographCommandOkResponse(value: unknown): value is ExographCommandOkResponse {
   return isRecord(value) && value.ok === true;
 }
 
@@ -312,7 +312,7 @@ function isIndexSyncResult(value: unknown): value is IndexSyncResult {
   return isRecord(value) && isIndexStatus(value.status) && Array.isArray(value.phases) && value.phases.every(isIndexSyncPhase) && isStringArray(value.warnings);
 }
 
-function isStemSpawnAgentCommandResponse(value: unknown): value is StemSpawnAgentCommandResponse {
+function isExographSpawnAgentCommandResponse(value: unknown): value is ExographSpawnAgentCommandResponse {
   return isRecord(value) && value.ok === true && isRecord(value.invocation) && typeof value.invocation.id === "string" && typeof value.invocation.status === "string" && typeof value.invocation.handle === "string" && typeof value.invocation.createdAt === "string" && isCommandTerminal(value.terminal);
 }
 
@@ -332,11 +332,11 @@ function isIndexingConfig(value: unknown): boolean {
   return isRecord(value) && typeof value.enabled === "boolean" && isIndexMode(value.mode) && isIndexBackend(value.backend);
 }
 
-function isCommandStatusTerminal(value: unknown): value is StemCommandStatusTerminalInfo {
+function isCommandStatusTerminal(value: unknown): value is ExographCommandStatusTerminalInfo {
   return isRecord(value) && isCommandTerminal(value) && value.kind === "shell" && (value.status === "running" || value.status === "exited") && typeof value.command === "string" && typeof value.attachGeneration === "number" && (value.health === undefined || value.health === "healthy" || value.health === "idle" || value.health === "unhealthy" || value.health === "exited") && (value.healthDetail === undefined || typeof value.healthDetail === "string") && (value.geometry === undefined || isTerminalGeometry(value.geometry));
 }
 
-function isCommandTerminal(value: unknown): value is StemCommandTerminalInfo {
+function isCommandTerminal(value: unknown): value is ExographCommandTerminalInfo {
   return isRecord(value) && typeof value.id === "string" && typeof value.title === "string" && typeof value.cwd === "string" && typeof value.kind === "string" && typeof value.status === "string" && (value.command === undefined || typeof value.command === "string") && (value.exitCode === undefined || typeof value.exitCode === "number");
 }
 
@@ -386,7 +386,7 @@ function parsePositiveInt(value: string | undefined): number | undefined {
 
 function enhanceTimeoutError(error: unknown, method: string, targetPath: string, timeoutMs: number): Error {
   if (isAbortError(error)) {
-    return new Error(`Stem command server ${method} ${targetPath} timed out after ${timeoutMs}ms.`);
+    return new Error(`Exograph command server ${method} ${targetPath} timed out after ${timeoutMs}ms.`);
   }
   return error instanceof Error ? error : new Error(String(error));
 }
@@ -395,7 +395,7 @@ function isAbortError(error: unknown): boolean {
   return error instanceof DOMException && (error.name === "AbortError" || error.name === "TimeoutError");
 }
 
-function isValidServerInfo(value: unknown): value is StemCommandServerInfo {
+function isValidServerInfo(value: unknown): value is ExographCommandServerInfo {
   if (!isRecord(value)) {
     return false;
   }
@@ -414,7 +414,7 @@ function discoveryFailure(
   runtimeRoot: string,
   serverJsonPath: string,
   cause?: unknown,
-  info?: Partial<StemCommandServerInfo>,
+  info?: Partial<ExographCommandServerInfo>,
   processCheck?: AppClientProcessCheckDiagnostic,
 ): AppClientConnectResult {
   const causeMessage = cause instanceof Error ? cause.message : cause ? String(cause) : undefined;
@@ -454,21 +454,21 @@ export function formatAppClientDiscoveryFailure(failure: AppClientDiscoveryFailu
 function discoveryFailureMessage(
   code: AppClientDiscoveryFailureCode,
   serverJsonPath: string,
-  info?: Partial<StemCommandServerInfo>,
+  info?: Partial<ExographCommandServerInfo>,
 ): string {
   switch (code) {
     case "runtime-root-missing":
-      return `Stem runtime root is missing or is not a directory. Start Stem with \`stem start\`, run \`stem status\` to confirm the active workspace, or set STEM_RUNTIME_ROOT.`;
+      return `Exograph runtime root is missing or is not a directory. Start Exograph with \`exograph start\`, run \`exograph status\` to confirm the active workspace, or set EXOGRAPH_RUNTIME_ROOT.`;
     case "server-json-missing":
-      return `Stem command server discovery file is missing. Start Stem with \`stem start\`, or set STEM_RUNTIME_ROOT to the runtime containing server.json.`;
+      return `Exograph command server discovery file is missing. Start Exograph with \`exograph start\`, or set EXOGRAPH_RUNTIME_ROOT to the runtime containing server.json.`;
     case "server-json-invalid":
-      return `Stem command server discovery file is invalid. Remove or regenerate ${serverJsonPath} by restarting Stem.`;
+      return `Exograph command server discovery file is invalid. Remove or regenerate ${serverJsonPath} by restarting Exograph.`;
     case "server-stale":
-      return `Stem command server discovery is stale. The recorded process${info?.pid ? ` (${info.pid})` : ""} is no longer running; restart Stem with \`stem start\`.`;
+      return `Exograph command server discovery is stale. The recorded process${info?.pid ? ` (${info.pid})` : ""} is no longer running; restart Exograph with \`exograph start\`.`;
     case "server-unreachable":
-      return `Stem command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}. Restart Stem with \`stem start\` or check that STEM_RUNTIME_ROOT points at the active runtime.`;
+      return `Exograph command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}. Restart Exograph with \`exograph start\` or check that EXOGRAPH_RUNTIME_ROOT points at the active runtime.`;
     case "server-liveness-unknown":
-      return `Stem command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}, and Stem could not verify whether the recorded process${info?.pid ? ` (${info.pid})` : ""} is alive. The discovery file was preserved because the process check was blocked or inconclusive. Run \`stem start\`, then retry; if Stem is already open, confirm STEM_RUNTIME_ROOT points to its active Workspace.`;
+      return `Exograph command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}, and Exograph could not verify whether the recorded process${info?.pid ? ` (${info.pid})` : ""} is alive. The discovery file was preserved because the process check was blocked or inconclusive. Run \`exograph start\`, then retry; if Exograph is already open, confirm EXOGRAPH_RUNTIME_ROOT points to its active Workspace.`;
   }
 }
 

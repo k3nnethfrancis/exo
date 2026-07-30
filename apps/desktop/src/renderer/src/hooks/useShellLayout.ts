@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { WorkspaceLayoutSettings } from "@stem/core";
+import type { WorkspaceLayoutSettings } from "@exograph/core";
 
 import { paneId, usePaneTree, type PaneLeaf } from "./usePaneTree";
 import { decodePersistedWorkspaceCanvas } from "./useWorkspaceLayoutPersistence";

@@ -1,6 +1,6 @@
-import type { StemThemeVariant } from "./types";
+import type { ExographThemeVariant } from "./types";
 
-export function applyTheme(root: HTMLElement, theme: StemThemeVariant): void {
+export function applyTheme(root: HTMLElement, theme: ExographThemeVariant): void {
   root.dataset.colorTheme = theme.id.replace(/-(light|dark)$/, "");
   for (const [name, value] of Object.entries(theme.css)) {
     root.style.setProperty(name, value);

@@ -1,6 +1,6 @@
 # Code of Conduct
 
-We want Stem to be a constructive place to build local-first tools together.
+We want Exograph to be a constructive place to build local-first tools together.
 
 Be respectful, assume good faith, and focus criticism on ideas and code. Do not
 harass, discriminate, threaten, publish private information, or disrupt the

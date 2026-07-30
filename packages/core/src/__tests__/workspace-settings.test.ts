@@ -25,25 +25,25 @@ describe("workspace settings registry", () => {
     ["project roots", { projectRoots: [] }],
     ["migration metadata", { migrationMetadata: { mainWiki: { retiredNoteRoots: ["/tmp/other"] } } }],
     ["retired terminal settings", { terminalHistoryLines: 5 }],
-    ["multiple Note Roots", { noteRoots: ["/tmp/stem-canonical/notes", "/tmp/stem-canonical/other"] }],
+    ["multiple Note Roots", { noteRoots: ["/tmp/exograph-canonical/notes", "/tmp/exograph-canonical/other"] }],
     ["canvas v2 layout", { layout: { version: 2, canvas: { kind: "leaf", id: "editor", content: { kind: "editor", openPaths: [], activePath: null } } } }],
     ["two-zone layout", { layout: { editorTree: {}, terminalTree: {} } }],
     ["retired built-in Command", { agentCommands: [{ id: "claude", label: "Claude", handle: "claude", command: "claude -p", promptDelivery: "stdin" }] }],
   ])("rejects unsupported pre-launch %s instead of normalizing it", (_label, retiredPatch) => {
     expect(normalizeWorkspaceSettings({
-      ...workspaceSettingsFor("/tmp/stem-canonical/notes"),
+      ...workspaceSettingsFor("/tmp/exograph-canonical/notes"),
       ...retiredPatch,
     } as unknown as Partial<WorkspaceSettings>)).toBeNull();
   });
 
   it("retains the later full Indexed Root policy for an exact resolved-path duplicate", () => {
     const settings = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/stem-indexed-root-dedupe",
-      defaultTerminalCwd: "/tmp/stem-indexed-root-dedupe",
-      noteRoots: ["/tmp/stem-indexed-root-dedupe/notes"],
+      workspaceRoot: "/tmp/exograph-indexed-root-dedupe",
+      defaultTerminalCwd: "/tmp/exograph-indexed-root-dedupe",
+      noteRoots: ["/tmp/exograph-indexed-root-dedupe/notes"],
       indexedRoots: [
-        { id: "first", label: "First", path: "/tmp/stem-indexed-root-dedupe/notes/shared", kind: "notes", pattern: "**/*.md", ignore: ["first/**"], backend: "qmd" },
-        { id: "second", label: "Second", path: "/tmp/stem-indexed-root-dedupe/notes/shared", kind: "code", pattern: "**/*.{ts,tsx}", ignore: ["second/**"], backend: "qmd" },
+        { id: "first", label: "First", path: "/tmp/exograph-indexed-root-dedupe/notes/shared", kind: "notes", pattern: "**/*.md", ignore: ["first/**"], backend: "qmd" },
+        { id: "second", label: "Second", path: "/tmp/exograph-indexed-root-dedupe/notes/shared", kind: "code", pattern: "**/*.{ts,tsx}", ignore: ["second/**"], backend: "qmd" },
       ],
       indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
     });
@@ -51,7 +51,7 @@ describe("workspace settings registry", () => {
     expect(settings?.indexedRoots).toEqual([{
       id: "second",
       label: "Second",
-      path: "/tmp/stem-indexed-root-dedupe/notes/shared",
+      path: "/tmp/exograph-indexed-root-dedupe/notes/shared",
       kind: "code",
       pattern: "**/*.{ts,tsx}",
       ignore: ["second/**"],
@@ -61,27 +61,27 @@ describe("workspace settings registry", () => {
 
   it("preserves survivor order when a later Indexed Root replaces an earlier path", () => {
     const settings = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/stem-indexed-root-order",
-      defaultTerminalCwd: "/tmp/stem-indexed-root-order",
-      noteRoots: ["/tmp/stem-indexed-root-order/notes"],
+      workspaceRoot: "/tmp/exograph-indexed-root-order",
+      defaultTerminalCwd: "/tmp/exograph-indexed-root-order",
+      noteRoots: ["/tmp/exograph-indexed-root-order/notes"],
       indexedRoots: [
-        { id: "a", label: "A", path: "/tmp/stem-indexed-root-order/notes/path-one", kind: "notes", pattern: "a/**/*.md", ignore: ["a/**"], backend: "qmd" },
-        { id: "b", label: "B", path: "/tmp/stem-indexed-root-order/notes/path-two", kind: "docs", pattern: "b/**/*.md", ignore: ["b/**"], backend: "qmd" },
-        { id: "c", label: "C", path: "/tmp/stem-indexed-root-order/notes/path-one", kind: "mixed", pattern: "c/**", ignore: ["c/**"], backend: "qmd" },
+        { id: "a", label: "A", path: "/tmp/exograph-indexed-root-order/notes/path-one", kind: "notes", pattern: "a/**/*.md", ignore: ["a/**"], backend: "qmd" },
+        { id: "b", label: "B", path: "/tmp/exograph-indexed-root-order/notes/path-two", kind: "docs", pattern: "b/**/*.md", ignore: ["b/**"], backend: "qmd" },
+        { id: "c", label: "C", path: "/tmp/exograph-indexed-root-order/notes/path-one", kind: "mixed", pattern: "c/**", ignore: ["c/**"], backend: "qmd" },
       ],
       indexing: { enabled: true, mode: "lexical", backend: "qmd" },
     });
 
     expect(settings?.indexedRoots).toEqual([
-      { id: "b", label: "B", path: "/tmp/stem-indexed-root-order/notes/path-two", kind: "docs", pattern: "b/**/*.md", ignore: ["b/**"], backend: "qmd" },
-      { id: "c", label: "C", path: "/tmp/stem-indexed-root-order/notes/path-one", kind: "mixed", pattern: "c/**", ignore: ["c/**"], backend: "qmd" },
+      { id: "b", label: "B", path: "/tmp/exograph-indexed-root-order/notes/path-two", kind: "docs", pattern: "b/**/*.md", ignore: ["b/**"], backend: "qmd" },
+      { id: "c", label: "C", path: "/tmp/exograph-indexed-root-order/notes/path-one", kind: "mixed", pattern: "c/**", ignore: ["c/**"], backend: "qmd" },
     ]);
     expect(normalizeWorkspaceSettings(settings)).toEqual(settings);
   });
 
   it("migrates persisted duplicate Indexed Root paths once without rewriting stable settings", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-indexed-root-dedupe-repair-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-indexed-root-dedupe-repair-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     const notesFolder = path.join(userDataPath, "notes");
     const pathOne = path.join(notesFolder, "path-one");
     const pathTwo = path.join(notesFolder, "path-two");
@@ -128,7 +128,7 @@ describe("workspace settings registry", () => {
   });
 
   it("keeps distinct real-path and symlink spellings as separate Indexed Roots", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-indexed-root-lexical-alias-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-indexed-root-lexical-alias-"));
     const realPath = path.join(userDataPath, "real-notes");
     const aliasPath = path.join(userDataPath, "alias-notes");
 
@@ -154,14 +154,14 @@ describe("workspace settings registry", () => {
 
   it("derives a search engine when one is not explicitly configured", () => {
     const base = {
-      workspaceRoot: "/tmp/stem-search-engine",
-      defaultTerminalCwd: "/tmp/stem-search-engine",
-      noteRoots: ["/tmp/stem-search-engine/notes"],
+      workspaceRoot: "/tmp/exograph-search-engine",
+      defaultTerminalCwd: "/tmp/exograph-search-engine",
+      noteRoots: ["/tmp/exograph-search-engine/notes"],
     };
 
     expect(normalizeWorkspaceSettings({
       ...base,
-      indexedRoots: [{ id: "notes", label: "notes", path: "/tmp/stem-search-engine/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" }],
+      indexedRoots: [{ id: "notes", label: "notes", path: "/tmp/exograph-search-engine/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" }],
       indexing: { enabled: true, mode: "lexical", backend: "qmd" },
     })?.searchEngine).toBe("qmd");
     expect(normalizeWorkspaceSettings({
@@ -173,10 +173,10 @@ describe("workspace settings registry", () => {
 
   it("retains QMD configuration when Simple search is selected", () => {
     const settings = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/stem-search-engine",
-      defaultTerminalCwd: "/tmp/stem-search-engine",
-      noteRoots: ["/tmp/stem-search-engine/notes"],
-      indexedRoots: [{ id: "notes", label: "notes", path: "/tmp/stem-search-engine/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" }],
+      workspaceRoot: "/tmp/exograph-search-engine",
+      defaultTerminalCwd: "/tmp/exograph-search-engine",
+      noteRoots: ["/tmp/exograph-search-engine/notes"],
+      indexedRoots: [{ id: "notes", label: "notes", path: "/tmp/exograph-search-engine/notes", kind: "notes", pattern: "**/*.md", ignore: [], backend: "qmd" }],
       indexing: { enabled: true, mode: "hybrid", backend: "qmd" },
       searchEngine: "filesystem",
     });
@@ -184,19 +184,19 @@ describe("workspace settings registry", () => {
     expect(settings).toMatchObject({
       searchEngine: "filesystem",
       indexing: { enabled: true, mode: "hybrid" },
-      indexedRoots: [{ path: "/tmp/stem-search-engine/notes" }],
+      indexedRoots: [{ path: "/tmp/exograph-search-engine/notes" }],
     });
   });
 
   it.each([
-    ["projectRoots", { projectRoots: ["/tmp/stem-unsupported/project"] }],
+    ["projectRoots", { projectRoots: ["/tmp/exograph-unsupported/project"] }],
     ["terminalHistoryLines", { terminalHistoryLines: 100_000 }],
-    ["multiple noteRoots", { noteRoots: ["/tmp/stem-unsupported/notes", "/tmp/stem-unsupported/other"] }],
+    ["multiple noteRoots", { noteRoots: ["/tmp/exograph-unsupported/notes", "/tmp/exograph-unsupported/other"] }],
     ["canvas v2", { layout: { version: 2, canvas: { kind: "leaf", id: "editor", content: { kind: "editor", openPaths: [], activePath: null } } } }],
   ])("rejects persisted unsupported %s without rewriting settings or registry", async (_label, retiredPatch) => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-unsupported-settings-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
-    const unsupportedSettings = { ...workspaceSettingsFor("/tmp/stem-unsupported/notes"), ...retiredPatch };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-unsupported-settings-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
+    const unsupportedSettings = { ...workspaceSettingsFor("/tmp/exograph-unsupported/notes"), ...retiredPatch };
     const settingsJson = JSON.stringify(unsupportedSettings);
     const registryJson = JSON.stringify({ activeWorkspaceId: null, workspaces: [] });
     try {
@@ -212,10 +212,10 @@ describe("workspace settings registry", () => {
   });
 
   it("leaves an unsupported interrupted transaction intact instead of applying a partial rewrite", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-unsupported-recovery-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-unsupported-recovery-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     const unsupported = {
-      ...workspaceSettingsFor("/tmp/stem-unsupported-recovery/notes"),
+      ...workspaceSettingsFor("/tmp/exograph-unsupported-recovery/notes"),
       terminalHistoryLines: 5,
       futureSetting: { retained: true },
     };
@@ -238,12 +238,12 @@ describe("workspace settings registry", () => {
   });
 
   it("recovers a committed settings transaction after an interrupted registry write", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-settings-recovery-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-settings-recovery-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     const settings = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/stem-recovery/notes",
-      defaultTerminalCwd: "/tmp/stem-recovery",
-      noteRoots: ["/tmp/stem-recovery/notes"],
+      workspaceRoot: "/tmp/exograph-recovery/notes",
+      defaultTerminalCwd: "/tmp/exograph-recovery",
+      noteRoots: ["/tmp/exograph-recovery/notes"],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
     });
@@ -273,12 +273,12 @@ describe("workspace settings registry", () => {
   });
 
   it("enforces private permissions on settings and registry files", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-private-settings-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-private-settings-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     const settings = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/stem-private/notes",
-      defaultTerminalCwd: "/tmp/stem-private",
-      noteRoots: ["/tmp/stem-private/notes"],
+      workspaceRoot: "/tmp/exograph-private/notes",
+      defaultTerminalCwd: "/tmp/exograph-private",
+      noteRoots: ["/tmp/exograph-private/notes"],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
     });
@@ -299,12 +299,12 @@ describe("workspace settings registry", () => {
   });
 
   it("atomically replaces the settings and registry files", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-atomic-settings-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-atomic-settings-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     const initial = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/stem-atomic/notes",
-      defaultTerminalCwd: "/tmp/stem-atomic",
-      noteRoots: ["/tmp/stem-atomic/notes"],
+      workspaceRoot: "/tmp/exograph-atomic/notes",
+      defaultTerminalCwd: "/tmp/exograph-atomic",
+      noteRoots: ["/tmp/exograph-atomic/notes"],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
       appearanceMode: "system",
@@ -337,38 +337,38 @@ describe("workspace settings registry", () => {
 
   it("defaults missing color theme ids and normalizes unknown ids", () => {
     const missing = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/stem-theme/notes",
-      defaultTerminalCwd: "/tmp/stem-theme/project",
-      noteRoots: ["/tmp/stem-theme/notes"],
+      workspaceRoot: "/tmp/exograph-theme/notes",
+      defaultTerminalCwd: "/tmp/exograph-theme/project",
+      noteRoots: ["/tmp/exograph-theme/notes"],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
     });
     const unknown = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/stem-theme/notes",
-      defaultTerminalCwd: "/tmp/stem-theme/project",
-      noteRoots: ["/tmp/stem-theme/notes"],
+      workspaceRoot: "/tmp/exograph-theme/notes",
+      defaultTerminalCwd: "/tmp/exograph-theme/project",
+      noteRoots: ["/tmp/exograph-theme/notes"],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
       colorThemeId: "unknown-theme" as never,
     });
 
-    expect(missing?.colorThemeId).toBe("stem-neutral");
-    expect(unknown?.colorThemeId).toBe("stem-neutral");
+    expect(missing?.colorThemeId).toBe("exograph-neutral");
+    expect(unknown?.colorThemeId).toBe("exograph-neutral");
   });
 
   it("persists selected color theme ids", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-theme-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-theme-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
 
     try {
       await saveWorkspaceSettings({
-        workspaceRoot: "/tmp/stem-theme/notes",
-        defaultTerminalCwd: "/tmp/stem-theme/project",
-        noteRoots: ["/tmp/stem-theme/notes"],
+        workspaceRoot: "/tmp/exograph-theme/notes",
+        defaultTerminalCwd: "/tmp/exograph-theme/project",
+        noteRoots: ["/tmp/exograph-theme/notes"],
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         appearanceMode: "dark",
-        colorThemeId: "stem-solar",
+        colorThemeId: "exograph-solar",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -378,7 +378,7 @@ describe("workspace settings registry", () => {
 
       await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({
         appearanceMode: "dark",
-        colorThemeId: "stem-solar",
+        colorThemeId: "exograph-solar",
       });
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
@@ -386,18 +386,18 @@ describe("workspace settings registry", () => {
   });
 
   it("normalizes legacy configured agent commands while reading persisted settings", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-agent-commands-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-agent-commands-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
 
     try {
       await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify({
-        workspaceRoot: "/tmp/stem-agent/notes",
-        defaultTerminalCwd: "/tmp/stem-agent",
-        noteRoots: ["/tmp/stem-agent/notes"],
+        workspaceRoot: "/tmp/exograph-agent/notes",
+        defaultTerminalCwd: "/tmp/exograph-agent",
+        noteRoots: ["/tmp/exograph-agent/notes"],
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -441,7 +441,7 @@ describe("workspace settings registry", () => {
   });
 
   it("rejects duplicate or malformed Command configuration instead of dropping entries", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-command-validation-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-command-validation-"));
     const command = createDefaultClaudeAgentCommand();
     const codex = createDefaultCodexAgentCommand();
     const custom = {
@@ -452,17 +452,17 @@ describe("workspace settings registry", () => {
       command: "/bin/echo local",
       adapter: "generic" as const,
     };
-    const base = workspaceSettingsFor("/tmp/stem-command-validation/notes");
+    const base = workspaceSettingsFor("/tmp/exograph-command-validation/notes");
 
     try {
       await expect(saveWorkspaceSettings({
         ...base,
         agentCommands: [command, { ...command, id: "claude-copy" }],
-      }, { STEM_USER_DATA_PATH: userDataPath })).rejects.toThrow("Command handle @claude is already configured");
+      }, { EXOGRAPH_USER_DATA_PATH: userDataPath })).rejects.toThrow("Command handle @claude is already configured");
       await expect(saveWorkspaceSettings({
         ...base,
         agentCommands: [{ ...command, command: "" }],
-      }, { STEM_USER_DATA_PATH: userDataPath })).rejects.toThrow("Command 1 is malformed");
+      }, { EXOGRAPH_USER_DATA_PATH: userDataPath })).rejects.toThrow("Command 1 is malformed");
       for (const nonCanonical of [
         { ...command, id: "???" },
         { ...command, handle: "@CLAUDE" },
@@ -474,7 +474,7 @@ describe("workspace settings registry", () => {
         await expect(saveWorkspaceSettings({
           ...base,
           agentCommands: [nonCanonical],
-        } as WorkspaceSettings, { STEM_USER_DATA_PATH: userDataPath })).rejects.toThrow("non-canonical");
+        } as WorkspaceSettings, { EXOGRAPH_USER_DATA_PATH: userDataPath })).rejects.toThrow("non-canonical");
       }
       await expect(saveWorkspaceSettings({
         ...base,
@@ -484,15 +484,15 @@ describe("workspace settings registry", () => {
           custom,
           { ...custom, id: "other", label: "Other", handle: "other" },
         ],
-      }, { STEM_USER_DATA_PATH: userDataPath })).rejects.toThrow("Only one Custom command can be configured");
+      }, { EXOGRAPH_USER_DATA_PATH: userDataPath })).rejects.toThrow("Only one Custom command can be configured");
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
     }
   });
 
   it("preserves configured and future settings across load, edit, save, and reload", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-lossless-settings-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-lossless-settings-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     const initialSettings: WorkspaceSettings & {
       indexedRoots: Array<WorkspaceSettings["indexedRoots"][number] & {
         opaqueRootOptions: { version: number; includeDrafts: boolean };
@@ -500,13 +500,13 @@ describe("workspace settings registry", () => {
       futureSettings: { version: number; preferences: string[] };
       piHarness: { command: string };
     } = {
-      workspaceRoot: "/tmp/stem-lossless/notes",
-      defaultTerminalCwd: "/tmp/stem-lossless",
-      noteRoots: ["/tmp/stem-lossless/notes"],
+      workspaceRoot: "/tmp/exograph-lossless/notes",
+      defaultTerminalCwd: "/tmp/exograph-lossless",
+      noteRoots: ["/tmp/exograph-lossless/notes"],
       indexedRoots: [{
         id: "index-lossless",
         label: "Lossless notes",
-        path: "/tmp/stem-lossless/notes",
+        path: "/tmp/exograph-lossless/notes",
         kind: "notes",
         pattern: "**/*.md",
         ignore: [],
@@ -518,7 +518,7 @@ describe("workspace settings registry", () => {
       }],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
       appearanceMode: "system",
-      colorThemeId: "stem-neutral",
+      colorThemeId: "exograph-neutral",
       editorFontSize: 15,
       terminalFontSize: 13,
       explorerScale: 1,
@@ -530,7 +530,7 @@ describe("workspace settings registry", () => {
         canvas: {
           kind: "leaf",
           id: "editor-primary",
-          content: { kind: "editor", openPaths: ["/tmp/stem-lossless/notes/home.md"], activePath: "/tmp/stem-lossless/notes/home.md" },
+          content: { kind: "editor", openPaths: ["/tmp/exograph-lossless/notes/home.md"], activePath: "/tmp/exograph-lossless/notes/home.md" },
         },
         sidebarCollapsed: false,
         sidebarWidth: 220,
@@ -572,8 +572,8 @@ describe("workspace settings registry", () => {
   });
 
   it("preserves the current renderer canvas layout across a settings edit", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-canvas-layout-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-canvas-layout-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     const layout = {
       version: 3 as const,
       canvas: {
@@ -581,8 +581,8 @@ describe("workspace settings registry", () => {
         id: "editor-primary",
         content: {
           kind: "editor" as const,
-          openPaths: ["/tmp/stem-canvas-layout/notes/home.md"],
-          activePath: "/tmp/stem-canvas-layout/notes/home.md",
+          openPaths: ["/tmp/exograph-canvas-layout/notes/home.md"],
+          activePath: "/tmp/exograph-canvas-layout/notes/home.md",
         },
       },
       sidebarCollapsed: false,
@@ -590,13 +590,13 @@ describe("workspace settings registry", () => {
       utilityWidth: 430,
     };
     const settings = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/stem-canvas-layout",
-      defaultTerminalCwd: "/tmp/stem-canvas-layout",
-      noteRoots: ["/tmp/stem-canvas-layout/notes"],
+      workspaceRoot: "/tmp/exograph-canvas-layout",
+      defaultTerminalCwd: "/tmp/exograph-canvas-layout",
+      noteRoots: ["/tmp/exograph-canvas-layout/notes"],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
       appearanceMode: "system",
-      colorThemeId: "stem-neutral",
+      colorThemeId: "exograph-neutral",
       editorFontSize: 15,
       terminalFontSize: 13,
       explorerScale: 1,
@@ -621,9 +621,9 @@ describe("workspace settings registry", () => {
 
   it("defaults missing agent commands to an empty settings list without installing commands", () => {
     const settings = normalizeWorkspaceSettings({
-      workspaceRoot: "/tmp/stem-agent/notes",
-      defaultTerminalCwd: "/tmp/stem-agent",
-      noteRoots: ["/tmp/stem-agent/notes"],
+      workspaceRoot: "/tmp/exograph-agent/notes",
+      defaultTerminalCwd: "/tmp/exograph-agent",
+      noteRoots: ["/tmp/exograph-agent/notes"],
       indexedRoots: [],
       indexing: { enabled: false, mode: "off", backend: "qmd" },
     });
@@ -636,17 +636,17 @@ describe("workspace settings registry", () => {
   });
 
   it("normalizes current canvas layout bounds and pane contents", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-layout-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-layout-"));
 
     try {
       const saved = await saveWorkspaceSettings({
-        workspaceRoot: "/tmp/stem-layout/notes",
-        defaultTerminalCwd: "/tmp/stem-layout/project",
-        noteRoots: ["/tmp/stem-layout/notes"],
+        workspaceRoot: "/tmp/exograph-layout/notes",
+        defaultTerminalCwd: "/tmp/exograph-layout/project",
+        noteRoots: ["/tmp/exograph-layout/notes"],
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -660,7 +660,7 @@ describe("workspace settings registry", () => {
             direction: "horizontal",
             ratio: 0.9,
             children: [
-              { kind: "leaf", id: "editor-a", content: { kind: "editor", openPaths: ["/tmp/stem-layout/notes/a.md"], activePath: "/tmp/stem-layout/notes/a.md" } },
+              { kind: "leaf", id: "editor-a", content: { kind: "editor", openPaths: ["/tmp/exograph-layout/notes/a.md"], activePath: "/tmp/exograph-layout/notes/a.md" } },
               { kind: "leaf", id: "editor-b", content: { kind: "browser", url: "localhost:3000" } },
             ],
           },
@@ -668,7 +668,7 @@ describe("workspace settings registry", () => {
           sidebarWidth: 9999,
           utilityWidth: 100,
         },
-      }, { STEM_USER_DATA_PATH: userDataPath });
+      }, { EXOGRAPH_USER_DATA_PATH: userDataPath });
 
       expect(saved.layout).toMatchObject({
         version: 3,
@@ -685,17 +685,17 @@ describe("workspace settings registry", () => {
   });
 
   it("preserves an in-range current explorer width", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-sidebar-width-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-sidebar-width-"));
 
     try {
       const saved = await saveWorkspaceSettings({
-        workspaceRoot: "/tmp/stem-layout/notes",
-        defaultTerminalCwd: "/tmp/stem-layout/project",
-        noteRoots: ["/tmp/stem-layout/notes"],
+        workspaceRoot: "/tmp/exograph-layout/notes",
+        defaultTerminalCwd: "/tmp/exograph-layout/project",
+        noteRoots: ["/tmp/exograph-layout/notes"],
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -708,7 +708,7 @@ describe("workspace settings registry", () => {
           sidebarWidth: 260,
           utilityWidth: 430,
         },
-      }, { STEM_USER_DATA_PATH: userDataPath });
+      }, { EXOGRAPH_USER_DATA_PATH: userDataPath });
 
       expect(saved.layout?.sidebarWidth).toBe(260);
     } finally {
@@ -717,18 +717,18 @@ describe("workspace settings registry", () => {
   });
 
   it("persists and reloads the active desktop workspace", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-workspace-registry-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-workspace-registry-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
 
     try {
       await saveWorkspaceSettings({
-        workspaceRoot: "/tmp/stem/notes-alpha",
-        defaultTerminalCwd: "/tmp/stem/project-alpha",
-        noteRoots: ["/tmp/stem/notes-alpha"],
+        workspaceRoot: "/tmp/exograph/notes-alpha",
+        defaultTerminalCwd: "/tmp/exograph/project-alpha",
+        noteRoots: ["/tmp/exograph/notes-alpha"],
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -737,8 +737,8 @@ describe("workspace settings registry", () => {
       }, env);
 
       await expect(loadActiveWorkspaceSettings(env)).resolves.toMatchObject({
-        workspaceRoot: "/tmp/stem/notes-alpha",
-        defaultTerminalCwd: "/tmp/stem/project-alpha",
+        workspaceRoot: "/tmp/exograph/notes-alpha",
+        defaultTerminalCwd: "/tmp/exograph/project-alpha",
       });
       await expect(listWorkspaceRegistryEntries(env)).resolves.toHaveLength(1);
     } finally {
@@ -747,8 +747,8 @@ describe("workspace settings registry", () => {
   });
 
   it("retains distinct Workspace identities that collide under a short hash", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-workspace-identity-collision-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-workspace-identity-collision-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
 
     try {
       await saveWorkspaceSettings(workspaceSettingsFor("/tmp/Aa"), env);
@@ -767,26 +767,26 @@ describe("workspace settings registry", () => {
   });
 
   it("deduplicates lexical aliases and persists their canonical absolute Notes Folder", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-workspace-identity-canonical-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-workspace-identity-canonical-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
 
     try {
-      await saveWorkspaceSettings(workspaceSettingsFor("/tmp/stem-canonical/notes"), env);
-      await saveWorkspaceSettings(workspaceSettingsFor("/tmp/stem-canonical/./notes"), env);
+      await saveWorkspaceSettings(workspaceSettingsFor("/tmp/exograph-canonical/notes"), env);
+      await saveWorkspaceSettings(workspaceSettingsFor("/tmp/exograph-canonical/./notes"), env);
 
       const registry = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
       expect(registry.workspaces).toHaveLength(1);
-      expect(registry.workspaces[0]?.notesFolder).toBe("/tmp/stem-canonical/notes");
-      expect(registry.workspaces[0]?.settings.noteRoots).toEqual(["/tmp/stem-canonical/notes"]);
+      expect(registry.workspaces[0]?.notesFolder).toBe("/tmp/exograph-canonical/notes");
+      expect(registry.workspaces[0]?.settings.noteRoots).toEqual(["/tmp/exograph-canonical/notes"]);
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
     }
   });
 
   it("rejects pre-current registry identities without rewriting either durable file", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-workspace-identity-unsupported-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
-    const settings = workspaceSettingsFor("/tmp/stem-identity/notes");
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-workspace-identity-unsupported-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
+    const settings = workspaceSettingsFor("/tmp/exograph-identity/notes");
     const settingsJson = JSON.stringify(settings);
     const registryJson = JSON.stringify({
       activeWorkspaceId: "old-id",
@@ -807,12 +807,12 @@ describe("workspace settings registry", () => {
   });
 
   it.each([null, "missing-id"])("selects the first canonical registry entry for active ID %s without rewriting order or metadata", async (activeWorkspaceId) => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-workspace-active-fallback-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-workspace-active-fallback-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
 
     try {
-      await saveWorkspaceSettings({ ...workspaceSettingsFor("/tmp/stem-first/notes"), futureSetting: { retained: "first" } }, env);
-      await saveWorkspaceSettings({ ...workspaceSettingsFor("/tmp/stem-second/notes"), futureSetting: { retained: "second" } }, env);
+      await saveWorkspaceSettings({ ...workspaceSettingsFor("/tmp/exograph-first/notes"), futureSetting: { retained: "first" } }, env);
+      await saveWorkspaceSettings({ ...workspaceSettingsFor("/tmp/exograph-second/notes"), futureSetting: { retained: "second" } }, env);
       const canonical = JSON.parse(await readFile(resolveWorkspaceRegistryPath(env), "utf8")) as WorkspaceRegistrySnapshot;
       canonical.activeWorkspaceId = activeWorkspaceId;
       canonical.workspaces[0]!.label = "Second custom label";
@@ -841,8 +841,8 @@ describe("workspace settings registry", () => {
   });
 
   it("uses one physical identity for a real Notes Folder and its symlink alias", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-workspace-identity-symlink-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-workspace-identity-symlink-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     const realNotesFolder = path.join(userDataPath, "real-notes");
     const aliasNotesFolder = path.join(userDataPath, "alias-notes");
 
@@ -867,8 +867,8 @@ describe("workspace settings registry", () => {
     if (process.platform !== "darwin") {
       return;
     }
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-workspace-identity-case-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-workspace-identity-case-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     const notesFolder = path.join(userDataPath, "CaseSensitiveSpelling");
     const aliasNotesFolder = path.join(userDataPath, "casesensitivespelling");
 
@@ -891,8 +891,8 @@ describe("workspace settings registry", () => {
   });
 
   it("uses physical identity for relative existing roots and lexical identity for absent roots", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-workspace-identity-fallback-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-workspace-identity-fallback-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     const existingNotesFolder = path.join(userDataPath, "existing-notes");
     const relativeNotesFolder = path.relative(process.cwd(), existingNotesFolder);
     const absentNotesFolder = path.join(userDataPath, "absent-notes");
@@ -926,11 +926,11 @@ describe("workspace settings registry", () => {
   });
 
   it("loads a current registry snapshot twice without rewriting it", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-core-workspace-stable-load-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-workspace-stable-load-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
 
     try {
-      await saveWorkspaceSettings({ ...workspaceSettingsFor("/tmp/stem-stable/notes"), futureSetting: { retained: true } }, env);
+      await saveWorkspaceSettings({ ...workspaceSettingsFor("/tmp/exograph-stable/notes"), futureSetting: { retained: true } }, env);
       const settingsJson = await readFile(resolveWorkspaceSettingsPath(env), "utf8");
       const registryJson = await readFile(resolveWorkspaceRegistryPath(env), "utf8");
       const settingsInode = (await stat(resolveWorkspaceSettingsPath(env))).ino;
@@ -948,26 +948,26 @@ describe("workspace settings registry", () => {
   });
 
   it("treats explicit workspace env as an override", () => {
-    expect(workspaceEnvOverrides({ STEM_WORKSPACE_ROOT: "/tmp/manual" })).toBe(true);
+    expect(workspaceEnvOverrides({ EXOGRAPH_WORKSPACE_ROOT: "/tmp/manual" })).toBe(true);
     expect(workspaceEnvOverrides({})).toBe(false);
   });
 
   it("persists saved workspaces for the switcher", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-workspace-registry-"));
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-workspace-registry-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
 
     try {
       const firstSettings = normalizeWorkspaceSettings({
-        workspaceRoot: "/tmp/stem-test/notes-alpha",
-        defaultTerminalCwd: "/tmp/stem-test/notes-alpha",
-        noteRoots: ["/tmp/stem-test/notes-alpha"],
+        workspaceRoot: "/tmp/exograph-test/notes-alpha",
+        defaultTerminalCwd: "/tmp/exograph-test/notes-alpha",
+        noteRoots: ["/tmp/exograph-test/notes-alpha"],
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
       });
       const secondSettings = normalizeWorkspaceSettings({
-        workspaceRoot: "/tmp/stem-test/notes-beta",
-        defaultTerminalCwd: "/tmp/stem-test/project-beta",
-        noteRoots: ["/tmp/stem-test/notes-beta"],
+        workspaceRoot: "/tmp/exograph-test/notes-beta",
+        defaultTerminalCwd: "/tmp/exograph-test/project-beta",
+        noteRoots: ["/tmp/exograph-test/notes-beta"],
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
       });
@@ -979,9 +979,9 @@ describe("workspace settings registry", () => {
 
       const workspaces = await listWorkspaceRegistryEntries(env);
       expect(workspaces.map((workspace) => workspace.label)).toEqual(["notes-beta", "notes-alpha"]);
-      expect(workspaces[0].settings.defaultTerminalCwd).toBe("/tmp/stem-test/project-beta");
+      expect(workspaces[0].settings.defaultTerminalCwd).toBe("/tmp/exograph-test/project-beta");
       await expect(getWorkspaceRegistryEntry(workspaces[1].id, env)).resolves.toMatchObject({
-        notesFolder: "/tmp/stem-test/notes-alpha",
+        notesFolder: "/tmp/exograph-test/notes-alpha",
       });
     } finally {
       await rm(userDataPath, { recursive: true, force: true });

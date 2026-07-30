@@ -16,7 +16,7 @@ import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
 import { normalizeWorkspaceContentPolicy } from "./workspace-content-policy";
 
 export const DEFAULT_APPEARANCE_MODE: WorkspaceSettings["appearanceMode"] = "system";
-export const DEFAULT_COLOR_THEME_ID: WorkspaceSettings["colorThemeId"] = "stem-neutral";
+export const DEFAULT_COLOR_THEME_ID: WorkspaceSettings["colorThemeId"] = "exograph-neutral";
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
 export const DEFAULT_EXPLORER_SCALE = 1;
@@ -53,17 +53,17 @@ export interface WorkspaceRegistry {
 
 export function workspaceEnvOverrides(env: NodeJS.ProcessEnv = process.env): boolean {
   return Boolean(
-      env.STEM_WORKSPACE_ROOT ||
-      env.STEM_DEFAULT_TERMINAL_CWD ||
-      env.STEM_NOTE_ROOTS ||
-      env.STEM_INDEXED_ROOTS ||
-      env.STEM_INDEX_ENABLED ||
-      env.STEM_INDEX_MODE,
+      env.EXOGRAPH_WORKSPACE_ROOT ||
+      env.EXOGRAPH_DEFAULT_TERMINAL_CWD ||
+      env.EXOGRAPH_NOTE_ROOTS ||
+      env.EXOGRAPH_INDEXED_ROOTS ||
+      env.EXOGRAPH_INDEX_ENABLED ||
+      env.EXOGRAPH_INDEX_MODE,
   );
 }
 
 export function resolveWorkspaceSettingsPath(env: NodeJS.ProcessEnv = process.env): string {
-  return env.STEM_SETTINGS_PATH ?? path.join(resolveDesktopUserDataPath(env), "workspace-settings.json");
+  return env.EXOGRAPH_SETTINGS_PATH ?? path.join(resolveDesktopUserDataPath(env), "workspace-settings.json");
 }
 
 export function resolveWorkspaceRegistryPath(env: NodeJS.ProcessEnv = process.env): string {
@@ -533,7 +533,7 @@ async function duplicateIndexedRootPathsInPersistence(env: NodeJS.ProcessEnv): P
 }
 
 function normalizeColorThemeId(value: unknown): WorkspaceSettings["colorThemeId"] {
-  return value === "stem-solar" || value === "stem-neutral" ? value : DEFAULT_COLOR_THEME_ID;
+  return value === "exograph-solar" || value === "exograph-neutral" ? value : DEFAULT_COLOR_THEME_ID;
 }
 
 export function workspaceEntryFromSettings(settings: WorkspaceSettings): WorkspaceRegistryEntry {
@@ -577,17 +577,17 @@ function normalizeRegistryEntry(value: unknown): WorkspaceRegistryEntry | null {
 }
 
 function resolveDesktopUserDataPath(env: NodeJS.ProcessEnv): string {
-  if (env.STEM_USER_DATA_PATH) {
-    return env.STEM_USER_DATA_PATH;
+  if (env.EXOGRAPH_USER_DATA_PATH) {
+    return env.EXOGRAPH_USER_DATA_PATH;
   }
   const home = os.homedir();
   if (process.platform === "darwin") {
-    return path.join(home, "Library", "Application Support", "@stem", "desktop");
+    return path.join(home, "Library", "Application Support", "@exograph", "desktop");
   }
   if (process.platform === "win32") {
-    return path.join(env.APPDATA ?? path.join(home, "AppData", "Roaming"), "@stem", "desktop");
+    return path.join(env.APPDATA ?? path.join(home, "AppData", "Roaming"), "@exograph", "desktop");
   }
-  return path.join(env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "@stem", "desktop");
+  return path.join(env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "@exograph", "desktop");
 }
 
 function workspaceIdForNotesFolder(notesFolder: string): string {

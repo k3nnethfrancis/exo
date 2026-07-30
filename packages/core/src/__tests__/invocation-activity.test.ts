@@ -4,7 +4,7 @@ import { invocationActivityLabel, isInvocationActivityKind } from "../invocation
 
 describe("invocation activity", () => {
   it("reduces a path to one bounded basename", () => {
-    expect(invocationActivityLabel("/Users/person/private/wiki/projects/stem/tasks.md")).toBe("tasks.md");
+    expect(invocationActivityLabel("/Users/person/private/wiki/projects/exograph/tasks.md")).toBe("tasks.md");
     expect(invocationActivityLabel("C:\\Users\\person\\wiki\\notes.md")).toBe("notes.md");
     expect(invocationActivityLabel(`/notes/${"a".repeat(100)}.md`, 20)).toBe(`${"a".repeat(16)}….md`);
   });

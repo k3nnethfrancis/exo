@@ -59,9 +59,9 @@ export async function scrollTerminalToBottom(page: Page): Promise<void> {
 export async function expectTerminalRenderStable(page: Page): Promise<void> {
   const visibleText = await visibleTerminalText(page);
   const sessionText = await page.evaluate(async () => {
-    const sessions = await window.stem.terminals.list();
+    const sessions = await window.exograph.terminals.list();
     const claude = sessions.find((session) => session.kind === "claude");
-    return claude ? await window.stem.terminals.read(claude.id) : "";
+    return claude ? await window.exograph.terminals.read(claude.id) : "";
   });
 
   expect(

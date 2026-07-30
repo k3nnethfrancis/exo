@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { WorkspaceModel, WorkspaceSettings } from "@stem/core";
+import type { WorkspaceModel, WorkspaceSettings } from "@exograph/core";
 
 import { WorkspaceRuntimeCoordinator } from "./workspace-runtime-coordinator";
 
@@ -21,7 +21,7 @@ describe("WorkspaceRuntimeCoordinator", () => {
     const activating = coordinator.activate(request(destination));
 
     await Promise.resolve();
-    expect(events).toEqual(["runtime:/destination"]);
+    expect(events).toEqual(["recover:/destination"]);
     expect(coordinator.current()).toBeNull();
     // The desktop composition root creates the renderer only after this
     // activation resolves; publishing is therefore the test seam for visible
@@ -34,7 +34,6 @@ describe("WorkspaceRuntimeCoordinator", () => {
       active: { settings: destination, revision: "destination-revision", runtimeRoot: "/destination/.exograph" },
     });
     expect(events).toEqual([
-      "runtime:/destination",
       "recover:/destination",
       "recovered",
       "prepare:/destination",
@@ -329,7 +328,6 @@ function coordinatorFor(
 ): WorkspaceRuntimeCoordinator {
   return new WorkspaceRuntimeCoordinator({
     runtimeRootFor: (settings) => `${settings.workspaceRoot}/.exograph`,
-    prepareRuntimeRoot: async (candidate) => { events.push(`runtime:${candidate.settings.workspaceRoot}`); },
     recoverInvocations: async (candidate) => { events.push(`recover:${candidate.settings.workspaceRoot}`); },
     modelFromSettings: (settings) => model(settings.workspaceRoot),
     prepareNoteRoots: async (candidate) => { events.push(`prepare:${candidate.model.workspaceRoot}`); },
@@ -374,7 +372,7 @@ function settings(workspaceRoot: string): WorkspaceSettings {
     indexing: { enabled: false, mode: "off", backend: "qmd" },
     searchEngine: "filesystem",
     appearanceMode: "system",
-    colorThemeId: "stem-neutral",
+    colorThemeId: "exograph-neutral",
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,

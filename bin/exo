@@ -13,7 +13,7 @@ export COREPACK_ENABLE_PROJECT_SPEC="${COREPACK_ENABLE_PROJECT_SPEC:-0}"
 
 COMPILED_CLI="$ROOT/packages/cli/dist/index.cjs"
 
-if [[ "${EXO_CLI_USE_TSX:-${STEM_CLI_USE_TSX:-0}}" != "1" && -f "$COMPILED_CLI" ]]; then
+if [[ "${EXOGRAPH_CLI_USE_TSX:-0}" != "1" && -f "$COMPILED_CLI" ]]; then
   exec node "$COMPILED_CLI" "$@"
 fi
 

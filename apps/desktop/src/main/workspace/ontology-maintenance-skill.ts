@@ -1,7 +1,7 @@
 import type {
   OntologyReviewState,
   WorkspaceGraphContext,
-} from "@stem/core";
+} from "@exograph/core";
 import { ensureUserOwnedSkill } from "./user-owned-skill";
 
 const SKILL_ID = "find-and-connect-relevant-context";
@@ -82,7 +82,7 @@ export function prepareOntologyMaintenanceMessage(input: {
 
 const FIND_AND_CONNECT_RELEVANT_CONTEXT_SKILL = `---
 name: find-and-connect-relevant-context
-description: Find a small number of useful, evidence-backed connections for one selected note using the active Stem graph and ontology.
+description: Find a small number of useful, evidence-backed connections for one selected note using the active Exograph graph and ontology.
 ---
 
 # Find and connect relevant context

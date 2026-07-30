@@ -78,8 +78,8 @@ describe("QMD index adapter", () => {
   it("uses filesystem search when the index is off", async () => {
     const root = await fixtureRoot();
     const model = resolveWorkspaceModel({
-      STEM_WORKSPACE_ROOT: root,
-      STEM_NOTE_ROOTS: path.join(root, "notes"),
+      EXOGRAPH_WORKSPACE_ROOT: root,
+      EXOGRAPH_NOTE_ROOTS: path.join(root, "notes"),
     });
 
     const result = await qmdSearchProvider.search(model, path.join(root, ".exograph"), "focus");
@@ -104,8 +104,8 @@ describe("QMD index adapter", () => {
     ]);
     const model = {
       ...resolveWorkspaceModel({
-        STEM_WORKSPACE_ROOT: root,
-        STEM_NOTE_ROOTS: [path.join(root, "notes"), docsPath, extraPath].join(path.delimiter),
+        EXOGRAPH_WORKSPACE_ROOT: root,
+        EXOGRAPH_NOTE_ROOTS: [path.join(root, "notes"), docsPath, extraPath].join(path.delimiter),
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -142,8 +142,8 @@ describe("QMD index adapter", () => {
     await writeFile(docPath, "# Focus docs\n", "utf8");
     const model = {
       ...resolveWorkspaceModel({
-        STEM_WORKSPACE_ROOT: root,
-        STEM_NOTE_ROOTS: [path.join(root, "notes"), docsPath].join(path.delimiter),
+        EXOGRAPH_WORKSPACE_ROOT: root,
+        EXOGRAPH_NOTE_ROOTS: [path.join(root, "notes"), docsPath].join(path.delimiter),
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -196,8 +196,8 @@ describe("QMD index adapter", () => {
     const indexedRoot = createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" });
     const model = {
       ...resolveWorkspaceModel({
-        STEM_WORKSPACE_ROOT: root,
-        STEM_NOTE_ROOTS: path.join(root, "notes"),
+        EXOGRAPH_WORKSPACE_ROOT: root,
+        EXOGRAPH_NOTE_ROOTS: path.join(root, "notes"),
       }),
       indexedRoots: [indexedRoot],
       indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
@@ -333,8 +333,8 @@ describe("QMD index adapter", () => {
     const lowerCasePunctuation = createIndexedRoot(lowerCasePunctuationPath, { id: "case /!?é", label: "punctuation lower", kind: "mixed" });
     const model = {
       ...resolveWorkspaceModel({
-        STEM_WORKSPACE_ROOT: root,
-        STEM_NOTE_ROOTS: path.join(root, "notes"),
+        EXOGRAPH_WORKSPACE_ROOT: root,
+        EXOGRAPH_NOTE_ROOTS: path.join(root, "notes"),
       }),
       indexedRoots: [first, second, punctuation, lowerCasePunctuation],
       indexing: { enabled: true, mode: "lexical" as const, backend: "qmd" as const },
@@ -353,10 +353,10 @@ describe("QMD index adapter", () => {
     expect(lowerCasePunctuationCollection).toBeTruthy();
     expect(new Set([firstCollection, secondCollection, punctuationCollection, lowerCasePunctuationCollection]).size).toBe(4);
     expect(Object.keys(firstConfig)).toHaveLength(4);
-    expect(firstCollection).toMatch(/^stem-root-[0-9a-f]+$/);
-    expect(secondCollection).toMatch(/^stem-root-[0-9a-f]+$/);
-    expect(punctuationCollection).toMatch(/^stem-root-[0-9a-f]+$/);
-    expect(lowerCasePunctuationCollection).toMatch(/^stem-root-[0-9a-f]+$/);
+    expect(firstCollection).toMatch(/^exograph-root-[0-9a-f]+$/);
+    expect(secondCollection).toMatch(/^exograph-root-[0-9a-f]+$/);
+    expect(punctuationCollection).toMatch(/^exograph-root-[0-9a-f]+$/);
+    expect(lowerCasePunctuationCollection).toMatch(/^exograph-root-[0-9a-f]+$/);
     expect(punctuationCollection).not.toBe(lowerCasePunctuationCollection);
     expect(firstResult.results.map((entry) => entry.filePath)).toEqual([path.join(firstPath, "focus.md")]);
     expect(firstSearchStore.searchLexCalls.map((call) => call.collection)).toEqual([firstCollection]);
@@ -395,8 +395,8 @@ describe("QMD index adapter", () => {
     const collectionEntries = Object.entries(configuredStore.config.collections);
     const firstCollection = collectionEntries.find(([, config]) => config.path === firstPath)?.[0];
     const secondCollection = collectionEntries.find(([, config]) => config.path === secondPath)?.[0];
-    expect(firstCollection).toMatch(/^stem-root-[0-9a-f]{64}$/);
-    expect(secondCollection).toMatch(/^stem-root-[0-9a-f]{64}$/);
+    expect(firstCollection).toMatch(/^exograph-root-[0-9a-f]{64}$/);
+    expect(secondCollection).toMatch(/^exograph-root-[0-9a-f]{64}$/);
     expect(firstCollection).not.toBe(secondCollection);
     expect(Object.keys(configuredStore.config.collections)).toHaveLength(2);
     expect(configuredStore.searchLexCalls.map((call) => call.collection)).toEqual([firstCollection, secondCollection]);
@@ -987,8 +987,8 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const model = {
       ...resolveWorkspaceModel({
-        STEM_WORKSPACE_ROOT: root,
-        STEM_NOTE_ROOTS: path.join(root, "notes"),
+        EXOGRAPH_WORKSPACE_ROOT: root,
+        EXOGRAPH_NOTE_ROOTS: path.join(root, "notes"),
       }),
       indexedRoots: [
         createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" }),
@@ -1013,7 +1013,7 @@ describe("QMD index adapter", () => {
     expect(status.dbPath).toContain(path.join(".exograph", "qmd", "index.sqlite"));
     expect(status.documentCount).toBe(1);
     expect(status.pendingEmbeddings).toBe(1);
-    expect(status.warnings.join(" ")).not.toContain("stem index sync");
+    expect(status.warnings.join(" ")).not.toContain("exograph index sync");
 
     await qmdSearchProvider.update(model, path.join(root, ".exograph"));
     await qmdSearchProvider.embed(model, path.join(root, ".exograph"));
@@ -1061,7 +1061,7 @@ describe("QMD index adapter", () => {
     ]);
   });
 
-  it("warns when derived Stem state in a Git workspace is not ignored", async () => {
+  it("warns when derived Exograph state in a Git workspace is not ignored", async () => {
     const root = await fixtureRoot();
     await mkdir(path.join(root, ".git"));
     const status = await qmdSearchProvider.getStatus(indexedModel(root, "lexical"), path.join(root, ".exograph"));
@@ -1145,8 +1145,8 @@ describe("QMD index adapter", () => {
     const root = await fixtureRoot();
     const filePath = path.join(root, "notes", "focus.md");
     const model = resolveWorkspaceModel({
-      STEM_WORKSPACE_ROOT: root,
-      STEM_NOTE_ROOTS: path.join(root, "notes"),
+      EXOGRAPH_WORKSPACE_ROOT: root,
+      EXOGRAPH_NOTE_ROOTS: path.join(root, "notes"),
     });
 
     const result = await qmdSearchProvider.read(model, path.join(root, ".exograph"), filePath, { fromLine: 2, maxLines: 1 });
@@ -1209,7 +1209,7 @@ describe("QMD index adapter", () => {
 });
 
 async function fixtureRoot(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "stem-qmd-test-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "exograph-qmd-test-"));
   tempPaths.push(root);
   await mkdir(path.join(root, "notes"), { recursive: true });
   await writeFile(path.join(root, "notes", "focus.md"), "# Focus\nalpha\nbeta\n", "utf8");
@@ -1219,8 +1219,8 @@ async function fixtureRoot(): Promise<string> {
 function indexedModel(root: string, mode: "lexical" | "semantic" | "hybrid") {
   return {
     ...resolveWorkspaceModel({
-      STEM_WORKSPACE_ROOT: root,
-      STEM_NOTE_ROOTS: path.join(root, "notes"),
+      EXOGRAPH_WORKSPACE_ROOT: root,
+      EXOGRAPH_NOTE_ROOTS: path.join(root, "notes"),
     }),
     indexedRoots: [createIndexedRoot(path.join(root, "notes"), { id: "index-notes", label: "notes", kind: "notes" })],
     indexing: { enabled: true, mode, backend: "qmd" as const },

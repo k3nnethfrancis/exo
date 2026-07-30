@@ -1,1 +1,1 @@
-export const demo = "stem";
+export const demo = "exograph";

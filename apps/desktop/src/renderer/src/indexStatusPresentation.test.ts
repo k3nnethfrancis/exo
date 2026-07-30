@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { IndexStatus } from "@stem/core";
+import type { IndexStatus } from "@exograph/core";
 
 import { summarizeIndexStatus } from "./indexStatusPresentation";
 

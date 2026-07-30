@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { StemCommandServerInfo } from "@stem/core";
+import type { ExographCommandServerInfo } from "@exograph/core";
 
 import { CommandServerLifecycle } from "./command-server-lifecycle";
 import type { CommandServer } from "./command-server";
@@ -93,7 +93,7 @@ describe("CommandServerLifecycle", () => {
 });
 
 async function tempRoot(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "stem-command-lifecycle-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "exograph-command-lifecycle-"));
   tempRoots.push(root);
   return root;
 }
@@ -101,7 +101,7 @@ async function tempRoot(): Promise<string> {
 function fakeServer(token: string, port: number, delay = 0) {
   let listening = false;
   let starts = 0;
-  const info: StemCommandServerInfo = { token, port, pid: process.pid };
+  const info: ExographCommandServerInfo = { token, port, pid: process.pid };
   return {
     get starts() {
       return starts;

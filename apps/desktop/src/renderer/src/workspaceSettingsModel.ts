@@ -1,9 +1,9 @@
-import type { WorkspaceSettings } from "@stem/core";
-import { normalizeWorkspaceContentPolicy } from "@stem/core/workspace-content-policy";
+import type { WorkspaceSettings } from "@exograph/core";
+import { normalizeWorkspaceContentPolicy } from "@exograph/core/workspace-content-policy";
 import {
   DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS as CORE_DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS,
   DEFAULT_TERMINAL_SCROLLBACK_LINES,
-} from "@stem/core/terminal-settings";
+} from "@exograph/core/terminal-settings";
 
 import { defaultIndexedRoot, type WorkspaceSettingsDialogState } from "./workspaceSettingsDialogTypes";
 

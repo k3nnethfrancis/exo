@@ -14,7 +14,7 @@ import type {
   WorkspaceGraphContext,
   WorkspaceIndexSearchResponse,
   WorkspaceModel,
-} from "@stem/core";
+} from "@exograph/core";
 
 export interface DerivedIndexContext {
   model: WorkspaceModel;

@@ -1,6 +1,6 @@
 # Contributing
 
-Stem is a macOS-first Electron application. Keep changes small, typed, and
+Exograph is a macOS-first Electron application. Keep changes small, typed, and
 covered by the narrowest test that proves the behavior. Read the ownership
 guide before changing a cross-process boundary.
 
@@ -11,7 +11,7 @@ pnpm install
 pnpm dev
 ```
 
-Use `pnpm dev:qa` when an installed Stem app is running for normal work. It uses
+Use `pnpm dev:qa` when an installed Exograph app is running for normal work. It uses
 isolated runtime and user-data paths. Use `pnpm pack:mac` for onboarding,
 first-run, native-module, or packaged-app verification.
 
@@ -46,8 +46,8 @@ tests cannot verify Electron IPC.
 
 | Change | Minimum evidence |
 | --- | --- |
-| Pure Core behavior | Focused Core test plus `pnpm --filter @stem/core typecheck` |
-| CLI/MCP behavior | Focused CLI tests plus `pnpm --filter @stem/cli build` |
+| Pure Core behavior | Focused Core test plus `pnpm --filter @exograph/core typecheck` |
+| CLI/MCP behavior | Focused CLI tests plus `pnpm --filter @exograph/cli build` |
 | Main/preload/renderer behavior | Focused unit tests and the relevant Electron journey |
 | Editor latency, navigation, or search | The focused latency journey described in [`docs/performance-contracts.md`](docs/performance-contracts.md) |
 | Terminal runtime | Focused terminal tests and a real Electron terminal journey |
@@ -62,7 +62,7 @@ test.
 
 - `apps/desktop` — Electron main process, preload, and renderer.
 - `packages/core` — Workspace, Markdown graph, search, invocation records, and shared protocol types.
-- `packages/cli` — the `stem` CLI and MCP presentation.
+- `packages/cli` — the `exograph` CLI and MCP presentation.
 - `docs` — current product and architecture contracts.
 
 Read [docs/architecture.md](docs/architecture.md) before changing a cross-cutting

@@ -11,7 +11,7 @@ import {
 import type { IndexMode, IndexUpdateStrategy, SearchEngine } from "./types";
 import { normalizeWorkspaceContentPolicy, type WorkspaceContentPolicy } from "./workspace-content-policy";
 
-export const STEM_ONBOARDING_STATE_FILE = "onboarding-state.json";
+export const EXOGRAPH_ONBOARDING_STATE_FILE = "onboarding-state.json";
 
 export type OnboardingProgressStep = "select" | "configure" | "scope" | "mcp" | "agents";
 export type OnboardingMcpProvider = "claude" | "codex";
@@ -54,7 +54,7 @@ export type OnboardingStateReadResult =
 type OnboardingStateTimestamp = Date | string;
 
 export function onboardingStatePath(userDataPath: string): string {
-  return path.join(userDataPath, STEM_ONBOARDING_STATE_FILE);
+  return path.join(userDataPath, EXOGRAPH_ONBOARDING_STATE_FILE);
 }
 
 export function emptyOnboardingStateStore(): OnboardingStateStore {

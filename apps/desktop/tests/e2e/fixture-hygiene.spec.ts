@@ -7,7 +7,7 @@ import { expect, test } from "@playwright/test";
 import { copyMutableFixtureWorkspace } from "../helpers";
 
 test("copies mutable fixtures without ignored runtime debris", async () => {
-  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "stem-fixture-hygiene-"));
+  const tempRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-fixture-hygiene-"));
   const sourceRoot = path.join(tempRoot, "source");
   const targetRoot = path.join(tempRoot, "target");
 
@@ -17,13 +17,13 @@ test("copies mutable fixtures without ignored runtime debris", async () => {
     await mkdir(path.join(sourceRoot, ".git/objects"), { recursive: true });
     await mkdir(path.join(sourceRoot, "projects/sample-project/node_modules/pkg"), { recursive: true });
     await mkdir(path.join(sourceRoot, "projects/sample-project/dist"), { recursive: true });
-    await mkdir(path.join(sourceRoot, "release/mac-arm64/Stem.app"), { recursive: true });
+    await mkdir(path.join(sourceRoot, "release/mac-arm64/Exograph.app"), { recursive: true });
     await writeFile(path.join(sourceRoot, "notes/test-notes/focus-note.md"), "# Keep me\n", "utf8");
     await writeFile(path.join(sourceRoot, ".exograph/server.json"), "{}", "utf8");
     await writeFile(path.join(sourceRoot, ".git/HEAD"), "ref: refs/heads/main\n", "utf8");
     await writeFile(path.join(sourceRoot, "projects/sample-project/node_modules/pkg/index.js"), "", "utf8");
     await writeFile(path.join(sourceRoot, "projects/sample-project/dist/app.js"), "", "utf8");
-    await writeFile(path.join(sourceRoot, "release/mac-arm64/Stem.app/Contents"), "", "utf8");
+    await writeFile(path.join(sourceRoot, "release/mac-arm64/Exograph.app/Contents"), "", "utf8");
 
     await copyMutableFixtureWorkspace(sourceRoot, targetRoot);
 

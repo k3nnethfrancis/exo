@@ -33,7 +33,7 @@ export async function copyMutableFixtureWorkspace(sourceRoot: string, targetRoot
   });
 }
 
-interface LaunchStemFixtureOptions {
+interface LaunchExographFixtureOptions {
   mutable?: boolean;
   env?: Record<string, string>;
   cwd?: string;
@@ -49,7 +49,7 @@ interface LaunchStemFixtureOptions {
   prepareSettings?: (input: { settingsPath: string; userDataRoot: string; workspaceRoot: string }) => Promise<void>;
 }
 
-interface StemFixture {
+interface ExographFixture {
   electronApp: ElectronApplication;
   page: Page;
   workspaceRoot: string;
@@ -59,30 +59,30 @@ interface StemFixture {
   cleanup: () => Promise<void>;
 }
 
-export function launchStemTerminalFixture(options?: LaunchStemFixtureOptions): Promise<StemFixture> {
-  return launchStemFixtureForJourney(options, true);
+export function launchExographTerminalFixture(options?: LaunchExographFixtureOptions): Promise<ExographFixture> {
+  return launchExographFixtureForJourney(options, true);
 }
 
-export function launchStemWorkspaceFixture(options?: LaunchStemFixtureOptions): Promise<StemFixture> {
-  return launchStemFixtureForJourney(options, false);
+export function launchExographWorkspaceFixture(options?: LaunchExographFixtureOptions): Promise<ExographFixture> {
+  return launchExographFixtureForJourney(options, false);
 }
 
-async function launchStemFixtureForJourney(
-  options: LaunchStemFixtureOptions | undefined,
+async function launchExographFixtureForJourney(
+  options: LaunchExographFixtureOptions | undefined,
   openTerminalSurface: boolean,
-): Promise<StemFixture> {
+): Promise<ExographFixture> {
   let workspaceRoot = fixtureRoot;
   let tempRoot: string | null = null;
-  const settingsRoot = await mkdtemp(path.join(os.tmpdir(), "stem-settings-"));
+  const settingsRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-settings-"));
   const settingsPath = path.join(settingsRoot, "workspace-settings.json");
-  const userDataRoot = await mkdtemp(path.join(os.tmpdir(), "stem-userdata-"));
+  const userDataRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-userdata-"));
   const runtimeRoot = path.join(userDataRoot, "runtime");
-  const homeRoot = await mkdtemp(path.join(os.tmpdir(), "stem-home-"));
+  const homeRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-home-"));
   if (options?.prepareHome) {
     await options.prepareHome(homeRoot);
   }
   if (options?.mutable || options?.prepareWorkspace) {
-    tempRoot = await mkdtemp(path.join(os.tmpdir(), "stem-fixture-"));
+    tempRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-fixture-"));
     workspaceRoot = path.join(tempRoot, "test-workspace");
     await copyMutableFixtureWorkspace(fixtureRoot, workspaceRoot);
   }
@@ -98,38 +98,38 @@ async function launchStemFixtureForJourney(
   const configured = options?.configured ?? true;
   const workspaceEnv = configured
     ? {
-        STEM_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
+        EXOGRAPH_NOTE_ROOTS: path.join(workspaceRoot, "notes/test-notes"),
       }
     : {};
 
   const launchEnv: NodeJS.ProcessEnv = {
     ...process.env,
-    STEM_TEST: "1",
-    STEM_WORKSPACE_ROOT: workspaceRoot,
-    STEM_DEFAULT_TERMINAL_CWD: workspaceRoot,
-    STEM_SETTINGS_PATH: settingsPath,
-    STEM_USER_DATA_PATH: userDataRoot,
-    STEM_RUNTIME_ROOT: runtimeRoot,
-    STEM_FORCE_THEME: "dark",
+    EXOGRAPH_TEST: "1",
+    EXOGRAPH_WORKSPACE_ROOT: workspaceRoot,
+    EXOGRAPH_DEFAULT_TERMINAL_CWD: workspaceRoot,
+    EXOGRAPH_SETTINGS_PATH: settingsPath,
+    EXOGRAPH_USER_DATA_PATH: userDataRoot,
+    EXOGRAPH_RUNTIME_ROOT: runtimeRoot,
+    EXOGRAPH_FORCE_THEME: "dark",
     HOME: homeRoot,
-    STEM_SHELL: "/bin/sh",
-    STEM_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
-    ...(options?.selectFolderPath ? { STEM_TEST_SELECT_FOLDER_PATH: options.selectFolderPath(workspaceRoot) } : {}),
+    EXOGRAPH_SHELL: "/bin/sh",
+    EXOGRAPH_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
+    ...(options?.selectFolderPath ? { EXOGRAPH_TEST_SELECT_FOLDER_PATH: options.selectFolderPath(workspaceRoot) } : {}),
     ...workspaceEnv,
     ...options?.env,
   };
   for (const name of options?.stripEnvironment ?? []) delete launchEnv[name];
 
   if (options?.workspaceRootEnv === false) {
-    delete launchEnv.STEM_WORKSPACE_ROOT;
-    delete launchEnv.STEM_DEFAULT_TERMINAL_CWD;
-    delete launchEnv.STEM_NOTE_ROOTS;
+    delete launchEnv.EXOGRAPH_WORKSPACE_ROOT;
+    delete launchEnv.EXOGRAPH_DEFAULT_TERMINAL_CWD;
+    delete launchEnv.EXOGRAPH_NOTE_ROOTS;
   }
   if (options?.runtimeRootEnv === false) {
-    delete launchEnv.STEM_RUNTIME_ROOT;
+    delete launchEnv.EXOGRAPH_RUNTIME_ROOT;
   }
 
-  const packagedAppPath = packagedExecutablePath(process.env.STEM_PACKAGED_APP_PATH);
+  const packagedAppPath = packagedExecutablePath(process.env.EXOGRAPH_PACKAGED_APP_PATH);
   const electronApp = await electron.launch({
     ...(packagedAppPath ? { executablePath: packagedAppPath } : {}),
     args: packagedAppPath ? [] : [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
@@ -196,14 +196,14 @@ async function launchStemFixtureForJourney(
   };
 }
 
-interface RelaunchStemFixtureInput {
+interface RelaunchExographFixtureInput {
   workspaceRoot: string;
   settingsPath: string;
   runtimeRoot: string;
   homeRoot: string;
 }
 
-interface RelaunchStemFixtureOptions {
+interface RelaunchExographFixtureOptions {
   env?: Record<string, string>;
   cwd?: string;
   configured?: boolean;
@@ -213,62 +213,62 @@ interface RelaunchStemFixtureOptions {
   stripEnvironment?: readonly string[];
 }
 
-interface RelaunchedStemFixture {
+interface RelaunchedExographFixture {
   electronApp: ElectronApplication;
   page: Page;
   cleanup: () => Promise<void>;
 }
 
-export function relaunchStemTerminalFixture(
-  previous: RelaunchStemFixtureInput,
-  options?: RelaunchStemFixtureOptions,
-): Promise<RelaunchedStemFixture> {
-  return relaunchStemFixtureForJourney(previous, options, true);
+export function relaunchExographTerminalFixture(
+  previous: RelaunchExographFixtureInput,
+  options?: RelaunchExographFixtureOptions,
+): Promise<RelaunchedExographFixture> {
+  return relaunchExographFixtureForJourney(previous, options, true);
 }
 
-export function relaunchStemWorkspaceFixture(
-  previous: RelaunchStemFixtureInput,
-  options?: RelaunchStemFixtureOptions,
-): Promise<RelaunchedStemFixture> {
-  return relaunchStemFixtureForJourney(previous, options, false);
+export function relaunchExographWorkspaceFixture(
+  previous: RelaunchExographFixtureInput,
+  options?: RelaunchExographFixtureOptions,
+): Promise<RelaunchedExographFixture> {
+  return relaunchExographFixtureForJourney(previous, options, false);
 }
 
-async function relaunchStemFixtureForJourney(
-  previous: RelaunchStemFixtureInput,
-  options: RelaunchStemFixtureOptions | undefined,
+async function relaunchExographFixtureForJourney(
+  previous: RelaunchExographFixtureInput,
+  options: RelaunchExographFixtureOptions | undefined,
   openTerminalSurface: boolean,
-): Promise<RelaunchedStemFixture> {
+): Promise<RelaunchedExographFixture> {
   const userDataRoot = path.dirname(previous.runtimeRoot);
   const configured = options?.configured ?? true;
   const launchEnv: NodeJS.ProcessEnv = {
     ...process.env,
-    STEM_TEST: "1",
-    STEM_WORKSPACE_ROOT: previous.workspaceRoot,
-    STEM_DEFAULT_TERMINAL_CWD: previous.workspaceRoot,
-    STEM_SETTINGS_PATH: previous.settingsPath,
-    STEM_USER_DATA_PATH: userDataRoot,
-    STEM_RUNTIME_ROOT: previous.runtimeRoot,
-    STEM_FORCE_THEME: "dark",
+    EXOGRAPH_TEST: "1",
+    EXOGRAPH_WORKSPACE_ROOT: previous.workspaceRoot,
+    EXOGRAPH_DEFAULT_TERMINAL_CWD: previous.workspaceRoot,
+    EXOGRAPH_SETTINGS_PATH: previous.settingsPath,
+    EXOGRAPH_USER_DATA_PATH: userDataRoot,
+    EXOGRAPH_RUNTIME_ROOT: previous.runtimeRoot,
+    EXOGRAPH_FORCE_THEME: "dark",
     HOME: previous.homeRoot,
     ...(configured ? {
-      STEM_NOTE_ROOTS: path.join(previous.workspaceRoot, "notes/test-notes"),
+      EXOGRAPH_NOTE_ROOTS: path.join(previous.workspaceRoot, "notes/test-notes"),
     } : {}),
-    STEM_SHELL: "/bin/sh",
-    STEM_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
+    EXOGRAPH_SHELL: "/bin/sh",
+    EXOGRAPH_SHELL_ARGS: "-lc,printf 'shell ready\\n'; cat",
     ...options?.env,
   };
   for (const name of options?.stripEnvironment ?? []) delete launchEnv[name];
 
   if (options?.workspaceRootEnv === false) {
-    delete launchEnv.STEM_WORKSPACE_ROOT;
-    delete launchEnv.STEM_DEFAULT_TERMINAL_CWD;
-    delete launchEnv.STEM_NOTE_ROOTS;
+    delete launchEnv.EXOGRAPH_WORKSPACE_ROOT;
+    delete launchEnv.EXOGRAPH_DEFAULT_TERMINAL_CWD;
+    delete launchEnv.EXOGRAPH_NOTE_ROOTS;
   }
   if (options?.runtimeRootEnv === false) {
-    delete launchEnv.STEM_RUNTIME_ROOT;
+    delete launchEnv.EXOGRAPH_RUNTIME_ROOT;
   }
 
-  const packagedAppPath = packagedExecutablePath(process.env.STEM_PACKAGED_APP_PATH);
+  const packagedAppPath = packagedExecutablePath(process.env.EXOGRAPH_PACKAGED_APP_PATH);
   const electronApp = await electron.launch({
     ...(packagedAppPath ? { executablePath: packagedAppPath } : {}),
     args: packagedAppPath ? [] : [path.join(repoRoot, "apps/desktop/dist/main/index.js")],
@@ -313,6 +313,6 @@ async function relaunchStemFixtureForJourney(
 
 function packagedExecutablePath(appPath: string | undefined): string | undefined {
   return appPath?.endsWith(".app")
-    ? path.join(appPath, "Contents", "MacOS", "Stem")
+    ? path.join(appPath, "Contents", "MacOS", "Exograph")
     : appPath;
 }

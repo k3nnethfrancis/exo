@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 
-import { emptyOnboardingStateStore, beginOnboardingProgress, markOnboardingComplete } from "@stem/core";
-import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "@stem/core/default-agent-command";
+import { emptyOnboardingStateStore, beginOnboardingProgress, markOnboardingComplete } from "@exograph/core";
+import { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from "@exograph/core/default-agent-command";
 import { hasOperatorWorkspaceSetup, workspaceSetupDecision } from "./workspace-setup-gate";
 
 describe("workspace setup gate", () => {
   it("does not let an inherited note-root environment bypass a real user's onboarding", () => {
-    expect(hasOperatorWorkspaceSetup({ STEM_NOTE_ROOTS: "/Users/example/notes" })).toBe(false);
+    expect(hasOperatorWorkspaceSetup({ EXOGRAPH_NOTE_ROOTS: "/Users/example/notes" })).toBe(false);
   });
 
   it("permits explicit isolated test fixtures", () => {
-    expect(hasOperatorWorkspaceSetup({ STEM_TEST: "1", STEM_NOTE_ROOTS: "/tmp/fixture/notes" })).toBe(true);
+    expect(hasOperatorWorkspaceSetup({ EXOGRAPH_TEST: "1", EXOGRAPH_NOTE_ROOTS: "/tmp/fixture/notes" })).toBe(true);
   });
 
   it("does not bypass setup for an empty test root", () => {
-    expect(hasOperatorWorkspaceSetup({ STEM_TEST: "1", STEM_NOTE_ROOTS: "  " })).toBe(false);
+    expect(hasOperatorWorkspaceSetup({ EXOGRAPH_TEST: "1", EXOGRAPH_NOTE_ROOTS: "  " })).toBe(false);
   });
 
   it("keeps pristine and explicit in-progress installs in onboarding", () => {

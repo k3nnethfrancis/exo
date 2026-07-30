@@ -2,11 +2,11 @@ import { expect, test } from "@playwright/test";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { launchStemWorkspaceFixture } from "../helpers";
+import { launchExographWorkspaceFixture } from "../helpers";
 
 test("replaces every Markdown editor match through the native find panel", async () => {
   let notePath = "";
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       notePath = path.join(workspaceRoot, "notes/test-notes/find-replace.md");

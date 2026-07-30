@@ -1,3 +1,3 @@
-import { stemAdapter } from './stem.mjs';
+import { exographAdapter } from './exograph.mjs';
 
-export const ADAPTERS = Object.freeze({ stem: stemAdapter });
+export const ADAPTERS = Object.freeze({ exograph: exographAdapter });

@@ -14,8 +14,8 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@stem/core": ["packages/core/src/index.ts"],
-      "@stem/core/*": ["packages/core/src/*"]
+      "@exograph/core": ["packages/core/src/index.ts"],
+      "@exograph/core/*": ["packages/core/src/*"]
     }
   }
 }

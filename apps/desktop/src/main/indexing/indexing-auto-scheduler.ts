@@ -1,4 +1,4 @@
-import type { IndexMode, IndexUpdateStrategy } from "@stem/core";
+import type { IndexMode, IndexUpdateStrategy } from "@exograph/core";
 
 export interface AutoEmbeddingPolicy {
   quietPeriodMs: number;

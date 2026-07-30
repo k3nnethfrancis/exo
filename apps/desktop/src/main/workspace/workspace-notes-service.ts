@@ -26,7 +26,7 @@ import {
   WorkspaceGraph,
   type WorkspaceGraphContext,
   type WorkspaceModel,
-} from "@stem/core";
+} from "@exograph/core";
 import type { WorkspaceChangeEvent } from "./workspace-watchers";
 import type { DerivedIndexClient } from "../indexing/derived-index-process";
 
@@ -107,7 +107,7 @@ export class WorkspaceNotesService {
       void derivedIndex
         .graphInvalidate(scope.model, scope.runtimeRoot, scope.controller.signal)
         .catch((error) => {
-          if (!isAbortError(error)) console.warn("[stem] derived graph invalidation failed", error);
+          if (!isAbortError(error)) console.warn("[exograph] derived graph invalidation failed", error);
         });
     }
     this.folderOverviewCache.clear();
@@ -170,7 +170,7 @@ export class WorkspaceNotesService {
   }
 
   /** Validates an operator-requested file before a command-server response can
-   * claim that Stem opened it.  This shares the same root and symlink boundary
+   * claim that Exograph opened it.  This shares the same root and symlink boundary
    * as every other workspace read. */
   async authorizeOpenFile(filePath: string): Promise<string> {
     const scope = this.scope;
@@ -178,7 +178,7 @@ export class WorkspaceNotesService {
     const fileStat = await stat(authorizedPath);
     this.assertCurrentScope(scope);
     if (!fileStat.isFile()) {
-      throw new Error("Stem can only open an existing file inside the active wiki.");
+      throw new Error("Exograph can only open an existing file inside the active wiki.");
     }
     return authorizedPath;
   }

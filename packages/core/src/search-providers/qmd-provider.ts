@@ -349,7 +349,7 @@ async function searchIndex(
         effectiveMode !== "lexical"
         && (!Boolean(qmdStatus.hasVectorIndex) || pendingEmbeddings > 0)
       ) {
-        warnings.push("Embeddings are not ready; Stem will use lexical fallback if semantic/hybrid search is unavailable.");
+        warnings.push("Embeddings are not ready; Exograph will use lexical fallback if semantic/hybrid search is unavailable.");
       }
     } catch {
       // Status warnings and lexical exhaustion bounds are best-effort. A stream
@@ -680,7 +680,7 @@ async function openQmdStore(model: WorkspaceModel, runtimeRoot: string): Promise
   const store = await qmd.createStore({
     dbPath: getQmdDbPath(runtimeRoot),
     config: {
-      global_context: "Stem-managed QMD search provider. Indexed roots are explicitly selected by the user.",
+      global_context: "Exograph-managed QMD search provider. Indexed roots are explicitly selected by the user.",
       collections: collectionConfig,
     },
   });
@@ -719,7 +719,7 @@ function baseStatus(model: WorkspaceModel, runtimeRoot: string): IndexStatus {
 
 function ensureIndexEnabled(model: WorkspaceModel): void {
   if (!shouldUseQmd(model)) {
-    throw new Error("The Stem index is off or has no indexed roots.");
+    throw new Error("The Exograph index is off or has no indexed roots.");
   }
 }
 
@@ -772,7 +772,7 @@ function qmdCollectionIdentity(roots: IndexedRoot[]): QmdCollectionIdentity {
 }
 
 function qmdCollectionName(root: IndexedRoot): string {
-  return `stem-root-${createHash("sha256")
+  return `exograph-root-${createHash("sha256")
     .update(path.resolve(root.path))
     .digest("hex")}`;
 }

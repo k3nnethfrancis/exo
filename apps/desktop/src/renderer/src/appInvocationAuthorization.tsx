@@ -1,4 +1,4 @@
-import type { AgentCommand } from "@stem/core";
+import type { AgentCommand } from "@exograph/core";
 
 import {
   InvocationAuthorizationPopover,

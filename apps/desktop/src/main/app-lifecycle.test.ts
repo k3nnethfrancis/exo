@@ -124,7 +124,7 @@ const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 
 describe("AppLifecycleController", () => {
   beforeEach(() => {
-    delete process.env.STEM_TEST;
+    delete process.env.EXOGRAPH_TEST;
     delete process.env.ELECTRON_RENDERER_URL;
     delete process.env.VITE_DEV_SERVER_URL;
     electronMock.appQuit.mockClear();

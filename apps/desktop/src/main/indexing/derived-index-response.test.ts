@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createGraphTopology } from "@stem/core";
+import { createGraphTopology } from "@exograph/core";
 
 import {
   derivedIndexResponseBytes,

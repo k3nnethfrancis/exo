@@ -6,12 +6,12 @@ import {
   createDefaultClaudeAgentCommand,
   createDefaultCodexAgentCommand,
   InvocationStore,
-} from "@stem/core";
+} from "@exograph/core";
 
-import { launchStemWorkspaceFixture, relaunchStemWorkspaceFixture } from "../helpers";
+import { launchExographWorkspaceFixture, relaunchExographWorkspaceFixture } from "../helpers";
 
 test("every non-structural Settings round trip preserves commands, layout, and opaque metadata", async () => {
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       await writeFile(settingsPath, JSON.stringify({
@@ -34,7 +34,7 @@ test("every non-structural Settings round trip preserves commands, layout, and o
         indexing: { enabled: true, mode: "lexical", backend: "qmd" },
         searchEngine: "qmd",
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -67,8 +67,8 @@ test("every non-structural Settings round trip preserves commands, layout, and o
 
     const layout = preservedLayout(path.join(fixture.workspaceRoot, "notes/test-notes/focus-note.md"));
     const savedLayout = await fixture.page.evaluate(async (nextLayout) => {
-      const snapshot = await window.stem.workspace.getSettings();
-      const saved = await window.stem.workspace.saveSettings({
+      const snapshot = await window.exograph.workspace.getSettings();
+      const saved = await window.exograph.workspace.saveSettings({
         settings: { ...snapshot.settings, layout: nextLayout },
         expectedRevision: snapshot.revision,
       });
@@ -105,7 +105,7 @@ test("every non-structural Settings round trip preserves commands, layout, and o
 });
 
 test("an explicit empty Commands list stays empty and does not offer @claude", async () => {
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       await writeFile(settingsPath, JSON.stringify({
@@ -117,7 +117,7 @@ test("an explicit empty Commands list stays empty and does not offer @claude", a
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         searchEngine: "filesystem",
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -143,7 +143,7 @@ test("an explicit empty Commands list stays empty and does not offer @claude", a
 });
 
 test("a disabled Claude command stays unavailable to inline completion", async () => {
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       await writeFile(settingsPath, JSON.stringify({
@@ -166,7 +166,7 @@ test("a disabled Claude command stays unavailable to inline completion", async (
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         searchEngine: "filesystem",
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -187,7 +187,7 @@ test("a disabled Claude command stays unavailable to inline completion", async (
 });
 
 test("keeps an invalid existing Agent Command in Settings instead of discarding it on close", async () => {
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       const noteRoot = path.join(workspaceRoot, "notes/test-notes");
@@ -200,7 +200,7 @@ test("keeps an invalid existing Agent Command in Settings instead of discarding 
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         searchEngine: "filesystem",
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -247,7 +247,7 @@ test("adds one Custom Command, removes it explicitly, and retains its History sn
     command: "/bin/echo historical",
     adapter: "generic" as const,
   };
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       const noteRoot = path.join(workspaceRoot, "notes/test-notes");
@@ -281,7 +281,7 @@ test("adds one Custom Command, removes it explicitly, and retains its History sn
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         searchEngine: "filesystem",
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -328,7 +328,7 @@ test("adds one Custom Command, removes it explicitly, and retains its History sn
     await expect(access(markerPath)).rejects.toMatchObject({ code: "ENOENT" });
 
     await expect.poll(() => fixture.page.evaluate((targetPath) =>
-      window.stem.workspace.listInvocationHistory(targetPath), notePath))
+      window.exograph.workspace.listInvocationHistory(targetPath), notePath))
       .toEqual([
         expect.objectContaining({
           invocationId: historyId,
@@ -338,7 +338,7 @@ test("adds one Custom Command, removes it explicitly, and retains its History sn
       ]);
     const removedError = await fixture.page.evaluate(async (targetPath) => {
       try {
-        await window.stem.workspace.getAgentInvocationAuthorization({ handle: "local", documentPath: targetPath });
+        await window.exograph.workspace.getAgentInvocationAuthorization({ handle: "local", documentPath: targetPath });
         return null;
       } catch (error) {
         return error instanceof Error ? error.message : String(error);
@@ -357,7 +357,7 @@ test("adds one Custom Command, removes it explicitly, and retains its History sn
 });
 
 test("structural Settings Apply preserves retained Indexed Root policy", async () => {
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       const notesPath = path.join(workspaceRoot, "notes/test-notes");
@@ -377,7 +377,7 @@ test("structural Settings Apply preserves retained Indexed Root policy", async (
         indexing: { enabled: true, mode: "lexical", backend: "qmd" },
         searchEngine: "qmd",
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -417,7 +417,7 @@ test("structural Settings Apply preserves retained Indexed Root policy", async (
 });
 
 test("structural Apply reports an external revision conflict without overwriting it", async () => {
-  const fixture = await launchStemWorkspaceFixture({ mutable: true });
+  const fixture = await launchExographWorkspaceFixture({ mutable: true });
 
   try {
     await fixture.page.waitForTimeout(1_100);
@@ -425,8 +425,8 @@ test("structural Apply reports an external revision conflict without overwriting
     await fixture.page.getByTestId("workspace-settings-workspace-root").fill(`${fixture.workspaceRoot} `);
 
     await fixture.page.evaluate(async () => {
-      const snapshot = await window.stem.workspace.getSettings();
-      await window.stem.workspace.saveSettings({
+      const snapshot = await window.exograph.workspace.getSettings();
+      await window.exograph.workspace.saveSettings({
         settings: { ...snapshot.settings, terminalFontSize: 17 },
         expectedRevision: snapshot.revision,
       });
@@ -447,7 +447,7 @@ test("structural Apply reports an external revision conflict without overwriting
 });
 
 test("re-enabling QMD preserves retained Indexed Roots through restart", async () => {
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       const notesPath = path.join(workspaceRoot, "notes/test-notes");
@@ -480,7 +480,7 @@ test("re-enabling QMD preserves retained Indexed Roots through restart", async (
       }, null, 2), "utf8");
     },
   });
-  let relaunched: Awaited<ReturnType<typeof relaunchStemWorkspaceFixture>> | null = null;
+  let relaunched: Awaited<ReturnType<typeof relaunchExographWorkspaceFixture>> | null = null;
 
   try {
     const before = await persistedSettings(fixture.settingsPath);
@@ -495,7 +495,7 @@ test("re-enabling QMD preserves retained Indexed Roots through restart", async (
     });
 
     await fixture.electronApp.close();
-    relaunched = await relaunchStemWorkspaceFixture(fixture);
+    relaunched = await relaunchExographWorkspaceFixture(fixture);
     await openSettingsSection(relaunched.page, "index");
     await expect(relaunched.page.getByTestId("workspace-settings-search-engine-qmd")).toBeChecked();
     await expect(relaunched.page.getByTestId("workspace-settings-apply")).toHaveCount(0);
@@ -507,7 +507,7 @@ test("re-enabling QMD preserves retained Indexed Roots through restart", async (
 });
 
 test("QMD setup defaults empty roots once and remains idempotent after restart", async () => {
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     prepareSettings: async ({ settingsPath, workspaceRoot }) => {
       const notesPath = path.join(workspaceRoot, "notes/test-notes");
@@ -521,7 +521,7 @@ test("QMD setup defaults empty roots once and remains idempotent after restart",
       }, null, 2), "utf8");
     },
   });
-  let relaunched: Awaited<ReturnType<typeof relaunchStemWorkspaceFixture>> | null = null;
+  let relaunched: Awaited<ReturnType<typeof relaunchExographWorkspaceFixture>> | null = null;
 
   try {
     const noteRoot = path.join(fixture.workspaceRoot, "notes/test-notes");
@@ -541,7 +541,7 @@ test("QMD setup defaults empty roots once and remains idempotent after restart",
     await expect.poll(() => persistedSettings(fixture.settingsPath)).toMatchObject({ indexedRoots: [expectedRoot] });
 
     await fixture.electronApp.close();
-    relaunched = await relaunchStemWorkspaceFixture(fixture);
+    relaunched = await relaunchExographWorkspaceFixture(fixture);
     await openSettingsSection(relaunched.page, "index");
     await relaunched.page.getByTestId("workspace-settings-search-engine-qmd").click();
     await expect(relaunched.page.getByTestId("workspace-settings-apply")).toHaveCount(0);

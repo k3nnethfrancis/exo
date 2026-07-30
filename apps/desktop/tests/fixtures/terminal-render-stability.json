@@ -3,7 +3,7 @@
     "\u001b[38;5;141m╭──────────────── Claude Code v2.1.183 ────────────────╮\u001b[0m",
     "\u001b[2m│\u001b[0m ⠋ Working      ✻  ⏺  🙂  🧠  status: ready \u001b[2m│\u001b[0m",
     "\u001b[38;5;141m╰──────────────────────────────────────────────────────╯\u001b[0m",
-    "\u001b[7m [lab] stem:2Δ fieldkit:1Δ notes:112Δ │ Opus 4.6 (1M context) \u001b[0m"
+    "\u001b[7m [lab] exograph:2Δ fieldkit:1Δ notes:112Δ │ Opus 4.6 (1M context) \u001b[0m"
   ],
   "spinnerUpdates": [
     "\r\u001b[35m⠙ rendering\u001b[0m ",
@@ -14,7 +14,7 @@
   "expectedFragments": [
     "Claude Code v2.1.183",
     "status: ready",
-    "[lab] stem:2Δ fieldkit:1Δ notes:112Δ",
+    "[lab] exograph:2Δ fieldkit:1Δ notes:112Δ",
     "Opus 4.6 (1M context)",
     "wrapped prompt marker",
     "╭",

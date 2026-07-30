@@ -9,8 +9,8 @@ import { AgentCommandTrustStore, resolveAgentCommandTrustStorePath } from "../ag
 
 describe("agent command trust store", () => {
   it("trusts command executable fingerprints and invalidates changed commands", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-"));
-    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-app-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-"));
+    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-app-"));
     const store = new AgentCommandTrustStore(appStateRoot, workspaceRoot);
     const command = createDefaultClaudeAgentCommand();
 
@@ -28,8 +28,8 @@ describe("agent command trust store", () => {
   });
 
   it("invalidates every fingerprinted Command field and only those fields", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-"));
-    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-app-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-"));
+    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-app-"));
     const store = new AgentCommandTrustStore(appStateRoot, workspaceRoot);
     const command = createDefaultClaudeAgentCommand();
     await store.trust(command);
@@ -56,8 +56,8 @@ describe("agent command trust store", () => {
   });
 
   it("writes trust records under the app-local state root", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-"));
-    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-app-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-"));
+    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-app-"));
     const store = new AgentCommandTrustStore(appStateRoot, workspaceRoot);
     await store.trust(createDefaultClaudeAgentCommand(), "2026-07-08T00:00:00.000Z");
 
@@ -68,8 +68,8 @@ describe("agent command trust store", () => {
   });
 
   it("does not import workspace-local trust files", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-"));
-    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-app-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-"));
+    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-app-"));
     const command = createDefaultClaudeAgentCommand();
     const workspaceTrustPath = path.join(workspaceRoot, ".exograph", "agent-command-trust.json");
     await mkdir(path.dirname(workspaceTrustPath), { recursive: true });
@@ -89,9 +89,9 @@ describe("agent command trust store", () => {
   });
 
   it("scopes trusted command fingerprints by workspace root", async () => {
-    const firstWorkspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-first-"));
-    const secondWorkspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-second-"));
-    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-app-"));
+    const firstWorkspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-first-"));
+    const secondWorkspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-second-"));
+    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-app-"));
     const command = createDefaultClaudeAgentCommand();
 
     await new AgentCommandTrustStore(appStateRoot, firstWorkspaceRoot).trust(command, "2026-07-08T00:00:00.000Z");
@@ -105,9 +105,9 @@ describe("agent command trust store", () => {
   });
 
   it("revokes only the selected Command in the selected Workspace", async () => {
-    const firstWorkspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-first-"));
-    const secondWorkspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-second-"));
-    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "stem-agent-command-trust-app-"));
+    const firstWorkspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-first-"));
+    const secondWorkspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-second-"));
+    const appStateRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-agent-command-trust-app-"));
     const command = createDefaultClaudeAgentCommand();
     const first = new AgentCommandTrustStore(appStateRoot, firstWorkspaceRoot);
     const second = new AgentCommandTrustStore(appStateRoot, secondWorkspaceRoot);

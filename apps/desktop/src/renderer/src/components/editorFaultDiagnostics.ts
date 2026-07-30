@@ -3,7 +3,7 @@ export type EditorFaultMode = "markdown-live" | "markdown-raw" | "code" | "empty
 /**
  * The renderer can fail while React is still healthy. Keep the resulting
  * report deliberately structural: diagnostics may identify the editor state,
- * but must never copy note text into Stem's durable application log.
+ * but must never copy note text into Exograph's durable application log.
  */
 export interface EditorFaultContext {
   notePath: string | null;

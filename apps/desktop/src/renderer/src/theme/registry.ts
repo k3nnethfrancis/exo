@@ -1,10 +1,10 @@
 import type { ResolvedAppearance } from "../appearance";
-import type { ColorThemeId, StemThemeFamily, StemThemeVariant } from "./types";
+import type { ColorThemeId, ExographThemeFamily, ExographThemeVariant } from "./types";
 
-export const DEFAULT_COLOR_THEME_ID: ColorThemeId = "stem-neutral";
+export const DEFAULT_COLOR_THEME_ID: ColorThemeId = "exograph-neutral";
 
-const neutralLight: StemThemeVariant = {
-  id: "stem-neutral-light",
+const neutralLight: ExographThemeVariant = {
+  id: "exograph-neutral-light",
   appearance: "light",
   colorScheme: "light",
   css: {
@@ -61,8 +61,8 @@ const neutralLight: StemThemeVariant = {
     "--md-list-guide": "rgba(84, 96, 92, 0.22)",
     "--md-list-bullet": "#5f6b67",
     "--md-task-checked": "#3f737b",
-    "--stem-list-guide": "rgba(84, 96, 92, 0.22)",
-    "--stem-list-bullet": "#5f6b67",
+    "--exograph-list-guide": "rgba(84, 96, 92, 0.22)",
+    "--exograph-list-bullet": "#5f6b67",
     "--surface-1": "rgba(255, 255, 255, 0.54)",
     "--surface-2": "rgba(238, 241, 233, 0.74)",
     "--surface-3": "rgba(229, 233, 224, 0.86)",
@@ -139,8 +139,8 @@ const neutralLight: StemThemeVariant = {
   },
 };
 
-const neutralDark: StemThemeVariant = {
-  id: "stem-neutral-dark",
+const neutralDark: ExographThemeVariant = {
+  id: "exograph-neutral-dark",
   appearance: "dark",
   colorScheme: "dark",
   css: {
@@ -197,8 +197,8 @@ const neutralDark: StemThemeVariant = {
     "--md-list-guide": "rgba(164, 174, 166, 0.17)",
     "--md-list-bullet": "#aab0a7",
     "--md-task-checked": "#7baeb5",
-    "--stem-list-guide": "rgba(164, 174, 166, 0.17)",
-    "--stem-list-bullet": "#aab0a7",
+    "--exograph-list-guide": "rgba(164, 174, 166, 0.17)",
+    "--exograph-list-bullet": "#aab0a7",
     "--surface-1": "rgba(255, 255, 255, 0.035)",
     "--surface-2": "rgba(255, 255, 255, 0.065)",
     "--surface-3": "rgba(255, 255, 255, 0.095)",
@@ -275,9 +275,9 @@ const neutralDark: StemThemeVariant = {
   },
 };
 
-const solarLight: StemThemeVariant = {
+const solarLight: ExographThemeVariant = {
   ...neutralLight,
-  id: "stem-solar-light",
+  id: "exograph-solar-light",
   css: {
     ...neutralLight.css,
     "--app-bg": "#eee8d5",
@@ -334,8 +334,8 @@ const solarLight: StemThemeVariant = {
     "--danger-soft": "rgba(186, 108, 102, 0.12)",
     "--danger-border": "rgba(170, 93, 82, 0.16)",
     "--shadow": "0 24px 64px rgba(154, 119, 52, 0.12)",
-    "--stem-list-guide": "rgba(120, 130, 148, 0.28)",
-    "--stem-list-bullet": "#626a78",
+    "--exograph-list-guide": "rgba(120, 130, 148, 0.28)",
+    "--exograph-list-bullet": "#626a78",
   },
   syntax: {
     keyword: "#7c4d9f",
@@ -362,9 +362,9 @@ const solarLight: StemThemeVariant = {
   },
 };
 
-const solarDark: StemThemeVariant = {
+const solarDark: ExographThemeVariant = {
   ...neutralDark,
-  id: "stem-solar-dark",
+  id: "exograph-solar-dark",
   css: {
     ...neutralDark.css,
     "--app-bg": "#1f1f1f",
@@ -420,8 +420,8 @@ const solarDark: StemThemeVariant = {
     "--danger-soft": "rgba(180, 72, 72, 0.16)",
     "--danger-border": "rgba(255, 170, 170, 0.14)",
     "--shadow": "0 24px 64px rgba(0, 0, 0, 0.28)",
-    "--stem-list-guide": "rgba(136, 146, 164, 0.14)",
-    "--stem-list-bullet": "#98a1b2",
+    "--exograph-list-guide": "rgba(136, 146, 164, 0.14)",
+    "--exograph-list-bullet": "#98a1b2",
   },
   syntax: {
     keyword: "#b78dd6",
@@ -448,9 +448,9 @@ const solarDark: StemThemeVariant = {
   },
 };
 
-export const THEME_FAMILIES: StemThemeFamily[] = [
+export const THEME_FAMILIES: ExographThemeFamily[] = [
   {
-    id: "stem-neutral",
+    id: "exograph-neutral",
     label: "Exograph Neutral",
     description: "Restrained default palette for dense notes, code, and terminals.",
     variants: {
@@ -459,7 +459,7 @@ export const THEME_FAMILIES: StemThemeFamily[] = [
     },
   },
   {
-    id: "stem-solar",
+    id: "exograph-solar",
     label: "Exograph Solar",
     description: "Warm classic Exograph palette with Solarized-like light surfaces.",
     variants: {
@@ -469,15 +469,15 @@ export const THEME_FAMILIES: StemThemeFamily[] = [
   },
 ];
 
-export const THEME_REGISTRY: Record<ColorThemeId, StemThemeFamily> = Object.fromEntries(
+export const THEME_REGISTRY: Record<ColorThemeId, ExographThemeFamily> = Object.fromEntries(
   THEME_FAMILIES.map((theme) => [theme.id, theme]),
-) as Record<ColorThemeId, StemThemeFamily>;
+) as Record<ColorThemeId, ExographThemeFamily>;
 
 export function normalizeColorThemeId(value: unknown): ColorThemeId {
-  return value === "stem-solar" || value === "stem-neutral" ? value : DEFAULT_COLOR_THEME_ID;
+  return value === "exograph-solar" || value === "exograph-neutral" ? value : DEFAULT_COLOR_THEME_ID;
 }
 
-export function resolveTheme(colorThemeId: unknown, appearance: ResolvedAppearance): StemThemeVariant {
+export function resolveTheme(colorThemeId: unknown, appearance: ResolvedAppearance): ExographThemeVariant {
   const normalized = normalizeColorThemeId(colorThemeId);
   const family = THEME_REGISTRY[normalized] ?? THEME_REGISTRY[DEFAULT_COLOR_THEME_ID];
   return family.variants[appearance] ?? THEME_REGISTRY[DEFAULT_COLOR_THEME_ID].variants[appearance] ?? neutralLight;

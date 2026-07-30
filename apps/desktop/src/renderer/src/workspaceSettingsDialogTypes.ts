@@ -1,4 +1,4 @@
-import type { AgentCommand, IndexedRoot, SearchEngine, WorkspaceContentPolicy, WorkspaceSettings, WorkspaceSettingsRevision } from "@stem/core";
+import type { AgentCommand, IndexedRoot, SearchEngine, WorkspaceContentPolicy, WorkspaceSettings, WorkspaceSettingsRevision } from "@exograph/core";
 
 import type { AppearanceMode } from "./appearance";
 import type { ColorThemeId } from "./theme/types";

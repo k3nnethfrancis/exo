@@ -1,8 +1,8 @@
-import type { AgentCommand, InvocationRecord } from "@stem/core";
+import type { AgentCommand, InvocationRecord } from "@exograph/core";
 import {
   invocationActivityLabel,
   type InvocationActivityEvent,
-} from "@stem/core/invocation-activity";
+} from "@exograph/core/invocation-activity";
 
 import type { InvocationActivityKind as InvocationSurfaceKind } from "./components/invocation";
 
@@ -54,7 +54,7 @@ export function beginInvocationActivity(command: Pick<AgentCommand, "handle" | "
   };
 }
 
-/** A synchronous, truthful acknowledgement while Stem checks launch authority. */
+/** A synchronous, truthful acknowledgement while Exograph checks launch authority. */
 export function acknowledgeInvocationActivity(
   command: Pick<AgentCommand, "handle" | "label">,
 ): InvocationActivityState {

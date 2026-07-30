@@ -1,7 +1,7 @@
 import { performance } from "node:perf_hooks";
 import { describe, expect, it } from "vitest";
 
-import type { GraphTopology } from "@stem/core";
+import type { GraphTopology } from "@exograph/core";
 
 import {
   createDeterministicLayout,

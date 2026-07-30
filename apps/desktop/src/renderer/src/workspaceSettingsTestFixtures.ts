@@ -13,7 +13,7 @@ export function workspaceSettingsDialogFixture(
     indexMode: "off",
     searchEngine: "filesystem",
     appearanceMode: "system",
-    colorThemeId: "stem-neutral",
+    colorThemeId: "exograph-neutral",
     editorFontSize: "15",
     terminalFontSize: "13",
     explorerScale: "1",

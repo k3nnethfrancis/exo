@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveWorkspaceRegistryPath, resolveWorkspaceSettingsPath, saveWorkspaceSettings, type WorkspaceSettings } from "@stem/core";
+import { resolveWorkspaceRegistryPath, resolveWorkspaceSettingsPath, saveWorkspaceSettings, type WorkspaceSettings } from "@exograph/core";
 import { WorkspaceConfigConflictError, WorkspaceConfigStore } from "./workspace-config-store";
 
 const paths: string[] = [];
@@ -10,9 +10,9 @@ afterEach(async () => Promise.all(paths.splice(0).map((target) => rm(target, { r
 
 describe("WorkspaceConfigStore", () => {
   it("owns serialized revision-checked patches while preserving unknown settings", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-config-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-config-"));
     paths.push(userDataPath);
-    await saveWorkspaceSettings({ ...settings(), futureSetting: { local: true } } as WorkspaceSettings, { STEM_USER_DATA_PATH: userDataPath });
+    await saveWorkspaceSettings({ ...settings(), futureSetting: { local: true } } as WorkspaceSettings, { EXOGRAPH_USER_DATA_PATH: userDataPath });
     const first = new WorkspaceConfigStore({ userDataPath, env: {} });
     const second = new WorkspaceConfigStore({ userDataPath, env: {} });
     const loaded = await first.load();
@@ -22,9 +22,9 @@ describe("WorkspaceConfigStore", () => {
   });
 
   it("surfaces unsupported pre-launch settings without logging or rewriting them", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-config-unsupported-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-config-unsupported-"));
     paths.push(userDataPath);
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     const unsupportedJson = JSON.stringify({ ...settings(), projectRoots: ["/old/project"], futureSetting: { preserved: true } });
     await writeFile(resolveWorkspaceSettingsPath(env), unsupportedJson);
 
@@ -35,9 +35,9 @@ describe("WorkspaceConfigStore", () => {
   });
 
   it("requires visible onboarding when direct settings are missing even if the registry survives", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-config-missing-active-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-config-missing-active-"));
     paths.push(userDataPath);
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     await saveWorkspaceSettings(settings(), env);
     await rm(resolveWorkspaceSettingsPath(env));
 
@@ -50,9 +50,9 @@ describe("WorkspaceConfigStore", () => {
   });
 
   it("requires visible onboarding when direct settings are invalid even if the registry survives", async () => {
-    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "stem-config-invalid-active-"));
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-config-invalid-active-"));
     paths.push(userDataPath);
-    const env = { STEM_USER_DATA_PATH: userDataPath };
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
     await saveWorkspaceSettings(settings(), env);
     await writeFile(resolveWorkspaceSettingsPath(env), "{ invalid", "utf8");
 
@@ -66,5 +66,5 @@ describe("WorkspaceConfigStore", () => {
 });
 
 function settings(): WorkspaceSettings {
-  return { workspaceRoot: "/workspace", defaultTerminalCwd: "/workspace", noteRoots: ["/workspace/notes"], indexedRoots: [], indexing: { enabled: false, mode: "off", backend: "qmd" }, appearanceMode: "system", colorThemeId: "stem-neutral", editorFontSize: 15, terminalFontSize: 13, explorerScale: 1, exploreIndexSearchOnEnter: false, indexUpdateStrategy: "on-save" };
+  return { workspaceRoot: "/workspace", defaultTerminalCwd: "/workspace", noteRoots: ["/workspace/notes"], indexedRoots: [], indexing: { enabled: false, mode: "off", backend: "qmd" }, appearanceMode: "system", colorThemeId: "exograph-neutral", editorFontSize: 15, terminalFontSize: 13, explorerScale: 1, exploreIndexSearchOnEnter: false, indexUpdateStrategy: "on-save" };
 }

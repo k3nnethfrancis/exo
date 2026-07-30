@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { NoteDocument } from "@stem/core";
+import type { NoteDocument } from "@exograph/core";
 
 import { InspectorDock, InvocationHistoryTab } from "./InspectorDock";
 
@@ -8,7 +8,7 @@ const note: NoteDocument = {
   filePath: "/notes/alpha.md",
   title: "Alpha",
   kind: "markdown",
-  frontmatter: { status: "draft", tags: ["stem"] },
+  frontmatter: { status: "draft", tags: ["exograph"] },
   body: "# Heading\n\n[[Beta]]",
 };
 

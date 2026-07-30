@@ -1,6 +1,6 @@
 # Note Root Formats
 
-A Note Root Format tells Stem how to read a folder of Markdown into the base
+A Note Root Format tells Exograph how to read a folder of Markdown into the base
 graph. It is not an Ontology, a graph theme, or a request to rewrite files.
 
 The normal experience is **Generic Markdown**. It needs no marker or setup:
@@ -11,7 +11,7 @@ type: project
 status: active
 ---
 
-# Stem
+# Exograph
 
 See [[Graph work]].
 
@@ -32,13 +32,13 @@ universal rule that makes those files less meaningful than any other Note.
 
 ## Open Knowledge Format 0.1
 
-Stem also has a permissive **OKF 0.1** compatibility interpreter for existing
+Exograph also has a permissive **OKF 0.1** compatibility interpreter for existing
 Open Knowledge Format workspaces. It is not the default, is not selected
 automatically, and is not yet a user-facing workspace setting. Its purpose is
 to faithfully read an existing OKF workspace when that compatibility path is
 explicitly used and tested.
 
-For an OKF Note Root, Stem applies the external convention while leaving every
+For an OKF Note Root, Exograph applies the external convention while leaving every
 source file alone:
 
 - absolute Markdown links resolve from the Note Root;
@@ -47,8 +47,8 @@ source file alone:
 - a resolved Concept without a `type` receives an OKF missing-type Finding;
 - arbitrary frontmatter remains preserved and readable.
 
-The reserved-file rule is an OKF convention, not an Stem judgment about normal
-Markdown. A normal Stem Workspace therefore keeps its indexes and logs in the
+The reserved-file rule is an OKF convention, not an Exograph judgment about normal
+Markdown. A normal Exograph Workspace therefore keeps its indexes and logs in the
 base graph unless an explicitly chosen format says otherwise.
 
 ## Format, Ontology, and Graph View
@@ -57,7 +57,7 @@ These layers answer different questions:
 
 | Layer | Question | Example |
 | --- | --- | --- |
-| Note Root Format | How should Stem read this Markdown folder? | Generic Markdown or OKF 0.1 |
+| Note Root Format | How should Exograph read this Markdown folder? | Generic Markdown or OKF 0.1 |
 | Workspace Ontology | What do selected properties mean here? | `supports` is a reference relation to a `claim` |
 | Graph View | How should the graph be presented? | a neighborhood layout or a type color |
 

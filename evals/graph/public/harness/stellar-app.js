@@ -71,7 +71,7 @@ boot().catch(failBoot);
 async function boot() {
   if (coarsePointer) {
     hint.textContent = 'Drag to orbit · two fingers to move · pinch to zoom';
-    shell.setAttribute('aria-label', 'Stem spatial graph. Drag to orbit, use two fingers to pan, and pinch to zoom.');
+    shell.setAttribute('aria-label', 'Exograph spatial graph. Drag to orbit, use two fingers to pan, and pinch to zoom.');
   }
   const topologyUrl = query.get('topology') || './topology.json';
   const response = await fetch(topologyUrl, { cache: 'no-store' });
@@ -627,7 +627,7 @@ function frameStats() {
 }
 
 function exposeBenchmarkContract() {
-  window.__stemStellarLab = {
+  window.__exographStellarLab = {
     snapshot() {
       return {
         renderer: state.renderer?.kind || 'initializing',

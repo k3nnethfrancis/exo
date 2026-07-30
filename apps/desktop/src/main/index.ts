@@ -14,6 +14,7 @@ import {
   isWorkspaceOntologyPath,
   inspectWorkspaceContent,
   WorkspaceOntologyStore,
+  WORKSPACE_RUNTIME_DIRECTORY,
   markOnboardingComplete,
   readOnboardingStateStore,
   readWorkspaceDocument,
@@ -28,7 +29,7 @@ import {
   type WorkspaceModel,
   type WorkspaceSettings,
   type WorkspaceSettingsSaveRequest,
-} from "@stem/core";
+} from "@exograph/core";
 
 import type { DesktopEventChannel, DesktopEventPayloads } from "../shared/desktop-ipc";
 import type { WorkspaceSettingsSaveOutcome } from "../shared/api";
@@ -49,7 +50,6 @@ import { resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace/workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace/workspace-watchers";
 import { WorkspaceRuntimeCoordinator } from "./runtime/workspace-runtime-coordinator";
-import { migrateLegacyWorkspaceRuntime, runtimeRootForWorkspace } from "./runtime/workspace-runtime-root";
 import { hasOperatorWorkspaceSetup, workspaceSetupDecision, type WorkspaceSetupDecision } from "./workspace/workspace-setup-gate";
 import { configureGpuStartup } from "./gpu-startup-policy";
 import { runStandaloneGraphGpuProbe } from "./gpu-probe-runner";
@@ -68,8 +68,8 @@ const sourceProjectRoot = resolveSourceProjectRoot();
 const gpuStartupPolicy = configureGpuStartup(app, process.env);
 const BOOTSTRAP_WORKSPACE_GENERATION = 0;
 
-if (process.env.EXO_USER_DATA_PATH ?? process.env.STEM_USER_DATA_PATH) {
-  app.setPath("userData", process.env.EXO_USER_DATA_PATH ?? process.env.STEM_USER_DATA_PATH!);
+if (process.env.EXOGRAPH_USER_DATA_PATH) {
+  app.setPath("userData", process.env.EXOGRAPH_USER_DATA_PATH);
 }
 
 process.on("uncaughtException", (error) => {
@@ -107,7 +107,7 @@ const singleInstanceLock = app.requestSingleInstanceLock(resolveSingleInstanceDa
 
 if (!singleInstanceLock) {
   console.error(
-    "[stem] another Stem instance is already running; this dev process will exit after asking the running app to focus and refresh command-server discovery.",
+    "[exograph] another Exograph instance is already running; this dev process will exit after asking the running app to focus and refresh command-server discovery.",
   );
   app.quit();
 }
@@ -143,7 +143,7 @@ function createCommandServer(runtimeRoot = resolveRuntimeRoot()) {
 
 async function refreshCommandServerDiscovery(reason: string): Promise<void> {
   if (!commandServerLifecycle.status().listening) {
-    console.warn(`[stem] command server was not listening during ${reason}; restarting it.`);
+    console.warn(`[exograph] command server was not listening during ${reason}; restarting it.`);
     logMain("command server discovery refresh restarting server", { reason });
     await commandServerLifecycle.restart();
     return;
@@ -151,10 +151,10 @@ async function refreshCommandServerDiscovery(reason: string): Promise<void> {
 
   try {
     const info = await commandServerLifecycle.refreshDiscovery();
-    console.info(`[stem] command server discovery refreshed for ${reason}: ${info.path} (port ${info.port})`);
+    console.info(`[exograph] command server discovery refreshed for ${reason}: ${info.path} (port ${info.port})`);
     logMain("command server discovery refreshed", { reason, path: info.path, port: info.port });
   } catch (error) {
-    console.error(`[stem] failed to refresh command server discovery for ${reason}:`, error);
+    console.error(`[exograph] failed to refresh command server discovery for ${reason}:`, error);
     logMain("command server discovery refresh failed", { reason, error: serializeError(error) });
   }
 }
@@ -188,7 +188,7 @@ function logWorkspaceStartup(model: WorkspaceModel) {
     settingsPath: path.join(app.getPath("userData"), "workspace-settings.json"),
     hardwareAcceleration: gpuStartupPolicy,
   };
-  console.info("[stem] workspace startup", details);
+  console.info("[exograph] workspace startup", details);
   logMain("workspace startup", details);
 }
 
@@ -241,7 +241,7 @@ function sendToRenderer<C extends DesktopEventChannel>(channel: C, payload: Desk
 
 function logMain(message: string, details?: unknown) {
   const line = `${new Date().toISOString()} ${message}${details === undefined ? "" : ` ${JSON.stringify(details)}`}\n`;
-  const logPath = path.join(app.getPath("userData"), "stem-main.log");
+  const logPath = path.join(app.getPath("userData"), "exograph-main.log");
   appendFile(logPath, line, "utf8").catch(() => {});
 }
 
@@ -562,7 +562,7 @@ function packagedCliPaths() {
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {
-  if (!isForcedTheme(process.env.STEM_FORCE_THEME)) {
+  if (!isForcedTheme(process.env.EXOGRAPH_FORCE_THEME)) {
     nativeTheme.themeSource = settings?.appearanceMode ?? DEFAULT_APPEARANCE_MODE;
   }
 }
@@ -636,18 +636,18 @@ async function switchWorkspace(workspaceId: string, expectedRevision: string | n
 }
 
 function applyOnboardingRuntimeEnv() {
-  if (process.env.EXO_RUNTIME_ROOT ?? process.env.STEM_RUNTIME_ROOT) {
+  if (process.env.EXOGRAPH_RUNTIME_ROOT) {
     return;
   }
   onboardingRuntimeRoot = path.join(app.getPath("userData"), "onboarding-runtime");
 }
 
 app.whenReady().then(async () => {
-  if (process.env.STEM_GPU_PROBE_OUTPUT) {
+  if (process.env.EXOGRAPH_GPU_PROBE_OUTPUT) {
     await runStandaloneGraphGpuProbe({
       app,
       currentDirectory,
-      outputPath: process.env.STEM_GPU_PROBE_OUTPUT,
+      outputPath: process.env.EXOGRAPH_GPU_PROBE_OUTPUT,
       gpuStartupPolicy,
     });
     return;
@@ -667,7 +667,7 @@ app.whenReady().then(async () => {
     const refresh = Promise.resolve(workspaceNotesService?.handleWorkspaceChange(event));
     sendToRenderer("workspace:changed", event);
     void refresh.catch((error) => {
-      console.warn("[stem] incremental workspace refresh failed", error);
+      console.warn("[exograph] incremental workspace refresh failed", error);
     });
   }, {
     onRuntimeError: ({ generation, rootPath, errorMessage }) => {
@@ -682,7 +682,7 @@ app.whenReady().then(async () => {
     },
   });
 
-  const forcedTheme = process.env.STEM_FORCE_THEME;
+  const forcedTheme = process.env.EXOGRAPH_FORCE_THEME;
   if (isForcedTheme(forcedTheme)) {
     nativeTheme.themeSource = forcedTheme;
   }
@@ -782,15 +782,7 @@ app.whenReady().then(async () => {
     logMain,
   });
   workspaceRuntimeCoordinator = new WorkspaceRuntimeCoordinator({
-    runtimeRootFor: (settings) => runtimeRootForWorkspace(settings.workspaceRoot),
-    prepareRuntimeRoot: async (candidate) => {
-      const result = await migrateLegacyWorkspaceRuntime(candidate.settings.workspaceRoot);
-      if (result.status === "migrated") {
-        logMain("migrated legacy Workspace runtime", result);
-      } else if (result.status === "deferred") {
-        logMain("legacy Workspace runtime migration deferred", result);
-      }
-    },
+    runtimeRootFor: (settings) => path.join(settings.workspaceRoot, WORKSPACE_RUNTIME_DIRECTORY),
     recoverInvocations: (candidate) => invocationRunner.recoverWorkspace(candidate.settings),
     modelFromSettings: workspaceModelFromSettings,
     prepareNoteRoots: (candidate) => ensureNoteRoots(candidate.model),
@@ -930,8 +922,8 @@ async function ensureNoteRoots(model: WorkspaceModel): Promise<void> {
 }
 
 function resolveRuntimeRoot(): string {
-  if (process.env.EXO_RUNTIME_ROOT ?? process.env.STEM_RUNTIME_ROOT) {
-    return process.env.EXO_RUNTIME_ROOT ?? process.env.STEM_RUNTIME_ROOT!;
+  if (process.env.EXOGRAPH_RUNTIME_ROOT) {
+    return process.env.EXOGRAPH_RUNTIME_ROOT;
   }
 
   if (!workspaceSetupComplete && onboardingRuntimeRoot) {
@@ -942,7 +934,7 @@ function resolveRuntimeRoot(): string {
   // directory here made packaged Exograph derive `/.exograph`, because Electron launches
   // the app from `/` rather than from the user's workspace.
   const workspaceRoot = workspaceSettings?.workspaceRoot ?? workspaceModel?.workspaceRoot ?? resolveWorkspaceModel().workspaceRoot;
-  return runtimeRootForWorkspace(workspaceRoot);
+  return path.join(workspaceRoot, WORKSPACE_RUNTIME_DIRECTORY);
 }
 
 app.on("before-quit", (event) => {
@@ -953,7 +945,7 @@ app.on("before-quit", (event) => {
     quitFlushStarted = true;
     void awaitInvocationAwareQuit({
       flushDirtyDocuments: () => mainWindow && !mainWindow.isDestroyed() && appLifecycle.isRendererReady()
-        ? mainWindow.webContents.executeJavaScript("globalThis.__stemFlushDirtyDocuments?.()", true)
+        ? mainWindow.webContents.executeJavaScript("globalThis.__exographFlushDirtyDocuments?.()", true)
         : Promise.resolve(),
       stopInvocations: async () => {
         await Promise.all([

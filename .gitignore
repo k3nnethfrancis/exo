@@ -16,7 +16,7 @@ playwright-report/
 .env
 .env.*.local
 
-# Provider configuration is personal. Stem's reusable public guidance lives in
+# Provider configuration is personal. Exograph's reusable public guidance lives in
 # /skills and AGENTS.md instead.
 /.claude/
 /.codex/

@@ -328,7 +328,7 @@ describe("invocation artifacts", () => {
 });
 
 async function temporaryRoot(): Promise<string> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "stem-invocation-artifacts-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "exograph-invocation-artifacts-"));
   temporaryRoots.push(root);
   return root;
 }

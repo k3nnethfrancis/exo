@@ -4,8 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  launchStemWorkspaceFixture,
-  relaunchStemWorkspaceFixture,
+  launchExographWorkspaceFixture,
+  relaunchExographWorkspaceFixture,
 } from "../helpers";
 
 const fixtureScript = path.resolve(
@@ -29,7 +29,7 @@ test("reviews and keeps one deterministic invocation changeset end to end", asyn
       },
     });
     await assertDurableArtifacts(fixture, record, {
-      launchContains: '<stem-invocation id="',
+      launchContains: '<exograph-invocation id="',
       settledContains: "Fixture modified content.",
     });
 
@@ -93,7 +93,7 @@ test("rejects one deterministic invocation back to the exact clean base", async 
 
     expect(rejected.changeset.status).toBe("rejected");
     await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(cleanBase);
-    expect(await readFile(fixture.paths.tagged, "utf8")).not.toContain("stem-invocation");
+    expect(await readFile(fixture.paths.tagged, "utf8")).not.toContain("exograph-invocation");
     await expect.poll(() => listPendingReviews(fixture.page)).toEqual([]);
 
     await expect(fixture.page.getByTestId("open-invocation-history")).toBeVisible();
@@ -236,7 +236,7 @@ test("preserves newer human work when rejecting a drifted proposal", async () =>
     expect(record.changeset.status).toBe("conflict");
     expect(changeFor(record, "modified").decision).toMatchObject({
       status: "conflict",
-      reason: "The file changed after this proposal. Stem did not overwrite newer work.",
+      reason: "The file changed after this proposal. Exograph did not overwrite newer work.",
     });
     await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toBe(drifted);
     await expect.poll(() => listPendingReviews(fixture.page)).toEqual([
@@ -312,7 +312,7 @@ test("treats a no-response note invocation as a protocol failure without a propo
       failureReason: "@fixture finished without writing its linked response into the note.",
       changeset: { status: "no-change", files: [] },
     });
-    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toContain("<stem-invocation");
+    await expect(readFile(fixture.paths.tagged, "utf8")).resolves.toContain("<exograph-invocation");
     await expect.poll(() => listPendingReviews(fixture.page)).toEqual([]);
   } finally {
     await fixture.cleanup();
@@ -342,12 +342,12 @@ test("resumes a failed provider session from the compact activity surface", asyn
 
 test("recovers a pending exact review after an ordinary relaunch", async () => {
   const fixture = await launchInvocationFixture("modify");
-  let relaunched: Awaited<ReturnType<typeof relaunchStemWorkspaceFixture>> | null = null;
+  let relaunched: Awaited<ReturnType<typeof relaunchExographWorkspaceFixture>> | null = null;
   try {
     const record = await invokeAndWaitForSettlement(fixture);
     const cleanBase = await readCleanBase(fixture, record.id);
     await fixture.electronApp.close();
-    relaunched = await relaunchStemWorkspaceFixture(fixture);
+    relaunched = await relaunchExographWorkspaceFixture(fixture);
 
     await expect.poll(() => listPendingReviews(relaunched!.page)).toEqual([
       expect.objectContaining({ invocationId: record.id, pendingFileCount: 1 }),
@@ -364,7 +364,7 @@ test("recovers a pending exact review after an ordinary relaunch", async () => {
 test("recovers exact changes from an invocation orphaned by a host crash", async () => {
   test.setTimeout(120_000);
   const fixture = await launchInvocationFixture("crash-recovery");
-  let relaunched: Awaited<ReturnType<typeof relaunchStemWorkspaceFixture>> | null = null;
+  let relaunched: Awaited<ReturnType<typeof relaunchExographWorkspaceFixture>> | null = null;
   let invocationPid: number | null = null;
   try {
     await launchInvocation(fixture.page);
@@ -377,9 +377,9 @@ test("recovers exact changes from an invocation orphaned by a host crash", async
     electronProcess.kill("SIGKILL");
     await electronExited;
     try {
-      relaunched = await relaunchStemWorkspaceFixture(fixture);
+      relaunched = await relaunchExographWorkspaceFixture(fixture);
     } catch (error) {
-      const mainLog = await readFile(path.join(path.dirname(fixture.runtimeRoot), "stem-main.log"), "utf8").catch(() => "");
+      const mainLog = await readFile(path.join(path.dirname(fixture.runtimeRoot), "exograph-main.log"), "utf8").catch(() => "");
       throw new Error(`Crash-recovery relaunch failed.\n${mainLog}`, { cause: error });
     }
     const recovered = await waitForInvocation(
@@ -408,7 +408,7 @@ test("recovers exact changes from an invocation orphaned by a host crash", async
 });
 
 interface InvocationFixture {
-  electronApp: Awaited<ReturnType<typeof launchStemWorkspaceFixture>>["electronApp"];
+  electronApp: Awaited<ReturnType<typeof launchExographWorkspaceFixture>>["electronApp"];
   page: Page;
   workspaceRoot: string;
   settingsPath: string;
@@ -455,7 +455,7 @@ async function launchInvocationFixture(
     renameBefore: "",
     renameAfter: "",
   };
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     prepareWorkspace: async (workspaceRoot) => {
@@ -504,7 +504,7 @@ async function launchInvocationFixture(
         indexedRoots: [],
         indexing: { enabled: false, mode: "off", backend: "qmd" },
         appearanceMode: "system",
-        colorThemeId: "stem-neutral",
+        colorThemeId: "exograph-neutral",
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
@@ -624,7 +624,7 @@ async function invocationRecords(workspaceRoot: string): Promise<Array<Record<st
 
 async function reviewAll(page: Page, invocationId: string, action: "keep" | "reject"): Promise<Record<string, any>> {
   return page.evaluate(({ invocationId, action }) =>
-    window.stem.workspace.reviewInvocationAll({ invocationId, action }), { invocationId, action });
+    window.exograph.workspace.reviewInvocationAll({ invocationId, action }), { invocationId, action });
 }
 
 async function reviewFile(
@@ -634,11 +634,11 @@ async function reviewFile(
   action: "keep" | "reject",
 ): Promise<Record<string, any>> {
   return page.evaluate(({ invocationId, changeId, action }) =>
-    window.stem.workspace.reviewInvocationFile({ invocationId, changeId, action }), { invocationId, changeId, action });
+    window.exograph.workspace.reviewInvocationFile({ invocationId, changeId, action }), { invocationId, changeId, action });
 }
 
 async function listPendingReviews(page: Page): Promise<Array<Record<string, any>>> {
-  return page.evaluate(() => window.stem.workspace.listPendingInvocationReviews());
+  return page.evaluate(() => window.exograph.workspace.listPendingInvocationReviews());
 }
 
 async function navigateReviewToFile(review: Locator, fileName: string): Promise<void> {
@@ -681,7 +681,7 @@ async function assertDurableArtifacts(
 
   expect(storedRecord.id).toBe(record.id);
   expect(cleanBase.file.path).toBe(fixture.paths.tagged);
-  expect(await readFile(path.join(invocationDir, cleanBase.file.snapshotRef), "utf8")).not.toContain("stem-invocation");
+  expect(await readFile(path.join(invocationDir, cleanBase.file.snapshotRef), "utf8")).not.toContain("exograph-invocation");
   expect(await readFile(path.join(invocationDir, launch.files[fixture.paths.tagged].snapshotRef), "utf8"))
     .toContain(expected.launchContains);
   expect(await readFile(path.join(invocationDir, settled.files[fixture.paths.tagged].snapshotRef), "utf8"))

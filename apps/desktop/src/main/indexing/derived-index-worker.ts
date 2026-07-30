@@ -7,7 +7,7 @@ import {
   WorkspaceIndex,
   WorkspaceGraph,
   type WorkspaceModel,
-} from "@stem/core";
+} from "@exograph/core";
 
 import type {
   DerivedIndexRequest,

@@ -9,11 +9,11 @@ import {
   measureContainmentFixture,
   type ContainmentFixturePaths,
 } from "../containmentFixture";
-import { launchStemWorkspaceFixture } from "../helpers";
+import { launchExographWorkspaceFixture } from "../helpers";
 
 test("keeps an aggregate-scale synthetic vault inside its authorized Note Root", async () => {
   let paths: ContainmentFixturePaths | null = null;
-  const fixture = await launchStemWorkspaceFixture({
+  const fixture = await launchExographWorkspaceFixture({
     mutable: true,
     initialNoteLabel: null,
     workspaceRootEnv: false,
@@ -41,25 +41,25 @@ test("keeps an aggregate-scale synthetic vault inside its authorized Note Root",
       symlinkCount: 2,
     });
 
-    const model = await fixture.page.evaluate(() => window.stem.workspace.getModel());
+    const model = await fixture.page.evaluate(() => window.exograph.workspace.getModel());
     expect(model.noteRoots.map((root) => root.path)).toEqual([fixturePaths.authorizedRoot]);
     await expect(fixture.page.getByText("excluded-note", { exact: false })).toHaveCount(0);
 
     const authorizedTree = await fixture.page.evaluate(
-      ({ authorizedRoot }) => window.stem.workspace.listTree(authorizedRoot, { markdownOnly: true, maxDepth: 1 }),
+      ({ authorizedRoot }) => window.exograph.workspace.listTree(authorizedRoot, { markdownOnly: true, maxDepth: 1 }),
       fixturePaths,
     );
     expect(authorizedTree.length).toBeGreaterThan(0);
 
     const pathShapeTree = await fixture.page.evaluate(
-      ({ pathShapeDirectory }) => window.stem.workspace.listTree(pathShapeDirectory, { markdownOnly: true, maxDepth: 0 }),
+      ({ pathShapeDirectory }) => window.exograph.workspace.listTree(pathShapeDirectory, { markdownOnly: true, maxDepth: 0 }),
       fixturePaths,
     );
     expect(pathShapeTree.map((entry) => entry.name)).toContain("Résumé + 研究 (draft).md");
     await openNote(fixture.page, fixture.electronApp, fixturePaths.pathShapeNote, "Résumé + 研究 (draft)");
     const renamedPathShapeNote = path.join(fixturePaths.pathShapeDirectory, "Renamed – résumé [final].md");
     await fixture.page.evaluate(
-      ({ sourcePath, targetPath }) => window.stem.workspace.renamePath(sourcePath, targetPath),
+      ({ sourcePath, targetPath }) => window.exograph.workspace.renamePath(sourcePath, targetPath),
       { sourcePath: fixturePaths.pathShapeNote, targetPath: renamedPathShapeNote },
     );
     await expect(access(fixturePaths.pathShapeNote)).rejects.toMatchObject({ code: "ENOENT" });
@@ -68,21 +68,21 @@ test("keeps an aggregate-scale synthetic vault inside its authorized Note Root",
     const createdPath = path.join(fixturePaths.authorizedRoot, "journey-note.md");
     const renamedPath = path.join(fixturePaths.authorizedRoot, "journey-note-renamed.md");
     await fixture.page.evaluate(
-      ({ targetPath }) => window.stem.workspace.createFile(targetPath, "# Journey Note\n"),
+      ({ targetPath }) => window.exograph.workspace.createFile(targetPath, "# Journey Note\n"),
       { targetPath: createdPath },
     );
     await expect(access(createdPath)).resolves.toBeUndefined();
 
     await openNote(fixture.page, fixture.electronApp, createdPath, "journey-note");
     const linkedPath = await fixture.page.evaluate(
-      ({ sourcePath }) => window.stem.notes.ensureTarget(sourcePath, "journey-linked"),
+      ({ sourcePath }) => window.exograph.notes.ensureTarget(sourcePath, "journey-linked"),
       { sourcePath: createdPath },
     );
     expect(linkedPath).toBe(path.join(fixturePaths.authorizedRoot, "journey-linked.md"));
     await expect(access(linkedPath)).resolves.toBeUndefined();
 
     await fixture.page.evaluate(
-      ({ sourcePath, targetPath }) => window.stem.workspace.renamePath(sourcePath, targetPath),
+      ({ sourcePath, targetPath }) => window.exograph.workspace.renamePath(sourcePath, targetPath),
       { sourcePath: createdPath, targetPath: renamedPath },
     );
     await expect(access(createdPath)).rejects.toMatchObject({ code: "ENOENT" });
@@ -90,7 +90,7 @@ test("keeps an aggregate-scale synthetic vault inside its authorized Note Root",
     await openNote(fixture.page, fixture.electronApp, renamedPath, "journey-note-renamed");
 
     await fixture.page.evaluate(
-      ({ targetPath }) => window.stem.workspace.deletePath(targetPath),
+      ({ targetPath }) => window.exograph.workspace.deletePath(targetPath),
       { targetPath: renamedPath },
     );
     await expect(access(renamedPath)).rejects.toMatchObject({ code: "ENOENT" });
@@ -112,7 +112,7 @@ test("keeps an aggregate-scale synthetic vault inside its authorized Note Root",
 
 async function openNote(
   page: Page,
-  electronApp: Awaited<ReturnType<typeof launchStemWorkspaceFixture>>["electronApp"],
+  electronApp: Awaited<ReturnType<typeof launchExographWorkspaceFixture>>["electronApp"],
   filePath: string,
   expectedTitle: string,
 ): Promise<void> {
@@ -134,19 +134,19 @@ async function containmentRefusals(page: Page, paths: ContainmentFixturePaths): 
     }
     const traversalPath = `${fixturePaths.authorizedRoot}/../outside-root/outside-note.md`;
     return {
-      outsideRead: await errorFrom(() => window.stem.notes.read(fixturePaths.outsideNote)),
-      traversalRead: await errorFrom(() => window.stem.notes.read(traversalPath)),
-      symlinkFileRead: await errorFrom(() => window.stem.notes.read(fixturePaths.symlinkFile)),
-      symlinkDirectoryRead: await errorFrom(() => window.stem.notes.read(`${fixturePaths.symlinkDirectory}/outside-note.md`)),
-      symlinkDirectoryWrite: await errorFrom(() => window.stem.workspace.createFile(`${fixturePaths.symlinkDirectory}/created.md`)),
-      outsideWrite: await errorFrom(() => window.stem.workspace.createFile(`${fixturePaths.outsideRoot}/created.md`)),
-      excludedRead: await errorFrom(() => window.stem.notes.read(fixturePaths.excludedNote)),
-      excludedWrite: await errorFrom(() => window.stem.workspace.createFile(`${fixturePaths.excludedRoot}/created.md`)),
-      excludedDelete: await errorFrom(() => window.stem.workspace.deletePath(fixturePaths.excludedNote)),
-      excludedTree: await errorFrom(() => window.stem.workspace.listTree(fixturePaths.excludedRoot, { markdownOnly: true })),
-      outsideTree: await errorFrom(() => window.stem.workspace.listTree(fixturePaths.outsideRoot, { markdownOnly: true })),
-      symlinkTree: await errorFrom(() => window.stem.workspace.listTree(fixturePaths.symlinkDirectory, { markdownOnly: true })),
-      escapedWikilink: await errorFrom(() => window.stem.notes.ensureTarget(fixturePaths.sourceNote, "../../outside-root/wikilink")),
+      outsideRead: await errorFrom(() => window.exograph.notes.read(fixturePaths.outsideNote)),
+      traversalRead: await errorFrom(() => window.exograph.notes.read(traversalPath)),
+      symlinkFileRead: await errorFrom(() => window.exograph.notes.read(fixturePaths.symlinkFile)),
+      symlinkDirectoryRead: await errorFrom(() => window.exograph.notes.read(`${fixturePaths.symlinkDirectory}/outside-note.md`)),
+      symlinkDirectoryWrite: await errorFrom(() => window.exograph.workspace.createFile(`${fixturePaths.symlinkDirectory}/created.md`)),
+      outsideWrite: await errorFrom(() => window.exograph.workspace.createFile(`${fixturePaths.outsideRoot}/created.md`)),
+      excludedRead: await errorFrom(() => window.exograph.notes.read(fixturePaths.excludedNote)),
+      excludedWrite: await errorFrom(() => window.exograph.workspace.createFile(`${fixturePaths.excludedRoot}/created.md`)),
+      excludedDelete: await errorFrom(() => window.exograph.workspace.deletePath(fixturePaths.excludedNote)),
+      excludedTree: await errorFrom(() => window.exograph.workspace.listTree(fixturePaths.excludedRoot, { markdownOnly: true })),
+      outsideTree: await errorFrom(() => window.exograph.workspace.listTree(fixturePaths.outsideRoot, { markdownOnly: true })),
+      symlinkTree: await errorFrom(() => window.exograph.workspace.listTree(fixturePaths.symlinkDirectory, { markdownOnly: true })),
+      escapedWikilink: await errorFrom(() => window.exograph.notes.ensureTarget(fixturePaths.sourceNote, "../../outside-root/wikilink")),
     };
   }, paths);
 }

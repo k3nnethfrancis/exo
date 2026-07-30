@@ -12,7 +12,7 @@ afterEach(async () => {
 });
 
 async function fixture() {
-  const root = await mkdtemp(path.join(os.tmpdir(), "stem-cli-status-"));
+  const root = await mkdtemp(path.join(os.tmpdir(), "exograph-cli-status-"));
   roots.push(root);
   const bin = path.join(root, "path");
   const project = path.join(root, "project");
@@ -26,7 +26,7 @@ async function fixture() {
 
 describe("CLI installation diagnosis", () => {
   it("does not mistake packaged resources for a source checkout", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-cli-source-root-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-cli-source-root-"));
     roots.push(root);
     const resources = path.join(root, "Exograph.app", "Contents", "Resources");
     const project = path.join(root, "project");
@@ -48,14 +48,14 @@ describe("CLI installation diagnosis", () => {
       .resolves.toMatchObject({ state: "current", commandPath: command, sourcePath: source });
   });
 
-  it("recognizes a legacy Stem shim", async () => {
+  it("recognizes a legacy Exograph shim", async () => {
     const { bin, project, root, command } = await fixture();
-    const legacy = path.join(project, "legacy-stem");
+    const legacy = path.join(project, "legacy-exograph");
     await writeFile(legacy, "require('packages/cli/dist/index.cjs');\n", "utf8");
     await chmod(legacy, 0o755);
     await symlink(legacy, command);
     await expect(inspectCliInstallation({ env: { PATH: bin, HOME: root }, sourceProjectRoot: project }))
-      .resolves.toMatchObject({ state: "legacy-stem" });
+      .resolves.toMatchObject({ state: "legacy-exograph" });
   });
 
   it("recognizes a missing command", async () => {
@@ -66,17 +66,17 @@ describe("CLI installation diagnosis", () => {
 
   it("recognizes a dangling legacy checkout shim", async () => {
     const { bin, project, root, command } = await fixture();
-    await symlink(path.join(project, "old", "bin", "stem"), command);
+    await symlink(path.join(project, "old", "bin", "exograph"), command);
     await expect(inspectCliInstallation({ env: { PATH: bin, HOME: root }, sourceProjectRoot: project }))
-      .resolves.toMatchObject({ state: "legacy-stem" });
+      .resolves.toMatchObject({ state: "legacy-exograph" });
   });
 
-  it("does not claim a regular executable belongs to Stem", async () => {
+  it("does not claim a regular executable belongs to Exograph", async () => {
     const { bin, project, root, command } = await fixture();
     await writeFile(command, "#!/bin/sh\n", "utf8");
     await chmod(command, 0o755);
     await expect(inspectCliInstallation({ env: { PATH: bin, HOME: root }, sourceProjectRoot: project }))
-      .resolves.toMatchObject({ state: "non-stem" });
+      .resolves.toMatchObject({ state: "non-exograph" });
   });
 
   it("installs and recognizes the CLI bundled with the desktop app", async () => {

@@ -3,9 +3,9 @@ import { EditorView } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import type { Extension } from "@codemirror/state";
 
-import type { StemSyntaxTheme, StemThemeVariant } from "./types";
+import type { ExographSyntaxTheme, ExographThemeVariant } from "./types";
 
-export function stemEditorTheme(theme: StemThemeVariant, fontSize: number): Extension {
+export function exographEditorTheme(theme: ExographThemeVariant, fontSize: number): Extension {
   return EditorView.theme(
     {
       "&": {
@@ -41,11 +41,11 @@ export function stemEditorTheme(theme: StemThemeVariant, fontSize: number): Exte
   );
 }
 
-export function stemSyntaxHighlighting(theme: StemThemeVariant): Extension {
-  return syntaxHighlighting(stemSyntaxHighlightStyle(theme.syntax));
+export function exographSyntaxHighlighting(theme: ExographThemeVariant): Extension {
+  return syntaxHighlighting(exographSyntaxHighlightStyle(theme.syntax));
 }
 
-function stemSyntaxHighlightStyle(color: StemSyntaxTheme): HighlightStyle {
+function exographSyntaxHighlightStyle(color: ExographSyntaxTheme): HighlightStyle {
   return HighlightStyle.define([
     { tag: tags.keyword, color: color.keyword },
     { tag: [tags.atom, tags.bool, tags.null], color: color.atom },

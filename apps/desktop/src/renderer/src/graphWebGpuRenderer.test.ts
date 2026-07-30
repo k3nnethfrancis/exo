@@ -124,7 +124,7 @@ describe("WebGPU graph pixel adapter", () => {
 
     expect(mock.surface).toMatchObject({ width: 960, height: 540, style: { width: "320px", height: "180px" } });
     expect(mock.context.configurations.at(-1)).toMatchObject({ alphaMode: "premultiplied", colorSpace: "srgb" });
-    expect(mock.device.shaderLabels).toEqual(["stem graph nodes", "stem graph edges"]);
+    expect(mock.device.shaderLabels).toEqual(["exograph graph nodes", "exograph graph edges"]);
     expect(mock.device.queue.writes.map((write) => write.size)).toEqual([128, 64, 16]);
     expect(mock.device.pass.draws).toEqual([[48, 1], [6, 2]]);
     expect(mock.device.pass.descriptor.colorAttachments).toEqual([

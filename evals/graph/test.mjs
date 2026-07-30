@@ -51,9 +51,9 @@ assert.equal(resolveRepetitions(null, 3), 3);
 assert.equal(resolveRepetitions('5', 1), 5);
 assert.throws(() => resolveRepetitions('0', 1), /1 to 20/);
 const aggregates = aggregateResults([
-  { engine: 'stem', engineVersion: '1', track: 'render', fixture: { checksum: 'a' }, status: 'measured', measurements: { frame: { p95: 2 } } },
-  { engine: 'stem', engineVersion: '1', track: 'render', fixture: { checksum: 'a' }, status: 'measured', measurements: { frame: { p95: 4 } } },
-  { engine: 'stem', engineVersion: '1', track: 'render', fixture: { checksum: 'a' }, status: 'failed' },
+  { engine: 'exograph', engineVersion: '1', track: 'render', fixture: { checksum: 'a' }, status: 'measured', measurements: { frame: { p95: 2 } } },
+  { engine: 'exograph', engineVersion: '1', track: 'render', fixture: { checksum: 'a' }, status: 'measured', measurements: { frame: { p95: 4 } } },
+  { engine: 'exograph', engineVersion: '1', track: 'render', fixture: { checksum: 'a' }, status: 'failed' },
 ]);
 assert.equal(aggregates.length, 1);
 assert.equal(aggregates[0].attempted, 3);
@@ -61,13 +61,13 @@ assert.equal(aggregates[0].measured, 2);
 assert.equal(aggregates[0].failed, 1);
 assert.equal(aggregates[0].distribution.p50, 3);
 const resilienceAggregate = aggregateResults([
-  { engine: 'stem', engineVersion: '1', track: 'resilience', fixture: { checksum: 'r' }, status: 'measured', measurements: { recoveryMs: 12 } },
-  { engine: 'stem', engineVersion: '1', track: 'resilience', fixture: { checksum: 'r' }, status: 'measured', measurements: { recoveryMs: 18 } },
+  { engine: 'exograph', engineVersion: '1', track: 'resilience', fixture: { checksum: 'r' }, status: 'measured', measurements: { recoveryMs: 12 } },
+  { engine: 'exograph', engineVersion: '1', track: 'resilience', fixture: { checksum: 'r' }, status: 'measured', measurements: { recoveryMs: 18 } },
 ])[0];
 assert.equal(resilienceAggregate.primaryMetric, 'recovery-ms');
 assert.equal(resilienceAggregate.distribution.p50, 15);
 const incrementalAggregate = aggregateResults([
-  { engine: 'stem', engineVersion: '1', track: 'incremental', fixture: { checksum: 'i' }, status: 'measured', measurements: { settledMs: 24 } },
+  { engine: 'exograph', engineVersion: '1', track: 'incremental', fixture: { checksum: 'i' }, status: 'measured', measurements: { settledMs: 24 } },
 ])[0];
 assert.equal(incrementalAggregate.primaryMetric, 'incremental-settled-ms');
 assert.equal(incrementalAggregate.distribution.p50, 24);

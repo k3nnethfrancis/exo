@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import type { WorkspaceSearchResults } from "@stem/core";
+import type { WorkspaceSearchResults } from "@exograph/core";
 import { ChevronRight, FileText, Folder, Globe2, Network, PanelLeft, PanelRight, SquareTerminal } from "lucide-react";
 
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";

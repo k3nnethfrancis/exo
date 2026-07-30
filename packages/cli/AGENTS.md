@@ -1,6 +1,6 @@
 # CLI map
 
-`@stem/cli` is the operator client for Stem. It discovers a running desktop
+`@exograph/cli` is the operator client for Exograph. It discovers a running desktop
 command server and speaks its reviewed protocol; it is not a duplicate
 workspace implementation.
 
@@ -24,7 +24,7 @@ that source before changing a request or response.
 - The CLI may use filesystem fallback only where its documented app-off mode
   allows it. It must not invent a second active Workspace runtime.
 - Preserve timeout, non-2xx, discovery, and malformed-response distinctions;
-  callers use those to decide whether to retry, start Stem, or operate app-off.
+  callers use those to decide whether to retry, start Exograph, or operate app-off.
 - Keep response decoding private to the transport. Do not expose decoder
   internals as an accidental API.
 - Command-server routes, CLI command/flag behavior, and shared protocol shapes
@@ -33,8 +33,8 @@ that source before changing a request or response.
 ## Focused gates
 
 ```bash
-pnpm --filter @stem/cli exec vitest run src/app-client.test.ts src/index.test.ts src/mcp-server.test.ts
-pnpm --filter @stem/cli typecheck
-pnpm --filter @stem/cli check:unused
-pnpm --filter @stem/cli build
+pnpm --filter @exograph/cli exec vitest run src/app-client.test.ts src/index.test.ts src/mcp-server.test.ts
+pnpm --filter @exograph/cli typecheck
+pnpm --filter @exograph/cli check:unused
+pnpm --filter @exograph/cli build
 ```

@@ -161,9 +161,9 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
       mousedown(event, view) {
         if (!(event.target instanceof HTMLElement)) return false;
 
-        const checkbox = event.target.closest<HTMLElement>("[data-stem-checkbox-pos]");
+        const checkbox = event.target.closest<HTMLElement>("[data-exograph-checkbox-pos]");
         if (checkbox) {
-          const toggled = toggleTaskCheckboxAt(view, checkbox.dataset.stemCheckboxPos);
+          const toggled = toggleTaskCheckboxAt(view, checkbox.dataset.exographCheckboxPos);
           if (toggled) {
             event.preventDefault();
             event.stopPropagation();
@@ -172,7 +172,7 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
         }
 
         const interactivePreviewControl = event.target.closest<HTMLElement>(
-          "[data-stem-fold-anchor], [data-stem-checkbox-pos], [data-stem-link-target], [data-stem-tag]",
+          "[data-exograph-fold-anchor], [data-exograph-checkbox-pos], [data-exograph-link-target], [data-exograph-tag]",
         );
         if (!interactivePreviewControl) {
           return false;
@@ -185,16 +185,16 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
         if (!(event.target instanceof HTMLElement)) return false;
 
         // Checkbox toggle
-        const checkbox = event.target.closest<HTMLElement>("[data-stem-checkbox-pos]");
+        const checkbox = event.target.closest<HTMLElement>("[data-exograph-checkbox-pos]");
         if (checkbox) {
           event.preventDefault();
           return true;
         }
 
         // List fold toggle
-        const foldToggle = event.target.closest<HTMLElement>("[data-stem-fold-anchor]");
+        const foldToggle = event.target.closest<HTMLElement>("[data-exograph-fold-anchor]");
         if (foldToggle) {
-          const anchor = Number(foldToggle.dataset.stemFoldAnchor);
+          const anchor = Number(foldToggle.dataset.exographFoldAnchor);
           if (Number.isInteger(anchor) && anchor >= 0 && anchor <= view.state.doc.length) {
             view.dispatch({ effects: toggleFoldEffect.of(anchor) });
             event.preventDefault();
@@ -203,19 +203,19 @@ export function markdownLivePreview(options: MarkdownLivePreviewOptions): Extens
         }
 
         // Link / tag clicks
-        const target = event.target.closest<HTMLElement>("[data-stem-link-target], [data-stem-tag]");
+        const target = event.target.closest<HTMLElement>("[data-exograph-link-target], [data-exograph-tag]");
         if (!target) {
           return false;
         }
 
-        const noteTarget = target.dataset.stemLinkTarget;
+        const noteTarget = target.dataset.exographLinkTarget;
         if (noteTarget) {
           event.preventDefault();
           options.onOpenTarget(noteTarget);
           return true;
         }
 
-        const tag = target.dataset.stemTag;
+        const tag = target.dataset.exographTag;
         if (tag) {
           event.preventDefault();
           options.onOpenTag(tag);

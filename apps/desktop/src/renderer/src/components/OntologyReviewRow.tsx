@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, LoaderCircle, RefreshCw, Sparkles, X } from "lucide-react";
-import type { OntologyReviewState } from "@stem/core";
+import type { OntologyReviewState } from "@exograph/core";
 
 type BusyState = "preview" | "keep" | "reject" | "discover" | null;
 
@@ -16,7 +16,7 @@ export function OntologyReviewRow({ compact = false }: { compact?: boolean }) {
     const epoch = ++operationEpochRef.current;
     setBusy("preview");
     try {
-      const next = await window.stem.workspace.previewOntology(sourcePath);
+      const next = await window.exograph.workspace.previewOntology(sourcePath);
       if (operationEpochRef.current !== epoch) return;
       selectedSourceRef.current = next.guard.candidateSourcePath;
       setReview(next);
@@ -33,7 +33,7 @@ export function OntologyReviewRow({ compact = false }: { compact?: boolean }) {
 
   useEffect(() => {
     void preview();
-    return window.stem.workspace.onOntologyCandidateChanged(() => void preview());
+    return window.exograph.workspace.onOntologyCandidateChanged(() => void preview());
   }, [preview]);
 
   async function keep() {
@@ -41,7 +41,7 @@ export function OntologyReviewRow({ compact = false }: { compact?: boolean }) {
     const epoch = ++operationEpochRef.current;
     setBusy("keep");
     try {
-      const result = await window.stem.workspace.keepOntology(review.guard);
+      const result = await window.exograph.workspace.keepOntology(review.guard);
       if (operationEpochRef.current !== epoch) return;
       setReview(result.review);
       setReopened(false);
@@ -59,7 +59,7 @@ export function OntologyReviewRow({ compact = false }: { compact?: boolean }) {
     const epoch = ++operationEpochRef.current;
     setBusy("reject");
     try {
-      const result = await window.stem.workspace.rejectOntology(review.guard);
+      const result = await window.exograph.workspace.rejectOntology(review.guard);
       if (operationEpochRef.current !== epoch) return;
       setReview(result.review);
       setReopened(false);
@@ -77,7 +77,7 @@ export function OntologyReviewRow({ compact = false }: { compact?: boolean }) {
     setBusy("discover");
     setNotice(null);
     try {
-      const result = await window.stem.workspace.discoverOntology();
+      const result = await window.exograph.workspace.discoverOntology();
       if (operationEpochRef.current !== epoch) return;
       selectedSourceRef.current = result.review.guard.candidateSourcePath;
       setReview(result.review);

@@ -1,15 +1,15 @@
 ---
-name: submit-stem-issue
-description: Use when a user reports an Stem bug, QA finding, setup failure, confusing UX, regression, crash, terminal/rendering issue, graph/search/invocation/review problem, or asks to add, file, submit, track, deduplicate, or promote an Stem issue.
+name: submit-exograph-issue
+description: Use when a user reports an Exograph bug, QA finding, setup failure, confusing UX, regression, crash, terminal/rendering issue, graph/search/invocation/review problem, or asks to add, file, submit, track, deduplicate, or promote an Exograph issue.
 ---
 
-# Submit Stem Issue
+# Submit Exograph Issue
 
-Use this skill when a user reports an Stem bug, QA finding, setup failure, confusing UX, regression, crash, terminal/rendering issue, graph/search/invocation/review problem, or asks to add/file/track an Stem issue.
+Use this skill when a user reports an Exograph bug, QA finding, setup failure, confusing UX, regression, crash, terminal/rendering issue, graph/search/invocation/review problem, or asks to add/file/track an Exograph issue.
 
 ## Standard
 
-GitHub Issues are the canonical public submission surface for Stem field reports
+GitHub Issues are the canonical public submission surface for Exograph field reports
 and implementation work. Do not create a local issue ledger.
 
 ## Workflow
@@ -30,7 +30,7 @@ and implementation work. Do not create a local issue ledger.
 
 ## Severity Guide
 
-- `critical`: blocks Stem daily use, corrupts user data, prevents app launch, or breaks terminal/invocation core workflows.
+- `critical`: blocks Exograph daily use, corrupts user data, prevents app launch, or breaks terminal/invocation core workflows.
 - `high`: blocks a major workflow such as onboarding, graph read path, search/read/status, terminal launch, editor save, note-native invocation, direct-write review, CLI coordination, or installed-app use.
 - `medium`: confusing or degraded UX with a workaround.
 - `low`: polish, copy, or minor inconsistency.

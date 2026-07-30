@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export COREPACK_ENABLE_PROJECT_SPEC="${COREPACK_ENABLE_PROJECT_SPEC:-0}"
 
-PREFIX="${EXO_INSTALL_PREFIX:-${STEM_INSTALL_PREFIX:-$HOME/.local}}"
+PREFIX="${EXOGRAPH_INSTALL_PREFIX:-$HOME/.local}"
 BIN_DIR=""
 RUN_INSTALL=1
 RUN_BUILD=1
@@ -130,7 +130,7 @@ fi
 if [ "$DRY_RUN" -ne 1 ] || [ "$RUN_BUILD" -ne 1 ]; then
   if [ ! -f "$CLI_ARTIFACT" ] || [ ! -s "$CLI_ARTIFACT" ]; then
     echo "Required CLI build artifact is missing or empty: $CLI_ARTIFACT" >&2
-    echo "Build it first with 'pnpm --filter @stem/cli build', or omit --skip-build." >&2
+    echo "Build it first with 'pnpm --filter @exograph/cli build', or omit --skip-build." >&2
     exit 1
   fi
 fi

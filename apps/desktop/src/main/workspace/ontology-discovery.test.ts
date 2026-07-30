@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createDefaultCodexAgentCommand } from "@stem/core";
+import { createDefaultCodexAgentCommand } from "@exograph/core";
 import {
   normalizeOntologyDiscoveryResponse,
   runOntologyDiscovery,
@@ -14,7 +14,7 @@ afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recur
 
 describe("ontology discovery", () => {
   it("runs a configured provider against a disposable Markdown snapshot", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "stem-ontology-discovery-test-"));
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-ontology-discovery-test-"));
     roots.push(root);
     const notePath = path.join(root, "note.md");
     const ignoredPath = path.join(root, "private.txt");

@@ -35,8 +35,8 @@ export function invocationActivityLabel(value: unknown, maxLength = 72): string 
   if (basename.length <= maxLength) return basename;
   const extensionStart = basename.lastIndexOf(".");
   const extension = extensionStart > 0 ? basename.slice(extensionStart) : "";
-  const stemLength = Math.max(1, maxLength - extension.length - 1);
-  return `${basename.slice(0, stemLength)}…${extension}`;
+  const exographLength = Math.max(1, maxLength - extension.length - 1);
+  return `${basename.slice(0, exographLength)}…${extension}`;
 }
 
 export function isInvocationActivityKind(value: unknown): value is InvocationActivityKind {

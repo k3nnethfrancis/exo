@@ -38,20 +38,20 @@ jobs:
       - name: Locate packaged app
         shell: bash
         run: |
-          APP_PATH="$(find release -type d -path '*/Stem.app' -print -quit)"
+          APP_PATH="$(find release -type d -path '*/Exograph.app' -print -quit)"
           test -n "$APP_PATH"
-          test -x "$APP_PATH/Contents/MacOS/Stem"
-          echo "STEM_PACKAGED_APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+          test -x "$APP_PATH/Contents/MacOS/Exograph"
+          echo "EXOGRAPH_PACKAGED_APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
 
       - name: Exercise packaged app
         run: |
           pnpm test:packaged:containment
-          pnpm --filter @stem/desktop exec playwright test tests/e2e/onboarding.spec.ts -g "completes and restarts the real packaged first-run journey"
+          pnpm --filter @exograph/desktop exec playwright test tests/e2e/onboarding.spec.ts -g "completes and restarts the real packaged first-run journey"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: stem-macos-unsigned
+          name: exograph-macos-unsigned
           path: release/*
           if-no-files-found: error
           retention-days: 14

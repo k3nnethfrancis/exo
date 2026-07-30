@@ -11,7 +11,7 @@ import {
   type WorkspaceIndexSearchResponse,
   type WorkspaceModel,
   type WorkspaceSettings,
-} from "@stem/core";
+} from "@exograph/core";
 
 import { UtilityDerivedIndexClient, type DerivedIndexClient } from "./derived-index-process";
 import {
@@ -394,7 +394,7 @@ export class IndexingService {
         if (state.indexSyncQueued) {
           state.indexSyncQueued = false;
           this.runSync("queued").catch((error) => {
-            console.warn("[stem] queued index sync failed", error);
+            console.warn("[exograph] queued index sync failed", error);
           });
         } else {
           this.drainScheduledRefresh();
@@ -450,7 +450,7 @@ export class IndexingService {
     state.pendingIndexRefreshRootIds.clear();
     void this.runRefresh(state, reason, rootIds).catch((error) => {
       if (isAbortError(error)) return;
-      console.warn("[stem] index refresh failed", error);
+      console.warn("[exograph] index refresh failed", error);
     });
   }
 
@@ -481,7 +481,7 @@ export class IndexingService {
               status: "skipped",
               message: model.indexing.mode === "lexical"
                 ? "Embeddings are not needed in lexical mode."
-                : "Embeddings will catch up automatically after Stem becomes quiet and idle.",
+                : "Embeddings will catch up automatically after Exograph becomes quiet and idle.",
             },
           ],
           warnings:
@@ -598,7 +598,7 @@ export class IndexingService {
         this.recordIndexJob(state, "embed", reason, startedAtMs, "completed", status);
         const result: IndexSyncResult = {
           status: this.attachIndexJobMetrics(status),
-          phases: [{ name: "embed", status: "completed", message: "Pending embeddings caught up while Stem was idle." }],
+          phases: [{ name: "embed", status: "completed", message: "Pending embeddings caught up while Exograph was idle." }],
           warnings: [],
         };
         this.options.sendState({ state: "idle", reason, result });

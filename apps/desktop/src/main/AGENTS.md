@@ -55,11 +55,11 @@ second implementation of a named owner.
 ## Focused gates
 
 ```bash
-pnpm --filter @stem/desktop exec vitest run src/main/runtime/workspace-runtime-coordinator.test.ts
-pnpm --filter @stem/desktop exec vitest run src/main/workspace/workspace-watchers.test.ts
-pnpm --filter @stem/desktop exec vitest run src/main/command/command-server-lifecycle.test.ts src/main/command/command-server.test.ts
-pnpm --filter @stem/desktop exec vitest run src/main/invocation/invocation-runner.test.ts src/main/invocation/invocation-review.test.ts
-pnpm --filter @stem/desktop typecheck
+pnpm --filter @exograph/desktop exec vitest run src/main/runtime/workspace-runtime-coordinator.test.ts
+pnpm --filter @exograph/desktop exec vitest run src/main/workspace/workspace-watchers.test.ts
+pnpm --filter @exograph/desktop exec vitest run src/main/command/command-server-lifecycle.test.ts src/main/command/command-server.test.ts
+pnpm --filter @exograph/desktop exec vitest run src/main/invocation/invocation-runner.test.ts src/main/invocation/invocation-review.test.ts
+pnpm --filter @exograph/desktop typecheck
 ```
 
 For a cross-process change, run the relevant Electron path; unit tests alone do

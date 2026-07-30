@@ -1,4 +1,4 @@
-import type { TreeNode } from "@stem/core";
+import type { TreeNode } from "@exograph/core";
 
 import { collectLeaves, findNode, type PaneNode, type PaneNodeId } from "./hooks/usePaneTree";
 

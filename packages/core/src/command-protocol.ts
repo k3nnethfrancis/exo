@@ -1,6 +1,6 @@
 import type { IndexSearchResponse, IndexStatus, IndexSyncResult, WorkspaceModel } from "./types";
 
-export const STEM_COMMAND_ROUTES = {
+export const EXOGRAPH_COMMAND_ROUTES = {
   status: "/status",
   show: "/show",
   search: "/search",
@@ -10,22 +10,22 @@ export const STEM_COMMAND_ROUTES = {
   spawnAgentCommand: "/agent-commands/spawn",
 } as const;
 
-export const STEM_COMMAND_TOKEN_HEADER = "x-stem-command-token";
+export const EXOGRAPH_COMMAND_TOKEN_HEADER = "x-exograph-command-token";
 
-export interface StemCommandServerInfo {
+export interface ExographCommandServerInfo {
   port: number;
   pid: number;
   token: string;
 }
 
 /** The successful `/status` body emitted by the desktop command server. */
-export interface StemCommandStatusResponse {
+export interface ExographCommandStatusResponse {
   workspace: WorkspaceModel;
-  terminals: StemCommandStatusTerminalInfo[];
+  terminals: ExographCommandStatusTerminalInfo[];
 }
 
 /** Discovery facts added locally by the CLI after a successful `/status` response. */
-export interface StemCommandStatusControlPlane {
+export interface ExographCommandStatusControlPlane {
   runtimeRoot: string;
   serverJsonPath: string;
   pid: number;
@@ -33,12 +33,12 @@ export interface StemCommandStatusControlPlane {
   baseUrl: string;
 }
 
-export interface StemCommandStatusWithControlPlane extends StemCommandStatusResponse {
-  controlPlane: StemCommandStatusControlPlane;
+export interface ExographCommandStatusWithControlPlane extends ExographCommandStatusResponse {
+  controlPlane: ExographCommandStatusControlPlane;
 }
 
 /** The full terminal representation currently returned by `/status`. */
-export interface StemCommandStatusTerminalInfo extends StemCommandTerminalInfo {
+export interface ExographCommandStatusTerminalInfo extends ExographCommandTerminalInfo {
   command: string;
   kind: "shell";
   status: "running" | "exited";
@@ -53,7 +53,7 @@ export interface StemCommandStatusTerminalInfo extends StemCommandTerminalInfo {
   };
 }
 
-export interface StemCommandTerminalInfo {
+export interface ExographCommandTerminalInfo {
   id: string;
   title: string;
   cwd: string;
@@ -63,14 +63,14 @@ export interface StemCommandTerminalInfo {
   exitCode?: number;
 }
 
-export interface StemCommandOkResponse {
+export interface ExographCommandOkResponse {
   ok: true;
 }
 
-export type StemCommandShowRequest = Record<string, never>;
-export type StemCommandIndexSyncRequest = Record<string, never>;
+export type ExographCommandShowRequest = Record<string, never>;
+export type ExographCommandIndexSyncRequest = Record<string, never>;
 
-export interface StemCommandSearchRequest {
+export interface ExographCommandSearchRequest {
   q: string;
   limit?: number;
   offset?: number;
@@ -79,20 +79,20 @@ export interface StemCommandSearchRequest {
   maxLinesPerResult?: number;
 }
 
-export type StemCommandSearchResponse = IndexSearchResponse;
-export type StemCommandIndexStatusResponse = IndexStatus;
-export type StemCommandIndexSyncResponse = IndexSyncResult;
+export type ExographCommandSearchResponse = IndexSearchResponse;
+export type ExographCommandIndexStatusResponse = IndexStatus;
+export type ExographCommandIndexSyncResponse = IndexSyncResult;
 
-export interface StemOpenFileRequest {
+export interface ExographOpenFileRequest {
   path: string;
 }
 
-export interface StemSpawnAgentCommandRequest {
+export interface ExographSpawnAgentCommandRequest {
   handle: string;
   task: string;
 }
 
-export interface StemSpawnAgentCommandResponse {
+export interface ExographSpawnAgentCommandResponse {
   ok: true;
   invocation: {
     id: string;
@@ -100,16 +100,16 @@ export interface StemSpawnAgentCommandResponse {
     handle: string;
     createdAt: string;
   };
-  terminal: StemCommandTerminalInfo;
+  terminal: ExographCommandTerminalInfo;
 }
 
 /** The error envelope shared by routes that report only a human-readable failure. */
-export interface StemCommandBasicErrorResponse {
+export interface ExographCommandBasicErrorResponse {
   error: string;
 }
 
 /** The structured failure envelope emitted only by `/agent-commands/spawn`. */
-export interface StemSpawnAgentCommandErrorResponse {
+export interface ExographSpawnAgentCommandErrorResponse {
   ok: false;
   code: string;
   error: string;

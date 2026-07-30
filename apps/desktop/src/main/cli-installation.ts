@@ -48,14 +48,14 @@ export async function inspectCliInstallation(
   }
 
   const common = { commandPath, ...(sourcePath ? { sourcePath, installCommand } : {}) };
-  if (packagedCli && await isPackagedStemCli(commandPath)) {
+  if (packagedCli && await isPackagedExographCli(commandPath)) {
     return { state: "current", ...common };
   }
   if (!sourcePath) return { state: "unavailable", ...common };
 
   try {
     const entry = await lstat(commandPath);
-    if (!entry.isSymbolicLink()) return { state: "non-stem", ...common };
+    if (!entry.isSymbolicLink()) return { state: "non-exograph", ...common };
 
     const linkTarget = await readlink(commandPath);
     const resolvedTarget = path.resolve(path.dirname(commandPath), linkTarget);
@@ -63,11 +63,11 @@ export async function inspectCliInstallation(
 
     try {
       const content = await readFile(resolvedTarget, "utf8");
-      if (content.includes(LEGACY_SHIM_MARKER)) return { state: "legacy-stem", ...common };
+      if (content.includes(LEGACY_SHIM_MARKER)) return { state: "legacy-exograph", ...common };
     } catch {
-      if (linkTarget.endsWith("/bin/stem") || linkTarget === "bin/stem") return { state: "legacy-stem", ...common };
+      if (linkTarget.endsWith("/bin/exograph") || linkTarget === "bin/exograph") return { state: "legacy-exograph", ...common };
     }
-    return { state: "non-stem", ...common };
+    return { state: "non-exograph", ...common };
   } catch {
     return { state: "unavailable", ...common };
   }
@@ -118,10 +118,10 @@ async function existingCliKind(target: string): Promise<"missing" | "current" | 
   } catch {
     return "missing";
   }
-  return await isPackagedStemCli(target) ? "current" : "other";
+  return await isPackagedExographCli(target) ? "current" : "other";
 }
 
-async function isPackagedStemCli(candidate: string): Promise<boolean> {
+async function isPackagedExographCli(candidate: string): Promise<boolean> {
   try {
     const content = await readFile(candidate, "utf8");
     return content.includes(PACKAGED_SHIM_MARKER);

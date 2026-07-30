@@ -1,5 +1,5 @@
 import type { EditorState } from "@codemirror/state";
-import type { TreeNode, WorkspaceGraphContext, WorkspaceModel } from "@stem/core";
+import type { TreeNode, WorkspaceGraphContext, WorkspaceModel } from "@exograph/core";
 
 import type { MarkdownGraphReferences } from "./components/markdownLivePreview";
 

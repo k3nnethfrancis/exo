@@ -29,7 +29,7 @@ function invocationRecord(id: string, createdAt: string): InvocationRecord {
 
 describe("invocation store", () => {
   it("writes records under .exograph/invocations/id/record.json", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-invocations-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-invocations-"));
     const store = new InvocationStore(workspaceRoot);
 
     try {
@@ -50,7 +50,7 @@ describe("invocation store", () => {
   });
 
   it("lists readable records deterministically by creation time then id", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-invocations-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-invocations-"));
     const store = new InvocationStore(workspaceRoot);
 
     try {
@@ -69,7 +69,7 @@ describe("invocation store", () => {
   });
 
   it("enumerates every durable invocation directory even when its record is missing or invalid", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-invocations-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-invocations-"));
     const store = new InvocationStore(workspaceRoot);
 
     try {
@@ -87,7 +87,7 @@ describe("invocation store", () => {
   });
 
   it("round-trips the current Changeset record without rewriting it", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-invocations-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-invocations-"));
     const store = new InvocationStore(workspaceRoot);
 
     try {
@@ -113,7 +113,7 @@ describe("invocation store", () => {
   });
 
   it("rejects the unsupported pre-Changeset review format without rewriting its evidence", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-invocations-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-invocations-"));
     const store = new InvocationStore(workspaceRoot);
 
     try {
@@ -148,7 +148,7 @@ describe("invocation store", () => {
   });
 
   it("rejects a malformed current Changeset instead of loading a record without review state", async () => {
-    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "stem-invocations-"));
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-invocations-"));
     const store = new InvocationStore(workspaceRoot);
 
     try {

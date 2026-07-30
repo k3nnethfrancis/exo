@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { noteTitle } from "@stem/core/note-title";
-import type { NoteDocument, WorkspaceGraphContext, WorkspaceModel } from "@stem/core";
+import { noteTitle } from "@exograph/core/note-title";
+import type { NoteDocument, WorkspaceGraphContext, WorkspaceModel } from "@exograph/core";
 
 import type { FileStatInfo } from "../../../shared/api";
 import { DocumentSaveBarrier } from "./documentSaveBarrier";
@@ -128,13 +128,13 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   }, []);
 
   useEffect(() => {
-    window.__stemFlushDirtyDocuments = flushDirtyDocuments;
+    window.__exographFlushDirtyDocuments = flushDirtyDocuments;
     return () => {
-      if (window.__stemFlushDirtyDocuments === flushDirtyDocuments) delete window.__stemFlushDirtyDocuments;
+      if (window.__exographFlushDirtyDocuments === flushDirtyDocuments) delete window.__exographFlushDirtyDocuments;
     };
   });
 
-  useEffect(() => window.stem.workspace.onGraphChanged(() => {
+  useEffect(() => window.exograph.workspace.onGraphChanged(() => {
     for (const [filePath, document] of Object.entries(openDocumentsRef.current)) {
       scheduleMarkdownContextRefresh(document, filePath);
     }
@@ -151,7 +151,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
   }
 
   async function ensureDocumentLoaded(filePath: string) {
-    const [document, diskVersion] = await Promise.all([window.stem.notes.read(filePath), window.stem.notes.stat(filePath)]);
+    const [document, diskVersion] = await Promise.all([window.exograph.notes.read(filePath), window.exograph.notes.stat(filePath)]);
 
     setOpenDocuments((current) => ({
       ...current,
@@ -207,8 +207,8 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
 
     const scrollTop = filePath === optionsRef.current.activeDocumentPath ? optionsRef.current.getEditorScrollTopForPath(filePath) : null;
     const [document, diskVersion] = await Promise.all([
-      window.stem.notes.read(filePath),
-      knownVersion === undefined ? window.stem.notes.stat(filePath) : Promise.resolve(knownVersion),
+      window.exograph.notes.read(filePath),
+      knownVersion === undefined ? window.exograph.notes.stat(filePath) : Promise.resolve(knownVersion),
     ]);
     setOpenDocuments((current) => {
       const currentDocument = current[filePath];
@@ -254,8 +254,8 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
 
     const scrollTop = filePath === optionsRef.current.activeDocumentPath ? optionsRef.current.getEditorScrollTopForPath(filePath) : null;
     const [document, diskVersion] = await Promise.all([
-      window.stem.notes.read(filePath),
-      window.stem.notes.stat(filePath),
+      window.exograph.notes.read(filePath),
+      window.exograph.notes.stat(filePath),
     ]);
     setOpenDocuments((current) => {
       if (!current[filePath]) {
@@ -311,8 +311,8 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
 
     setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "saving" }));
     try {
-      await window.stem.notes.save(filePath, document.frontmatter, document.body);
-      const diskVersion = await window.stem.notes.stat(filePath);
+      await window.exograph.notes.save(filePath, document.frontmatter, document.body);
+      const diskVersion = await window.exograph.notes.stat(filePath);
       const remainsOpen = optionsRef.current.getOpenEditorPaths().has(filePath);
       if (document.kind === "markdown" && remainsOpen && isAttachedNote(filePath, optionsRef.current.workspaceModel)) {
         scheduleMarkdownContextRefresh(document, filePath);
@@ -339,7 +339,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
         setDocumentSaveStatuses((current) => current[filePath] === "saved" ? { ...current, [filePath]: "idle" } : current);
       }, 1600);
     } catch (error) {
-      console.error("[stem] failed to save document", { filePath, error });
+      console.error("[exograph] failed to save document", { filePath, error });
       setDocumentSaveStatuses((current) => ({ ...current, [filePath]: "error" }));
       throw error;
     }
@@ -485,7 +485,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
         void loadMarkdownContext(document, filePath, optionsRef.current.workspaceModel).then((graphContext) => {
           scheduleMarkdownContextCommit(filePath, graphContext);
         }).catch((error) => {
-          console.warn("[stem] failed to load graph context", { filePath, error });
+          console.warn("[exograph] failed to load graph context", { filePath, error });
         });
       };
       if (typeof window.requestIdleCallback === "function") {
@@ -539,7 +539,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
 
 declare global {
   interface Window {
-    __stemFlushDirtyDocuments?: () => Promise<void>;
+    __exographFlushDirtyDocuments?: () => Promise<void>;
   }
 }
 
@@ -559,7 +559,7 @@ async function loadMarkdownContext(
   if (document.kind !== "markdown" || !isAttachedNote(filePath, model)) {
     return null;
   }
-  return window.stem.notes.getGraphContext(filePath);
+  return window.exograph.notes.getGraphContext(filePath);
 }
 
 function isAttachedNote(filePath: string, model: WorkspaceModel | null): boolean {

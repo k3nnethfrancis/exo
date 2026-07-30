@@ -14,10 +14,10 @@ await build({
   format: "cjs",
   sourcemap: true,
   banner: {
-    js: "const __stemImportMetaUrl = require('node:url').pathToFileURL(__filename).href;",
+    js: "const __exographImportMetaUrl = require('node:url').pathToFileURL(__filename).href;",
   },
   define: {
-    "import.meta.url": "__stemImportMetaUrl",
+    "import.meta.url": "__exographImportMetaUrl",
   },
   external: [
     "@tobilu/qmd",

@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { WorkspaceModel } from "@stem/core";
+import type { WorkspaceModel } from "@exograph/core";
 
 export function workspaceMatches(expected: WorkspaceModel, actual: WorkspaceModel): boolean {
   if (path.resolve(actual.workspaceRoot) !== path.resolve(expected.workspaceRoot)) {

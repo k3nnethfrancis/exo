@@ -8,7 +8,7 @@ import {
   SquareTerminal,
   Trash2,
 } from "lucide-react";
-import type { WorkspaceSearchResults } from "@stem/core";
+import type { WorkspaceSearchResults } from "@exograph/core";
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
 import type { DragManager } from "../hooks/useDragManager";
 import type { WorkspaceSearchResultMode } from "../hooks/useWorkspaceSearch";
@@ -157,7 +157,7 @@ export function FileTree(props: FileTreeProps) {
     setContextMenuPosition(null);
   }
 
-  const sidebarStyle = { "--stem-explorer-scale": explorerScale } as CSSProperties;
+  const sidebarStyle = { "--exograph-explorer-scale": explorerScale } as CSSProperties;
   function requestRootAction(action: "file" | "directory") {
     if (noteRoots.length === 1) {
       const root = noteRoots[0];

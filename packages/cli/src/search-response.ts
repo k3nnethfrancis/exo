@@ -1,8 +1,8 @@
 import path from "node:path";
 
-import type { IndexSearchResponse, WorkspaceModel } from "@stem/core";
+import type { IndexSearchResponse, WorkspaceModel } from "@exograph/core";
 
-export const AGENT_SEARCH_SCHEMA_VERSION = "stem.search.v1";
+export const AGENT_SEARCH_SCHEMA_VERSION = "exograph.search.v1";
 export const DEFAULT_AGENT_SEARCH_LIMIT = 10;
 export const MAX_AGENT_SEARCH_LIMIT = 20;
 

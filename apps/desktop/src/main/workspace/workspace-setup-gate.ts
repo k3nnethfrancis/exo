@@ -1,11 +1,11 @@
-import type { OnboardingStateReadResult } from "@stem/core";
+import type { OnboardingStateReadResult } from "@exograph/core";
 
 /**
  * Environment roots are an operator/test fixture, not a substitute for a
  * user choosing a wiki. Only explicit desktop test runs may bypass onboarding.
  */
 export function hasOperatorWorkspaceSetup(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.STEM_TEST === "1" && Boolean(env.STEM_NOTE_ROOTS?.trim());
+  return env.EXOGRAPH_TEST === "1" && Boolean(env.EXOGRAPH_NOTE_ROOTS?.trim());
 }
 
 export interface WorkspaceSetupDecision {

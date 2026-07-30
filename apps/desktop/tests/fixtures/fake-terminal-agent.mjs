@@ -31,7 +31,7 @@ if (renderStability) {
 }
 write("\x1b[1mA few key takeaways:\x1b[0m");
 write("Their framing was: \"Glean is knowledge discovery; ChatGTM is sales workflows.\"");
-write("This line is intentionally long enough to wrap inside a narrow terminal pane so Stem can exercise xterm wrapping, resize, and scrollback behavior without calling live inference.");
+write("This line is intentionally long enough to wrap inside a narrow terminal pane so Exograph can exercise xterm wrapping, resize, and scrollback behavior without calling live inference.");
 write("\x1b[2mstatus: streaming deterministic fake-agent output\x1b[0m");
 
 const scrollbackLines = renderStability ? 8 : 80;

@@ -1,7 +1,7 @@
 import {
   graphTopologyPayloadBytes,
   type GraphTopology,
-} from "@stem/core";
+} from "@exograph/core";
 
 import type { DerivedIndexResponse } from "./derived-index-protocol";
 
@@ -9,7 +9,7 @@ export const MAX_DERIVED_RESPONSE_BYTES = 8 * 1024 * 1024;
 
 /**
  * Measures the wire contract rather than JSON-expanding typed arrays into
- * numeric-keyed objects. Structured-clone framing is runtime-owned; Stem counts
+ * numeric-keyed objects. Structured-clone framing is runtime-owned; Exograph counts
  * its UTF-8 metadata and every typed-buffer byte exactly.
  */
 export function derivedIndexResponseBytes(response: DerivedIndexResponse): number {

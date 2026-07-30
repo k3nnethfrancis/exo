@@ -28,9 +28,9 @@ interface GraphPresentationProfile {
   quietEdgeOpacity: number;
 }
 
-/** Resolved theme tokens. Integration derives these from Stem's CSS variables. */
+/** Resolved theme tokens. Integration derives these from Exograph's CSS variables. */
 export interface GraphPresentationPalette {
-  /** Null keeps Canvas transparent over the owning Stem surface. */
+  /** Null keeps Canvas transparent over the owning Exograph surface. */
   clearColor: number | null;
   text: number;
   muted: number;

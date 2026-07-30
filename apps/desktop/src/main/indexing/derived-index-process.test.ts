@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createGraphTopology, type IndexStatus, type WorkspaceModel } from "@stem/core";
+import { createGraphTopology, type IndexStatus, type WorkspaceModel } from "@exograph/core";
 
 import {
   UtilityDerivedIndexClient,

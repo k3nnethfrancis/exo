@@ -1,6 +1,6 @@
 import { ArrowUpRight, Bot, ExternalLink, X } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type KeyboardEvent } from "react";
-import type { NoteDocument, SearchResult, WorkspaceGraphContext } from "@stem/core";
+import type { NoteDocument, SearchResult, WorkspaceGraphContext } from "@exograph/core";
 import type { InvocationHistoryItem } from "../../../shared/api";
 
 import { buildNoteGraphContext } from "../graphAffordances";
