@@ -14,6 +14,10 @@ or network authority.
   xterm ownership.
 - [submit-exograph-issue](submit-exograph-issue/SKILL.md) — file clear reports through
   GitHub Issues.
+- [exograph-code-quality-review](exograph-code-quality-review/SKILL.md) —
+  run a coverage-accountable structural review with a private dependency map,
+  explicit review reasons, verification evidence, and an unseen-frontier exit
+  condition.
 
 Copy or install a Skill into the location expected by your coding environment.
 The source remains ordinary, reviewable Markdown in this repository.
