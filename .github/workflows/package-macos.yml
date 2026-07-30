@@ -2,10 +2,20 @@ name: Package macOS
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   package:
-    name: Build unsigned macOS artifacts
+    name: Build draft macOS release
     runs-on: macos-latest
     timeout-minutes: 45
     env:
@@ -14,6 +24,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
@@ -28,6 +40,25 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Resolve release version
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          for MANIFEST in apps/desktop/package.json packages/core/package.json packages/cli/package.json; do
+            PACKAGE_VERSION="$(node -p "require('./${MANIFEST}').version")"
+            if [[ "$PACKAGE_VERSION" != "$VERSION" ]]; then
+              echo "Version mismatch: $MANIFEST is $PACKAGE_VERSION; root is $VERSION." >&2
+              exit 1
+            fi
+          done
+          TAG="v$VERSION"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "$TAG already exists. Bump the package version before releasing again." >&2
+            exit 1
+          fi
+          echo "EXOGRAPH_RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "EXOGRAPH_RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
 
       - name: Validate source
         run: pnpm check
@@ -48,10 +79,44 @@ jobs:
           pnpm test:packaged:containment
           pnpm --filter @exograph/desktop exec playwright test tests/e2e/onboarding.spec.ts -g "completes and restarts the real packaged first-run journey"
 
-      - name: Upload artifacts
+      - name: Prepare release artifacts
+        shell: bash
+        run: |
+          ARTIFACT_COUNT="$(find release -type f \( -name '*.dmg' -o -name '*.zip' \) | wc -l | tr -d ' ')"
+          if [[ "$ARTIFACT_COUNT" -eq 0 ]]; then
+            echo "No macOS release artifacts were produced." >&2
+            exit 1
+          fi
+          : > release/SHA256SUMS.txt
+          while IFS= read -r FILE; do
+            shasum -a 256 "$FILE" >> release/SHA256SUMS.txt
+          done < <(find release -type f \( -name '*.dmg' -o -name '*.zip' \) | sort)
+
+      - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: exograph-macos-unsigned
-          path: release/*
+          name: exograph-${{ env.EXOGRAPH_RELEASE_VERSION }}-macos-unsigned
+          path: |
+            release/**/*.dmg
+            release/**/*.zip
+            release/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
+
+      - name: Create draft prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          RELEASE_FILES=()
+          while IFS= read -r FILE; do
+            RELEASE_FILES+=("$FILE")
+          done < <(find release -type f \( -name '*.dmg' -o -name '*.zip' \) | sort)
+          RELEASE_FILES+=("release/SHA256SUMS.txt")
+
+          gh release create "$EXOGRAPH_RELEASE_TAG" "${RELEASE_FILES[@]}" \
+            --target "$GITHUB_SHA" \
+            --title "Exograph $EXOGRAPH_RELEASE_TAG" \
+            --generate-notes \
+            --prerelease \
+            --draft

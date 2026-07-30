@@ -16,6 +16,9 @@ playwright-report/
 .env
 .env.*.local
 
+# Maintainer-only release notes. Public version history lives in GitHub Releases.
+/CHANGELOG.md
+
 # Provider configuration is personal. Exograph's reusable public guidance lives in
 # /skills and AGENTS.md instead.
 /.claude/

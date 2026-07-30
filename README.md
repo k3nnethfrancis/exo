@@ -76,4 +76,4 @@ That runs unused-code checks, typechecks, tests, builds, and an install dry run.
 
 ## Status
 
-Exograph is early software, not a signed public binary release. The current alpha supports source development and unsigned macOS packaging; Windows and Linux are not yet supported release targets. See [CHANGELOG.md](CHANGELOG.md) for the current public change record and [SECURITY.md](SECURITY.md) for reporting.
+Exograph is early software, not a signed public binary release. The current alpha supports source development and unsigned macOS packaging; Windows and Linux are not yet supported release targets. Published versions and downloads live in GitHub Releases. See [SECURITY.md](SECURITY.md) for vulnerability reporting.
