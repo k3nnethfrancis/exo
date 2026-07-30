@@ -1552,7 +1552,15 @@ class FakeInvocationProcessFactory implements InvocationProcessFactory {
   launch(input: { command: string; cwd: string; env: NodeJS.ProcessEnv }): InvocationProcess {
     this.inputs.push(input);
     this.onLaunch?.();
-    const process = new FakeInvocationProcess(this.processes.length + 100, this.nextSendError, this.nextStopError, this.onRelease);
+    // Recovery probes the operating system for this identity. Small fake PIDs
+    // can collide with real processes on CI and turn a unit test into an
+    // accidental ownership check against the runner itself.
+    const process = new FakeInvocationProcess(
+      2_000_000_000 + this.processes.length,
+      this.nextSendError,
+      this.nextStopError,
+      this.onRelease,
+    );
     this.nextSendError = null;
     this.nextStopError = null;
     this.processes.push(process);
