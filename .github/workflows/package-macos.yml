@@ -69,7 +69,7 @@ jobs:
       - name: Locate packaged app
         shell: bash
         run: |
-          APP_PATH="$(find release -type d -path '*/Exograph.app' -print -quit)"
+          APP_PATH="$(find "$GITHUB_WORKSPACE/release" -type d -path '*/Exograph.app' -print -quit)"
           test -n "$APP_PATH"
           test -x "$APP_PATH/Contents/MacOS/Exograph"
           echo "EXOGRAPH_PACKAGED_APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
