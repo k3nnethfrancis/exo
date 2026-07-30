@@ -153,7 +153,7 @@ test("resumes the exact confirmed draft across reload and relaunch at every setu
   await activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" }).click();
   await activePage.getByRole("button", { name: "Install MCP" }).click();
   await expect(activePage.getByText("Added Exograph MCP to Claude.")).toBeVisible();
-  await expect.poll(() => readOptional(path.join(first.homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nexograph");
+  await expect.poll(() => readOptional(path.join(first.homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nexo");
   await activePage.reload();
   await expect(activePage.getByRole("heading", { name: "Agent access" })).toBeVisible();
   await expect(activePage.locator(".onboarding-provider-menu__item").filter({ hasText: "Claude" })).toHaveAttribute("aria-pressed", "true");
@@ -313,7 +313,7 @@ test("keeps MCP and CLI setup independent without touching real provider state",
   await page.getByRole("button", { name: "Install MCP" }).click();
 
   await expect(page.getByText("Added Exograph MCP to Claude.")).toBeVisible();
-  await expect.poll(() => readOptional(path.join(homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nexograph");
+  await expect.poll(() => readOptional(path.join(homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nexo");
   expect(await page.locator(".onboarding-cli-installation").innerText()).toBe(cliStateBefore);
 
   await cleanup();
@@ -346,7 +346,7 @@ test("installs the bundled CLI before enabling MCP", async () => {
 
     await page.getByRole("button", { name: "Install CLI" }).click();
     await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI ready");
-    await expect(readOptional(path.join(homeRoot, ".local", "bin", "exograph"))).resolves.toContain("exograph-packaged-cli");
+    await expect(readOptional(path.join(homeRoot, ".local", "bin", "exo"))).resolves.toContain("exograph-packaged-cli");
 
     await page.getByRole("button", { name: "Install MCP" }).click();
     await expect(page.getByText("Added Exograph MCP to Claude.")).toBeVisible();
@@ -601,7 +601,7 @@ test("completes and restarts the real packaged first-run journey", async () => {
     ?? path.join(repoRoot, "artifacts", "gate-a-onboarding-package");
   await Promise.all([mkdir(userDataRoot, { recursive: true }), mkdir(runtimeRoot, { recursive: true }), mkdir(noteRoot, { recursive: true }), mkdir(evidenceRoot, { recursive: true })]);
   await writeFile(path.join(noteRoot, "welcome.md"), "# Welcome\n\nPackaged first-run fixture.\n", "utf8");
-  await prepareFakeProviderHome(homeRoot);
+  await prepareFakeProviderCommands(homeRoot);
   const executablePath = appBundle!.endsWith(".app")
     ? path.join(appBundle!, "Contents", "MacOS", "Exograph")
     : appBundle!;
@@ -631,11 +631,15 @@ test("completes and restarts the real packaged first-run journey", async () => {
     await page.getByTestId("onboarding-continue").click();
     await expect(page.getByRole("heading", { name: "Agent access" })).toBeVisible();
     await expect(page.locator(".onboarding-cli-installation")).not.toContainText("Contents/Resources");
+    await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI not installed");
     await page.screenshot({ path: path.join(evidenceRoot, "02-packaged-agent-access.png"), fullPage: true });
+    await page.getByRole("button", { name: "Install CLI" }).click();
+    await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI ready");
+    await expect(readOptional(path.join(homeRoot, ".local", "bin", "exo"))).resolves.toContain("exograph-packaged-cli");
     await page.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" }).click();
     await page.getByRole("button", { name: "Install MCP" }).click();
     await expect(page.getByText("Added Exograph MCP to Claude.")).toBeVisible();
-    await expect.poll(() => readOptional(path.join(homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nexograph");
+    await expect.poll(() => readOptional(path.join(homeRoot, "claude-mcp.log"))).toContain("mcp\nadd\n--scope\nuser\nexo");
     await expect(readOptional(path.join(homeRoot, "codex-mcp.log"))).resolves.toBeNull();
     await page.getByRole("button", { name: "Set up CLI agents" }).click();
     await page.getByRole("textbox", { name: "Claude command" }).fill(customClaudeCommand);
@@ -692,10 +696,17 @@ function workspaceSettings(noteRoot: string): WorkspaceSettings {
 }
 
 async function prepareFakeProviderHome(homeRoot: string): Promise<void> {
+  await prepareFakeProviderCommands(homeRoot);
+  await writeExecutable(
+    path.join(homeRoot, ".local", "bin", "exo"),
+    "#!/bin/sh\n# exograph-packaged-cli\nexit 0\n",
+  );
+}
+
+async function prepareFakeProviderCommands(homeRoot: string): Promise<void> {
   const bin = path.join(homeRoot, ".local", "bin");
   await mkdir(bin, { recursive: true });
   await Promise.all([
-    writeExecutable(path.join(bin, "exograph"), "#!/bin/sh\n# exograph-packaged-cli\nexit 0\n"),
     writeExecutable(path.join(bin, "claude"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/claude-mcp.log\"\n"),
     writeExecutable(path.join(bin, "codex"), "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/codex-mcp.log\"\n"),
   ]);
