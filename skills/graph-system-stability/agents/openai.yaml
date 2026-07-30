@@ -1,4 +1,0 @@
-interface:
-  display_name: "Graph System Stability"
-  short_description: "Guard Exograph graph architecture and performance"
-  default_prompt: "Use $graph-system-stability to change Exograph graph models, layout, rendering, or integration safely."
