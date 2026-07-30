@@ -1,14 +1,14 @@
-# Stem
+# Exograph
 
 > An open-source knowledge-graph interface and Markdown editor for working
 > alongside terminal agents.
 
-Stem is a user-owned exocortex built from ordinary Markdown, an explorable
+Exograph is a user-owned exocortex built from ordinary Markdown, an explorable
 knowledge graph, local search, and reviewable work from terminal agents. Any
 agent that can run as a headless Command can participate; Claude Code, Codex,
 Pi, and Hermes are examples rather than privileged integrations.
 
-Markdown and frontmatter stay canonical. Stem's indexes, layouts, invocation records, and review state live under `.stem/` as rebuildable local state.
+Markdown and frontmatter stay canonical. Exograph's indexes, layouts, invocation records, and review state live under `.exo/` as rebuildable local state.
 
 ## What it does
 
@@ -16,11 +16,11 @@ Markdown and frontmatter stay canonical. Stem's indexes, layouts, invocation rec
 - **Search and see connections** through immediate filename/path search or optional local lexical, semantic, and hybrid retrieval; inspect the same knowledge as a graph.
 - **Work with agents deliberately** through inline `@` invocations, local CLI commands, and an optional two-tool read-only MCP server. Agent changes are captured as a reviewable Changeset; saving a note never runs an agent.
 
-Stem is macOS-first and currently an unsigned alpha.
+Exograph is macOS-first and currently an unsigned alpha.
 
 ## Start here
 
-### Use Stem
+### Use Exograph
 
 Build and install the local unsigned app:
 
@@ -29,11 +29,11 @@ pnpm install
 ./scripts/install-mac-app --with-cli
 ```
 
-Launch Stem from `~/Applications`, choose a main Markdown wiki, decide what Markdown becomes Notes, optionally install the MCP server, then configure the local agent commands you want available through `@`.
+Launch Exograph from `~/Applications`, choose a main Markdown wiki, decide what Markdown becomes Notes, optionally install the MCP server, then configure the local agent commands you want available through `@`.
 
-For the full workflow, read [Using Stem](docs/using-stem.md). For command-line and MCP access, read [CLI and MCP](docs/cli.md).
+For the full workflow, read [Using Exograph](docs/using-exograph.md). For command-line and MCP access, read [CLI and MCP](docs/cli.md).
 
-### Develop Stem
+### Develop Exograph
 
 Prerequisites: Node.js 24 and pnpm 11.2.2.
 
@@ -50,11 +50,11 @@ See [Contributing](CONTRIBUTING.md) for validation and [Architecture](docs/archi
 
 | Need | Start here |
 | --- | --- |
-| Open a folder, write notes, use links/tags/properties | [Using Stem](docs/using-stem.md) |
+| Open a folder, write notes, use links/tags/properties | [Using Exograph](docs/using-exograph.md) |
 | Understand Notes, Concepts, Relations, Evidence, and graph origins | [Knowledge graph](docs/knowledge-graph.md) |
 | Configure local search and understand index status | [Search](docs/search.md) |
 | Use `@claude`/`@codex`, review changes, or resume a session | [Agent invocations](docs/document-agent-protocol.md) |
-| Use Stem from a shell or tool-capable client | [CLI and MCP](docs/cli.md) |
+| Use Exograph from a shell or tool-capable client | [CLI and MCP](docs/cli.md) |
 | Define or switch a workspace ontology | [Workspace ontology](docs/workspace-ontology.md) |
 | Recover from a setup, search, invocation, MCP, or CLI problem | [Troubleshooting](docs/troubleshooting.md) |
 
@@ -62,7 +62,7 @@ See [Contributing](CONTRIBUTING.md) for validation and [Architecture](docs/archi
 
 - `apps/desktop` — Electron main process, preload bridge, and React renderer.
 - `packages/core` — Markdown, workspace, graph, search, invocation, and shared protocol models.
-- `packages/cli` — the `stem` CLI and read-only MCP server.
+- `packages/cli` — the `exo` CLI and read-only MCP server.
 - `evals/graph` — internal graph-rendering regression evaluation.
 - `docs` — user guides and current technical contracts.
 
@@ -76,4 +76,4 @@ That runs unused-code checks, typechecks, tests, builds, and an install dry run.
 
 ## Status
 
-Stem is early software, not a signed public binary release. The current alpha supports source development and unsigned macOS packaging; Windows and Linux are not yet supported release targets. See [CHANGELOG.md](CHANGELOG.md) for the current public change record and [SECURITY.md](SECURITY.md) for reporting.
+Exograph is early software, not a signed public binary release. The current alpha supports source development and unsigned macOS packaging; Windows and Linux are not yet supported release targets. See [CHANGELOG.md](CHANGELOG.md) for the current public change record and [SECURITY.md](SECURITY.md) for reporting.

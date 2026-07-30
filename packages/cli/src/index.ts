@@ -192,7 +192,7 @@ export async function runCli(argv: string[], options: {
   const client = connection.client;
   if (!client) {
     if (connection.diagnostic) stderr.write(formatCliRuntimeDiagnostic(connection.diagnostic));
-    else stderr.write(`Stem app is not reachable. Start it with: stem start\nRuntime root: ${await resolveCliRuntimeRoot(env)}\n`);
+    else stderr.write(`Exograph is not reachable. Start it with: exo start\nRuntime root: ${await resolveCliRuntimeRoot(env)}\n`);
     return 1;
   }
 
@@ -254,8 +254,8 @@ async function resolveCliWorkspaceModel(env: NodeJS.ProcessEnv): Promise<Workspa
 }
 
 async function resolveCliRuntimeRoot(env: NodeJS.ProcessEnv, model?: WorkspaceModel): Promise<string> {
-  if (env.STEM_RUNTIME_ROOT) {
-    return env.STEM_RUNTIME_ROOT;
+  if (env.EXO_RUNTIME_ROOT ?? env.STEM_RUNTIME_ROOT) {
+    return env.EXO_RUNTIME_ROOT ?? env.STEM_RUNTIME_ROOT!;
   }
   return path.join((model ?? await resolveCliWorkspaceModel(env)).workspaceRoot, ".stem");
 }
@@ -296,7 +296,7 @@ async function resolveCliWorkspace(env: NodeJS.ProcessEnv, selector?: string): P
     throw new Error(`Unknown Stem Workspace: ${selector}. Available Workspaces: ${available}.`);
   }
   if (matches.length > 1) {
-    throw new Error(`Workspace selector is ambiguous: ${selector}. Use the Workspace id from \`stem workspaces\`.`);
+    throw new Error(`Workspace selector is ambiguous: ${selector}. Use the Workspace id from \`exo workspaces\`.`);
   }
   const entry = matches[0]!;
   return cliWorkspaceFromEntry(entry, entry.id === registry.activeWorkspaceId);
@@ -315,7 +315,7 @@ async function listCliWorkspaces(env: NodeJS.ProcessEnv): Promise<Record<string,
   if (workspaceEnvOverrides(env)) {
     const model = resolveWorkspaceModel(env);
     return {
-      schema_version: "stem.workspaces.v1",
+      schema_version: "exograph.workspaces.v1",
       active_workspace_id: null,
       workspaces: [{
         id: null,
@@ -330,7 +330,7 @@ async function listCliWorkspaces(env: NodeJS.ProcessEnv): Promise<Record<string,
   const registry = await loadWorkspaceRegistry(env);
   const entries = await listWorkspaceRegistryEntries(env);
   return {
-    schema_version: "stem.workspaces.v1",
+    schema_version: "exograph.workspaces.v1",
     active_workspace_id: registry.activeWorkspaceId,
     workspaces: entries.map((entry) => ({
       id: entry.id,
@@ -382,21 +382,21 @@ async function startStemApp(
   launchApp: AppLauncher,
 ): Promise<number> {
   if (process.platform !== "darwin") {
-    stderr.write("`stem start` launches the packaged macOS app. Use `pnpm dev:qa` for source QA.\n");
+    stderr.write("`exo start` launches the packaged macOS app. Use `pnpm dev:qa` for source QA.\n");
     return 1;
   }
-  const candidates = [env.STEM_APP_PATH, path.join(env.HOME ?? "", "Applications", "Stem.app"), "/Applications/Stem.app"]
+  const candidates = [env.EXO_APP_PATH, env.STEM_APP_PATH, path.join(env.HOME ?? "", "Applications", "Exograph.app"), "/Applications/Exograph.app"]
     .filter((candidate): candidate is string => Boolean(candidate));
   const appPath = candidates.find((candidate) => existsSync(candidate));
   if (!appPath) {
-    stderr.write("Unable to find Stem.app. Install it with `scripts/install-mac-app --with-cli`, or set STEM_APP_PATH.\n");
+    stderr.write("Unable to find Exograph.app. Install it with `scripts/install-mac-app --with-cli`, or set EXO_APP_PATH.\n");
     return 1;
   }
   try {
     await launchApp(appPath, env);
     return 0;
   } catch {
-    stderr.write(`Unable to start Stem app at ${appPath}.\n`);
+    stderr.write(`Unable to start Exograph at ${appPath}.\n`);
     return 1;
   }
 }
@@ -481,15 +481,15 @@ function formatCliRuntimeDiagnostic(diagnostic: CliRuntimeDiagnostic): string {
 async function print(value: Promise<unknown> | unknown, stdout: { write(text: string): void }): Promise<number> { stdout.write(`${JSON.stringify(await value, null, 2)}\n`); return 0; }
 function commandHelp(command: string): string {
   const usage = {
-    start: "stem start",
-    show: "stem show",
-    workspaces: "stem workspaces",
-    status: "stem status [--workspace <id|label|path>]",
-    search: "stem search <query> [--limit n] [--cursor cursor] [--workspace <id|label|path>]",
-    index: "stem index [status|sync]",
-    open: "stem open <path>",
-    invoke: "stem invoke @handle <task>",
-    mcp: "stem mcp serve",
+    start: "exo start",
+    show: "exo show",
+    workspaces: "exo workspaces",
+    status: "exo status [--workspace <id|label|path>]",
+    search: "exo search <query> [--limit n] [--cursor cursor] [--workspace <id|label|path>]",
+    index: "exo index [status|sync]",
+    open: "exo open <path>",
+    invoke: "exo invoke @handle <task>",
+    mcp: "exo mcp serve",
   }[command];
   return usage ? `Usage: ${usage}\n` : help();
 }
@@ -498,9 +498,9 @@ function help(): string {
   return [
     STEM_CLI_USAGE,
     "",
-    "Workspace selection: stem workspaces; status/search accept --workspace <id|label|path>.",
+    "Workspace selection: exo workspaces; status/search accept --workspace <id|label|path>.",
     "App-off: status and search use the configured workspace's filesystem roots.",
-    "App-backed: show, index maintenance, open, and invoke require Stem to be running.",
+    "App-backed: show, index maintenance, open, and invoke require Exograph to be running.",
     "Developer source QA: pnpm dev:qa",
     "",
   ].join("\n");

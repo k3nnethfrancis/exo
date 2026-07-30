@@ -1066,12 +1066,12 @@ describe("QMD index adapter", () => {
     await mkdir(path.join(root, ".git"));
     const status = await qmdSearchProvider.getStatus(indexedModel(root, "lexical"), path.join(root, ".stem"));
 
-    expect(status.warnings).toContain("This Workspace is a Git repository and .stem/ is not ignored. Add .stem/ to .gitignore; Stem will not modify repository files automatically.");
+    expect(status.warnings).toContain("This Workspace is a Git repository and .stem/ is not ignored. Add .stem/ to .gitignore; Exograph will not modify repository files automatically.");
 
     await writeFile(path.join(root, ".gitignore"), "/.stem/\n", "utf8");
     const ignoredStatus = await qmdSearchProvider.getStatus(indexedModel(root, "lexical"), path.join(root, ".stem"));
 
-    expect(ignoredStatus.warnings).not.toContain("This Workspace is a Git repository and .stem/ is not ignored. Add .stem/ to .gitignore; Stem will not modify repository files automatically.");
+    expect(ignoredStatus.warnings).not.toContain("This Workspace is a Git repository and .stem/ is not ignored. Add .stem/ to .gitignore; Exograph will not modify repository files automatically.");
   });
 
   it("can scope updates to selected indexed roots", async () => {

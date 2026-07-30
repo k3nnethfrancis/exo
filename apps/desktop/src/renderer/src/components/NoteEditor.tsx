@@ -921,7 +921,7 @@ export function NoteEditor(props: NoteEditorProps) {
   if (!document) {
     return (
       <section className="editor-panel editor-panel--empty" data-testid="editor-empty">
-        <h1>Stem</h1>
+        <h1>Exograph</h1>
         <p>Open a note from the left sidebar to begin.</p>
       </section>
     );

@@ -1,5 +1,5 @@
-appId: computer.stem.desktop
-productName: Stem
+appId: computer.exograph.desktop
+productName: Exograph
 artifactName: ${productName}-${version}-${os}-${arch}.${ext}
 
 directories:

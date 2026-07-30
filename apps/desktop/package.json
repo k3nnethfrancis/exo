@@ -2,7 +2,7 @@
   "name": "@stem/desktop",
   "version": "0.1.0-alpha.3",
   "description": "Open-source knowledge-graph interface and Markdown editor for working alongside terminal agents.",
-  "author": "Stem contributors",
+  "author": "Exograph contributors",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",

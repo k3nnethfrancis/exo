@@ -1363,7 +1363,7 @@ function delay(milliseconds: number): Promise<void> {
 }
 
 function runtimeRootForWorkspace(workspaceRoot: string): string {
-  return process.env.STEM_RUNTIME_ROOT ?? path.join(workspaceRoot, ".stem");
+  return process.env.EXO_RUNTIME_ROOT ?? process.env.STEM_RUNTIME_ROOT ?? path.join(workspaceRoot, ".stem");
 }
 
 async function canonicalPathOrResolved(filePath: string): Promise<string> {

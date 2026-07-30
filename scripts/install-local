@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 export COREPACK_ENABLE_PROJECT_SPEC="${COREPACK_ENABLE_PROJECT_SPEC:-0}"
 
-PREFIX="${STEM_INSTALL_PREFIX:-$HOME/.local}"
+PREFIX="${EXO_INSTALL_PREFIX:-${STEM_INSTALL_PREFIX:-$HOME/.local}}"
 BIN_DIR=""
 RUN_INSTALL=1
 RUN_BUILD=1
@@ -16,14 +16,14 @@ usage() {
   cat <<'EOF'
 Usage: scripts/install-local [options]
 
-Installs a repo-backed local Stem command.
+Installs a repo-backed local Exo command.
 
 Options:
   --prefix <path>       Install under this prefix. Default: ~/.local
-  --bin-dir <path>      Install the stem shim into this bin directory.
+  --bin-dir <path>      Install the exo shim into this bin directory.
   --skip-install        Skip pnpm install.
   --skip-build          Skip pnpm build; requires an existing CLI build artifact.
-  --force               Replace an existing non-Stem stem command at the target.
+  --force               Replace an existing non-Exo command at the target.
   --dry-run             Print actions without changing files.
   -h, --help            Show this help.
 
@@ -34,7 +34,7 @@ EOF
 }
 
 log() {
-  printf '[stem install] %s\n' "$*"
+  printf '[exo install] %s\n' "$*"
 }
 
 run() {
@@ -100,8 +100,8 @@ if [ -z "$BIN_DIR" ]; then
   BIN_DIR="$PREFIX/bin"
 fi
 
-STEM_SOURCE="$REPO_ROOT/bin/stem"
-STEM_TARGET="$BIN_DIR/stem"
+STEM_SOURCE="$REPO_ROOT/bin/exo"
+STEM_TARGET="$BIN_DIR/exo"
 CLI_ARTIFACT="$REPO_ROOT/packages/cli/dist/index.cjs"
 
 if [ ! -x "$STEM_SOURCE" ]; then
@@ -123,7 +123,7 @@ if [ "$RUN_INSTALL" -eq 1 ]; then
 fi
 
 if [ "$RUN_BUILD" -eq 1 ]; then
-  log "building Stem"
+log "building Exograph"
   run pnpm --dir "$REPO_ROOT" build
 fi
 
@@ -144,28 +144,28 @@ if [ -e "$STEM_TARGET" ] || [ -L "$STEM_TARGET" ]; then
     fi
 
     if [ "$CURRENT_TARGET" = "$STEM_SOURCE" ]; then
-      log "existing Stem CLI shim already points at this checkout"
+      log "existing Exo CLI shim already points at this checkout"
     elif [ -f "$CURRENT_PATH" ] && grep -Fq 'packages/cli/dist/index.cjs' "$CURRENT_PATH"; then
-      log "replacing legacy Stem CLI shim"
+      log "replacing legacy Exo CLI shim"
       log "old: $CURRENT_PATH"
       log "new: $STEM_SOURCE"
-    elif [ ! -e "$STEM_TARGET" ] && [[ "$CURRENT_TARGET" == */bin/stem ]]; then
-      log "replacing dangling Stem CLI shim"
+    elif [ ! -e "$STEM_TARGET" ] && [[ "$CURRENT_TARGET" == */bin/exo ]]; then
+      log "replacing dangling Exo CLI shim"
       log "old: $CURRENT_TARGET"
       log "new: $STEM_SOURCE"
     elif [ "$FORCE" -ne 1 ]; then
-      echo "Refusing to replace non-Stem command: $STEM_TARGET -> $CURRENT_TARGET" >&2
+      echo "Refusing to replace non-Exo command: $STEM_TARGET -> $CURRENT_TARGET" >&2
       echo "Use --force only if you intend to replace that command." >&2
       exit 1
     fi
   elif [ "$FORCE" -ne 1 ]; then
-    echo "Refusing to replace non-Stem command: $STEM_TARGET" >&2
+    echo "Refusing to replace non-Exo command: $STEM_TARGET" >&2
     echo "Use --force only if you intend to replace that command." >&2
     exit 1
   fi
 fi
 
-log "installing stem command"
+log "installing exo command"
 run mkdir -p "$BIN_DIR"
 run ln -sfn "$STEM_SOURCE" "$STEM_TARGET"
 
@@ -177,8 +177,8 @@ Command:
   $STEM_TARGET
 
 Try:
-  stem start
-  stem status
+  exo start
+  exo status
 EOF
 
 case ":$PATH:" in
@@ -186,7 +186,7 @@ case ":$PATH:" in
   *)
     cat <<EOF
 
-Add this to your shell config if 'stem' is not found:
+Add this to your shell config if 'exo' is not found:
   export PATH="$BIN_DIR:\$PATH"
 EOF
     ;;

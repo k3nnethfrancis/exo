@@ -89,7 +89,7 @@ async function createOperations(
     };
   }
   const { model } = scope;
-  const runtimeRoot = env.STEM_RUNTIME_ROOT ?? path.join(model.workspaceRoot, ".stem");
+  const runtimeRoot = env.EXO_RUNTIME_ROOT ?? env.STEM_RUNTIME_ROOT ?? path.join(model.workspaceRoot, ".stem");
   const client = await connectApp(runtimeRoot, env).catch(() => null);
   if (client && (await clientMatchesWorkspace(client, model))) {
     return {

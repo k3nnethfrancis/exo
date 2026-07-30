@@ -43,7 +43,7 @@ export class AppLifecycleController {
       minWidth: 640,
       minHeight: 480,
       show: false,
-      title: "Stem",
+      title: "Exograph",
       backgroundColor: nativeTheme.shouldUseDarkColors ? "#111318" : "#f6ecda",
       icon: this.resolveWindowIconPath(),
       titleBarStyle: "hiddenInset",
@@ -173,7 +173,7 @@ export class AppLifecycleController {
     icon.setTemplateImage(true);
 
     this.tray = new Tray(icon);
-    this.tray.setToolTip("Stem");
+    this.tray.setToolTip("Exograph");
     this.updateTrayMenu();
     this.tray.on("click", () => this.showMainWindow());
   }
@@ -241,7 +241,7 @@ export class AppLifecycleController {
 
     const template: MenuItemConstructorOptions[] = [
       {
-        label: "Show Stem",
+        label: "Show Exograph",
         click: () => this.showMainWindow(),
       },
       {
@@ -250,7 +250,7 @@ export class AppLifecycleController {
       },
       { type: "separator" },
       {
-        label: "Stem is Running",
+        label: "Exograph is Running",
         enabled: false,
       },
       {
@@ -276,7 +276,7 @@ export class AppLifecycleController {
         },
       },
       { type: "separator" },
-      { label: "Quit Stem", click: () => void this.requestQuit() },
+      { label: "Quit Exograph", click: () => void this.requestQuit() },
     ];
 
     this.tray.setContextMenu(Menu.buildFromTemplate(template));
@@ -339,11 +339,11 @@ export class AppLifecycleController {
       return true;
     }
 
-    const message = runningTerminals.length === 1 ? "Quit Stem and stop 1 live terminal?" : `Quit Stem and stop ${runningTerminals.length} live terminals?`;
-    const detail = "Closing the window keeps Stem running in the background. Quitting Stem stops live terminal and agent processes.";
+    const message = runningTerminals.length === 1 ? "Quit Exograph and stop 1 live terminal?" : `Quit Exograph and stop ${runningTerminals.length} live terminals?`;
+    const detail = "Closing the window keeps Exograph running in the background. Quitting Exograph stops live terminal and agent processes.";
     const options = {
       type: "warning" as const,
-      buttons: ["Cancel", "Quit Stem"],
+      buttons: ["Cancel", "Quit Exograph"],
       defaultId: 0,
       cancelId: 0,
       message,

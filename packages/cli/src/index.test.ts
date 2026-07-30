@@ -41,10 +41,10 @@ describe("minimal Stem operator CLI", () => {
   });
 
   it.each([
-    ["search", "stem search <query>"],
-    ["status", "stem status"],
-    ["index", "stem index"],
-    ["mcp", "stem mcp serve"],
+    ["search", "exo search <query>"],
+    ["status", "exo status"],
+    ["index", "exo index"],
+    ["mcp", "exo mcp serve"],
   ])("prints subcommand help for %s without executing it", async (command, expectedUsage) => {
     let help = "";
     const connector = vi.fn(async () => client);
@@ -360,7 +360,7 @@ describe("minimal Stem operator CLI", () => {
     try {
       const listed = await run(["workspaces"]);
       expect(listed).toMatchObject({
-        schema_version: "stem.workspaces.v1",
+        schema_version: "exograph.workspaces.v1",
         workspaces: [
           { label: "beta", active: true },
           { label: "alpha", active: false },

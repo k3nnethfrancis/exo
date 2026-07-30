@@ -203,7 +203,7 @@ async function runtimeStateWarnings(runtimeRoot: string): Promise<string[]> {
   } catch {
     // A missing or unreadable .gitignore leaves the warning intentionally visible.
   }
-  return ["This Workspace is a Git repository and .stem/ is not ignored. Add .stem/ to .gitignore; Stem will not modify repository files automatically."];
+  return ["This Workspace is a Git repository and .stem/ is not ignored. Add .stem/ to .gitignore; Exograph will not modify repository files automatically."];
 }
 
 function ignoresStemRuntimePath(line: string): boolean {

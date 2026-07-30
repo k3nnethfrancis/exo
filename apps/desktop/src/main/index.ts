@@ -67,8 +67,8 @@ const sourceProjectRoot = resolveSourceProjectRoot();
 const gpuStartupPolicy = configureGpuStartup(app, process.env);
 const BOOTSTRAP_WORKSPACE_GENERATION = 0;
 
-if (process.env.STEM_USER_DATA_PATH) {
-  app.setPath("userData", process.env.STEM_USER_DATA_PATH);
+if (process.env.EXO_USER_DATA_PATH ?? process.env.STEM_USER_DATA_PATH) {
+  app.setPath("userData", process.env.EXO_USER_DATA_PATH ?? process.env.STEM_USER_DATA_PATH!);
 }
 
 process.on("uncaughtException", (error) => {
@@ -781,7 +781,7 @@ app.whenReady().then(async () => {
     logMain,
   });
   workspaceRuntimeCoordinator = new WorkspaceRuntimeCoordinator({
-    runtimeRootFor: (settings) => process.env.STEM_RUNTIME_ROOT ?? path.join(settings.workspaceRoot, ".stem"),
+    runtimeRootFor: (settings) => process.env.EXO_RUNTIME_ROOT ?? process.env.STEM_RUNTIME_ROOT ?? path.join(settings.workspaceRoot, ".stem"),
     recoverInvocations: (candidate) => invocationRunner.recoverWorkspace(candidate.settings),
     modelFromSettings: workspaceModelFromSettings,
     prepareNoteRoots: (candidate) => ensureNoteRoots(candidate.model),

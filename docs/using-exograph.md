@@ -1,6 +1,6 @@
-# Using Stem
+# Using Exograph
 
-Stem works over a folder of Markdown you control. It does not import that folder into a proprietary database: your files remain usable in any editor.
+Exograph works over a folder of Markdown you control. It does not import that folder into a proprietary database: your files remain usable in any editor.
 
 ## Set up a workspace
 

@@ -6,7 +6,7 @@ import type { CliInstallationStatus } from "../shared/api";
 import { commandEnvironment } from "./command/command-environment";
 
 const LEGACY_SHIM_MARKER = "packages/cli/dist/index.cjs";
-const PACKAGED_SHIM_MARKER = "stem-packaged-cli";
+const PACKAGED_SHIM_MARKER = "exograph-packaged-cli";
 
 export interface InspectCliInstallationOptions {
   env?: NodeJS.ProcessEnv;
@@ -27,21 +27,21 @@ export interface PackagedCliPaths {
 export function findSourceProjectRoot(candidates: string[]): string | undefined {
   return candidates.find((candidate) =>
     existsSync(path.join(candidate, "package.json"))
-    && existsSync(path.join(candidate, "bin", "stem"))
+    && existsSync(path.join(candidate, "bin", "exo"))
     && existsSync(path.join(candidate, "scripts", "install-local")),
   );
 }
 
 /**
- * Classify the first executable `stem` visible to the desktop app. This is
+ * Classify the first executable `exo` visible to the desktop app. This is
  * deliberately diagnostic only: installation remains an explicit shell step.
  */
 export async function inspectCliInstallation(
   { env = process.env, sourceProjectRoot, packagedCli }: InspectCliInstallationOptions = {},
 ): Promise<CliInstallationStatus> {
-  const sourcePath = sourceProjectRoot ? path.join(sourceProjectRoot, "bin", "stem") : undefined;
+  const sourcePath = sourceProjectRoot ? path.join(sourceProjectRoot, "bin", "exo") : undefined;
   const installCommand = sourceProjectRoot ? `cd ${shellQuote(sourceProjectRoot)} && ./scripts/install-local` : undefined;
-  const commandPath = await findExecutable("stem", commandEnvironment(env).PATH);
+  const commandPath = await findExecutable("exo", commandEnvironment(env).PATH);
 
   if (!commandPath) {
     return sourcePath ? { state: "missing", sourcePath, installCommand } : { state: "unavailable" };
@@ -82,9 +82,9 @@ export async function installPackagedCli(
   { env = process.env }: Pick<InspectCliInstallationOptions, "env"> = {},
 ): Promise<CliInstallationStatus> {
   const home = env.HOME || process.env.HOME;
-  if (!home) throw new Error("Stem could not determine your home folder for the CLI install.");
+  if (!home) throw new Error("Exograph could not determine your home folder for the CLI install.");
   const binDirectory = path.join(home, ".local", "bin");
-  const target = path.join(binDirectory, "stem");
+  const target = path.join(binDirectory, "exo");
   const existing = await existingCliKind(target);
   if (existing === "other") {
     throw new Error(`Refusing to replace the existing command at ${target}.`);

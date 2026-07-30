@@ -451,7 +451,7 @@ const solarDark: StemThemeVariant = {
 export const THEME_FAMILIES: StemThemeFamily[] = [
   {
     id: "stem-neutral",
-    label: "Stem Neutral",
+    label: "Exograph Neutral",
     description: "Restrained default palette for dense notes, code, and terminals.",
     variants: {
       light: neutralLight,
@@ -460,8 +460,8 @@ export const THEME_FAMILIES: StemThemeFamily[] = [
   },
   {
     id: "stem-solar",
-    label: "Stem Solar",
-    description: "Warm classic Stem palette with Solarized-like light surfaces.",
+    label: "Exograph Solar",
+    description: "Warm classic Exograph palette with Solarized-like light surfaces.",
     variants: {
       light: solarLight,
       dark: solarDark,

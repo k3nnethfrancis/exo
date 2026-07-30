@@ -949,14 +949,14 @@ export function App() {
       <div className="onboarding-shell" data-testid="onboarding">
         <div className="onboarding-card" data-testid="onboarding-card">
           <div className="onboarding-card__eyebrow">
-            {onboardingState.mode === "first-run" ? "Set up Stem" : "Switch workspace"}
+            {onboardingState.mode === "first-run" ? "Set up Exograph" : "Switch workspace"}
           </div>
           {onboardingState.step === "recovery" ? (
             <>
               <div className="onboarding-card__body" data-testid="onboarding-recovery">
                 <h1 className="onboarding-card__title">Setup progress needs recovery</h1>
                 <p className="onboarding-card__copy">
-                  {onboardingState.errorMessage ?? "Stem could not read the saved setup progress."}
+                  {onboardingState.errorMessage ?? "Exograph could not read the saved setup progress."}
                 </p>
                 <p className="onboarding-section__hint">
                   Restarting setup replaces only the saved setup draft. It does not delete your notes or provider-owned MCP configuration.
@@ -1047,7 +1047,7 @@ export function App() {
                     <div className="onboarding-section__header">
                       <div>
                         <div className="dialog-field__label">Main wiki</div>
-                        <div className="onboarding-section__hint">Required. Stem indexes Markdown inside this one folder.</div>
+                        <div className="onboarding-section__hint">Required. Exograph indexes Markdown inside this one folder.</div>
                       </div>
                       <button className="toolbar-button" data-testid="onboarding-choose-notes" onClick={() => void workspaceBootstrap.selectNotesFolderForOnboarding()} type="button">
                         Select
@@ -1116,7 +1116,7 @@ export function App() {
                 <h1 className="onboarding-card__title">Code repository detected</h1>
                 <p className="onboarding-card__copy">
                   {onboardingState.contentInspection?.signals.length
-                    ? `Stem found ${onboardingState.contentInspection.signals.join(" · ")}. `
+                    ? `Exograph found ${onboardingState.contentInspection.signals.join(" · ")}. `
                     : ""}
                   Code files never become Notes. Choose whether Markdown inside tool folders belongs in your graph.
                 </p>
@@ -1179,7 +1179,7 @@ export function App() {
                 />
                 <div className="onboarding-section onboarding-section--summary">
                   <div className="dialog-field__label">How invocations run</div>
-                  <div className="onboarding-section__hint">Messages are sent headlessly from the main wiki. Stem shows any document changes for review; it never grants a provider broader file access itself.</div>
+                  <div className="onboarding-section__hint">Messages are sent headlessly from the main wiki. Exograph shows any document changes for review; it never grants a provider broader file access itself.</div>
                 </div>
                 <details className="agent-invocation-prompt-disclosure">
                   <summary>Advanced</summary>
@@ -1195,7 +1195,7 @@ export function App() {
               </div>
               <div className="onboarding-card__actions">
                 <button className="toolbar-button" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "mcp" }))} type="button">Back</button>
-                <button className="toolbar-button toolbar-button--primary" disabled={onboardingState.status === "saving"} onClick={() => void workspaceBootstrap.completeOnboarding()} type="button">{onboardingState.status === "saving" ? "Opening…" : "Open Stem"}</button>
+                <button className="toolbar-button toolbar-button--primary" disabled={onboardingState.status === "saving"} onClick={() => void workspaceBootstrap.completeOnboarding()} type="button">{onboardingState.status === "saving" ? "Opening…" : "Open Exograph"}</button>
               </div>
             </>
           ) : (
@@ -1209,9 +1209,9 @@ export function App() {
                   <section className="onboarding-access onboarding-access--mcp" aria-labelledby="onboarding-mcp-title">
                     <div className="onboarding-access__header">
                       <ShieldCheck aria-hidden="true" size={16} strokeWidth={1.8} />
-                      <div><strong id="onboarding-mcp-title">MCP</strong><span>{cliReady ? "Read-only context · 2 tools" : "Requires Stem CLI"}</span></div>
+                    <div><strong id="onboarding-mcp-title">MCP</strong><span>{cliReady ? "Read-only context · 2 tools" : "Requires Exo CLI"}</span></div>
                     </div>
-                    <div className="onboarding-provider-menu" aria-label="Install Stem MCP in">
+                    <div className="onboarding-provider-menu" aria-label="Install Exograph MCP in">
                       <div className="onboarding-provider-menu__title">Install in</div>
                       {(["claude", "codex"] as const).map((provider) => (
                         <button
@@ -1238,7 +1238,7 @@ export function App() {
                         </button>
                       ))}
                     </div>
-                    <ul className="onboarding-mcp-tools" aria-label="Stem MCP tools">
+                    <ul className="onboarding-mcp-tools" aria-label="Exograph MCP tools">
                       <li>
                         <Database aria-hidden="true" size={16} strokeWidth={1.8} />
                         <span className="onboarding-mcp-tools__copy"><code>workspace_status</code><span>Wiki and search health</span></span>
@@ -1270,7 +1270,7 @@ export function App() {
                       <SquareTerminal aria-hidden="true" size={16} strokeWidth={1.8} />
                       <div><strong id="onboarding-cli-title">CLI</strong><span>Shell access · required by MCP</span></div>
                     </div>
-                    <div className="onboarding-cli-context"><code>stem search</code><code>stem open</code><code>stem invoke</code></div>
+                    <div className="onboarding-cli-context"><code>exo search</code><code>exo open</code><code>exo invoke</code></div>
                     <p className="onboarding-section__hint">Search returns paths. Agents use their own filesystem tools to inspect them.</p>
                     <div className={`onboarding-cli-installation onboarding-cli-installation--${cliInstallation?.state ?? "checking"}`} aria-live="polite">
                       {cliInstallation?.state === "current" ? <Check aria-hidden="true" size={15} strokeWidth={2.2} /> : <SquareTerminal aria-hidden="true" size={15} strokeWidth={1.8} />}
@@ -1312,7 +1312,7 @@ export function App() {
     );
   }
 
-  const workspaceLabel = workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "Stem";
+  const workspaceLabel = workspaceModel ? pathLabel(workspaceModel.workspaceRoot) : "Exograph";
   const titleSegments = activeDocument
     ? workspaceBreadcrumb(activeDocument.filePath, workspaceModel?.noteRoots.map((root) => root.path) ?? [])
     : [{ kind: "folder" as const, label: workspaceLabel, path: workspaceModel?.workspaceRoot ?? "" }];

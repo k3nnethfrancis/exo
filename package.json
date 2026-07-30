@@ -1,5 +1,5 @@
 {
-  "name": "stem",
+  "name": "exograph",
   "private": true,
   "version": "0.1.0-alpha.3",
   "description": "Open-source knowledge-graph interface and Markdown editor for working alongside terminal agents.",
@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "STEM_WORKSPACE_ROOT=${STEM_WORKSPACE_ROOT:-$PWD} STEM_DEFAULT_TERMINAL_CWD=${STEM_DEFAULT_TERMINAL_CWD:-$PWD} pnpm --filter @stem/desktop dev",
     "dev:qa": "STEM_WORKSPACE_ROOT=${STEM_WORKSPACE_ROOT:-$PWD} STEM_RUNTIME_ROOT=${STEM_RUNTIME_ROOT:-$PWD/.stem-dev} STEM_USER_DATA_PATH=${STEM_USER_DATA_PATH:-$PWD/.stem-dev/user-data} STEM_DEFAULT_TERMINAL_CWD=${STEM_DEFAULT_TERMINAL_CWD:-$PWD} pnpm --filter @stem/desktop dev",
-    "stem": "tsx packages/cli/src/index.ts",
+    "exo": "tsx packages/cli/src/index.ts",
     "install:local": "scripts/install-local",
     "install:mac-app": "scripts/install-mac-app",
     "ci:check": "pnpm check && ./scripts/install-local --dry-run --skip-install --skip-build",
