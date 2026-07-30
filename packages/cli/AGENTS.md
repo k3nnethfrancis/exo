@@ -13,8 +13,8 @@ workspace implementation.
 - MCP presentation over the same app-client contract: `src/mcp-server.ts`.
   Test `src/mcp-server.test.ts`.
 - Result shaping for agent-readable search output: `src/search-response.ts`.
-- Installed launcher behavior: `src/launcher.test.ts` and the root install
-  scripts; do not bury launcher policy in command parsing.
+- Installed launcher behavior: `bin/exograph`, `src/launcher.test.ts`, and the
+  root install scripts; do not bury launcher policy in command parsing.
 
 The shared route and wire types are `../core/src/command-protocol.ts`. Follow
 that source before changing a request or response.

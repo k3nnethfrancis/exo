@@ -20,7 +20,7 @@ async function createFixture() {
 
   const repo = path.join(root, "repo");
   const scripts = path.join(repo, "scripts");
-  const sourceBin = path.join(repo, "bin");
+  const sourceBin = path.join(repo, "packages", "cli", "bin");
   const targetBin = path.join(root, "target-bin");
   const tools = path.join(root, "tools");
   await Promise.all([
@@ -32,7 +32,7 @@ async function createFixture() {
 
   const installer = path.join(scripts, "install-local");
   const macInstaller = path.join(scripts, "install-mac-app");
-  const sourceLauncher = path.join(sourceBin, "exo");
+  const sourceLauncher = path.join(sourceBin, "exograph");
   const pnpm = path.join(tools, "pnpm");
   const uname = path.join(tools, "uname");
   await writeFile(installer, await readFile(sourceScript, "utf8"), "utf8");

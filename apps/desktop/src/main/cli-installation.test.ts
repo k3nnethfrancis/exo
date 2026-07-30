@@ -16,9 +16,9 @@ async function fixture() {
   roots.push(root);
   const bin = path.join(root, "path");
   const project = path.join(root, "project");
-  await mkdir(path.join(project, "bin"), { recursive: true });
+  await mkdir(path.join(project, "packages", "cli", "bin"), { recursive: true });
   await mkdir(bin, { recursive: true });
-  const source = path.join(project, "bin", "exo");
+  const source = path.join(project, "packages", "cli", "bin", "exograph");
   await writeFile(source, "#!/usr/bin/env node\n", "utf8");
   await chmod(source, 0o755);
   return { bin, project, root, source, command: path.join(bin, "exo") };
@@ -31,10 +31,10 @@ describe("CLI installation diagnosis", () => {
     const resources = path.join(root, "Exograph.app", "Contents", "Resources");
     const project = path.join(root, "project");
     await mkdir(path.join(resources, "assets"), { recursive: true });
-    await mkdir(path.join(project, "bin"), { recursive: true });
+    await mkdir(path.join(project, "packages", "cli", "bin"), { recursive: true });
     await mkdir(path.join(project, "scripts"), { recursive: true });
     await writeFile(path.join(project, "package.json"), "{}\n", "utf8");
-    await writeFile(path.join(project, "bin", "exo"), "#!/bin/sh\n", "utf8");
+    await writeFile(path.join(project, "packages", "cli", "bin", "exograph"), "#!/bin/sh\n", "utf8");
     await writeFile(path.join(project, "scripts", "install-local"), "#!/bin/sh\n", "utf8");
 
     expect(findSourceProjectRoot([resources])).toBeUndefined();

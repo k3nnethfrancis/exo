@@ -3,11 +3,11 @@ import { build } from "esbuild";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const cliRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 await build({
-  entryPoints: [path.join(root, "packages/cli/src/index.ts")],
-  outfile: path.join(root, "packages/cli/dist/index.cjs"),
+  entryPoints: [path.join(cliRoot, "src/index.ts")],
+  outfile: path.join(cliRoot, "dist/index.cjs"),
   bundle: true,
   platform: "node",
   target: "node22",

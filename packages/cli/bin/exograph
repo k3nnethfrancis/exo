@@ -8,13 +8,14 @@ while [ -L "$SOURCE" ]; do
   [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 
-ROOT="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
+CLI_ROOT="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
+REPO_ROOT="$(cd -P "$CLI_ROOT/../.." && pwd)"
 export COREPACK_ENABLE_PROJECT_SPEC="${COREPACK_ENABLE_PROJECT_SPEC:-0}"
 
-COMPILED_CLI="$ROOT/packages/cli/dist/index.cjs"
+COMPILED_CLI="$CLI_ROOT/dist/index.cjs"
 
 if [[ "${EXOGRAPH_CLI_USE_TSX:-0}" != "1" && -f "$COMPILED_CLI" ]]; then
   exec node "$COMPILED_CLI" "$@"
 fi
 
-exec pnpm --dir "$ROOT" exec tsx packages/cli/src/index.ts "$@"
+exec pnpm --dir "$REPO_ROOT" exec tsx packages/cli/src/index.ts "$@"

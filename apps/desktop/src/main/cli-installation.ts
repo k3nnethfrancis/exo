@@ -27,7 +27,7 @@ export interface PackagedCliPaths {
 export function findSourceProjectRoot(candidates: string[]): string | undefined {
   return candidates.find((candidate) =>
     existsSync(path.join(candidate, "package.json"))
-    && existsSync(path.join(candidate, "bin", "exo"))
+    && existsSync(path.join(candidate, "packages", "cli", "bin", "exograph"))
     && existsSync(path.join(candidate, "scripts", "install-local")),
   );
 }
@@ -39,7 +39,9 @@ export function findSourceProjectRoot(candidates: string[]): string | undefined 
 export async function inspectCliInstallation(
   { env = process.env, sourceProjectRoot, packagedCli }: InspectCliInstallationOptions = {},
 ): Promise<CliInstallationStatus> {
-  const sourcePath = sourceProjectRoot ? path.join(sourceProjectRoot, "bin", "exo") : undefined;
+  const sourcePath = sourceProjectRoot
+    ? path.join(sourceProjectRoot, "packages", "cli", "bin", "exograph")
+    : undefined;
   const installCommand = sourceProjectRoot ? `cd ${shellQuote(sourceProjectRoot)} && ./scripts/install-local` : undefined;
   const commandPath = await findExecutable("exo", commandEnvironment(env).PATH);
 
@@ -65,7 +67,12 @@ export async function inspectCliInstallation(
       const content = await readFile(resolvedTarget, "utf8");
       if (content.includes(LEGACY_SHIM_MARKER)) return { state: "legacy-exograph", ...common };
     } catch {
-      if (linkTarget.endsWith("/bin/exograph") || linkTarget === "bin/exograph") return { state: "legacy-exograph", ...common };
+      if (
+        linkTarget.endsWith("/bin/exo")
+        || linkTarget === "bin/exo"
+        || linkTarget.endsWith("/bin/exograph")
+        || linkTarget === "bin/exograph"
+      ) return { state: "legacy-exograph", ...common };
     }
     return { state: "non-exograph", ...common };
   } catch {

@@ -100,7 +100,7 @@ if [ -z "$BIN_DIR" ]; then
   BIN_DIR="$PREFIX/bin"
 fi
 
-EXO_SOURCE="$REPO_ROOT/bin/exo"
+EXO_SOURCE="$REPO_ROOT/packages/cli/bin/exograph"
 EXO_TARGET="$BIN_DIR/exo"
 CLI_ARTIFACT="$REPO_ROOT/packages/cli/dist/index.cjs"
 
@@ -149,7 +149,11 @@ if [ -e "$EXO_TARGET" ] || [ -L "$EXO_TARGET" ]; then
       log "replacing legacy Exo CLI shim"
       log "old: $CURRENT_PATH"
       log "new: $EXO_SOURCE"
-    elif [ ! -e "$EXO_TARGET" ] && [[ "$CURRENT_TARGET" == */bin/exo ]]; then
+    elif [ ! -e "$EXO_TARGET" ] && [[
+      "$CURRENT_TARGET" == */bin/exo
+      || "$CURRENT_TARGET" == */bin/exograph
+      || "$CURRENT_TARGET" == */packages/cli/bin/exograph
+    ]]; then
       log "replacing dangling Exo CLI shim"
       log "old: $CURRENT_TARGET"
       log "new: $EXO_SOURCE"

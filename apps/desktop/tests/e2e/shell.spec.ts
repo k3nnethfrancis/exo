@@ -1339,7 +1339,7 @@ test("keeps the command server available while the window is hidden", async () =
 });
 
 function runExographCli(args: string[], env: NodeJS.ProcessEnv) {
-  return spawnSync(path.join(repoRoot, "bin/exograph"), args, {
+  return spawnSync(path.join(repoRoot, "packages/cli/bin/exograph"), args, {
     cwd: repoRoot,
     env,
     encoding: "utf8",

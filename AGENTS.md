@@ -22,7 +22,8 @@ documentation.
 - `packages/cli` — local CLI and MCP presentation.
 - `evals/graph` — Exograph's internal graph-rendering regression suite.
 - `skills` — reusable provider-neutral instructions for contributors and coding agents.
-- `scripts` and `.github/workflows` — build, installation, and CI.
+- `scripts` and `.github/workflows` — repository installation, release, and CI.
+  Package-specific build helpers stay with their package.
 
 Subdirectory `AGENTS.md` files identify the closest source and test owner.
 

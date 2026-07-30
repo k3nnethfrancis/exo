@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const binPath = path.join(repoRoot, "bin/exo");
+const binPath = path.join(repoRoot, "packages/cli/bin/exograph");
 const distDir = path.join(repoRoot, "packages/cli/dist");
 const distPath = path.join(distDir, "index.cjs");
 let previousDist: Buffer | null = null;
@@ -31,7 +31,7 @@ afterEach(async () => {
   await Promise.all(tempPaths.splice(0).map((targetPath) => rm(targetPath, { recursive: true, force: true })));
 });
 
-describe("bin/exo launcher", () => {
+describe("packages/cli/bin/exograph launcher", () => {
   it("prefers compiled CLI JavaScript when present", async () => {
     const marker = path.join(await tempDir(), "launcher-marker.txt");
     await writeCompiledMarker();
