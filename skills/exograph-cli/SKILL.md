@@ -1,9 +1,9 @@
 ---
-name: use-exograph-cli
-description: Use the local `exo` CLI to discover Exograph workspaces, inspect workspace and search health, retrieve relevant Markdown context, maintain the local index, open notes, or invoke configured terminal Commands. Use when Exograph can provide workspace orientation, indexed knowledge, or note paths before acting.
+name: exograph-cli
+description: Use Exograph's local `exo` CLI to discover workspaces, inspect status, search indexed Markdown, manage indexing, open notes, and invoke configured agents. Use for Exograph workspace context; prefer native filesystem tools for exact file work.
 ---
 
-# Use Exograph CLI
+# Exograph CLI
 
 Exograph is a local-first Markdown editor and knowledge-graph interface. Its
 `exo` CLI supplements native filesystem tools; it does not replace them.
