@@ -4,7 +4,7 @@ These are reusable Markdown instructions for contributors and compatible coding
 agents. They do not execute automatically and do not grant filesystem, process,
 or network authority.
 
-- [design-workspace-ontology](design-workspace-ontology/SKILL.md) — inspect a
+- [ontology-design](ontology-design/SKILL.md) — inspect a
   Markdown workspace and propose the smallest evidence-backed `ontology.yaml`.
 - [graph-system-stability](graph-system-stability/SKILL.md) — preserve graph
   ownership, performance, and renderer boundaries.

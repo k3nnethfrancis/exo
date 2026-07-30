@@ -1,9 +1,9 @@
 ---
-name: design-workspace-ontology
+name: ontology-design
 description: Inspect an existing Markdown Workspace and propose the smallest evidence-backed ontology.yaml without changing the Workspace. Use only when the user asks to discover, design, or revise a Workspace Ontology.
 ---
 
-# Design Workspace Ontology
+# Ontology Design
 
 Inspect the Workspace, then propose the smallest useful Ontology supported by
 its actual conventions.
