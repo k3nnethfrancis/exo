@@ -44,14 +44,14 @@ for the full lifecycle and review rules.
 
 MCP and the CLI are independent:
 
-- Install the local `exograph` command with `./scripts/install-local`, or install
+- Install the local `exo` command with `./scripts/install-local`, or install
   the macOS app and CLI together with `./scripts/install-mac-app --with-cli`.
 - The selected provider's own CLI must be installed before Exograph can add its MCP
   configuration.
 - An existing provider registration means the server is already installed; MCP
-  setup does not replace the local `exograph` launcher.
+  setup does not replace the local `exo` command.
 
-`exograph status` and `exograph search` can work without the desktop app. `exograph show`,
-`exograph index`, `exograph open`, and `exograph invoke` require the resident app. See [CLI and
+`exo status` and `exo search` can work without the desktop app. `exo show`,
+`exo index`, `exo open`, and `exo invoke` require the resident app. See [CLI and
 MCP](cli.md) for the exact command surface and [MCP onboarding](provider-mcp-onboarding.md)
 for scope and security boundaries.

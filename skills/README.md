@@ -10,6 +10,8 @@ or network authority.
   compact, legible, and decision-oriented.
 - [graph-system-stability](graph-system-stability/SKILL.md) — preserve graph
   ownership, performance, and renderer boundaries.
+- [use-exograph-cli](use-exograph-cli/SKILL.md) — route workspace orientation,
+  indexed retrieval, and operator actions through the local `exo` command.
 - [terminal-stability](terminal-stability/SKILL.md) — preserve direct-PTY and
   xterm ownership.
 - [submit-exograph-issue](submit-exograph-issue/SKILL.md) — file clear reports through

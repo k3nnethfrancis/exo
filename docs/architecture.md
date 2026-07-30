@@ -61,7 +61,7 @@ packages/core
   └─ pure parsing, validation, persistence helpers, and shared protocol types
 
 packages/cli
-  ├─ `exograph` JSON command surface
+  ├─ `exo` JSON command surface
   └─ read-only stdio MCP server
 ```
 
@@ -134,7 +134,7 @@ have broader same-user operating-system access, so Exograph never claims to have
 reviewed external writes.
 
 Inline invocations use a document envelope and a headless process. CLI
-`exograph invoke` instead opens a visible terminal task. Both paths share command
+`exo invoke` instead opens a visible terminal task. Both paths share command
 validation; only the inline path has document context and in-note review.
 
 ### Terminal

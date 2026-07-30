@@ -1,0 +1,4 @@
+interface:
+  display_name: "Use Exograph CLI"
+  short_description: "Find and operate Exograph workspace context"
+  default_prompt: "Use $use-exograph-cli to find the relevant workspace context before acting."

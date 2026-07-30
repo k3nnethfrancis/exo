@@ -15,28 +15,32 @@ From an Exograph checkout:
 ./scripts/install-local
 ```
 
-This builds Exograph and installs a repo-backed `exograph` launcher in `~/.local/bin` by default. `./scripts/install-mac-app --with-cli` installs the unsigned app and the same local launcher together.
+This builds Exograph and installs the repo-backed `exo` command in
+`~/.local/bin` by default. `./scripts/install-mac-app --with-cli` installs the
+unsigned app and the same local command together.
 
 When using `--skip-build`, the CLI installer requires an existing non-empty
 `packages/cli/dist/index.cjs` build artifact. Build the CLI first with
 `pnpm --filter @exograph/cli build`, or omit `--skip-build`; the installer refuses
-to replace an existing `exograph` command when that artifact is missing or empty.
+to replace an existing `exo` command when that artifact is missing or empty.
 
 ## Commands
 
 ```text
-exograph [start]
-exograph show
-exograph workspaces
-exograph status [--workspace <id|label|path>]
-exograph search <query> [--limit n] [--cursor cursor] [--workspace <id|label|path>]
-exograph index [status|sync]
-exograph open <path>
-exograph invoke @handle <task>
-exograph mcp serve
+exo [start]
+exo show
+exo workspaces
+exo status [--workspace <id|label|path>]
+exo search <query> [--limit n] [--cursor cursor] [--workspace <id|label|path>]
+exo index [status|sync]
+exo open <path>
+exo invoke @handle <task>
+exo mcp serve
 ```
 
-`exograph status` and `exograph search` work when the desktop app is not running. They resolve a saved workspace, use bounded filesystem retrieval, and report that the app is unavailable rather than claiming indexed app results.
+`exo status` and `exo search` work when the desktop app is not running. They
+resolve a saved workspace, use bounded filesystem retrieval, and report that
+the app is unavailable rather than claiming indexed app results.
 
 When runtime discovery fails, app-off status includes
 `app.diagnostic`, and app-off search includes the same object as `runtime`.
@@ -48,7 +52,7 @@ remain available and continue to name `filesystem` as their effective provider.
 `show`, `index`, `open`, and `invoke` require the resident Exograph app. `invoke` opens a visible terminal task and is intentionally different from a note-native `@` invocation, which carries document context and uses inline review.
 
 Search output is JSON with ranked paths, titles, snippets, source metadata, and an optional cursor. It does not grant filesystem authority: callers read a returned path only through their own allowed tools.
-Search limits must be integers from 1 through 20. Use `exograph <command> --help`
+Search limits must be integers from 1 through 20. Use `exo <command> --help`
 for command-specific usage; unknown options, missing option values, and invalid
 limits exit unsuccessfully instead of being silently normalized.
 
@@ -57,7 +61,7 @@ limits exit unsuccessfully instead of being silently normalized.
 Onboarding can install Exograph MCP into locally installed Claude or Codex. It adds a provider-owned configuration entry that starts:
 
 ```text
-exograph mcp serve
+exo mcp serve
 ```
 
 The server exposes exactly two read-only tools:

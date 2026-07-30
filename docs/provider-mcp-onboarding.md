@@ -9,7 +9,7 @@ the Exograph CLI is for shell-capable clients. MCP is optional and does not repl
 the CLI. The onboarding screen installs MCP explicitly, then configures local
 CLI Commands for inline invocation.
 
-Shell-capable clients can use `exograph workspaces`, `exograph status`, and `exograph search`
+Shell-capable clients can use `exo workspaces`, `exo status`, and `exo search`
 directly. `status` and `search` accept an explicit `--workspace
 <id|label|path>` selector. Search returns a bounded page of ranked paths and
 metadata; callers inspect a returned path with their own native filesystem
@@ -18,7 +18,7 @@ clients receive the two read-only discovery tools below.
 
 ## What agents receive
 
-The installed `exograph` server gives an agent exactly two discovery tools:
+The installed Exograph MCP server gives an agent exactly two discovery tools:
 
 - `workspace_status` — resolved Workspace identity and roots, app availability, and retrieval health.
 - `search_notes` — scoped search across the resolved Workspace's Note Roots. It returns a bounded ranked page with absolute and root-relative paths, title, snippet, score, source metadata, and an optional opaque cursor. It uses the running app's configured retrieval only when that app Workspace is the same resolved scope; otherwise it uses bounded filesystem retrieval.
@@ -42,11 +42,15 @@ different Workspace, Exograph safely uses bounded filesystem retrieval instead.
 The person selects Claude and/or Codex, then explicitly chooses **Install MCP**. Exograph delegates to the provider's native configuration CLI:
 
 ```text
-claude mcp add --scope user exograph -- exograph mcp serve
-codex mcp add exograph -- exograph mcp serve
+claude mcp add --scope user exo -- exo mcp serve
+codex mcp add exo -- exo mcp serve
 ```
 
-The provider owns its config and authentication. Exograph owns the `exograph mcp serve` process only. The local `exograph` command must be installed and on `PATH` (or `EXOGRAPH_CLI_PATH` can point at it); run `scripts/install-local` from the intended checkout to install or update its repo-backed shim. MCP setup never installs or replaces that CLI command.
+The provider owns its config and authentication. Exograph owns the `exo mcp
+serve` process only. The local `exo` command must be installed and on `PATH`
+(or `EXOGRAPH_CLI_PATH` can point at it); run `scripts/install-local` from the
+intended checkout to install or update its repo-backed shim. MCP setup never
+installs or replaces that CLI command.
 
 Exograph does not install or maintain provider instruction files or Skills. Tool
 descriptions establish the local search-then-read rule; any provider-specific
