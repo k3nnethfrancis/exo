@@ -53,9 +53,12 @@ test("keeps the direct PTY and xterm stable with Electron hardware acceleration"
       const session = (await window.exograph.terminals.list())[0];
       return session ? window.exograph.terminals.read(session.id) : "";
     })).toContain("gpu-scroll-300");
+    await expect(surface).toContainText("gpu-scroll-300");
     await surface.hover();
+    await expect.poll(async () => page.locator(".xterm-viewport").evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+    const scrollTopBeforeWheel = await page.locator(".xterm-viewport").evaluate((element) => element.scrollTop);
     await page.mouse.wheel(0, -50_000);
-    await expect.poll(async () => page.locator(".xterm-viewport").evaluate((element) => element.scrollTop)).toBeLessThan(1_000);
+    await expect.poll(async () => page.locator(".xterm-viewport").evaluate((element) => element.scrollTop)).toBeLessThan(scrollTopBeforeWheel);
 
     await page.getByTestId("utility-pane-preview").click();
     await expect(page.getByTestId("preview-empty-state")).toBeVisible();
