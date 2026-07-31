@@ -63,9 +63,11 @@ pnpm check
 ```
 
 Use `pnpm dev` for source iteration, `pnpm dev:qa` for isolated source QA, and
-a packaged `Exograph.app` for first-run or installed-app evidence. Run focused owner
-tests before the broad gate and update public documentation for user-visible
-changes.
+a packaged `Exograph.app` for first-run or installed-app evidence. Pull requests
+run the canonical harness plus one real Electron smoke. Main pushes produce a
+read-only unsigned candidate artifact; only the explicit, version-matched macOS
+release workflow may create a draft release. Run focused owner tests before the
+broad gate and update public documentation for user-visible changes.
 
 File bugs and feature requests in GitHub Issues. Keep plans, review packets,
 agent logs, and private operational notes outside this repository.

@@ -1,0 +1,133 @@
+name: Release macOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact package version to release
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-macos-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      artifact: ${{ steps.release.outputs.artifact }}
+    steps:
+      - name: Checkout exact request
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - name: Validate main, version, and release identity
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Release requests must run from the main branch, not $GITHUB_REF." >&2
+            exit 1
+          fi
+
+          git fetch --no-tags origin main
+          MAIN_SHA="$(git rev-parse origin/main)"
+          if [[ "$GITHUB_SHA" != "$MAIN_SHA" ]]; then
+            echo "Requested SHA $GITHUB_SHA is not current main $MAIN_SHA." >&2
+            exit 1
+          fi
+
+          VERSION="$(node -p "require('./package.json').version")"
+          if [[ "$REQUESTED_VERSION" != "$VERSION" ]]; then
+            echo "Requested version $REQUESTED_VERSION does not match package version $VERSION." >&2
+            exit 1
+          fi
+          for MANIFEST in apps/desktop/package.json packages/core/package.json packages/cli/package.json; do
+            PACKAGE_VERSION="$(node -p "require('./${MANIFEST}').version")"
+            if [[ "$PACKAGE_VERSION" != "$VERSION" ]]; then
+              echo "Version mismatch: $MANIFEST is $PACKAGE_VERSION; root is $VERSION." >&2
+              exit 1
+            fi
+          done
+
+          TAG="v$VERSION"
+          git fetch --tags origin
+          if git show-ref --verify --quiet "refs/tags/$TAG"; then
+            echo "$TAG already exists." >&2
+            exit 1
+          fi
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "A GitHub Release already exists for $TAG. Refusing to create a duplicate." >&2
+            exit 1
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "artifact=exograph-$VERSION-macos-arm64-unsigned" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Build verified release candidate
+    needs: validate
+    uses: ./.github/workflows/package-macos.yml
+    permissions:
+      contents: read
+
+  publish:
+    name: Create draft prerelease
+    needs:
+      - validate
+      - package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: ${{ needs.validate.outputs.artifact }}
+          path: release-assets
+
+      - name: Verify and publish exact assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+        shell: bash
+        run: |
+          cd release-assets
+          sha256sum -c SHA256SUMS.txt
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "A GitHub Release already exists for $RELEASE_TAG. Refusing to create a duplicate." >&2
+            exit 1
+          fi
+
+          RELEASE_FILES=()
+          while IFS= read -r FILE; do
+            RELEASE_FILES+=("$FILE")
+          done < <(find . -maxdepth 1 -type f \( -name '*.dmg' -o -name '*.zip' \) | sort)
+          RELEASE_FILES+=("SHA256SUMS.txt")
+
+          gh release create "$RELEASE_TAG" "${RELEASE_FILES[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Exograph $RELEASE_TAG" \
+            --generate-notes \
+            --prerelease \
+            --draft
