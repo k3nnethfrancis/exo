@@ -10,6 +10,10 @@ files:
   - dist/**/*
   - package.json
 
+extraResources:
+  - from: ../../skills/find-and-connect-relevant-context
+    to: skills/find-and-connect-relevant-context
+
 mac:
   category: public.app-category.productivity
   icon: build/icon.icns

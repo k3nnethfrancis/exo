@@ -79,6 +79,8 @@ domain logic.
 | `WorkspaceFiles` | canonical paths, Note Root containment, symlink policy, watchers | graph/search interpretation |
 | `WorkspaceGraph` | graph snapshots, evidence, backlinks, ontology review and local context | rendering or direct UI state |
 | `WorkspaceIndex` | provider selection, search health, sync, honest degradation | Note/graph identity |
+| `OntologyDiscoveryCoordinator` | one serialized discovery transaction: trusted Command selection, frozen graph/Ontology identity, provider execution, validation, Candidate staging, and notification | renderer state or direct Markdown mutation |
+| `useWorkspaceBootstrap` + `OnboardingFlow` | one renderer setup model and its dedicated UI, including persisted resume/recovery and local CLI/MCP feedback | a second onboarding state machine or runtime activation authority |
 | `TerminalManager` | direct PTY lifecycle and bounded reload tail | provider-specific agent semantics |
 | `InvocationRunner` | command trust, process ownership, changesets, review, recovery | renderer UI decisions |
 | `WorkspaceCanvas` | pane tree, focus, split/move/close, layout persistence | filesystem or process access |

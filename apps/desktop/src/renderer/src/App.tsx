@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { Check, Database, Folder, Search, ShieldCheck, SquareTerminal } from "lucide-react";
 import type {
   AgentCommand,
   IndexStatus,
@@ -8,10 +7,9 @@ import type {
   WorkspaceModel,
   WorkspaceSettings,
 } from "@exograph/core";
-import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@exograph/core/workspace-content-policy";
 import type { InvocationActivityEvent } from "@exograph/core/invocation-activity";
 
-import type { CliInstallationStatus, ProviderMcpSetupResult, TerminalSessionInfo } from "../../shared/api";
+import type { TerminalSessionInfo } from "../../shared/api";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type AgentComposeRequest, type EditorPaneState } from "./components/EditorPane";
@@ -24,14 +22,11 @@ import {
 } from "./components/invocation";
 import { AppInvocationAuthorizationGate } from "./appInvocationAuthorization";
 import { cancelInlineAgentDraft, type InlineAgentDraft } from "./components/inlineAgentComposer";
-import { PathList } from "./components/PathList";
+import { OnboardingFlow } from "./components/OnboardingFlow";
 import { ShellLayout } from "./components/ShellLayout";
 import { TerminalDock } from "./components/TerminalDock";
 import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
 import { WorkspaceRuntimeApplyNotice } from "./components/WorkspaceRuntimeApplyNotice";
-import { AgentInvocationPromptEditor } from "./components/AgentInvocationPromptEditor";
-import { AgentCommandConfigurator } from "./components/AgentCommandConfigurator";
-import { AgentIcon } from "./components/AgentIcon";
 import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments, type OpenEditorDocument } from "./hooks/useOpenDocuments";
 import { useInspectedConcept, type InspectedConcept } from "./hooks/useInspectedConcept";
@@ -87,6 +82,7 @@ import {
   invocationReviewSourcePath,
   invocationReviewVirtualPath,
 } from "./invocationReviewQueue";
+import { refreshInvocationReviewAfterResolution } from "./invocationReviewResolution";
 
 type ZoomSurface = "editor" | "terminal" | "explorer";
 
@@ -108,14 +104,6 @@ export function App() {
   const [qmdSearchSelected, setQmdSearchSelected] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter, qmdSelected: qmdSearchSelected });
   const graphInspection = useInspectedConcept();
-  const [onboardingMcp, setOnboardingMcp] = useState({
-    status: "idle" as "idle" | "saving" | "done" | "error",
-    results: [] as ProviderMcpSetupResult[],
-    errorMessage: null as string | null,
-  });
-  const [cliInstallation, setCliInstallation] = useState<CliInstallationStatus | null>(null);
-  const [cliInstallStatus, setCliInstallStatus] = useState<"idle" | "saving" | "error">("idle");
-  const [cliInstallError, setCliInstallError] = useState<string | null>(null);
   const [revealExplorerPathRequest, setRevealExplorerPathRequest] = useState<{ path: string; nonce: number } | null>(null);
   const [inspectorTabRequest, setInspectorTabRequest] = useState<{ tab: "history"; nonce: number } | null>(null);
   const [pendingInvocationAuthorization, setPendingInvocationAuthorization] = useState<PendingInvocationAuthorization | null>(null);
@@ -178,18 +166,6 @@ export function App() {
     workspaceSettingsRef,
     workspaceSettingsRevisionRef,
   } = workspaceBootstrap;
-  useEffect(() => {
-    if (onboardingState?.step !== "mcp") return;
-    setOnboardingMcp({ status: "idle", results: [], errorMessage: null });
-    setCliInstallStatus("idle");
-    setCliInstallError(null);
-    let cancelled = false;
-    void window.exograph.workspace.getCliInstallationStatus()
-      .then((status) => { if (!cancelled) setCliInstallation(status); })
-      .catch(() => { if (!cancelled) setCliInstallation({ state: "unavailable" }); });
-    return () => { cancelled = true; };
-  }, [onboardingState?.step]);
-  const cliReady = cliInstallation?.state === "current";
   const workspaceSettingsController = useWorkspaceSettingsController({
     workspaceSettingsRef,
     workspaceSettingsRevisionRef,
@@ -282,6 +258,7 @@ export function App() {
     decisionPending: invocationReviewDecisionPending,
     frozenPaths: invocationReviewFrozenPaths,
     history: invocationHistory,
+    historyError: invocationHistoryError,
   } = invocationReviewController;
 
   useEffect(() => {
@@ -652,22 +629,12 @@ export function App() {
     action: "keep" | "reject",
   ) {
     if (!payload) return;
-    const virtualPath = invocationReviewVirtualPath(payload);
-    if (virtualPath && openDocuments[virtualPath]) {
-      canvasNavigation.removeDeletedPaths(virtualPath);
-    }
-    if (action === "keep") return;
-    const beforePath = payload.change.before?.path;
-    const afterPath = payload.change.after?.path;
-    if (payload.change.operation === "created" && afterPath) {
-      canvasNavigation.removeDeletedPaths(afterPath);
-      return;
-    }
-    if (payload.change.operation === "renamed" && afterPath) canvasNavigation.removeDeletedPaths(afterPath);
-    const restoredPath = beforePath ?? afterPath;
-    if (!restoredPath) return;
-    if (openDocuments[restoredPath]) await discardAndReloadDocument(restoredPath).catch(() => undefined);
-    else await canvasNavigation.openFile(restoredPath);
+    await refreshInvocationReviewAfterResolution(payload, action, {
+      isDocumentOpen: (filePath) => Boolean(openDocuments[filePath]),
+      removeOpenPath: canvasNavigation.removeDeletedPaths,
+      reloadDocument: discardAndReloadDocument,
+      openDocument: canvasNavigation.openFile,
+    });
   }
 
   async function resumeInvocationInTerminal(
@@ -730,7 +697,10 @@ export function App() {
       return;
     }
     try {
-      const prepared = await window.exograph.workspace.prepareGraphMaintenanceSkill({ documentPath: filePath });
+      const prepared = await window.exograph.workspace.prepareGraphMaintenanceSkill({
+        documentPath: filePath,
+        commandId: command.id,
+      });
       await canvasNavigation.openFile(filePath, findEditorLeaf(canvasTree)?.id);
       const nonce = agentComposeNonceRef.current + 1;
       agentComposeNonceRef.current = nonce;
@@ -944,371 +914,13 @@ export function App() {
   }
 
   if (onboardingState) {
-    const selectedWorkspace = onboardingState.workspaces.find((workspace) => workspace.id === onboardingState.selectedWorkspaceId) ?? null;
     return (
-      <div className="onboarding-shell" data-testid="onboarding">
-        <div className="onboarding-card" data-testid="onboarding-card">
-          <div className="onboarding-card__eyebrow">
-            {onboardingState.mode === "first-run" ? "Set up Exograph" : "Switch workspace"}
-          </div>
-          {onboardingState.step === "recovery" ? (
-            <>
-              <div className="onboarding-card__body" data-testid="onboarding-recovery">
-                <h1 className="onboarding-card__title">Setup progress needs recovery</h1>
-                <p className="onboarding-card__copy">
-                  {onboardingState.errorMessage ?? "Exograph could not read the saved setup progress."}
-                </p>
-                <p className="onboarding-section__hint">
-                  Restarting setup replaces only the saved setup draft. It does not delete your notes or provider-owned MCP configuration.
-                </p>
-              </div>
-              <div className="onboarding-card__actions">
-                <button
-                  className="toolbar-button toolbar-button--primary"
-                  data-testid="onboarding-restart-setup"
-                  onClick={() => void workspaceBootstrap.resetMalformedOnboardingProgress()}
-                  type="button"
-                >
-                  Restart setup
-                </button>
-              </div>
-            </>
-          ) : onboardingState.step === "select" ? (
-            <>
-              <div className="onboarding-card__body" data-testid="onboarding-card-body">
-                <h1 className="onboarding-card__title">Choose a wiki</h1>
-                <p className="onboarding-card__copy">
-                  Each workspace begins with one main Markdown wiki. It keeps its own search, appearance, and agent settings.
-                </p>
-                <div className="workspace-picker" data-testid="workspace-picker">
-                  {onboardingState.workspaces.length > 0 ? (
-                    onboardingState.workspaces.map((workspace) => (
-                      <button
-                        className={`workspace-picker__item${workspace.id === onboardingState.selectedWorkspaceId ? " workspace-picker__item--selected" : ""}`}
-                        data-testid="workspace-picker-item"
-                        key={workspace.id}
-                        onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                          ...current,
-                          selectedWorkspaceId: workspace.id,
-                        }))}
-                        type="button"
-                      >
-                        <span className="workspace-picker__name">{workspace.label}</span>
-                        <span className="workspace-picker__path">{workspace.notesFolder}</span>
-                      </button>
-                    ))
-                  ) : (
-                    <div className="path-list__empty" data-testid="workspace-picker-empty">No workspaces yet.</div>
-                  )}
-                </div>
-                {selectedWorkspace ? (
-                  <div className="onboarding-section onboarding-section--summary" data-testid="workspace-picker-detail">
-                    <div className="dialog-field__label">{selectedWorkspace.label}</div>
-                    <div className="onboarding-section__hint">{selectedWorkspace.notesFolder}</div>
-                    <div className="workspace-picker__meta">
-                      search {selectedWorkspace.settings.indexing.mode}
-                      {" | "}
-                      terminal {pathLabel(selectedWorkspace.settings.defaultTerminalCwd)}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-              <div className="onboarding-card__actions">
-                {onboardingState.mode === "switch" ? (
-                  <button className="toolbar-button" onClick={() => setOnboardingState(null)} type="button">
-                    Cancel
-                  </button>
-                ) : null}
-                <button className="toolbar-button" data-testid="workspace-picker-new" onClick={workspaceBootstrap.startNewWorkspaceSetup} type="button">
-                  New main wiki
-                </button>
-                <button
-                  className="toolbar-button toolbar-button--primary"
-                  data-testid="workspace-picker-open"
-                  disabled={!onboardingState.selectedWorkspaceId || onboardingState.status === "saving"}
-                  onClick={() => void workspaceBootstrap.activateSelectedWorkspace()}
-                  type="button"
-                >
-                  {onboardingState.status === "saving" ? "Opening…" : "Open wiki"}
-                </button>
-              </div>
-            </>
-          ) : onboardingState.step === "configure" ? (
-            <>
-              <div className="onboarding-card__body" data-testid="onboarding-card-body">
-                <h1 className="onboarding-card__title">
-                  {onboardingState.mode === "first-run" ? "Choose your main wiki" : "Choose a main wiki"}
-                </h1>
-                <p className="onboarding-card__copy">
-                  Pick the Markdown folder Exograph should treat as this workspace. You can make another Workspace for a separate wiki later.
-                </p>
-                <div className="onboarding-grid">
-                  <div className="onboarding-section onboarding-section--primary">
-                    <div className="onboarding-section__header">
-                      <div>
-                        <div className="dialog-field__label">Main wiki</div>
-                        <div className="onboarding-section__hint">Required. Exograph indexes Markdown inside this one folder.</div>
-                      </div>
-                      <button className="toolbar-button" data-testid="onboarding-choose-notes" onClick={() => void workspaceBootstrap.selectNotesFolderForOnboarding()} type="button">
-                        Select
-                      </button>
-                    </div>
-                    <PathList
-                      emptyLabel="No main wiki selected."
-                      paths={onboardingState.notesFolder ? [onboardingState.notesFolder] : []}
-                      testId="onboarding-notes-folder"
-                      onRemove={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                        ...current,
-                        notesFolder: "",
-                      }))}
-                    />
-                  </div>
-                  <details className="onboarding-section onboarding-section--advanced">
-                    <summary>Advanced</summary>
-                    <div className="onboarding-section__header">
-                      <div>
-                        <div className="dialog-field__label">Default terminal</div>
-                        <div className="onboarding-section__hint">Where new shell, Claude, and Codex sessions start.</div>
-                      </div>
-                      <button className="toolbar-button" data-testid="onboarding-choose-terminal" onClick={() => void workspaceBootstrap.selectDefaultTerminalForOnboarding()} type="button">
-                        Select
-                      </button>
-                    </div>
-                    <PathList
-                      emptyLabel={onboardingState.notesFolder ? "Defaults to the parent of your notes folder." : "Defaults after you choose notes."}
-                      paths={onboardingState.defaultTerminalCwd ? [onboardingState.defaultTerminalCwd] : []}
-                      testId="onboarding-terminal-folder"
-                      onRemove={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                        ...current,
-                        defaultTerminalCwd: "",
-                      }))}
-                    />
-                  </details>
-                </div>
-              </div>
-              <div className="onboarding-card__actions">
-                {onboardingState.workspaces.length > 0 || onboardingState.mode === "switch" ? (
-                  <button
-                    className="toolbar-button"
-                    onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                      ...current,
-                      step: "select",
-                    }))}
-                    type="button"
-                  >
-                    Back
-                  </button>
-                ) : null}
-                <button
-                  className="toolbar-button toolbar-button--primary"
-                  data-testid="onboarding-continue"
-                  disabled={!onboardingState.notesFolder.trim() || onboardingState.status === "saving"}
-                  onClick={() => void workspaceBootstrap.continueFromWorkspaceConfigure()}
-                  type="button"
-                >
-                  Continue
-                </button>
-              </div>
-            </>
-          ) : onboardingState.step === "scope" ? (
-            <>
-              <div className="onboarding-card__body" data-testid="onboarding-card-body">
-                <h1 className="onboarding-card__title">Code repository detected</h1>
-                <p className="onboarding-card__copy">
-                  {onboardingState.contentInspection?.signals.length
-                    ? `Exograph found ${onboardingState.contentInspection.signals.join(" · ")}. `
-                    : ""}
-                  Code files never become Notes. Choose whether Markdown inside tool folders belongs in your graph.
-                </p>
-                <div className="onboarding-scope-options" data-testid="onboarding-content-scope">
-                  <button
-                    aria-pressed={onboardingState.contentPolicy.excludedPaths.length > 0}
-                    className={`onboarding-scope-option${onboardingState.contentPolicy.excludedPaths.length > 0 ? " onboarding-scope-option--selected" : ""}`}
-                    data-testid="onboarding-content-scope-notes"
-                    onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                      ...current,
-                      contentPolicy: repositoryWorkspaceContentPolicy(),
-                      contentPolicyChoice: "explicit",
-                    }))}
-                    type="button"
-                  >
-                    <Folder aria-hidden="true" size={18} strokeWidth={1.8} />
-                    <span><strong>Repository Markdown</strong><small>Recommended. Keeps authored docs and notes; skips build output and dependency folders.</small></span>
-                    {onboardingState.contentPolicy.excludedPaths.length > 0 ? <Check aria-label="Selected" size={16} strokeWidth={2.2} /> : null}
-                  </button>
-                  <button
-                    aria-pressed={onboardingState.contentPolicy.excludedPaths.length === 0}
-                    className={`onboarding-scope-option${onboardingState.contentPolicy.excludedPaths.length === 0 ? " onboarding-scope-option--selected" : ""}`}
-                    data-testid="onboarding-content-scope-all"
-                    onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                      ...current,
-                      contentPolicy: defaultWorkspaceContentPolicy(),
-                      contentPolicyChoice: "explicit",
-                    }))}
-                    type="button"
-                  >
-                    <Database aria-hidden="true" size={18} strokeWidth={1.8} />
-                    <span><strong>All Markdown</strong><small>Includes every Markdown file, including generated docs. Code files still stay out.</small></span>
-                    {onboardingState.contentPolicy.excludedPaths.length === 0 ? <Check aria-label="Selected" size={16} strokeWidth={2.2} /> : null}
-                  </button>
-                </div>
-                <div className="onboarding-section__hint">Tool folders include build, dist, coverage, node_modules, release, and vendor.</div>
-              </div>
-              <div className="onboarding-card__actions">
-                <button className="toolbar-button" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "configure" }))} type="button">Back</button>
-                <button className="toolbar-button toolbar-button--primary" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "mcp" }))} type="button">Continue to tools</button>
-              </div>
-            </>
-          ) : onboardingState.step === "agents" ? (
-            <>
-              <div className="onboarding-card__body" data-testid="onboarding-card-body">
-                <h1 className="onboarding-card__title">Set up agents</h1>
-                <p className="onboarding-card__copy">
-                  Exograph invokes agents through their installed local CLIs. These commands stay on this computer and can be edited later in Settings.
-                </p>
-                <AgentCommandConfigurator
-                  commands={onboardingState.agentCommands}
-                  onChange={(agentCommands, change) => {
-                    if (change === "confirm") {
-                      void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, agentCommands }));
-                      return;
-                    }
-                    setOnboardingState((current) => current ? { ...current, agentCommands } : current);
-                  }}
-                  testId="onboarding-agents-config"
-                />
-                <div className="onboarding-section onboarding-section--summary">
-                  <div className="dialog-field__label">How invocations run</div>
-                  <div className="onboarding-section__hint">Messages are sent headlessly from the main wiki. Exograph shows any document changes for review; it never grants a provider broader file access itself.</div>
-                </div>
-                <details className="agent-invocation-prompt-disclosure">
-                  <summary>Advanced</summary>
-                  <AgentInvocationPromptEditor
-                    onSave={(agentInvocationPrompt) => void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                      ...current,
-                      agentInvocationPrompt,
-                    }))}
-                    testId="onboarding-invocation-prompt"
-                    value={onboardingState.agentInvocationPrompt}
-                  />
-                </details>
-              </div>
-              <div className="onboarding-card__actions">
-                <button className="toolbar-button" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "mcp" }))} type="button">Back</button>
-                <button className="toolbar-button toolbar-button--primary" disabled={onboardingState.status === "saving"} onClick={() => void workspaceBootstrap.completeOnboarding()} type="button">{onboardingState.status === "saving" ? "Opening…" : "Open Exograph"}</button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="onboarding-card__body" data-testid="onboarding-card-body">
-                <h1 className="onboarding-card__title">Agent access</h1>
-                <p className="onboarding-card__copy">
-                  Choose CLI, MCP, or both.
-                </p>
-                <div className="onboarding-section onboarding-section--primary">
-                  <section className="onboarding-access onboarding-access--mcp" aria-labelledby="onboarding-mcp-title">
-                    <div className="onboarding-access__header">
-                      <ShieldCheck aria-hidden="true" size={16} strokeWidth={1.8} />
-                    <div><strong id="onboarding-mcp-title">MCP</strong><span>{cliReady ? "Read-only context · 2 tools" : "Requires Exo CLI"}</span></div>
-                    </div>
-                    <div className="onboarding-provider-menu" aria-label="Install Exograph MCP in">
-                      <div className="onboarding-provider-menu__title">Install in</div>
-                      {(["claude", "codex"] as const).map((provider) => (
-                        <button
-                          aria-pressed={onboardingState.selectedMcpProviders.includes(provider)}
-                          className={`onboarding-provider-menu__item ${onboardingState.selectedMcpProviders.includes(provider) ? "onboarding-provider-menu__item--active" : ""}`}
-                          key={provider}
-                          onClick={() => {
-                            setOnboardingMcp({ status: "idle", results: [], errorMessage: null });
-                            void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                              ...current,
-                              selectedMcpProviders: current.selectedMcpProviders.includes(provider)
-                                ? current.selectedMcpProviders.filter((entry) => entry !== provider)
-                                : [...current.selectedMcpProviders, provider],
-                            }));
-                          }}
-                          type="button"
-                        >
-                          <AgentIcon kind={provider} size={16} />
-                          <span className="onboarding-provider-menu__copy">
-                            <span>{provider === "claude" ? "Claude" : "Codex"}</span>
-                            <small>{provider === "claude" ? "claude mcp add" : "codex mcp add"}</small>
-                          </span>
-                          {onboardingState.selectedMcpProviders.includes(provider) ? <Check aria-label="Selected" size={15} strokeWidth={2.2} /> : null}
-                        </button>
-                      ))}
-                    </div>
-                    <ul className="onboarding-mcp-tools" aria-label="Exograph MCP tools">
-                      <li>
-                        <Database aria-hidden="true" size={16} strokeWidth={1.8} />
-                        <span className="onboarding-mcp-tools__copy"><code>workspace_status</code><span>Wiki and search health</span></span>
-                        <span className="onboarding-mcp-tools__access">Read</span>
-                      </li>
-                      <li>
-                        <Search aria-hidden="true" size={16} strokeWidth={1.8} />
-                        <span className="onboarding-mcp-tools__copy"><code>search_notes</code><span>Paths, titles, and snippets</span></span>
-                        <span className="onboarding-mcp-tools__access">Read</span>
-                      </li>
-                    </ul>
-                    <div className="onboarding-card__actions onboarding-card__actions--inline">
-                      <button className="toolbar-button" disabled={!cliReady || onboardingState.selectedMcpProviders.length === 0 || onboardingMcp.status === "saving"} onClick={() => void (async () => {
-                        setOnboardingMcp((current) => ({ ...current, status: "saving", errorMessage: null, results: [] }));
-                        try {
-                          await workspaceBootstrap.persistCurrentOnboardingState();
-                          const results = await window.exograph.workspace.configureProviderMcp({ providers: onboardingState.selectedMcpProviders });
-                          setOnboardingMcp((current) => ({ ...current, status: results.every((result) => result.ok) ? "done" : "error", results, errorMessage: results.some((result) => !result.ok) ? "MCP setup needs attention." : null }));
-                        } catch (error) {
-                          setOnboardingMcp((current) => ({ ...current, status: "error", errorMessage: error instanceof Error ? error.message : String(error), results: [] }));
-                        }
-                      })()} type="button">{onboardingMcp.status === "saving" ? "Installing…" : "Install MCP"}</button>
-                    </div>
-                    {onboardingMcp.errorMessage ? <div className="dialog-card__status dialog-card__status--error">{onboardingMcp.errorMessage}</div> : null}
-                    {onboardingMcp.results.map((result) => <div className={`dialog-card__status${result.ok ? "" : " dialog-card__status--error"}`} key={result.provider}>{result.detail}</div>)}
-                  </section>
-                  <section className="onboarding-access onboarding-access--cli" aria-labelledby="onboarding-cli-title">
-                    <div className="onboarding-access__header">
-                      <SquareTerminal aria-hidden="true" size={16} strokeWidth={1.8} />
-                      <div><strong id="onboarding-cli-title">CLI</strong><span>Shell access · required by MCP</span></div>
-                    </div>
-                    <div className="onboarding-cli-context"><code>exo search</code><code>exo open</code><code>exo invoke</code></div>
-                    <p className="onboarding-section__hint">Search returns paths. Agents use their own filesystem tools to inspect them.</p>
-                    <div className={`onboarding-cli-installation onboarding-cli-installation--${cliInstallation?.state ?? "checking"}`} aria-live="polite">
-                      {cliInstallation?.state === "current" ? <Check aria-hidden="true" size={15} strokeWidth={2.2} /> : <SquareTerminal aria-hidden="true" size={15} strokeWidth={1.8} />}
-                      <span>
-                        <strong>{cliReady ? "CLI ready" : cliInstallation?.state === "non-exograph" ? "Existing command kept" : "CLI not installed"}</strong>
-                        {cliReady ? <small>exograph is available to shells and MCP hosts</small> : <small>Installs the CLI bundled with this app.</small>}
-                      </span>
-                    </div>
-                    {!cliReady ? <button className="toolbar-button" disabled={cliInstallStatus === "saving"} onClick={() => void (async () => {
-                      setCliInstallStatus("saving");
-                      setCliInstallError(null);
-                      try {
-                        const status = await window.exograph.workspace.installCli();
-                        setCliInstallation(status);
-                        setCliInstallStatus("idle");
-                      } catch (error) {
-                        setCliInstallStatus("error");
-                        setCliInstallError(error instanceof Error ? error.message : String(error));
-                      }
-                    })()} type="button">{cliInstallStatus === "saving" ? "Installing…" : "Install CLI"}</button> : null}
-                    {cliInstallError ? <div className="dialog-card__status dialog-card__status--error">{cliInstallError}</div> : null}
-                  </section>
-                </div>
-              </div>
-              <div className="onboarding-card__actions">
-                <button className="toolbar-button" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({
-                  ...current,
-                  step: current.contentInspection?.kind === "repository" ? "scope" : "configure",
-                }))} type="button">Back</button>
-                <button className="toolbar-button toolbar-button--primary" onClick={() => void workspaceBootstrap.confirmOnboardingChange((current) => ({ ...current, step: "agents" }))} type="button">Set up CLI agents</button>
-              </div>
-            </>
-          )}
-          {onboardingState.step !== "recovery" && onboardingState.errorMessage ? (
-            <div className="dialog-card__status dialog-card__status--error">{onboardingState.errorMessage}</div>
-          ) : null}
-        </div>
-      </div>
+      <OnboardingFlow
+        actions={workspaceBootstrap}
+        onDismiss={() => setOnboardingState(null)}
+        onEditState={(update) => setOnboardingState((current) => current ? update(current) : current)}
+        state={onboardingState}
+      />
     );
   }
 
@@ -1555,7 +1167,7 @@ export function App() {
                   : null
               }
               editingFrozen={Boolean(pane.activePath && invocationReviewFrozenPaths.includes(pane.activePath))}
-              historyAvailable={invocationHistory.length > 0}
+              historyAvailable={invocationHistory.length > 0 || Boolean(invocationHistoryError)}
               onOpenHistory={() => {
                 openConnectionsSurface();
                 setInspectorTabRequest({ tab: "history", nonce: Date.now() });
@@ -1579,12 +1191,12 @@ export function App() {
           </>
         );
       }}
-      connections={<InspectorDock document={inspectedDocument} graphContext={inspectedGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={null} tagResults={[]} invocationHistory={invocationHistory} requestedTab={inspectorTabRequest} onOpenInvocationHistory={(item) => {
+      connections={<InspectorDock document={inspectedDocument} graphContext={inspectedGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={null} tagResults={[]} invocationHistory={invocationHistory} invocationHistoryError={invocationHistoryError} requestedTab={inspectorTabRequest} onOpenInvocationHistory={(item) => {
         invocationReviewController.openHistory(item);
       }} onResumeInvocation={(id) => {
         const item = invocationHistory.find((candidate) => candidate.invocationId === id);
         void resumeInvocationInTerminal(id, item?.command);
-      }} onToggle={toggleConnectionsSurface} onOpenGraphCanvas={openGraphCanvas} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exograph.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
+      }} onRetryInvocationHistory={invocationReviewController.retryHistory} onToggle={toggleConnectionsSurface} onOpenGraphCanvas={openGraphCanvas} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exograph.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
       connectionsOpen={isUtilityDestinationActive(utilityState, "connections")}

@@ -1,11 +1,12 @@
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createDefaultCodexAgentCommand } from "@exograph/core";
 import {
   normalizeOntologyDiscoveryResponse,
+  OntologyDiscoveryCoordinator,
   runOntologyDiscovery,
 } from "./ontology-discovery";
 
@@ -13,6 +14,138 @@ const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))));
 
 describe("ontology discovery", () => {
+  it("owns trusted Command selection, frozen identity, staging, and notification as one transaction", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-ontology-coordinator-test-"));
+    roots.push(root);
+    const noteRoot = path.join(root, "notes");
+    const notifyCandidateChanged = vi.fn();
+    const guard = {
+      candidateSourcePath: "ontology.yaml",
+      candidateRevision: null,
+      activationRevision: null,
+      baseSnapshotId: "graph-snapshot",
+    };
+    let previewCount = 0;
+    const coordinator = new OntologyDiscoveryCoordinator({
+      getCommands: () => [createDefaultCodexAgentCommand()],
+      getWorkspace: () => ({
+        workspaceRoot: root,
+        runtimeRoot: path.join(root, ".exograph"),
+        noteRoots: [noteRoot],
+      }),
+      getCommandLaunchFacts: async () => ({
+        launchable: true,
+        executablePath: "/usr/bin/true",
+      }),
+      getCommandTrust: async () => ({ trusted: true }),
+      ensureSkill: async () => ({
+        id: "design-workspace-ontology",
+        label: "Design workspace ontology",
+        path: path.join(noteRoot, "skills", "design-workspace-ontology.md"),
+        revision: "a".repeat(64),
+        source: "Inspect without writing.",
+      }),
+      invalidateDerivedState: vi.fn(),
+      previewOntology: async () => ({
+        library: [],
+        active: { state: "generic" },
+        candidate: previewCount++ < 2
+          ? { state: "absent", sourcePath: null, revision: null, pending: false, rejected: false }
+          : { state: "valid", sourcePath: "ontology.yaml", revision: "candidate", pending: true, rejected: false },
+        guard,
+        diagnostics: [],
+        omittedDiagnostics: 0,
+      }),
+      getGraphTopology: async () => ({ sourceSnapshotId: "graph-snapshot" }),
+      runDiscovery: async ({ command, skill }) => ({
+        response: normalizeOntologyDiscoveryResponse(proposal()),
+        command: {
+          id: command.id,
+          handle: command.handle,
+          label: command.label,
+          adapter: command.adapter,
+        },
+        skill,
+      }),
+      notifyCandidateChanged,
+    });
+
+    await expect(coordinator.discover()).resolves.toMatchObject({
+      status: "staged",
+      summary: "One observed note type.",
+      graphSnapshotId: "graph-snapshot",
+    });
+    expect(notifyCandidateChanged).toHaveBeenCalledOnce();
+  });
+
+  it("serializes discovery inside the transaction owner and releases the lock after completion", async () => {
+    const command = createDefaultCodexAgentCommand();
+    const guard = {
+      candidateSourcePath: "ontology.yaml",
+      candidateRevision: null,
+      activationRevision: null,
+      baseSnapshotId: "graph-snapshot",
+    };
+    let releaseDiscovery!: () => void;
+    const discoveryReleased = new Promise<void>((resolve) => {
+      releaseDiscovery = resolve;
+    });
+    const coordinator = new OntologyDiscoveryCoordinator({
+      getCommands: () => [command],
+      getWorkspace: () => ({
+        workspaceRoot: "/workspace",
+        runtimeRoot: "/workspace/.exograph",
+        noteRoots: ["/workspace/notes"],
+      }),
+      getCommandLaunchFacts: async () => ({
+        launchable: true,
+        executablePath: "/usr/bin/true",
+      }),
+      getCommandTrust: async () => ({ trusted: true }),
+      ensureSkill: async () => ({
+        id: "design-workspace-ontology",
+        label: "Design workspace ontology",
+        path: "/workspace/notes/skills/design-workspace-ontology.md",
+        revision: "a".repeat(64),
+        source: "Inspect without writing.",
+      }),
+      invalidateDerivedState: vi.fn(),
+      previewOntology: async () => ({
+        library: [],
+        active: { state: "generic" },
+        candidate: { state: "absent", sourcePath: null, revision: null, pending: false, rejected: false },
+        guard,
+        diagnostics: [],
+        omittedDiagnostics: 0,
+      }),
+      getGraphTopology: async () => ({ sourceSnapshotId: "graph-snapshot" }),
+      runDiscovery: async ({ skill }) => {
+        await discoveryReleased;
+        return {
+          response: normalizeOntologyDiscoveryResponse({
+            ...proposal(),
+            outcome: "abstain",
+            candidateSource: null,
+          }),
+          command: {
+            id: command.id,
+            handle: command.handle,
+            label: command.label,
+            adapter: command.adapter,
+          },
+          skill,
+        };
+      },
+      notifyCandidateChanged: vi.fn(),
+    });
+
+    const first = coordinator.discover();
+    await expect(coordinator.discover()).rejects.toThrow("already running");
+    releaseDiscovery();
+    await expect(first).resolves.toMatchObject({ status: "abstained" });
+    await expect(coordinator.discover()).resolves.toMatchObject({ status: "abstained" });
+  });
+
   it("runs a configured provider against a disposable Markdown snapshot", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exograph-ontology-discovery-test-"));
     roots.push(root);

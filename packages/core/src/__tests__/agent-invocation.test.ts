@@ -14,6 +14,7 @@ import {
   normalizeInvocationRecord,
 } from "../agent-invocation";
 import {
+  containsDocumentAgentProtocolSyntax,
   findDocumentAgentEnvelopes,
   formatDocumentAgentInvocation,
   formatDocumentAgentResponse,
@@ -402,6 +403,22 @@ describe("agent invocation model", () => {
       expect.objectContaining({ kind: "invocation", id: invocationId, agent: "claude", status: "sent" }),
       expect.objectContaining({ kind: "response", invocationId, agent: "claude" }),
     ]);
+  });
+
+  it("renders durable exo invocation envelopes created before the product rename", () => {
+    const invocationId = "11111111-1111-4111-8111-111111111111";
+    const document = [
+      "# Note",
+      `<exo-invocation id="${invocationId}" agent="claude" status="sent">\n@claude inspect this note\n</exo-invocation>`,
+      `<exo-agent-response invocation="${invocationId}" agent="claude">\nThe durable result.\n</exo-agent-response>`,
+    ].join("\n\n");
+
+    expect(findDocumentAgentEnvelopes(document)).toEqual([
+      expect.objectContaining({ kind: "invocation", id: invocationId, agent: "claude", status: "sent" }),
+      expect.objectContaining({ kind: "response", invocationId, agent: "claude" }),
+    ]);
+    expect(containsDocumentAgentProtocolSyntax(document)).toBe(true);
+    expect(containsDocumentAgentProtocolSyntax("ordinary prose about an invocation")).toBe(false);
   });
 
   it("renders an id-less source envelope but never treats it as an executable V1 invocation", () => {

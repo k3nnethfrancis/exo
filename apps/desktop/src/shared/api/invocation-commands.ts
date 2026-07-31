@@ -146,7 +146,10 @@ export interface RendererEditorDiagnostic {
 export interface WorkspaceInvocationApi {
   launchAgentInvocation: (input: LaunchAgentInvocationInput) => Promise<LaunchAgentInvocationResponse>;
   getAgentInvocationAuthorization: (input: { handle: string; documentPath: string }) => Promise<AgentInvocationAuthorizationFacts>;
-  prepareGraphMaintenanceSkill: (input: { documentPath: string }) => Promise<PreparedGraphMaintenanceSkill>;
+  prepareGraphMaintenanceSkill: (input: {
+    documentPath: string;
+    commandId: string;
+  }) => Promise<PreparedGraphMaintenanceSkill>;
   discoverOntology: () => Promise<OntologyDiscoveryResult>;
   getAgentCommandContinuity: (commandId: string) => Promise<AgentCommandContinuityStatus>;
   resetAgentCommandContinuity: (commandId: string) => Promise<{ cleared: number }>;

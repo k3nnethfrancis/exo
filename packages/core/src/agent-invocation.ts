@@ -120,7 +120,7 @@ export interface InvocationRecord {
   /** Provider-emitted provenance, never inferred from command output. */
   providerSessionId?: string;
   continuity: InvocationContinuitySummary;
-  /** Exact user-owned Skill and graph interpretation supplied to this run. */
+  /** Exact native Skill source and graph interpretation supplied to this run. */
   skill?: InvocationSkillContext;
   /** Exact multi-file proposal derived from immutable launch/settled manifests. */
   changeset?: InvocationChangeset;

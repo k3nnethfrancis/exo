@@ -59,8 +59,12 @@ function git(root, args) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 }
 
-function trackedFiles(root) {
-  return execFileSync("git", ["ls-files", "-z"], { cwd: root })
+function reviewableFiles(root) {
+  return execFileSync(
+    "git",
+    ["ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+    { cwd: root },
+  )
     .toString("utf8")
     .split("\0")
     .filter(Boolean)
@@ -149,7 +153,15 @@ function codeEdges(node, fileSet, packageEntrypoints) {
   };
   const visit = (item) => {
     if ((ts.isImportDeclaration(item) || ts.isExportDeclaration(item)) && item.moduleSpecifier && ts.isStringLiteral(item.moduleSpecifier)) {
-      add(item.moduleSpecifier.text, ts.isImportDeclaration(item) ? "imports" : "re-exports");
+      const typeOnly = ts.isImportDeclaration(item)
+        ? item.importClause?.isTypeOnly === true
+        : item.isTypeOnly === true;
+      add(
+        item.moduleSpecifier.text,
+        ts.isImportDeclaration(item)
+          ? typeOnly ? "imports-type" : "imports"
+          : typeOnly ? "re-exports-type" : "re-exports",
+      );
     } else if (ts.isCallExpression(item) && item.arguments.length === 1 && ts.isStringLiteral(item.arguments[0])) {
       if (item.expression.kind === ts.SyntaxKind.ImportKeyword) add(item.arguments[0].text, "dynamic-imports");
       if (ts.isIdentifier(item.expression) && item.expression.text === "require") add(item.arguments[0].text, "requires");
@@ -215,8 +227,19 @@ function inferredTestEdges(nodes, fileSet) {
   for (const node of nodes) {
     const match = node.path.match(/^(.*?)(?:\.test|\.spec)(\.[cm]?[jt]sx?)$/);
     if (!match) continue;
-    const source = `${match[1]}${match[2]}`;
-    if (fileSet.has(source)) edges.push({ from: node.path, to: source, kind: "tests", detail: "co-located" });
+    const candidates = [
+      `${match[1]}${match[2]}`,
+      `${match[1].replace(/\/__tests__\//, "/")}${match[2]}`,
+    ];
+    const source = candidates.find((candidate) => fileSet.has(candidate));
+    if (source) {
+      edges.push({
+        from: node.path,
+        to: source,
+        kind: "tests",
+        detail: source === candidates[0] ? "co-located" : "__tests__ sibling",
+      });
+    }
   }
   return edges;
 }
@@ -257,7 +280,7 @@ function rootFiles(nodes) {
 }
 
 function createState(root, prior, base) {
-  const files = trackedFiles(root);
+  const files = reviewableFiles(root);
   const fileSet = new Set(files);
   const changed = changedFiles(root, base);
   const nodes = files.map((relativePath) => {
@@ -339,9 +362,11 @@ function relationshipPriority(kind) {
   return {
     tests: 0,
     imports: 1,
+    "imports-type": 1,
     requires: 1,
     "dynamic-imports": 2,
     "re-exports": 3,
+    "re-exports-type": 3,
     documents: 4,
     "governed-by": 5,
   }[kind] ?? 6;

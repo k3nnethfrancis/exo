@@ -101,6 +101,20 @@ export async function runInvocationReviewDecision<Result>(
   return operations.decide();
 }
 
+export async function loadInvocationHistoryState(
+  filePath: string,
+  load: (filePath: string) => Promise<InvocationHistoryItem[]>,
+): Promise<{ items: InvocationHistoryItem[] | null; error: string | null }> {
+  try {
+    return { items: await load(filePath), error: null };
+  } catch (error) {
+    return {
+      items: null,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
 export function useInvocationReviewController(options: InvocationReviewControllerOptions) {
   const renderedWorkspaceIdentityRef = useRef<InvocationReviewWorkspaceIdentity | null>(null);
   renderedWorkspaceIdentityRef.current = captureInvocationReviewWorkspaceIdentity(renderedWorkspaceIdentityRef.current, options.workspaceKey);
@@ -108,6 +122,8 @@ export function useInvocationReviewController(options: InvocationReviewControlle
   const workspaceStateIdentityRef = useRef(workspaceIdentity);
   const [queueState, setQueueState] = useState<InvocationReviewQueueState>(EMPTY_INVOCATION_REVIEW_QUEUE);
   const [historyState, setHistoryState] = useState<InvocationHistoryItem[]>([]);
+  const [historyErrorState, setHistoryErrorState] = useState<string | null>(null);
+  const [historyReloadNonce, setHistoryReloadNonce] = useState(0);
   const [decisionPendingState, setDecisionPendingState] = useState(false);
   const [frozenPathsState, setFrozenPathsState] = useState<string[]>([]);
   const hydrationRequestRef = useRef(0);
@@ -122,6 +138,9 @@ export function useInvocationReviewController(options: InvocationReviewControlle
   const history = projectionIsCurrent
     ? historyState
     : [];
+  const historyError = projectionIsCurrent
+    ? historyErrorState
+    : null;
   const decisionPending = projectionIsCurrent
     ? decisionPendingState
     : false;
@@ -145,6 +164,7 @@ export function useInvocationReviewController(options: InvocationReviewControlle
     setDecisionPendingState(false);
     setFrozenPathsState([]);
     setHistoryState([]);
+    setHistoryErrorState(null);
     setQueueState(options.workspaceKey ? beginInvocationReviewHydration() : EMPTY_INVOCATION_REVIEW_QUEUE);
     if (!options.workspaceKey) return;
     let cancelled = false;
@@ -168,23 +188,20 @@ export function useInvocationReviewController(options: InvocationReviewControlle
     const decision = invocationHistoryLoadDecision(options.historyDocument);
     if (!options.workspaceKey || decision.kind === "clear") {
       setHistoryState([]);
+      setHistoryErrorState(null);
       return;
     }
     if (decision.kind === "preserve") return;
     let cancelled = false;
-    void window.exograph.workspace.listInvocationHistory(decision.filePath)
-      .then((items) => {
+    void loadInvocationHistoryState(decision.filePath, window.exograph.workspace.listInvocationHistory)
+      .then((result) => {
         if (!cancelled && workspaceIsCurrent(identity) && request === historyRequestRef.current) {
-          setHistoryState(items);
-        }
-      })
-      .catch(() => {
-        if (!cancelled && workspaceIsCurrent(identity) && request === historyRequestRef.current) {
-          setHistoryState([]);
+          if (result.items) setHistoryState(result.items);
+          setHistoryErrorState(result.error);
         }
       });
     return () => { cancelled = true; };
-  }, [options.historyDocument?.filePath, options.historyDocument?.readOnly, options.workspaceKey, workspaceIdentity, workspaceIsCurrent]);
+  }, [historyReloadNonce, options.historyDocument?.filePath, options.historyDocument?.readOnly, options.workspaceKey, workspaceIdentity, workspaceIsCurrent]);
 
   useEffect(() => {
     const identity = workspaceIdentity;
@@ -224,13 +241,13 @@ export function useInvocationReviewController(options: InvocationReviewControlle
     const document = options.historyDocument;
     if (!document || document.readOnly || record.taggedDocumentPath !== document.filePath) return;
     const request = ++historyRequestRef.current;
-    void window.exograph.workspace.listInvocationHistory(record.taggedDocumentPath)
-      .then((items) => {
+    void loadInvocationHistoryState(record.taggedDocumentPath, window.exograph.workspace.listInvocationHistory)
+      .then((result) => {
         if (workspaceIsCurrent(identity) && request === historyRequestRef.current) {
-          setHistoryState(items);
+          if (result.items) setHistoryState(result.items);
+          setHistoryErrorState(result.error);
         }
-      })
-      .catch(() => undefined);
+      });
   }, [options.historyDocument, workspaceIdentity, workspaceIsCurrent]);
 
   const finishDecision = useCallback((identity: InvocationReviewWorkspaceIdentity) => {
@@ -343,6 +360,7 @@ export function useInvocationReviewController(options: InvocationReviewControlle
   const navigate = useCallback((index: number) => setQueueState((current) => navigateInvocationReview(current, index)), []);
   const openHistory = useCallback((item: InvocationHistoryItem) => setQueueState((current) => openInvocationHistoryReview(current, item)), []);
   const dismissHistory = useCallback(() => setQueueState(closeInvocationHistoryReview), []);
+  const retryHistory = useCallback(() => setHistoryReloadNonce((current) => current + 1), []);
   const refreshActiveConflict = useCallback(() => {
     if (!activeEntry || !activeChangeId) return;
     setQueueState((current) => ({
@@ -353,7 +371,23 @@ export function useInvocationReviewController(options: InvocationReviewControlle
     }));
   }, [activeChangeId, activeEntry]);
 
-  return { activeEntry, activeChangeId, activePayload, decisionPending, frozenPaths, history, applyRecord, navigate, openHistory, dismissHistory, refreshActiveConflict, resolveCurrent, resolveAll };
+  return {
+    activeEntry,
+    activeChangeId,
+    activePayload,
+    decisionPending,
+    frozenPaths,
+    history,
+    historyError,
+    retryHistory,
+    applyRecord,
+    navigate,
+    openHistory,
+    dismissHistory,
+    refreshActiveConflict,
+    resolveCurrent,
+    resolveAll,
+  };
 }
 
 function useLatest<Value>(value: Value) {

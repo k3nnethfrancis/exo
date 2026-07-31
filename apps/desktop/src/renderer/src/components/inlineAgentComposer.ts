@@ -1,7 +1,11 @@
 import { Facet, Prec, StateEffect, StateField, type EditorState, type Extension, type Range, type Transaction } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, WidgetType, keymap } from "@codemirror/view";
 import type { InvocationSkillContext } from "@exograph/core";
-import { findDocumentAgentEnvelopes, formatDocumentAgentInvocation } from "@exograph/core/document-agent-protocol";
+import {
+  containsDocumentAgentProtocolSyntax,
+  findDocumentAgentEnvelopes,
+  formatDocumentAgentInvocation,
+} from "@exograph/core/document-agent-protocol";
 
 export interface InlineAgentDraft {
   protocolInvocationId: string;
@@ -120,9 +124,9 @@ function invocationProtocolSyntaxChanged(transaction: Transaction): boolean {
     const previousLine = transaction.startState.doc.lineAt(fromA).text;
     const removed = transaction.startState.doc.sliceString(fromA, toA);
     const added = inserted.toString();
-    changed = /<\/?exograph-(?:invocation|agent-response)\b/.test(previousLine)
-      || /<\/?exograph-(?:invocation|agent-response)\b/.test(removed)
-      || /<\/?exograph-(?:invocation|agent-response)\b/.test(added);
+    changed = containsDocumentAgentProtocolSyntax(previousLine)
+      || containsDocumentAgentProtocolSyntax(removed)
+      || containsDocumentAgentProtocolSyntax(added);
   });
   return changed;
 }

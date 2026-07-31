@@ -6,6 +6,7 @@ import {
   captureInvocationReviewWorkspaceIdentity,
   invocationReviewPayloadRequestIsCurrent,
   invocationReviewWorkspaceIdentityIsCurrent,
+  loadInvocationHistoryState,
   runInvocationReviewDecision,
 } from "./useInvocationReviewController";
 
@@ -85,6 +86,15 @@ describe("invocation review controller ownership", () => {
 
     expect(invocationReviewPayloadRequestIsCurrent(older, newer)).toBe(false);
     expect(invocationReviewPayloadRequestIsCurrent(newer, newer)).toBe(true);
+  });
+
+  it("returns a visible error state when Invocation History cannot refresh", async () => {
+    await expect(loadInvocationHistoryState("/notes/a.md", async () => {
+      throw new Error("history unavailable");
+    })).resolves.toEqual({
+      items: null,
+      error: "history unavailable",
+    });
   });
 
   it("guards a second Keep or Reject action and freezes the displayed decision identity and paths", () => {

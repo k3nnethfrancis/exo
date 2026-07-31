@@ -27,7 +27,7 @@ test("toggles shell panels from the keyboard and exposes compact operator help",
     await expect(help).toBeVisible();
     await expect(help).toContainText("Keyboard");
     await expect(help).toContainText("CLI");
-    await expect(help).toContainText("exograph status");
+    await expect(help).toContainText("exo status");
     await expect(help).toContainText(process.platform === "darwin" ? "⌘ B" : "Ctrl B");
     await fixture.page.keyboard.press("Escape");
     await fixture.page.getByTestId("workspace-menu-toggle").click();

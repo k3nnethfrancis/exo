@@ -1,10 +1,26 @@
 import type {
+  AgentCommandAdapter,
   OntologyReviewState,
   WorkspaceGraphContext,
 } from "@exograph/core";
-import { ensureUserOwnedSkill } from "./user-owned-skill";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
+import nativeSkillSource from "../../../../../skills/find-and-connect-relevant-context/SKILL.md?raw";
 
 const SKILL_ID = "find-and-connect-relevant-context";
+const MAX_NATIVE_SKILL_BYTES = 128 * 1024;
+
+export type OntologyMaintenanceSkillDelivery =
+  | { mode: "installed"; path: string }
+  | { mode: "bundled"; path: string }
+  | { mode: "inline"; source: string };
+
+export interface ResolvedOntologyMaintenanceSkill {
+  skill: PreparedOntologyMaintenanceSkill["skill"];
+  delivery: OntologyMaintenanceSkillDelivery;
+}
 
 export interface PreparedOntologyMaintenanceSkill {
   skill: {
@@ -23,24 +39,31 @@ export interface PreparedOntologyMaintenanceSkill {
   message: string;
 }
 
-export async function ensureOntologyMaintenanceSkill(noteRoot: string): Promise<PreparedOntologyMaintenanceSkill["skill"]> {
-  const skill = await ensureUserOwnedSkill({
-    noteRoot,
-    id: SKILL_ID,
-    label: "Find and connect relevant context",
-    source: FIND_AND_CONNECT_RELEVANT_CONTEXT_SKILL,
-  });
-  return {
-    id: SKILL_ID,
-    label: "Find and connect relevant context",
-    path: skill.path,
-    revision: skill.revision,
-  };
+export async function resolveOntologyMaintenanceSkill(input: {
+  adapter: AgentCommandAdapter;
+  homeDir: string;
+  codexHome?: string;
+  bundledSkillPath: string;
+}): Promise<ResolvedOntologyMaintenanceSkill> {
+  for (const installedPath of installedSkillCandidates(input)) {
+    const source = await readableSkillSource(installedPath);
+    if (!source) continue;
+    return resolvedSkill(installedPath, source, { mode: "installed", path: installedPath });
+  }
+
+  const bundledPath = path.resolve(input.bundledSkillPath);
+  const bundledSource = await readableSkillSource(bundledPath);
+  if (bundledSource) {
+    return resolvedSkill(bundledPath, bundledSource, { mode: "bundled", path: bundledPath });
+  }
+
+  return resolvedSkill(bundledPath, nativeSkillSource, { mode: "inline", source: nativeSkillSource });
 }
 
 export function prepareOntologyMaintenanceMessage(input: {
   documentPath: string;
   skill: PreparedOntologyMaintenanceSkill["skill"];
+  delivery: OntologyMaintenanceSkillDelivery;
   ontologyReview: OntologyReviewState;
   graphContext: WorkspaceGraphContext | null;
   graphSnapshotId: string;
@@ -58,7 +81,7 @@ export function prepareOntologyMaintenanceMessage(input: {
       }
     : { state: "generic" as const };
   const lines = [
-    `Use the user-owned Skill at ${input.skill.path}.`,
+    ...skillInstructionLines(input.delivery),
     `Skill revision: ${input.skill.revision}.`,
     `Start note: ${input.documentPath}.`,
     ontology.state === "active"
@@ -80,29 +103,63 @@ export function prepareOntologyMaintenanceMessage(input: {
   };
 }
 
-const FIND_AND_CONNECT_RELEVANT_CONTEXT_SKILL = `---
-name: find-and-connect-relevant-context
-description: Find a small number of useful, evidence-backed connections for one selected note using the active Exograph graph and ontology.
----
+function installedSkillCandidates(input: {
+  adapter: AgentCommandAdapter;
+  homeDir: string;
+  codexHome?: string;
+}): string[] {
+  if (input.adapter === "claude-code") {
+    return [path.join(input.homeDir, ".claude", "skills", SKILL_ID, "SKILL.md")];
+  }
+  if (input.adapter === "codex-cli") {
+    return [path.join(input.codexHome ?? path.join(input.homeDir, ".codex"), "skills", SKILL_ID, "SKILL.md")];
+  }
+  return [];
+}
 
-# Find and connect relevant context
+async function readableSkillSource(skillPath: string): Promise<string | null> {
+  try {
+    const source = await readFile(skillPath, "utf8");
+    if (Buffer.byteLength(source, "utf8") > MAX_NATIVE_SKILL_BYTES) return null;
+    return source.includes(`name: ${SKILL_ID}`) ? source : null;
+  } catch {
+    return null;
+  }
+}
 
-Start from the selected note. Inspect its authored links, backlinks, tags,
-properties, ontology relations, graph neighbors, and relevant search results.
+function resolvedSkill(
+  skillPath: string,
+  source: string,
+  delivery: OntologyMaintenanceSkillDelivery,
+): ResolvedOntologyMaintenanceSkill {
+  return {
+    skill: {
+      id: SKILL_ID,
+      label: "Find and connect relevant context",
+      path: path.resolve(skillPath),
+      revision: createHash("sha256").update(source).digest("hex"),
+    },
+    delivery,
+  };
+}
 
-Propose at most three connections that materially improve retrieval or
-traversal. Prefer an ordinary Markdown link or tag. Use an ontology reference
-property only when the active ontology defines that property and the target
-matches its constraints.
-
-Edit the relevant Markdown notes directly. Preserve unrelated text, unknown
-frontmatter, and existing formatting. Do not edit this Skill, ontology.yaml, or
-anything in ontologies/. Do not invent a relationship from semantic similarity
-alone; use similarity only to find evidence worth inspecting.
-
-Every connection must be supported by the notes themselves. If no useful
-connection is supported, make no change and say so.
-`;
+function skillInstructionLines(delivery: OntologyMaintenanceSkillDelivery): string[] {
+  if (delivery.mode === "installed") {
+    return [
+      `Use the installed native Skill \`${SKILL_ID}\`.`,
+      `Read and apply it from ${delivery.path} before acting.`,
+    ];
+  }
+  if (delivery.mode === "bundled") {
+    return [`Read and apply the Exograph-owned Skill at ${delivery.path} before acting.`];
+  }
+  return [
+    "No readable installed Skill is available. Apply this exact Exograph-owned Skill before acting:",
+    "<skill>",
+    delivery.source.trimEnd(),
+    "</skill>",
+  ];
+}
 
 function graphEvidenceLines(context: WorkspaceGraphContext | null): string[] {
   if (!context) return ["- No bounded graph context is available for this note."];

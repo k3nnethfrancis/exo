@@ -6,6 +6,8 @@ or network authority.
 
 - [ontology-design](ontology-design/SKILL.md) — inspect a
   Markdown workspace and propose the smallest evidence-backed `ontology.yaml`.
+- [find-and-connect-relevant-context](find-and-connect-relevant-context/SKILL.md)
+  — add a bounded set of evidence-backed connections from a selected note.
 - [graph-system-stability](graph-system-stability/SKILL.md) — preserve graph
   ownership, performance, and renderer boundaries.
 - [exograph-cli](exograph-cli/SKILL.md) — route workspace orientation,

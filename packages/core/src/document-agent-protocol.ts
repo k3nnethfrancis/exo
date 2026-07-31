@@ -7,6 +7,16 @@
  */
 export const EXOGRAPH_INVOCATION_TAG = "exograph-invocation";
 export const EXOGRAPH_AGENT_RESPONSE_TAG = "exograph-agent-response";
+const LEGACY_EXO_INVOCATION_TAG = "exo-invocation";
+const LEGACY_EXO_AGENT_RESPONSE_TAG = "exo-agent-response";
+
+type DocumentAgentInvocationTag =
+  | typeof EXOGRAPH_INVOCATION_TAG
+  | typeof LEGACY_EXO_INVOCATION_TAG;
+type DocumentAgentResponseTag =
+  | typeof EXOGRAPH_AGENT_RESPONSE_TAG
+  | typeof LEGACY_EXO_AGENT_RESPONSE_TAG;
+type DocumentAgentProtocolTag = DocumentAgentInvocationTag | DocumentAgentResponseTag;
 
 export interface DocumentAgentInvocationEnvelope {
   kind: "invocation";
@@ -50,29 +60,40 @@ export function formatDocumentAgentResponse(input: { invocationId: string; agent
 }
 
 /**
- * Parses only the two protocol envelopes, retains source coordinates for the
- * editor, and ignores malformed/unpaired markup. ID-less invocation envelopes
- * remain render-only Markdown and can never identify or authorize a V1 run.
+ * Detects both the canonical protocol and the durable `exo-*` envelope names
+ * emitted before the product rename. This keeps the editor's incremental
+ * reparsing trigger aligned with the parser grammar.
+ */
+export function containsDocumentAgentProtocolSyntax(text: string): boolean {
+  return /<\/?(?:exograph|exo)-(?:invocation|agent-response)\b/.test(text);
+}
+
+/**
+ * Parses the two canonical protocol envelopes plus the durable `exo-*` names
+ * emitted before the product rename, retains source coordinates for the
+ * editor, and ignores malformed/unpaired markup. Parsing never rewrites source.
+ * ID-less invocation envelopes remain render-only Markdown and can never
+ * identify or authorize a V1 run.
  */
 export function findDocumentAgentEnvelopes(text: string): DocumentAgentEnvelope[] {
   const envelopes: DocumentAgentEnvelope[] = [];
   const openings: Array<{
-    tag: typeof EXOGRAPH_INVOCATION_TAG | typeof EXOGRAPH_AGENT_RESPONSE_TAG;
+    tag: DocumentAgentProtocolTag;
     attrs: Record<string, string>;
     from: number;
     contentFrom: number;
   }> = [];
-  const tokens = /<(exograph-invocation|exograph-agent-response)\b([^>]*)>\n|\n<\/(exograph-invocation|exograph-agent-response)>/g;
+  const tokens = /<((?:exograph|exo)-(?:invocation|agent-response))\b([^>]*)>\n|\n<\/((?:exograph|exo)-(?:invocation|agent-response))>/g;
 
   for (const match of text.matchAll(tokens)) {
     const from = match.index ?? 0;
     const to = from + match[0].length;
-    const openingTag = match[1] as typeof EXOGRAPH_INVOCATION_TAG | typeof EXOGRAPH_AGENT_RESPONSE_TAG | undefined;
+    const openingTag = match[1] as DocumentAgentProtocolTag | undefined;
     if (openingTag) {
       openings.push({ tag: openingTag, attrs: parseAttributes(match[2] ?? ""), from, contentFrom: to });
       continue;
     }
-    const closingTag = match[3] as typeof EXOGRAPH_INVOCATION_TAG | typeof EXOGRAPH_AGENT_RESPONSE_TAG;
+    const closingTag = match[3] as DocumentAgentProtocolTag;
     const openingIndex = findMatchingOpening(openings, closingTag);
     if (openingIndex < 0) continue;
     const [opening] = openings.splice(openingIndex, 1);
@@ -80,7 +101,7 @@ export function findDocumentAgentEnvelopes(text: string): DocumentAgentEnvelope[
     const agent = opening.attrs.agent;
     if (!isProtocolAgent(agent)) continue;
 
-    if (opening.tag === EXOGRAPH_INVOCATION_TAG) {
+    if (isInvocationTag(opening.tag)) {
       if (opening.attrs.status !== "sent" || (opening.attrs.id !== undefined && !isDocumentAgentProtocolId(opening.attrs.id))) continue;
       envelopes.push({
         kind: "invocation",
@@ -130,13 +151,17 @@ export function removeDocumentAgentInvocation(
 }
 
 function findMatchingOpening(
-  openings: Array<{ tag: typeof EXOGRAPH_INVOCATION_TAG | typeof EXOGRAPH_AGENT_RESPONSE_TAG }>,
-  closingTag: typeof EXOGRAPH_INVOCATION_TAG | typeof EXOGRAPH_AGENT_RESPONSE_TAG,
+  openings: Array<{ tag: DocumentAgentProtocolTag }>,
+  closingTag: DocumentAgentProtocolTag,
 ): number {
   for (let index = openings.length - 1; index >= 0; index -= 1) {
     if (openings[index].tag === closingTag) return index;
   }
   return -1;
+}
+
+function isInvocationTag(tag: DocumentAgentProtocolTag): tag is DocumentAgentInvocationTag {
+  return tag === EXOGRAPH_INVOCATION_TAG || tag === LEGACY_EXO_INVOCATION_TAG;
 }
 
 function parseAttributes(source: string): Record<string, string> {

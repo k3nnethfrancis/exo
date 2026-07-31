@@ -3,7 +3,13 @@ import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/
 import os from "node:os";
 import path from "node:path";
 
-import { parseWorkspaceOntology, type AgentCommand } from "@exograph/core";
+import {
+  parseWorkspaceOntology,
+  WorkspaceOntologyStore,
+  type AgentCommand,
+  type OntologyReviewGuard,
+  type OntologyReviewState,
+} from "@exograph/core";
 import { ensureUserOwnedSkill, type UserOwnedSkill } from "./user-owned-skill";
 
 const DISCOVERY_SKILL_ID = "design-workspace-ontology";
@@ -35,6 +41,138 @@ export interface OntologyDiscoveryRun {
   command: Pick<AgentCommand, "id" | "handle" | "label" | "adapter">;
 }
 
+export interface OntologyDiscoveryCoordinatorResult {
+  status: "staged" | "abstained" | "question";
+  summary: string;
+  question?: string;
+  review: OntologyReviewState;
+  command: Pick<AgentCommand, "id" | "handle" | "label">;
+  skill: Pick<UserOwnedSkill, "id" | "label" | "path" | "revision">;
+  graphSnapshotId: string;
+}
+
+interface OntologyDiscoveryCoordinatorDependencies {
+  getCommands: () => readonly AgentCommand[];
+  getWorkspace: () => {
+    workspaceRoot: string;
+    runtimeRoot: string;
+    noteRoots: readonly string[];
+  };
+  getCommandLaunchFacts: (commandId: string) => Promise<{
+    launchable: boolean;
+    executablePath: string | null;
+  }>;
+  getCommandTrust: (handle: string) => Promise<{ trusted: boolean }>;
+  ensureSkill: (noteRoot: string) => Promise<UserOwnedSkill>;
+  invalidateDerivedState: () => void;
+  previewOntology: (sourcePath?: string) => Promise<OntologyReviewState>;
+  getGraphTopology: () => Promise<{ sourceSnapshotId: string }>;
+  runDiscovery: (input: Parameters<typeof runOntologyDiscovery>[0]) => Promise<OntologyDiscoveryRun>;
+  notifyCandidateChanged: () => void;
+}
+
+export class OntologyDiscoveryCoordinator {
+  private inFlight = false;
+
+  constructor(private readonly dependencies: OntologyDiscoveryCoordinatorDependencies) {}
+
+  async discover(): Promise<OntologyDiscoveryCoordinatorResult> {
+    if (this.inFlight) throw new Error("Ontology discovery is already running.");
+    this.inFlight = true;
+    try {
+      return await this.runTransaction();
+    } finally {
+      this.inFlight = false;
+    }
+  }
+
+  private async runTransaction(): Promise<OntologyDiscoveryCoordinatorResult> {
+    const command = await this.selectTrustedCommand();
+    if (!command) {
+      throw new Error("Trust an enabled Claude or Codex Command before discovering an Ontology.");
+    }
+    const workspace = this.dependencies.getWorkspace();
+    const noteRoot = workspace.noteRoots[0];
+    if (!noteRoot) throw new Error("Add a main wiki before discovering an Ontology.");
+
+    const skill = await this.dependencies.ensureSkill(noteRoot);
+    // Skill installation is an explicit host write. Include it in the frozen
+    // identity rather than reporting the host's own action as Workspace drift.
+    this.dependencies.invalidateDerivedState();
+    const beforeReview = await this.dependencies.previewOntology("ontology.yaml");
+    const beforeTopology = await this.dependencies.getGraphTopology();
+    const discovery = await this.dependencies.runDiscovery({
+      noteRoots: workspace.noteRoots,
+      command: command.command,
+      executablePath: command.executablePath,
+      skill,
+    });
+    const [afterReview, afterTopology] = await Promise.all([
+      this.dependencies.previewOntology("ontology.yaml"),
+      this.dependencies.getGraphTopology(),
+    ]);
+    if (
+      afterTopology.sourceSnapshotId !== beforeTopology.sourceSnapshotId
+      || !sameDiscoveryGuard(afterReview.guard, beforeReview.guard)
+    ) {
+      throw new Error("The Workspace or Ontology changed during discovery. Run it again.");
+    }
+
+    if (discovery.response.outcome !== "proposal") {
+      return {
+        status: discovery.response.outcome === "question" ? "question" : "abstained",
+        summary: discovery.response.summary,
+        ...(discovery.response.question ? { question: discovery.response.question } : {}),
+        review: afterReview,
+        command: commandIdentity(discovery.command),
+        skill: discovery.skill,
+        graphSnapshotId: beforeTopology.sourceSnapshotId,
+      };
+    }
+
+    const store = new WorkspaceOntologyStore({
+      workspaceRoot: workspace.workspaceRoot,
+      runtimeRoot: workspace.runtimeRoot,
+    });
+    await store.stageReviewedCandidateSource({
+      sourcePath: "ontology.yaml",
+      source: discovery.response.candidateSource!,
+      expectedSourceRevision: beforeReview.guard.candidateRevision,
+      expectedActivationRevision: beforeReview.guard.activationRevision,
+    });
+    this.dependencies.invalidateDerivedState();
+    const review = await this.dependencies.previewOntology("ontology.yaml");
+    this.dependencies.notifyCandidateChanged();
+    return {
+      status: "staged",
+      summary: discovery.response.summary,
+      review,
+      command: commandIdentity(discovery.command),
+      skill: discovery.skill,
+      graphSnapshotId: beforeTopology.sourceSnapshotId,
+    };
+  }
+
+  private async selectTrustedCommand(): Promise<{
+    command: AgentCommand;
+    executablePath: string;
+  } | null> {
+    const commands = this.dependencies.getCommands().filter((command) =>
+      command.enabled && (command.adapter === "claude-code" || command.adapter === "codex-cli"),
+    );
+    for (const command of commands) {
+      const [facts, trust] = await Promise.all([
+        this.dependencies.getCommandLaunchFacts(command.id).catch(() => null),
+        this.dependencies.getCommandTrust(command.handle).catch(() => null),
+      ]);
+      if (facts?.launchable && facts.executablePath && trust?.trusted) {
+        return { command, executablePath: facts.executablePath };
+      }
+    }
+    return null;
+  }
+}
+
 export async function ensureOntologyDiscoverySkill(noteRoot: string): Promise<UserOwnedSkill> {
   return ensureUserOwnedSkill({
     noteRoot,
@@ -42,6 +180,19 @@ export async function ensureOntologyDiscoverySkill(noteRoot: string): Promise<Us
     label: "Design workspace ontology",
     source: DESIGN_WORKSPACE_ONTOLOGY_SKILL,
   });
+}
+
+function sameDiscoveryGuard(left: OntologyReviewGuard, right: OntologyReviewGuard): boolean {
+  return left.candidateSourcePath === right.candidateSourcePath
+    && left.candidateRevision === right.candidateRevision
+    && left.activationRevision === right.activationRevision
+    && left.baseSnapshotId === right.baseSnapshotId;
+}
+
+function commandIdentity(
+  command: Pick<AgentCommand, "id" | "handle" | "label">,
+): Pick<AgentCommand, "id" | "handle" | "label"> {
+  return { id: command.id, handle: command.handle, label: command.label };
 }
 
 export async function runOntologyDiscovery(input: {

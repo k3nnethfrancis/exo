@@ -4,6 +4,41 @@ import path from "node:path";
 
 import { launchExographWorkspaceFixture } from "../helpers";
 
+test("renders durable exo invocation envelopes as invocation UI", async () => {
+  const invocationId = "11111111-1111-4111-8111-111111111111";
+  const markdownContent = [
+    "# Invocation compatibility",
+    `<exo-invocation id="${invocationId}" agent="claude" status="sent">`,
+    "@claude inspect this note",
+    "</exo-invocation>",
+    "",
+    `<exo-agent-response invocation="${invocationId}" agent="claude">`,
+    "The durable result.",
+    "</exo-agent-response>",
+    "",
+  ].join("\n");
+
+  const { page, cleanup } = await launchExographWorkspaceFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const target = path.join(workspaceRoot, "notes/test-notes/invocation-compatibility.md");
+      await writeFile(target, markdownContent, "utf8");
+    },
+  });
+
+  try {
+    await page.getByRole("button", { name: /invocation-compatibility/i }).first().click();
+    const envelopeLines = page.locator(".cm-line.inline-agent-invocation__envelope-line");
+    await expect(envelopeLines).toHaveCount(4);
+    await expect(envelopeLines.first()).toHaveCSS("display", "none");
+    await expect(page.locator(".inline-agent-composer__mark")).toContainText("@claude inspect this note");
+    await expect(page.locator(".inline-agent-response__mark")).toContainText("The durable result.");
+    await expect(page.getByText("<exo-invocation", { exact: false })).toBeHidden();
+  } finally {
+    await cleanup();
+  }
+});
+
 test("renders underscore thematic breaks in markdown live preview", async () => {
   const markdownContent = `# Rule Test
 

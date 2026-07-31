@@ -26,6 +26,9 @@ Choose the first approach because it preserves ordinary Markdown portability.
   responding `agent` handle.
 - The live editor hides only the envelope lines and renders their contents as
   page-native tinted prose. Raw Markdown exposes the exact source.
+- Notes created before the product rename may retain `exo-invocation` and
+  `exo-agent-response`. Exograph renders those durable names without rewriting
+  their Markdown; new envelopes use the canonical `exograph-*` names above.
 - Invocation envelopes without an `id` remain inert, render-only user-authored
   Markdown. They cannot identify, launch, or be removed as a V1 invocation.
 - Malformed or unpaired markup is ordinary visible Markdown, never executable

@@ -458,17 +458,17 @@ function discoveryFailureMessage(
 ): string {
   switch (code) {
     case "runtime-root-missing":
-      return `Exograph runtime root is missing or is not a directory. Start Exograph with \`exograph start\`, run \`exograph status\` to confirm the active workspace, or set EXOGRAPH_RUNTIME_ROOT.`;
+      return `Exograph runtime root is missing or is not a directory. Start Exograph with \`exo start\`, run \`exo status\` to confirm the active workspace, or set EXOGRAPH_RUNTIME_ROOT.`;
     case "server-json-missing":
-      return `Exograph command server discovery file is missing. Start Exograph with \`exograph start\`, or set EXOGRAPH_RUNTIME_ROOT to the runtime containing server.json.`;
+      return `Exograph command server discovery file is missing. Start Exograph with \`exo start\`, or set EXOGRAPH_RUNTIME_ROOT to the runtime containing server.json.`;
     case "server-json-invalid":
       return `Exograph command server discovery file is invalid. Remove or regenerate ${serverJsonPath} by restarting Exograph.`;
     case "server-stale":
-      return `Exograph command server discovery is stale. The recorded process${info?.pid ? ` (${info.pid})` : ""} is no longer running; restart Exograph with \`exograph start\`.`;
+      return `Exograph command server discovery is stale. The recorded process${info?.pid ? ` (${info.pid})` : ""} is no longer running; restart Exograph with \`exo start\`.`;
     case "server-unreachable":
-      return `Exograph command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}. Restart Exograph with \`exograph start\` or check that EXOGRAPH_RUNTIME_ROOT points at the active runtime.`;
+      return `Exograph command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}. Restart Exograph with \`exo start\` or check that EXOGRAPH_RUNTIME_ROOT points at the active runtime.`;
     case "server-liveness-unknown":
-      return `Exograph command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}, and Exograph could not verify whether the recorded process${info?.pid ? ` (${info.pid})` : ""} is alive. The discovery file was preserved because the process check was blocked or inconclusive. Run \`exograph start\`, then retry; if Exograph is already open, confirm EXOGRAPH_RUNTIME_ROOT points to its active Workspace.`;
+      return `Exograph command server is unreachable${info?.port ? ` at http://127.0.0.1:${info.port}` : ""}, and Exograph could not verify whether the recorded process${info?.pid ? ` (${info.pid})` : ""} is alive. The discovery file was preserved because the process check was blocked or inconclusive. Run \`exo start\`, then retry; if Exograph is already open, confirm EXOGRAPH_RUNTIME_ROOT points to its active Workspace.`;
   }
 }
 

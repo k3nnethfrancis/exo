@@ -110,7 +110,10 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   });
   handleDesktopInvoke("workspace:prepare-graph-maintenance-skill", async (_event, input) => {
     const documentPath = await workspaceFiles().existing(input.documentPath);
-    return handlers.prepareGraphMaintenanceSkill({ documentPath });
+    if (typeof input.commandId !== "string" || input.commandId.trim().length === 0) {
+      throw new Error("Choose a configured agent before preparing graph maintenance.");
+    }
+    return handlers.prepareGraphMaintenanceSkill({ documentPath, commandId: input.commandId });
   });
   handleDesktopInvoke("workspace:discover-ontology", async () => handlers.discoverOntology());
   handleDesktopInvoke("workspace:get-agent-command-continuity", async (_event, commandId) => handlers.getAgentCommandContinuity(commandId));

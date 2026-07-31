@@ -127,11 +127,13 @@ writer allowed to stage root `ontology.yaml`. A proposal is still only a
 Candidate: the active graph does not change until Keep. Abstention, questions,
 malformed output, provider failure, or stale identity write nothing.
 
-Graph maintenance is separate. The link action on a selected graph Note
-installs or reads the user-owned
-`skills/find-and-connect-relevant-context.md`, then opens an ordinary inline
+Graph maintenance is separate. The link action on a selected graph Note asks
+the chosen Command to use the native
+`find-and-connect-relevant-context` Skill, then opens an ordinary inline
 Invocation prefilled with bounded graph evidence and the exact active Ontology
-identity. Command+Return runs the existing trust, activity, Changeset, and
+identity. Exograph uses the harness's installed copy when available, otherwise
+its bundled, versioned copy; preparing the action never writes a Skill into the
+Note Root. Command+Return runs the existing trust, activity, Changeset, and
 Keep/Reject path. The Skill cannot edit Ontology sources.
 
 ## Interpretation contract

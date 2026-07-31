@@ -2,6 +2,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { Bot, FolderOpen, Palette, Search, TerminalSquare, X } from "lucide-react";
 import type { AgentCommand, IndexStatus, WorkspaceSettings } from "@exograph/core";
 import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@exograph/core/workspace-content-policy";
+import type { AgentCommandContinuityStatus } from "../../../shared/api";
 
 import type { AppearanceMode } from "../appearance";
 import { THEME_FAMILIES, normalizeColorThemeId } from "../theme/registry";
@@ -643,23 +644,29 @@ function AgentCommandContinuityRow({ command }: { command: AgentCommand }) {
   const [hasContext, setHasContext] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
   useEffect(() => {
     let active = true;
-    void window.exograph.workspace.getAgentCommandContinuity(command.id)
-      .then((status) => {
+    setError(null);
+    void loadAgentCommandContinuityState(command.id, window.exograph.workspace.getAgentCommandContinuity)
+      .then((state) => {
         if (!active) return;
-        setHasContext(status.hasHead);
-        setBusy(status.active);
-      })
-      .catch(() => undefined);
+        setHasContext(state.hasContext);
+        setBusy(state.busy);
+        setError(state.error);
+      });
     return () => { active = false; };
-  }, [command.id]);
+  }, [command.id, reloadNonce]);
 
   return (
     <div className="agent-command-continuity-settings__row">
       <span>@{command.handle}</span>
-      <span>{hasContext ? "Context saved" : "No saved context"}</span>
-      {hasContext ? (
+      <span>{error ? "Context unavailable" : hasContext ? "Context saved" : "No saved context"}</span>
+      {error ? (
+        <button className="toolbar-button" onClick={() => setReloadNonce((current) => current + 1)} type="button">
+          Retry
+        </button>
+      ) : hasContext ? (
         <button
           className="toolbar-button"
           disabled={busy}
@@ -679,6 +686,22 @@ function AgentCommandContinuityRow({ command }: { command: AgentCommand }) {
       {error ? <span className="dialog-field__error">{error}</span> : null}
     </div>
   );
+}
+
+export async function loadAgentCommandContinuityState(
+  commandId: string,
+  load: (commandId: string) => Promise<AgentCommandContinuityStatus>,
+): Promise<{ hasContext: boolean; busy: boolean; error: string | null }> {
+  try {
+    const status = await load(commandId);
+    return { hasContext: status.hasHead, busy: status.active, error: null };
+  } catch (error) {
+    return {
+      hasContext: false,
+      busy: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 function formatDuration(durationMs: number): string {

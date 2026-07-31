@@ -13,7 +13,6 @@ import {
   emptyOnboardingStateStore,
   isWorkspaceOntologyPath,
   inspectWorkspaceContent,
-  WorkspaceOntologyStore,
   WORKSPACE_RUNTIME_DIRECTORY,
   markOnboardingComplete,
   readOnboardingStateStore,
@@ -25,7 +24,6 @@ import {
   writeOnboardingStateStore,
   type OnboardingStateStore,
   type OnboardingProgressDraft,
-  type OntologyReviewGuard,
   type WorkspaceModel,
   type WorkspaceSettings,
   type WorkspaceSettingsSaveRequest,
@@ -54,11 +52,12 @@ import { hasOperatorWorkspaceSetup, workspaceSetupDecision, type WorkspaceSetupD
 import { configureGpuStartup } from "./gpu-startup-policy";
 import { runStandaloneGraphGpuProbe } from "./gpu-probe-runner";
 import {
-  ensureOntologyMaintenanceSkill,
   prepareOntologyMaintenanceMessage,
+  resolveOntologyMaintenanceSkill,
 } from "./workspace/ontology-maintenance-skill";
 import {
   ensureOntologyDiscoverySkill,
+  OntologyDiscoveryCoordinator,
   runOntologyDiscovery,
   stopActiveOntologyDiscoveries,
 } from "./workspace/ontology-discovery";
@@ -99,9 +98,25 @@ let indexingService: IndexingService;
 let workspaceNotesService: WorkspaceNotesService;
 let invocationRunner: InvocationRunner;
 let workspaceRuntimeCoordinator: WorkspaceRuntimeCoordinator;
-let ontologyDiscoveryInFlight = false;
 let quitFlushStarted = false;
 let quitFlushComplete = false;
+
+const ontologyDiscoveryCoordinator = new OntologyDiscoveryCoordinator({
+  getCommands: () => currentSettings().agentCommands ?? [],
+  getWorkspace: () => ({
+    workspaceRoot: workspaceModel.workspaceRoot,
+    runtimeRoot: resolveRuntimeRoot(),
+    noteRoots: workspaceModel.noteRoots.map((root) => root.path),
+  }),
+  getCommandLaunchFacts: (commandId) => invocationRunner.getCommandLaunchFacts(commandId),
+  getCommandTrust: (handle) => invocationRunner.getCommandTrust(handle),
+  ensureSkill: ensureOntologyDiscoverySkill,
+  invalidateDerivedState: () => workspaceNotesService.invalidateDerivedState(),
+  previewOntology: (sourcePath) => workspaceNotesService.previewOntology(sourcePath),
+  getGraphTopology: () => workspaceNotesService.getGraphTopology(),
+  runDiscovery: runOntologyDiscovery,
+  notifyCandidateChanged: () => sendToRenderer("workspace:ontology-candidate-changed", undefined),
+});
 
 const singleInstanceLock = app.requestSingleInstanceLock(resolveSingleInstanceData());
 
@@ -270,13 +285,6 @@ function isPathWithin(rootPath: string, candidatePath: string): boolean {
   return relativePath === "" || (!relativePath.startsWith("..") && !path.isAbsolute(relativePath));
 }
 
-function sameOntologyDiscoveryGuard(left: OntologyReviewGuard, right: OntologyReviewGuard): boolean {
-  return left.candidateSourcePath === right.candidateSourcePath
-    && left.candidateRevision === right.candidateRevision
-    && left.activationRevision === right.activationRevision
-    && left.baseSnapshotId === right.baseSnapshotId;
-}
-
 function registerIpcHandlers() {
   registerWorkspaceIpcHandlers({
     activateWorkspace: async (input) => {
@@ -307,12 +315,21 @@ function registerIpcHandlers() {
       });
     },
     getAgentInvocationAuthorization: (input) => invocationRunner.getInvocationAuthorization(input.handle, input.documentPath),
-    prepareGraphMaintenanceSkill: async ({ documentPath }) => {
+    prepareGraphMaintenanceSkill: async ({ documentPath, commandId }) => {
       const noteRoot = workspaceModel.noteRoots
         .filter((root) => isPathWithin(root.path, documentPath))
         .sort((left, right) => right.path.length - left.path.length)[0];
       if (!noteRoot) throw new Error("The selected note is outside the active Note Root.");
-      const skill = await ensureOntologyMaintenanceSkill(noteRoot.path);
+      const command = currentSettings().agentCommands?.find((candidate) =>
+        candidate.enabled && candidate.id === commandId,
+      );
+      if (!command) throw new Error("The selected agent command is no longer enabled.");
+      const resolvedSkill = await resolveOntologyMaintenanceSkill({
+        adapter: command.adapter,
+        homeDir: app.getPath("home"),
+        codexHome: process.env.CODEX_HOME,
+        bundledSkillPath: ontologyMaintenanceSkillPath(),
+      });
       const [ontologyReview, graphContext, topology] = await Promise.all([
         workspaceNotesService.previewOntology(),
         workspaceNotesService.getGraphContext(documentPath),
@@ -320,7 +337,8 @@ function registerIpcHandlers() {
       ]);
       const prepared = prepareOntologyMaintenanceMessage({
         documentPath,
-        skill,
+        skill: resolvedSkill.skill,
+        delivery: resolvedSkill.delivery,
         ontologyReview,
         graphContext,
         graphSnapshotId: topology.sourceSnapshotId,
@@ -334,98 +352,7 @@ function registerIpcHandlers() {
         },
       };
     },
-    discoverOntology: async () => {
-      if (ontologyDiscoveryInFlight) {
-        throw new Error("Ontology discovery is already running.");
-      }
-      ontologyDiscoveryInFlight = true;
-      try {
-        const commands = currentSettings().agentCommands?.filter((command) =>
-          command.enabled && (command.adapter === "claude-code" || command.adapter === "codex-cli")) ?? [];
-        let selected: {
-          command: (typeof commands)[number];
-          executablePath: string;
-        } | null = null;
-        for (const command of commands) {
-          const [facts, trust] = await Promise.all([
-            invocationRunner.getCommandLaunchFacts(command.id).catch(() => null),
-            invocationRunner.getCommandTrust(command.handle).catch(() => null),
-          ]);
-          if (facts?.launchable && facts.executablePath && trust?.trusted) {
-            selected = { command, executablePath: facts.executablePath };
-            break;
-          }
-        }
-        if (!selected) {
-          throw new Error("Trust an enabled Claude or Codex Command before discovering an Ontology.");
-        }
-        const noteRoot = workspaceModel.noteRoots[0];
-        if (!noteRoot) throw new Error("Add a main wiki before discovering an Ontology.");
-        const skill = await ensureOntologyDiscoverySkill(noteRoot.path);
-        // First use may install the user-owned Skill inside the Note Root. Make
-        // that explicit host write part of the frozen identity, never a false
-        // "Workspace changed during discovery" failure.
-        workspaceNotesService.invalidateDerivedState();
-        const beforeReview = await workspaceNotesService.previewOntology("ontology.yaml");
-        const beforeTopology = await workspaceNotesService.getGraphTopology();
-        const discovery = await runOntologyDiscovery({
-          noteRoots: workspaceModel.noteRoots.map((root) => root.path),
-          command: selected.command,
-          executablePath: selected.executablePath,
-          skill,
-        });
-        const [afterReview, afterTopology] = await Promise.all([
-          workspaceNotesService.previewOntology("ontology.yaml"),
-          workspaceNotesService.getGraphTopology(),
-        ]);
-        if (afterTopology.sourceSnapshotId !== beforeTopology.sourceSnapshotId
-          || !sameOntologyDiscoveryGuard(afterReview.guard, beforeReview.guard)) {
-          throw new Error("The Workspace or Ontology changed during discovery. Run it again.");
-        }
-        if (discovery.response.outcome === "proposal") {
-          const store = new WorkspaceOntologyStore({
-            workspaceRoot: workspaceModel.workspaceRoot,
-            runtimeRoot: resolveRuntimeRoot(),
-          });
-          await store.stageReviewedCandidateSource({
-            sourcePath: "ontology.yaml",
-            source: discovery.response.candidateSource!,
-            expectedSourceRevision: beforeReview.guard.candidateRevision,
-            expectedActivationRevision: beforeReview.guard.activationRevision,
-          });
-          workspaceNotesService.invalidateDerivedState();
-          const review = await workspaceNotesService.previewOntology("ontology.yaml");
-          sendToRenderer("workspace:ontology-candidate-changed", undefined);
-          return {
-            status: "staged" as const,
-            summary: discovery.response.summary,
-            review,
-            command: {
-              id: discovery.command.id,
-              handle: discovery.command.handle,
-              label: discovery.command.label,
-            },
-            skill: discovery.skill,
-            graphSnapshotId: beforeTopology.sourceSnapshotId,
-          };
-        }
-        return {
-          status: discovery.response.outcome === "question" ? "question" as const : "abstained" as const,
-          summary: discovery.response.summary,
-          ...(discovery.response.question ? { question: discovery.response.question } : {}),
-          review: afterReview,
-          command: {
-            id: discovery.command.id,
-            handle: discovery.command.handle,
-            label: discovery.command.label,
-          },
-          skill: discovery.skill,
-          graphSnapshotId: beforeTopology.sourceSnapshotId,
-        };
-      } finally {
-        ontologyDiscoveryInFlight = false;
-      }
-    },
+    discoverOntology: () => ontologyDiscoveryCoordinator.discover(),
     getAgentCommandContinuity: (commandId) => invocationRunner.getCommandContinuityStatus(commandId),
     resetAgentCommandContinuity: (commandId) => invocationRunner.resetCommandContinuity(commandId),
     configureProviderMcp,
@@ -559,6 +486,19 @@ function packagedCliPaths() {
     appExecutablePath: process.execPath,
     scriptPath: path.join(currentDirectory, "cli.js"),
   };
+}
+
+function ontologyMaintenanceSkillPath(): string {
+  if (!app.isPackaged && sourceProjectRoot) {
+    return path.join(sourceProjectRoot, "skills", "find-and-connect-relevant-context", "SKILL.md");
+  }
+  const resourcesPath = (process as NodeJS.Process & { resourcesPath?: string }).resourcesPath;
+  return path.join(
+    resourcesPath ?? path.resolve(currentDirectory, "../../.."),
+    "skills",
+    "find-and-connect-relevant-context",
+    "SKILL.md",
+  );
 }
 
 function applyWorkspaceSettings(settings: WorkspaceSettings | null) {

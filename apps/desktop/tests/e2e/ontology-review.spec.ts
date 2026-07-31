@@ -169,11 +169,13 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     await relaunched.page.getByTestId("open-note-graph").click();
     const graphPane = relaunched.page.getByTestId("graph-pane");
     await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Ontology source changed");
+    const beforeGraphPreparation = await markdownByteMap(noteRoot);
     await graphPane.getByRole("button", { name: "Find relevant connections" }).click();
     await expect(relaunched.page.getByTestId("inline-agent-composer")).toHaveCount(1);
-    await expect(relaunched.page.locator(".cm-content")).toContainText("skills/find-and-connect-relevant-context.md");
+    await expect(relaunched.page.locator(".cm-content")).toContainText("Read and apply the Exograph-owned Skill");
     await expect(readFile(path.join(noteRoot, "skills/find-and-connect-relevant-context.md"), "utf8"))
-      .resolves.toContain("Do not edit this Skill, ontology.yaml");
+      .rejects.toMatchObject({ code: "ENOENT" });
+    await expect.poll(() => markdownByteMap(noteRoot)).toEqual(beforeGraphPreparation);
   } finally {
     await relaunched?.electronApp.close().catch(() => {});
     await fixture.cleanup();

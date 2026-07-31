@@ -73,4 +73,18 @@ describe("Connections", () => {
     expect(html).not.toContain("<button class=\"invocation-history__open\"");
     expect(html).toContain("Resume Claude in Terminal");
   });
+
+  it("renders a recoverable Invocation History refresh failure", () => {
+    const html = renderToStaticMarkup(
+      <InvocationHistoryTab
+        error="History unavailable"
+        items={[]}
+        onOpen={() => {}}
+        onResume={() => {}}
+        onRetry={() => {}}
+      />,
+    );
+    expect(html).toContain("History unavailable");
+    expect(html).toContain("Retry");
+  });
 });

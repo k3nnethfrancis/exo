@@ -1921,6 +1921,16 @@ button svg,
   gap: 2px;
 }
 
+.invocation-history__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px;
+  color: var(--danger-strong);
+  font-size: 11px;
+}
+
 .invocation-history__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

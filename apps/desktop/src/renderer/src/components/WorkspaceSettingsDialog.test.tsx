@@ -8,6 +8,7 @@ import {
 
 import {
   WorkspaceSettingsDialog,
+  loadAgentCommandContinuityState,
   indexSettingsStatusCopy,
   workspaceSettingsDialogIntroCopy,
   workspaceSettingsSavedFooterCopy,
@@ -16,6 +17,16 @@ import { workspaceSettingsStructuralDraftKey } from "../workspaceSettingsModel";
 import { workspaceSettingsDialogFixture } from "../workspaceSettingsTestFixtures";
 
 describe("workspace settings footer copy", () => {
+  it("returns a visible error when saved command context cannot load", async () => {
+    await expect(loadAgentCommandContinuityState("claude", async () => {
+      throw new Error("context unavailable");
+    })).resolves.toEqual({
+      hasContext: false,
+      busy: false,
+      error: "context unavailable",
+    });
+  });
+
   it("only mentions Apply when structural changes are pending", () => {
     expect(workspaceSettingsSavedFooterCopy(true)).toContain("Apply");
     expect(workspaceSettingsSavedFooterCopy(false)).toBe("Settings saved.");

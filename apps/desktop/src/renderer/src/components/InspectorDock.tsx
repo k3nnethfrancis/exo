@@ -26,9 +26,11 @@ interface InspectorDockProps {
   onOpenTag: (tag: string) => void;
   onOpenGraphCanvas?: (focusPath: string) => void;
   invocationHistory: InvocationHistoryItem[];
+  invocationHistoryError?: string | null;
   requestedTab?: { tab: "history"; nonce: number } | null;
   onOpenInvocationHistory: (item: InvocationHistoryItem) => void;
   onResumeInvocation: (invocationId: string) => void;
+  onRetryInvocationHistory?: () => void;
 }
 
 export function InspectorDock(props: InspectorDockProps) {
@@ -44,9 +46,11 @@ export function InspectorDock(props: InspectorDockProps) {
     onOpenTag,
     onOpenGraphCanvas,
     invocationHistory,
+    invocationHistoryError = null,
     requestedTab,
     onOpenInvocationHistory,
     onResumeInvocation,
+    onRetryInvocationHistory,
   } = props;
   const [activeTab, setActiveTab] = useState<ConnectionTab>("outline");
   const tabListId = useId();
@@ -59,17 +63,19 @@ export function InspectorDock(props: InspectorDockProps) {
   const tags = isMarkdown ? graphContext?.tags ?? [] : [];
   const outline = isMarkdown ? extractOutline(document?.body ?? "") : [];
   const tabs = useMemo<readonly { id: ConnectionTab; label: string }[]>(
-    () => invocationHistory.length > 0 ? [...CONNECTION_TABS, { id: "history", label: "History" }] : CONNECTION_TABS,
-    [invocationHistory.length],
+    () => invocationHistory.length > 0 || invocationHistoryError
+      ? [...CONNECTION_TABS, { id: "history", label: "History" }]
+      : CONNECTION_TABS,
+    [invocationHistory.length, invocationHistoryError],
   );
 
   useEffect(() => {
-    if (requestedTab?.tab === "history" && invocationHistory.length > 0) setActiveTab("history");
-  }, [invocationHistory.length, requestedTab?.nonce, requestedTab?.tab]);
+    if (requestedTab?.tab === "history" && (invocationHistory.length > 0 || invocationHistoryError)) setActiveTab("history");
+  }, [invocationHistory.length, invocationHistoryError, requestedTab?.nonce, requestedTab?.tab]);
 
   useEffect(() => {
-    if (activeTab === "history" && invocationHistory.length === 0) setActiveTab("outline");
-  }, [activeTab, invocationHistory.length]);
+    if (activeTab === "history" && invocationHistory.length === 0 && !invocationHistoryError) setActiveTab("outline");
+  }, [activeTab, invocationHistory.length, invocationHistoryError]);
 
   if (!open) {
     return null;
@@ -121,7 +127,13 @@ export function InspectorDock(props: InspectorDockProps) {
           ) : activeTab === "graph" ? (
             <GraphNeighborhoodView neighborhood={graphContext?.neighborhood ?? null} onOpenCanvas={onOpenGraphCanvas} onOpenTarget={onOpenTarget} onOpenExternal={onOpenExternal} />
           ) : activeTab === "history" ? (
-            <InvocationHistoryTab items={invocationHistory} onOpen={onOpenInvocationHistory} onResume={onResumeInvocation} />
+            <InvocationHistoryTab
+              error={invocationHistoryError}
+              items={invocationHistory}
+              onOpen={onOpenInvocationHistory}
+              onResume={onResumeInvocation}
+              onRetry={onRetryInvocationHistory}
+            />
           ) : null}
         </div>
       </div>
@@ -186,13 +198,21 @@ function moveConnectionTab(event: KeyboardEvent<HTMLButtonElement>, index: numbe
   requestAnimationFrame(() => document.getElementById(`${(event.currentTarget.parentElement as HTMLElement).id}-${tabs[next].id}`)?.focus());
 }
 
-export function InvocationHistoryTab({ items, onOpen, onResume }: {
+export function InvocationHistoryTab({ error, items, onOpen, onResume, onRetry }: {
+  error?: string | null;
   items: InvocationHistoryItem[];
   onOpen: (item: InvocationHistoryItem) => void;
   onResume: (invocationId: string) => void;
+  onRetry?: () => void;
 }) {
   return (
     <section className="invocation-history" data-testid="invocation-history-panel">
+      {error ? (
+        <div className="invocation-history__error" role="status">
+          <span>{error}</span>
+          {onRetry ? <button className="toolbar-button" onClick={onRetry} type="button">Retry</button> : null}
+        </div>
+      ) : null}
       {items.map((item) => (
         <div className="invocation-history__row" key={item.invocationId}>
           {item.changeIds.length > 0 ? <button className="invocation-history__open" onClick={() => onOpen(item)} type="button">
