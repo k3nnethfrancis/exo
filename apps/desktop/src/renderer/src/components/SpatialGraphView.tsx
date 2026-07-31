@@ -35,6 +35,8 @@ import {
   initialGraphSummaryIndexes,
   pruneGraphSnapshotCache,
   shouldRefreshGraphForWorkspaceChange,
+  spatialGraphDollyDragScale,
+  spatialGraphPointerAction,
   spatialGraphWheelIntent,
   type SpatialGraphRuntimeCounters,
 } from "../spatialGraphRuntime";
@@ -490,8 +492,15 @@ export function SpatialGraphView({
   }, []);
 
   function onPointerDown(event: ReactPointerEvent<HTMLCanvasElement>) {
+    event.preventDefault();
     if (pointerSessionRef.current.activePointers === 0) runtimeRef.current?.cancelMotion();
-    pointerSessionRef.current.begin(pointerSample(event), event.shiftKey || event.button === 1 || event.button === 2);
+    pointerSessionRef.current.begin(pointerSample(event), spatialGraphPointerAction({
+      button: event.button,
+      pointerType: event.pointerType,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      shiftKey: event.shiftKey,
+    }));
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -500,6 +509,14 @@ export function SpatialGraphView({
     if (move.kind === "hover") runtimeRef.current?.setHovered(pickAt(move.sample.x, move.sample.y, move.sample.pointerType));
     if (move.kind === "orbit") runtimeRef.current?.orbit(move.deltaX, move.deltaY);
     if (move.kind === "pan") runtimeRef.current?.pan(move.deltaX, move.deltaY);
+    if (move.kind === "dolly") {
+      const rect = canvasRef.current?.getBoundingClientRect();
+      if (rect) runtimeRef.current?.zoomAt(
+        move.x - rect.left,
+        move.y - rect.top,
+        spatialGraphDollyDragScale(move.deltaY),
+      );
+    }
     if (move.kind !== "pinch-pan") return;
     const canvas = canvasRef.current;
     const rect = canvas?.getBoundingClientRect();
@@ -678,7 +695,7 @@ function GraphConceptDetailPanel({
   onStartMaintenance: (filePath: string) => void;
 }) {
   if (!detail) {
-    return <div className="spatial-graph__hint">{detailStatus ?? "Drag to orbit · shift-drag or two fingers to pan · pinch or scroll to zoom"}</div>;
+    return <div className="spatial-graph__hint">{detailStatus ?? "Drag to orbit · right-drag to pan · scroll to zoom"}</div>;
   }
   const concept = detail.concept;
   const properties = detail.properties.filter(({ key }) => !["title", "tags", "type"].includes(key)).slice(0, 4);

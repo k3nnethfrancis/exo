@@ -312,6 +312,22 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
     expect(sourceAfterPan.x).toBeGreaterThan(sourceAfterZoom.x + 24);
     expect(sourceAfterPan.y).toBeGreaterThan(sourceAfterZoom.y + 16);
 
+    const targetAfterPan = await projectedGraphNode(graphCanvas, graphTargetPath);
+    const pairDistanceBeforeDolly = Math.hypot(
+      sourceAfterPan.x - targetAfterPan.x,
+      sourceAfterPan.y - targetAfterPan.y,
+    );
+    await page.mouse.move(zoomPoint.x, zoomPoint.y);
+    await page.mouse.down({ button: "middle" });
+    await page.mouse.move(zoomPoint.x, zoomPoint.y - 36, { steps: 4 });
+    await page.mouse.up({ button: "middle" });
+    const sourceAfterDolly = await projectedGraphNode(graphCanvas, graphSourcePath);
+    const targetAfterDolly = await projectedGraphNode(graphCanvas, graphTargetPath);
+    expect(Math.hypot(
+      sourceAfterDolly.x - targetAfterDolly.x,
+      sourceAfterDolly.y - targetAfterDolly.y,
+    )).toBeGreaterThan(pairDistanceBeforeDolly * 1.04);
+
     await graphCanvas.evaluate(async (canvas) => {
       const debug = canvas as HTMLCanvasElement & { __exographGraphForceCanvasFallback?: () => Promise<void> };
       await debug.__exographGraphForceCanvasFallback?.();

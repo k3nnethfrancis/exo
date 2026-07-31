@@ -193,9 +193,11 @@ export type GraphPointerMove =
   | { kind: "none" }
   | { kind: "hover"; sample: GraphPointerSample }
   | { kind: "orbit" | "pan"; deltaX: number; deltaY: number }
+  | { kind: "dolly"; x: number; y: number; deltaY: number }
   | { kind: "pinch-pan"; centerX: number; centerY: number; scale: number; panX: number; panY: number };
 
 export type SpatialGraphWheelIntent = { kind: "zoom"; scale: number };
+export type SpatialGraphPointerAction = "orbit" | "pan" | "dolly";
 
 interface TrackedPointer extends GraphPointerSample {
   startX: number;
@@ -206,12 +208,12 @@ interface TrackedPointer extends GraphPointerSample {
 export class SpatialGraphPointerSession {
   private readonly points = new Map<number, TrackedPointer>();
   private moved = false;
-  private pan = false;
+  private action: SpatialGraphPointerAction = "orbit";
 
-  begin(sample: GraphPointerSample, pan: boolean): void {
+  begin(sample: GraphPointerSample, action: SpatialGraphPointerAction): void {
     if (this.points.size === 0) {
       this.moved = false;
-      this.pan = pan;
+      this.action = action;
     }
     this.points.set(sample.pointerId, { ...sample, startX: sample.x, startY: sample.y });
   }
@@ -238,7 +240,10 @@ export class SpatialGraphPointerSession {
     const deltaY = sample.y - previous.y;
     this.points.set(sample.pointerId, { ...previous, ...sample });
     if (Math.hypot(sample.x - previous.startX, sample.y - previous.startY) > 3) this.moved = true;
-    return this.moved ? { kind: this.pan ? "pan" : "orbit", deltaX, deltaY } : { kind: "none" };
+    if (!this.moved) return { kind: "none" };
+    return this.action === "dolly"
+      ? { kind: "dolly", x: sample.x, y: sample.y, deltaY }
+      : { kind: this.action, deltaX, deltaY };
   }
 
   end(pointerId: number): { click: boolean; sample: GraphPointerSample | null } {
@@ -260,7 +265,7 @@ export class SpatialGraphPointerSession {
 
   private resetGesture(): void {
     this.moved = false;
-    this.pan = false;
+    this.action = "orbit";
   }
 }
 
@@ -412,7 +417,14 @@ export class SpatialGraphRuntime {
   }
 
   orbit(deltaX: number, deltaY: number): void {
-    this.mutateCamera((camera) => orbitGraphCamera(camera, deltaX, deltaY), "orbit");
+    const viewportHeight = this.scene?.projection.viewport.height;
+    if (!viewportHeight) return;
+    this.mutateCamera(
+      (camera) => orbitGraphCamera(camera, deltaX, deltaY, {
+        orbitRadiansPerPixel: (2 * Math.PI) / Math.max(360, viewportHeight),
+      }),
+      "orbit",
+    );
   }
 
   pan(deltaX: number, deltaY: number): void {
@@ -602,6 +614,21 @@ export function initialGraphSummaryIndexes(topology: GraphTopology, focalIndex =
   return focal >= 0 ? [focal, ...heap] : heap;
 }
 
+/** Standard orbit-control mapping for mouse, pen, and direct-touch input. */
+export function spatialGraphPointerAction(input: {
+  button: number;
+  pointerType: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+}): SpatialGraphPointerAction {
+  if (input.pointerType === "touch") return "orbit";
+  const modified = input.ctrlKey || input.metaKey || input.shiftKey;
+  if (input.button === 1) return "dolly";
+  if (input.button === 2) return modified ? "orbit" : "pan";
+  return modified ? "pan" : "orbit";
+}
+
 /** Mouse wheels, trackpad scroll, and Chromium's ctrl+wheel pinch all zoom. */
 export function spatialGraphWheelIntent(input: {
   ctrlKey: boolean;
@@ -613,8 +640,17 @@ export function spatialGraphWheelIntent(input: {
   const pixels = input.deltaMode === 1
     ? input.deltaY * 14
     : input.deltaMode === 2 ? input.deltaY * input.viewportHeight : input.deltaY;
-  const sensitivity = input.ctrlKey ? 0.006 : 0.0016;
-  return { kind: "zoom", scale: Math.exp(-Math.max(-700, Math.min(700, pixels)) * sensitivity) };
+  const sensitivity = input.ctrlKey ? 0.008 : 0.0024;
+  return { kind: "zoom", scale: Math.exp(clampZoomExponent(-pixels * sensitivity)) };
+}
+
+/** Vertical middle-button drag follows the same dolly direction as the wheel. */
+export function spatialGraphDollyDragScale(deltaY: number): number {
+  return Math.exp(clampZoomExponent(-deltaY * 0.008));
+}
+
+function clampZoomExponent(exponent: number): number {
+  return Math.max(-0.35, Math.min(0.35, exponent));
 }
 
 function cloneCamera(camera: GraphCamera): GraphCamera {

@@ -17,6 +17,8 @@ import {
   initialGraphSummaryIndexes,
   pruneGraphSnapshotCache,
   shouldRefreshGraphForWorkspaceChange,
+  spatialGraphDollyDragScale,
+  spatialGraphPointerAction,
   spatialGraphWheelIntent,
 } from "../spatialGraphRuntime";
 
@@ -397,7 +399,7 @@ describe("SpatialGraph runtime", () => {
 describe("SpatialGraph pointer session", () => {
   it("maps one pointer to orbit, resets on pointercancel, and ignores its late move", () => {
     const session = new SpatialGraphPointerSession();
-    session.begin({ pointerId: 1, x: 10, y: 10, pointerType: "mouse" }, false);
+    session.begin({ pointerId: 1, x: 10, y: 10, pointerType: "mouse" }, "orbit");
     expect(session.move({ pointerId: 1, x: 20, y: 14, pointerType: "mouse" })).toEqual({ kind: "orbit", deltaX: 10, deltaY: 4 });
     session.cancel(1);
     expect(session.activePointers).toBe(0);
@@ -406,8 +408,8 @@ describe("SpatialGraph pointer session", () => {
 
   it("maps two pointers to simultaneous pinch and midpoint pan without a click", () => {
     const session = new SpatialGraphPointerSession();
-    session.begin({ pointerId: 1, x: 100, y: 100, pointerType: "touch" }, false);
-    session.begin({ pointerId: 2, x: 200, y: 100, pointerType: "touch" }, false);
+    session.begin({ pointerId: 1, x: 100, y: 100, pointerType: "touch" }, "orbit");
+    session.begin({ pointerId: 2, x: 200, y: 100, pointerType: "touch" }, "orbit");
     expect(session.move({ pointerId: 2, x: 230, y: 120, pointerType: "touch" })).toMatchObject({
       kind: "pinch-pan",
       centerX: 165,
@@ -418,6 +420,31 @@ describe("SpatialGraph pointer session", () => {
     });
     expect(session.end(2).click).toBe(false);
     expect(session.end(1).click).toBe(false);
+  });
+
+  it("uses conventional orbit, pan, and dolly mouse bindings", () => {
+    const input = { pointerType: "mouse", ctrlKey: false, metaKey: false, shiftKey: false };
+    expect(spatialGraphPointerAction({ ...input, button: 0 })).toBe("orbit");
+    expect(spatialGraphPointerAction({ ...input, button: 1 })).toBe("dolly");
+    expect(spatialGraphPointerAction({ ...input, button: 2 })).toBe("pan");
+    expect(spatialGraphPointerAction({ ...input, button: 0, metaKey: true })).toBe("pan");
+    expect(spatialGraphPointerAction({ ...input, button: 0, ctrlKey: true })).toBe("pan");
+    expect(spatialGraphPointerAction({ ...input, button: 0, shiftKey: true })).toBe("pan");
+    expect(spatialGraphPointerAction({ ...input, button: 2, shiftKey: true })).toBe("orbit");
+    expect(spatialGraphPointerAction({ ...input, pointerType: "touch", button: 0 })).toBe("orbit");
+  });
+
+  it("maps middle-button vertical drag to pointer-anchored dolly", () => {
+    const session = new SpatialGraphPointerSession();
+    session.begin({ pointerId: 1, x: 100, y: 100, pointerType: "mouse" }, "dolly");
+    expect(session.move({ pointerId: 1, x: 105, y: 80, pointerType: "mouse" })).toEqual({
+      kind: "dolly",
+      x: 105,
+      y: 80,
+      deltaY: -20,
+    });
+    expect(spatialGraphDollyDragScale(-20)).toBeGreaterThan(1);
+    expect(spatialGraphDollyDragScale(20)).toBeLessThan(1);
   });
 });
 
@@ -484,12 +511,15 @@ describe("graph refresh and wheel policy", () => {
   });
 
   it("uses mouse wheels, pixel trackpads, and pinch wheels for anchored zoom", () => {
-    expect(spatialGraphWheelIntent({ ctrlKey: false, deltaMode: 0, deltaX: 12, deltaY: -4, viewportHeight: 800 }))
-      .toMatchObject({ kind: "zoom", scale: expect.any(Number) });
-    expect(spatialGraphWheelIntent({ ctrlKey: true, deltaMode: 0, deltaX: 0, deltaY: -10, viewportHeight: 800 }).kind)
-      .toBe("zoom");
+    const pixel = spatialGraphWheelIntent({ ctrlKey: false, deltaMode: 0, deltaX: 12, deltaY: -4, viewportHeight: 800 });
+    expect(pixel).toMatchObject({ kind: "zoom", scale: expect.any(Number) });
+    expect(pixel.scale).toBeGreaterThan(1);
+    expect(spatialGraphWheelIntent({ ctrlKey: true, deltaMode: 0, deltaX: 0, deltaY: -10, viewportHeight: 800 }).scale)
+      .toBeGreaterThan(pixel.scale);
     expect(spatialGraphWheelIntent({ ctrlKey: false, deltaMode: 1, deltaX: 0, deltaY: 3, viewportHeight: 800 }).kind)
       .toBe("zoom");
+    expect(spatialGraphWheelIntent({ ctrlKey: false, deltaMode: 2, deltaX: 0, deltaY: 4, viewportHeight: 800 }).scale)
+      .toBeGreaterThanOrEqual(Math.exp(-0.35));
   });
 
   it("refreshes only for Markdown or global workspace invalidations", () => {
