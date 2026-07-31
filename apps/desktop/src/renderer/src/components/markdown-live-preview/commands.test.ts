@@ -44,6 +44,14 @@ describe("markdown editor list behavior", () => {
     expect(selection?.anchor).toBe(anchor);
     expect(selection?.head).toBe("- [ ] ".length);
   });
+
+  it("keeps ordered markers out of shortcut selections", () => {
+    const state = EditorState.create({ doc: "100. deeply nested finding" });
+    const anchor = state.doc.length;
+    const selection = clampSelectionToRenderedListText(state, anchor, 0);
+    expect(selection?.anchor).toBe(anchor);
+    expect(selection?.head).toBe("100. ".length);
+  });
 });
 
 describe("markdown editor slash date commands", () => {

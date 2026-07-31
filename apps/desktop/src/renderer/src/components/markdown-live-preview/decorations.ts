@@ -256,7 +256,7 @@ function decorateLine(
       decoration: Decoration.line({
         attributes: {
           class: `exograph-md-line ${listContext.isListStart ? "exograph-md-line--list-start" : "exograph-md-line--list-continuation"}${taskClass}`,
-          style: listLineStyle(listContext.depth, Boolean(task)),
+          style: listLineStyle(listContext.depth),
           "data-exograph-list-depth": String(listContext.depth),
         },
       }),
@@ -274,7 +274,7 @@ function decorateLine(
         decoration: Decoration.line({
           attributes: {
             class: `exograph-md-line exograph-md-line--task${isChecked ? " exograph-md-line--task-done" : ""}`,
-            style: listLineStyle(0, true),
+            style: listLineStyle(0),
           },
         }),
       });
@@ -552,10 +552,7 @@ function applyMarkdownLinks(text: string, lineFrom: number, out: DecorationEntry
   }
 }
 
-function listLineStyle(depth: number, isTask = false) {
-  // The checkbox occupies the marker lane. Preserve a small, literal-space-like
-  // separation before editable text instead of letting the caret touch its edge.
-  const taskTextGap = isTask ? 5 : 0;
-  const padLeft = LIST_GEOMETRY.baseIndent + depth * LIST_GEOMETRY.indentStep + taskTextGap;
+function listLineStyle(depth: number) {
+  const padLeft = LIST_GEOMETRY.baseIndent + depth * LIST_GEOMETRY.indentStep;
   return `${listGeometryStyleVariables()};--exograph-list-depth:${depth};padding-left:${padLeft}px;`;
 }

@@ -1316,7 +1316,7 @@ button svg,
 .editor-surface--live-preview .exograph-md-line--list::before {
   content: "";
   position: absolute;
-  left: calc(var(--exograph-list-base-indent, 30px) + var(--exograph-list-depth, 0) * var(--exograph-list-indent-step, 28px) - var(--exograph-list-marker-lane-width, 18px) + 6px);
+  left: calc(var(--exograph-list-base-indent, 30px) + var(--exograph-list-depth, 0) * var(--exograph-list-indent-step, 28px) - var(--exograph-list-marker-text-gap, 8px) - 4px);
   top: calc(0.5lh - 2px);
   width: 4px;
   height: 4px;
@@ -1331,8 +1331,8 @@ button svg,
 .editor-surface--live-preview .exograph-md-line--list-ordered::before {
   content: attr(data-exograph-list-marker);
   top: 0;
-  left: calc(var(--exograph-list-base-indent, 30px) + var(--exograph-list-depth, 0) * var(--exograph-list-indent-step, 28px) - var(--exograph-list-marker-lane-width, 18px));
-  width: var(--exograph-list-marker-lane-width, 18px);
+  left: calc(var(--exograph-list-base-indent, 30px) + var(--exograph-list-depth, 0) * var(--exograph-list-indent-step, 28px) - var(--exograph-list-marker-lane-width, 26px));
+  width: var(--exograph-list-marker-lane-width, 26px);
   height: 1.58em;
   box-sizing: border-box;
   display: inline-flex;
@@ -1345,8 +1345,9 @@ button svg,
   font-weight: 500;
   justify-content: flex-end;
   box-sizing: border-box;
-  padding-right: 5px;
+  padding-right: var(--exograph-list-marker-text-gap, 8px);
   opacity: 0.9;
+  white-space: nowrap;
 }
 
 /* Continuation lines have no bullet. */
@@ -1375,7 +1376,7 @@ button svg,
   pointer-events: none;
   user-select: none;
   vertical-align: baseline;
-  padding-right: 9px;
+  padding-right: var(--exograph-list-marker-text-gap, 8px);
 }
 
 .editor-surface--live-preview .exograph-md-list-prefix {
@@ -1390,6 +1391,12 @@ button svg,
   color: var(--exograph-list-bullet);
   user-select: none;
   pointer-events: none;
+}
+
+.editor-surface--live-preview .exograph-md-list-prefix--task {
+  box-sizing: border-box;
+  justify-content: flex-end;
+  padding-right: var(--exograph-list-marker-text-gap, 8px);
 }
 
 .editor-surface--live-preview .exograph-md-fold-toggle {

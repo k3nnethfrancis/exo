@@ -116,7 +116,7 @@ test("renders ordered-list markers at the text size and vertical center", async 
     mutable: true,
     prepareWorkspace: async (workspaceRoot) => {
       const target = path.join(workspaceRoot, "notes/test-notes/ordered-list-rendering.md");
-      await writeFile(target, "# Ordered list\n\n1. First item\n2. Second item\n", "utf8");
+      await writeFile(target, "# Ordered list\n\n1. First item\n10. Tenth item\n100. Hundredth item\n", "utf8");
     },
   });
 
@@ -135,16 +135,22 @@ test("renders ordered-list markers at the text size and vertical center", async 
         paddingRight: markerStyle.paddingRight,
         boxSizing: markerStyle.boxSizing,
         fontWeight: markerStyle.fontWeight,
+        whiteSpace: markerStyle.whiteSpace,
+        wrapMode: markerStyle.getPropertyValue("text-wrap-mode"),
       };
     })).toEqual({
       content: '"1."',
       fontSize: "16px",
       lineFontSize: "16px",
       top: "0px",
-      paddingRight: "5px",
+      paddingRight: "8px",
       boxSizing: "border-box",
       fontWeight: "500",
+      whiteSpace: "pre",
+      wrapMode: "nowrap",
     });
+    await expect(page.locator(".exograph-md-line--list-ordered").nth(1)).toHaveAttribute("data-exograph-list-marker", "10.");
+    await expect(page.locator(".exograph-md-line--list-ordered").nth(2)).toHaveAttribute("data-exograph-list-marker", "100.");
     await page.screenshot({ path: testInfo.outputPath("ordered-list-markers.png") });
   } finally {
     await cleanup();
@@ -648,10 +654,27 @@ test("keeps cursor and shortcut selections out of rendered list markers", async 
     .poll(() =>
       page.evaluate(() => {
         const taskLine = document.querySelector(".exograph-md-line--task") as HTMLElement | null;
-        return taskLine ? window.getComputedStyle(taskLine).paddingLeft : null;
+        const checkbox = taskLine?.querySelector(".exograph-md-checkbox") as HTMLElement | null;
+        const textNode = taskLine
+          ? Array.from(taskLine.childNodes).find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.includes("task item"))
+          : null;
+        if (!taskLine || !checkbox || !textNode?.textContent) {
+          return null;
+        }
+        const range = document.createRange();
+        range.setStart(textNode, textNode.textContent.indexOf("task item"));
+        range.setEnd(textNode, textNode.textContent.indexOf("task item") + 1);
+        const textRect = range.getBoundingClientRect();
+        const checkboxRect = checkbox.getBoundingClientRect();
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        const selection = content?.cmView?.view?.state.selection.main;
+        return {
+          gap: Math.round((textRect.left - checkboxRect.right) * 10) / 10,
+          selectedText: selection ? content?.cmView?.view?.state.sliceDoc(selection.from, selection.to) : null,
+        };
       }),
     )
-    .toBe("35px");
+    .toEqual({ gap: 8, selectedText: "task item" });
 
   await page.evaluate(({ secondTextStart }) => {
     const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
