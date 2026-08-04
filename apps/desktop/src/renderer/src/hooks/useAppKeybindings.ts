@@ -1,16 +1,13 @@
 import { useEffect } from "react";
 
-type ZoomSurface = "editor" | "terminal" | "explorer";
-
 interface UseAppKeybindingsOptions {
   activeDocumentPath: string | null;
-  zoomSurface: ZoomSurface;
   saveDocument: (filePath: string) => Promise<void>;
   openOrCreateDailyNote: () => Promise<void>;
   createShellTerminal: () => Promise<void>;
   toggleExplorerPanel: () => void;
   toggleUtilityPanel: () => void;
-  updateFocusedSurfaceZoom: (direction: -1 | 0 | 1, surface?: ZoomSurface) => void;
+  updateAppZoom: (direction: -1 | 0 | 1) => void;
 }
 
 export function useAppKeybindings(options: UseAppKeybindingsOptions) {
@@ -33,7 +30,7 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
       if (mod && !event.altKey && isZoomKey(event.key)) {
         event.preventDefault();
         event.stopPropagation();
-        options.updateFocusedSurfaceZoom(zoomDirection(event.key), resolveZoomSurface(event));
+        options.updateAppZoom(zoomDirection(event.key));
         return;
       }
       if (mod && event.key.toLowerCase() === "s" && options.activeDocumentPath) {
@@ -62,13 +59,12 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [
     options.activeDocumentPath,
-    options.zoomSurface,
     options.saveDocument,
     options.openOrCreateDailyNote,
     options.createShellTerminal,
     options.toggleExplorerPanel,
     options.toggleUtilityPanel,
-    options.updateFocusedSurfaceZoom,
+    options.updateAppZoom,
   ]);
 }
 
@@ -105,33 +101,4 @@ function zoomDirection(key: string): -1 | 0 | 1 {
     return 0;
   }
   return 1;
-}
-
-function resolveZoomSurface(event: KeyboardEvent): ZoomSurface {
-  for (const entry of event.composedPath()) {
-    if (!(entry instanceof Element)) {
-      continue;
-    }
-    if (entry.closest(".terminal-dock, .terminal-surface")) {
-      return "terminal";
-    }
-    if (entry.closest(".editor-pane, .editor-panel, .cm-editor")) {
-      return "editor";
-    }
-    if (entry.closest(".sidebar")) {
-      return "explorer";
-    }
-  }
-
-  const activeElement = document.activeElement;
-  if (activeElement?.closest(".terminal-dock, .terminal-surface")) {
-    return "terminal";
-  }
-  if (activeElement?.closest(".editor-pane, .editor-panel, .cm-editor")) {
-    return "editor";
-  }
-  if (activeElement?.closest(".sidebar")) {
-    return "explorer";
-  }
-  return "editor";
 }

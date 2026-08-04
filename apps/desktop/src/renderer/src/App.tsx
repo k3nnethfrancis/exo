@@ -48,7 +48,6 @@ import type { ColorThemeId } from "./theme/types";
 import { collectLeaves, findEditorLeaf, findEditorLeafByPath, findNode, paneId, removeNode, type PaneLeaf } from "./hooks/usePaneTree";
 import { collectOpenEditorPaths, findFocusedEditorPath } from "./paneTreeSelectors";
 import {
-  clampNumber,
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EXPLORER_SCALE,
   DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES,
@@ -84,8 +83,6 @@ import {
 } from "./invocationReviewQueue";
 import { refreshInvocationReviewAfterResolution } from "./invocationReviewResolution";
 
-type ZoomSurface = "editor" | "terminal" | "explorer";
-
 interface PendingInvocationAuthorization {
   command: AgentCommand;
   cwd: string;
@@ -115,7 +112,6 @@ export function App() {
   const [indexStatus, setIndexStatus] = useState<IndexStatus | null>(null);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>("system");
   const [colorThemeId, setColorThemeId] = useState<ColorThemeId>(DEFAULT_COLOR_THEME_ID);
-  const [zoomSurface, setZoomSurface] = useState<ZoomSurface>("editor");
   const [editorFontSize, setEditorFontSize] = useState(DEFAULT_EDITOR_FONT_SIZE);
   const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE);
   const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES);
@@ -352,7 +348,6 @@ export function App() {
 
   useAppKeybindings({
     activeDocumentPath,
-    zoomSurface,
     saveDocument,
     openOrCreateDailyNote,
     createShellTerminal: async () => {
@@ -360,7 +355,7 @@ export function App() {
     },
     toggleExplorerPanel: () => shellLayout.setSidebarCollapsed((current) => !current),
     toggleUtilityPanel: toggleUtilitySurface,
-    updateFocusedSurfaceZoom,
+    updateAppZoom,
   });
 
   function applyWorkspaceSettings(settings: WorkspaceSettings) {
@@ -419,28 +414,8 @@ export function App() {
     persistSettingsPatch({ appearanceMode: nextMode });
   }
 
-  function updateFocusedSurfaceZoom(direction: -1 | 0 | 1, surface = zoomSurface) {
-    if (surface === "terminal") {
-      setTerminalFontSize((current) => {
-        const next = direction === 0 ? DEFAULT_TERMINAL_FONT_SIZE : clampNumber(current + direction, 10, 22);
-        persistSettingsPatch({ terminalFontSize: next });
-        return next;
-      });
-      return;
-    }
-    if (surface === "explorer") {
-      setExplorerScale((current) => {
-        const next = direction === 0 ? DEFAULT_EXPLORER_SCALE : clampNumber(Number((current + direction * 0.06).toFixed(2)), 0.82, 1.35);
-        persistSettingsPatch({ explorerScale: next });
-        return next;
-      });
-      return;
-    }
-    setEditorFontSize((current) => {
-      const next = direction === 0 ? DEFAULT_EDITOR_FONT_SIZE : clampNumber(current + direction, 11, 24);
-      persistSettingsPatch({ editorFontSize: next });
-      return next;
-    });
+  function updateAppZoom(direction: -1 | 0 | 1) {
+    void window.exograph.shell.changeZoom(direction);
   }
 
   const noteSections = useMemo(
@@ -977,7 +952,7 @@ export function App() {
       theme={resolvedTheme}
       fontSize={terminalFontSize}
       scrollbackLines={terminalRuntimeScrollbackLines}
-      onFocus={() => setZoomSurface("terminal")}
+      onFocus={() => undefined}
       onHydrate={(id, options) => void terminalState.hydrateTerminal(id, options)}
       onHydrated={(id) => terminalState.markTerminalHydrated(id)}
       onSetActiveTerminal={(id) => void terminalState.activateTerminal(id)}
@@ -1174,7 +1149,7 @@ export function App() {
               }}
               theme={resolvedTheme}
               fontSize={editorFontSize}
-              onZoomEditor={(direction) => updateFocusedSurfaceZoom(direction, "editor")}
+              onAppZoom={updateAppZoom}
               compact={compactEditorChrome}
               revealLineRequest={canvasNavigation.editorRevealLineRequest}
               scrollRestoreRequest={editorScrollRestoreRequest}
@@ -1215,7 +1190,6 @@ export function App() {
       onOpenTag={(tag) => void openTag(tag)}
       onExpandDirectory={(directoryPath) => void workspaceTrees.expandTreeDirectory(directoryPath)}
       explorerScale={explorerScale}
-      onFocusExplorer={() => setZoomSurface("explorer")}
       dragManager={dragManager}
       onCreateFile={(directoryPath) => workspaceMutations.createFileInDirectory(directoryPath)}
       onCreateDirectory={(directoryPath) => workspaceMutations.createDirectoryInDirectory(directoryPath)}

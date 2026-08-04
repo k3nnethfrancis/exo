@@ -51,7 +51,6 @@ describe("Explorer mutation boundary", () => {
         onCreateTerminal={() => undefined}
         onDeletePath={() => undefined}
         onExpandDirectory={() => undefined}
-        onFocusExplorer={() => undefined}
         onOpenFile={() => undefined}
         onOpenTag={() => undefined}
         onOpenTerminalSession={() => undefined}
@@ -98,7 +97,6 @@ describe("Explorer mutation boundary", () => {
         onCreateTerminal={() => undefined}
         onDeletePath={() => undefined}
         onExpandDirectory={() => undefined}
-        onFocusExplorer={() => undefined}
         onOpenFile={() => undefined}
         onOpenTag={() => undefined}
         onOpenTerminalSession={() => undefined}

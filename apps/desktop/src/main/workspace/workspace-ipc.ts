@@ -9,6 +9,7 @@ import {
 } from "@exograph/core";
 
 import type { DesktopApi, FileStatInfo, RendererEditorDiagnostic, WorkspaceRegistryEntry } from "../../shared/api";
+import { nextAppZoomFactor } from "../../shared/app-zoom";
 import { handleDesktopInvoke } from "../typed-ipc";
 
 type WorkspaceApi = DesktopApi["workspace"];
@@ -254,6 +255,14 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const window = handlers.getMainWindow();
     window?.focus();
     window?.webContents.focus();
+  });
+  handleDesktopInvoke("shell:change-zoom", async (event, direction) => {
+    if (direction !== -1 && direction !== 0 && direction !== 1) {
+      throw new Error("App zoom direction must be -1, 0, or 1.");
+    }
+    const next = nextAppZoomFactor(event.sender.getZoomFactor(), direction);
+    event.sender.setZoomFactor(next);
+    return next;
   });
 }
 

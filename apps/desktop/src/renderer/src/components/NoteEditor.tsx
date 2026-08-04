@@ -99,7 +99,7 @@ interface NoteEditorProps {
   onFocus: () => void;
   theme: ExographThemeVariant;
   fontSize: number;
-  onZoomEditor: (direction: -1 | 0 | 1) => void;
+  onAppZoom: (direction: -1 | 0 | 1) => void;
   compact: boolean;
   isNoteDocument: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
@@ -143,7 +143,7 @@ export function NoteEditor(props: NoteEditorProps) {
     onFocus,
     theme,
     fontSize,
-    onZoomEditor,
+    onAppZoom,
     compact,
     isNoteDocument,
     revealLineRequest,
@@ -254,7 +254,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const previewTargetRef = useRef(onPreviewTarget);
   const resolveMarkdownImageRef = useRef(window.exograph.notes.resolveMarkdownImage);
   const saveRef = useRef(onSave);
-  const zoomEditorRef = useRef(onZoomEditor);
+  const appZoomRef = useRef(onAppZoom);
   // Event callbacks must stay stable for CodeMirror configuration without
   // becoming stale for the first input after switching Notes.
   invokeAgentRef.current = onInvokeAgent;
@@ -264,7 +264,7 @@ export function NoteEditor(props: NoteEditorProps) {
   suggestTargetsRef.current = onSuggestTargets;
   previewTargetRef.current = onPreviewTarget;
   saveRef.current = onSave;
-  zoomEditorRef.current = onZoomEditor;
+  appZoomRef.current = onAppZoom;
 
   useLayoutEffect(() => {
     const pending = pendingDocumentSyncRef.current;
@@ -587,28 +587,28 @@ export function NoteEditor(props: NoteEditorProps) {
         {
           key: "Mod-=",
           run: () => {
-            zoomEditorRef.current(1);
+            appZoomRef.current(1);
             return true;
           },
         },
         {
           key: "Mod-Shift-=",
           run: () => {
-            zoomEditorRef.current(1);
+            appZoomRef.current(1);
             return true;
           },
         },
         {
           key: "Mod--",
           run: () => {
-            zoomEditorRef.current(-1);
+            appZoomRef.current(-1);
             return true;
           },
         },
         {
           key: "Mod-0",
           run: () => {
-            zoomEditorRef.current(0);
+            appZoomRef.current(0);
             return true;
           },
         },

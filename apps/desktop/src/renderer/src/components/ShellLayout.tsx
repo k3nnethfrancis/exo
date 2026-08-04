@@ -57,7 +57,6 @@ interface ShellLayoutProps {
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes") => void;
   explorerScale: number;
-  onFocusExplorer: () => void;
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
   onCreateTerminalInDirectory: (directoryPath: string) => void;
@@ -129,7 +128,6 @@ export function ShellLayout(props: ShellLayoutProps) {
           onCreateTerminal={props.onCreateTerminalInDirectory}
           onDeletePath={props.onDeletePath}
           onExpandDirectory={props.onExpandDirectory}
-          onFocusExplorer={props.onFocusExplorer}
           onOpenFile={props.onOpenFile}
           onOpenFolder={props.onOpenFolder}
           onOpenTag={props.onOpenTag}

@@ -48,7 +48,7 @@ The Explorer is on the left. The utility rail can show terminals, previews, or C
 | New terminal | `⌘ T` | `Ctrl T` |
 | Save active Note | `⌘ S` | `Ctrl S` |
 | Send inline agent request | `⌘ Return` | `Ctrl Enter` |
-| Zoom focused surface | `⌘ +`, `⌘ -`, `⌘ 0` | `Ctrl +`, `Ctrl -`, `Ctrl 0` |
+| Zoom the whole app | `⌘ +`, `⌘ -`, `⌘ 0` | `Ctrl +`, `Ctrl -`, `Ctrl 0` |
 
 The lower workspace menu also has the current keyboard and CLI reference.
 

@@ -32,7 +32,6 @@ interface FileTreeProps {
   onOpenTag: (tag: string) => void;
   onExpandDirectory: (directoryPath: string, rootKind: "notes") => void;
   explorerScale: number;
-  onFocusExplorer: () => void;
   dragManager: DragManager;
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
@@ -53,7 +52,6 @@ export function FileTree(props: FileTreeProps) {
     onOpenFolder,
     onExpandDirectory,
     explorerScale,
-    onFocusExplorer,
     dragManager,
     onCreateFile,
     onCreateDirectory,
@@ -185,13 +183,13 @@ export function FileTree(props: FileTreeProps) {
 
   if (collapsed) {
     return (
-      <aside className="sidebar sidebar--collapsed" data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
+      <aside className="sidebar sidebar--collapsed" data-testid="sidebar" style={sidebarStyle}>
       </aside>
     );
   }
 
   return (
-    <aside className={`sidebar sidebar--content-only ${mirrored ? "sidebar--mirrored" : ""}`} data-testid="sidebar" onMouseDown={onFocusExplorer} style={sidebarStyle}>
+    <aside className={`sidebar sidebar--content-only ${mirrored ? "sidebar--mirrored" : ""}`} data-testid="sidebar" style={sidebarStyle}>
       <div className="sidebar__main">
         <div className="sidebar__toolbar" role="toolbar" aria-label="Explorer">
           <button aria-label="New note" className="sidebar__toolbar-button sidebar__toolbar-button--icon" data-testid="explorer-new-note" onClick={() => requestRootAction("file")} title="New note" type="button"><FilePlus2 size={14} aria-hidden="true" /></button>

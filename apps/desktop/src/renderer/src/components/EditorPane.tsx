@@ -66,7 +66,7 @@ interface EditorPaneProps {
   onOpenHistory: () => void;
   theme: ExographThemeVariant;
   fontSize: number;
-  onZoomEditor: (direction: -1 | 0 | 1) => void;
+  onAppZoom: (direction: -1 | 0 | 1) => void;
   compact: boolean;
   revealLineRequest?: { filePath: string; line: number; nonce: number } | null;
   scrollRestoreRequest?: { filePath: string; scrollTop: number; nonce: number } | null;
@@ -109,7 +109,7 @@ export function EditorPane(props: EditorPaneProps) {
     onOpenHistory,
     theme,
     fontSize,
-    onZoomEditor,
+    onAppZoom,
     compact,
     revealLineRequest,
     scrollRestoreRequest,
@@ -219,7 +219,7 @@ export function EditorPane(props: EditorPaneProps) {
         onFocus={onFocusPane}
         theme={theme}
         fontSize={fontSize}
-        onZoomEditor={onZoomEditor}
+        onAppZoom={onAppZoom}
         compact={compact}
         isNoteDocument={activeDocument ? isNoteDocument(activeDocument.filePath) : false}
         revealLineRequest={revealLineRequest}

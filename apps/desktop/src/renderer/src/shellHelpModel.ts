@@ -12,7 +12,7 @@ export const APP_KEYBINDINGS: readonly AppKeybindingHelp[] = [
   { id: "terminal", label: "New terminal", mac: "⌘ T", other: "Ctrl T" },
   { id: "save", label: "Save", mac: "⌘ S", other: "Ctrl S" },
   { id: "invoke", label: "Invoke", mac: "⌘ ↵", other: "Ctrl Enter" },
-  { id: "zoom", label: "Zoom", mac: "⌘ + / − / 0", other: "Ctrl + / − / 0" },
+  { id: "zoom", label: "App zoom", mac: "⌘ + / − / 0", other: "Ctrl + / − / 0" },
 ] as const;
 
 export function isMacPlatform(platform = globalThis.navigator?.platform ?? ""): boolean {
