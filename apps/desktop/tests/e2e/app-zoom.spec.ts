@@ -20,6 +20,20 @@ test("primary plus, minus, and zero zoom the whole app", async () => {
     await fixture.page.keyboard.press(`${modifier}+Shift+=`);
     await fixture.page.keyboard.press(`${modifier}+0`);
     await expect.poll(zoomFactor).toBe(1);
+
+    for (let step = 0; step < 12; step += 1) {
+      await fixture.page.keyboard.press(`${modifier}+Shift+=`);
+    }
+    await expect.poll(zoomFactor).toBe(2);
+    await fixture.page.keyboard.press(`${modifier}+Shift+=`);
+    await expect.poll(zoomFactor).toBe(2);
+
+    for (let step = 0; step < 16; step += 1) {
+      await fixture.page.keyboard.press(`${modifier}+-`);
+    }
+    await expect.poll(zoomFactor).toBe(0.5);
+    await fixture.page.keyboard.press(`${modifier}+-`);
+    await expect.poll(zoomFactor).toBe(0.5);
   } finally {
     await fixture.cleanup();
   }

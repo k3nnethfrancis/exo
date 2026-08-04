@@ -1,6 +1,6 @@
 export const DEFAULT_APP_ZOOM_FACTOR = 1;
-export const MIN_APP_ZOOM_FACTOR = 0.75;
-export const MAX_APP_ZOOM_FACTOR = 1.5;
+export const MIN_APP_ZOOM_FACTOR = 0.5;
+export const MAX_APP_ZOOM_FACTOR = 2;
 export const APP_ZOOM_STEP = 0.1;
 
 export function normalizeAppZoomFactor(value: unknown): number {

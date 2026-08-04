@@ -16,6 +16,8 @@ describe("app zoom", () => {
   });
 
   it("keeps persisted and requested zoom factors within the supported range", () => {
+    expect(MIN_APP_ZOOM_FACTOR).toBe(0.5);
+    expect(MAX_APP_ZOOM_FACTOR).toBe(2);
     expect(normalizeAppZoomFactor(Number.NaN)).toBe(DEFAULT_APP_ZOOM_FACTOR);
     expect(nextAppZoomFactor(MAX_APP_ZOOM_FACTOR, 1)).toBe(MAX_APP_ZOOM_FACTOR);
     expect(nextAppZoomFactor(MIN_APP_ZOOM_FACTOR, -1)).toBe(MIN_APP_ZOOM_FACTOR);
