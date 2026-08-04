@@ -1,5 +1,5 @@
 import { Annotation, EditorSelection, EditorState, Prec, RangeSetBuilder, Transaction, type SelectionRange } from "@codemirror/state";
-import { indentLess } from "@codemirror/commands";
+import { indentLess, indentMore } from "@codemirror/commands";
 import { Decoration, EditorView, keymap } from "@codemirror/view";
 
 import { collectListMetadata, listPrefixPattern, visibleLineNumbers } from "./metadata";
@@ -84,7 +84,11 @@ export const listContinuationOutdentKeymap = Prec.highest(keymap.of([
   },
   {
     key: "Shift-Tab",
-    run: outdentBlankListContinuation,
+    run: (view) => outdentBlankListContinuation(view) || indentSelectedLines(view, "outdent"),
+  },
+  {
+    key: "Tab",
+    run: (view) => indentSelectedLines(view, "indent"),
   },
   {
     key: "Mod-[",
@@ -256,6 +260,45 @@ function outdentBlankListContinuation(view: EditorView): boolean {
     userEvent: "delete.dedent",
   });
   return true;
+}
+
+function indentSelectedLines(view: EditorView, direction: "indent" | "outdent"): boolean {
+  if (view.state.selection.ranges.every((range) => range.empty)) {
+    return false;
+  }
+
+  const expandedSelection = expandSelectionToLineBoundary(view);
+  if (expandedSelection) {
+    view.dispatch({ selection: expandedSelection });
+  }
+
+  return direction === "indent" ? indentMore(view) : indentLess(view);
+}
+
+function expandSelectionToLineBoundary(view: EditorView): EditorSelection | null {
+  // CodeMirror's line commands treat a range ending exactly at a line start as
+  // excluding that line. Rendered list gutters make that boundary easy to hit,
+  // so include the terminal line before applying the grouped indent operation.
+  const { doc, selection } = view.state;
+  let changed = false;
+  const ranges = selection.ranges.map((range) => {
+    if (range.empty) {
+      return range;
+    }
+
+    const endLine = doc.lineAt(range.to);
+    if (range.to !== endLine.from) {
+      return range;
+    }
+
+    changed = true;
+    if (range.head >= range.anchor) {
+      return EditorSelection.range(range.anchor, endLine.to);
+    }
+    return EditorSelection.range(endLine.to, range.head);
+  });
+
+  return changed ? EditorSelection.create(ranges, selection.mainIndex) : null;
 }
 
 function exitWikilink(view: EditorView): boolean {

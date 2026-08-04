@@ -111,6 +111,61 @@ test("continues and exits markdown bullets in live preview", async () => {
   await cleanup();
 });
 
+test("indents and outdents a multi-line list selection from arbitrary text positions", async () => {
+  const initialMarkdown = "# Grouped List Indent\n\n- bullet row\n1. numbered row\n- [ ] todo row\n";
+  const { page, cleanup } = await launchExographWorkspaceFixture({
+    mutable: true,
+    prepareWorkspace: async (workspaceRoot) => {
+      const target = path.join(workspaceRoot, "notes/test-notes/grouped-list-indent.md");
+      await writeFile(target, initialMarkdown, "utf8");
+    },
+  });
+
+  try {
+    await page.getByRole("button", { name: /grouped-list-indent/i }).first().click();
+    await page.locator(".cm-content").click();
+    await page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) throw new Error("Unable to resolve CodeMirror view");
+      const doc = view.state.doc.toString();
+      const firstStart = doc.indexOf("- bullet row");
+      const taskStart = doc.indexOf("- [ ] todo row");
+      const firstTextStart = firstStart + "- ".length;
+      view.dispatch({ selection: { anchor: firstTextStart + 2, head: taskStart } });
+      view.focus();
+    });
+
+    await page.keyboard.press("Tab");
+    await expect
+      .poll(() => page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.doc.toString() ?? "";
+      }))
+      .toBe("# Grouped List Indent\n\n  - bullet row\n  1. numbered row\n  - [ ] todo row\n");
+
+    await page.evaluate(() => {
+      const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+      const view = content?.cmView?.view;
+      if (!view) throw new Error("Unable to resolve CodeMirror view");
+      const doc = view.state.doc.toString();
+      const firstMarker = doc.indexOf("- bullet row");
+      const taskMarker = doc.indexOf("- [ ] todo row");
+      view.dispatch({ selection: { anchor: firstMarker + "- ".length, head: taskMarker - 2 } });
+      view.focus();
+    });
+    await page.keyboard.press("Shift+Tab");
+    await expect
+      .poll(() => page.evaluate(() => {
+        const content = document.querySelector(".cm-content") as (HTMLElement & { cmView?: { view?: any } }) | null;
+        return content?.cmView?.view?.state.doc.toString() ?? "";
+      }))
+      .toBe(initialMarkdown);
+  } finally {
+    await cleanup();
+  }
+});
+
 test("renders ordered-list markers at the text size and vertical center", async ({}, testInfo) => {
   const { page, cleanup } = await launchExographWorkspaceFixture({
     mutable: true,
