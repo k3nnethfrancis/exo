@@ -5,6 +5,40 @@ import type { TableContext } from "./metadata";
 
 type ResolveImage = (target: string, options?: { lookupByFilename?: boolean }) => Promise<{ url: string }>;
 
+interface MarkdownImageRetryOptions {
+  attempts?: number;
+  delayMs?: number;
+}
+
+/**
+ * Workspace activation and filesystem watchers can briefly invalidate a read
+ * while the editor is being opened. Keep that transient boundary from turning
+ * a recoverable image into a permanent missing-image decoration.
+ */
+export async function resolveMarkdownImageWithRetry(
+  resolveImage: ResolveImage,
+  target: string,
+  options?: { lookupByFilename?: boolean },
+  retryOptions: MarkdownImageRetryOptions = {},
+): Promise<{ url: string }> {
+  const attempts = Math.max(1, retryOptions.attempts ?? 2);
+  const delayMs = Math.max(0, retryOptions.delayMs ?? 120);
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await resolveImage(target, options);
+    } catch (error) {
+      lastError = error;
+      if (attempt + 1 < attempts && delayMs > 0) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, delayMs));
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Markdown image resolution failed.");
+}
+
 export interface MarkdownGraphReferenceItem {
   label: string;
   target: string;
@@ -123,7 +157,7 @@ export class MarkdownImageWidget extends WidgetType {
       return wrap;
     }
 
-    void this.resolveImage(this.target, { lookupByFilename: this.lookupByFilename }).then(({ url }) => {
+    void resolveMarkdownImageWithRetry(this.resolveImage, this.target, { lookupByFilename: this.lookupByFilename }).then(({ url }) => {
       appendImage(url);
     }).catch(() => {
       wrap.classList.remove("exograph-md-image--loading");

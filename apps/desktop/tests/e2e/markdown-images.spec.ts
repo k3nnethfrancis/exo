@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from "@playwright/test";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { launchExographWorkspaceFixture } from "../helpers";
@@ -81,6 +81,41 @@ test("loads a root-relative site image through the Electron notes resolver", asy
     await expect(imageWidget).not.toHaveClass(/exograph-md-image--missing/);
     await expect(remoteControl).not.toHaveClass(/exograph-md-image--missing/);
     await page.screenshot({ path: testInfo.outputPath("markdown-images-loaded.png"), fullPage: true });
+  } finally {
+    await cleanup();
+  }
+});
+
+test("recovers when a local image becomes available during resolution", async () => {
+  let notePath = "";
+  let imagePath = "";
+  const { electronApp, page, cleanup } = await launchExographWorkspaceFixture({
+    mutable: true,
+    initialNoteLabel: null,
+    prepareWorkspace: async (root) => {
+      const noteRoot = path.join(root, "notes/test-notes");
+      notePath = path.join(noteRoot, "transient-image.md");
+      imagePath = path.join(noteRoot, "attachments/transient.png");
+      await mkdir(path.dirname(notePath), { recursive: true });
+      await mkdir(path.dirname(imagePath), { recursive: true });
+      await writeFile(notePath, "# Transient image\n\n![Retry image](attachments/transient.png)\n", "utf8");
+      const outsideImagePath = path.join(root, "transient-outside.png");
+      await writeFile(outsideImagePath, onePixelPng);
+      await symlink(outsideImagePath, imagePath);
+    },
+  });
+
+  try {
+    await electronApp.evaluate(({ BrowserWindow }, targetPath) => {
+      BrowserWindow.getAllWindows()[0]?.webContents.send("command:open-file", targetPath);
+    }, notePath);
+    const image = page.getByLabel("Retry image");
+    await expect(image).toBeVisible();
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    await rm(imagePath);
+    await writeFile(imagePath, onePixelPng);
+    await expect.poll(() => loadedWidth(image), { timeout: 3000 }).toBeGreaterThan(0);
+    await expect(image).not.toHaveClass(/exograph-md-image--missing/);
   } finally {
     await cleanup();
   }
