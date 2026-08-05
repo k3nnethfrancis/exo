@@ -1129,6 +1129,13 @@ button svg,
   background: var(--surface-2);
 }
 
+/* The bundled diagrams use Solarized's dark ink on a transparent canvas. On
+ * the dark editor that ink disappears, so give SVGs their authored paper
+ * surface without mutating the source asset. */
+:root[data-theme="dark"] .editor-surface--live-preview .exograph-md-image__asset[src$=".svg" i] {
+  background: #fdf6e3;
+}
+
 .editor-surface--live-preview .exograph-md-image__fallback {
   display: inline-block;
   min-width: 9rem;

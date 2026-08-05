@@ -71,6 +71,10 @@ test("loads a root-relative site image through the Electron notes resolver", asy
     await expect.poll(() => loadedWidth(relativeControl)).toBeGreaterThan(0);
     await expect.poll(() => loadedWidth(vectorControl)).toBeGreaterThan(0);
     await expect.poll(() => renderedWidth(vectorControl)).toBeGreaterThan(0);
+    await page.locator("html").evaluate((root) => {
+      root.dataset.theme = "dark";
+    });
+    await expect(vectorControl.locator("img")).toHaveCSS("background-color", "rgb(253, 246, 227)");
     await expect.poll(() => loadedWidth(noteRootControl)).toBeGreaterThan(0);
     await expect
       .poll(() => loadedWidth(imageWidget))
