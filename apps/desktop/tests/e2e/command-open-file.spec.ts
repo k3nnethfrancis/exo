@@ -44,3 +44,25 @@ test("an external open reactivates an already-open background tab", async () => 
     await cleanup();
   }
 });
+
+test("opens a Markdown file delivered by the macOS open-file event", async () => {
+  let notePath = "";
+  const { electronApp, page, cleanup } = await launchExographWorkspaceFixture({
+    mutable: true,
+    initialNoteLabel: null,
+    prepareWorkspace: async (workspaceRoot) => {
+      notePath = path.join(workspaceRoot, "notes/test-notes/finder-open.md");
+      await writeFile(notePath, "# Finder open\n", "utf8");
+    },
+  });
+
+  try {
+    await electronApp.evaluate(({ app }, filePath) => {
+      app.emit("open-file", { preventDefault() {} }, filePath);
+    }, notePath);
+    await expect(page.getByTestId("editor-title").getByText("finder-open", { exact: true })).toHaveCount(1);
+    await expect(page.locator(".editor-surface .cm-content")).toContainText("Finder open");
+  } finally {
+    await cleanup();
+  }
+});

@@ -14,6 +14,20 @@ extraResources:
   - from: ../../skills/find-and-connect-relevant-context
     to: skills/find-and-connect-relevant-context
 
+fileAssociations:
+  - ext:
+      - md
+      - markdown
+      - mdown
+      - mkd
+      - mkdn
+      - mdwn
+      - mdtext
+      - mdtxt
+    name: Markdown document
+    description: Markdown document
+    role: Editor
+
 mac:
   category: public.app-category.productivity
   icon: build/icon.icns

@@ -51,6 +51,7 @@ import { WorkspaceRuntimeCoordinator } from "./runtime/workspace-runtime-coordin
 import { hasOperatorWorkspaceSetup, workspaceSetupDecision, type WorkspaceSetupDecision } from "./workspace/workspace-setup-gate";
 import { configureGpuStartup } from "./gpu-startup-policy";
 import { runStandaloneGraphGpuProbe } from "./gpu-probe-runner";
+import { isMarkdownFilePath, markdownFilePathsFromCommandLine } from "./markdown-file-open";
 import {
   prepareOntologyMaintenanceMessage,
   resolveOntologyMaintenanceSkill,
@@ -100,6 +101,9 @@ let invocationRunner: InvocationRunner;
 let workspaceRuntimeCoordinator: WorkspaceRuntimeCoordinator;
 let quitFlushStarted = false;
 let quitFlushComplete = false;
+const pendingOsOpenFiles: string[] = [];
+const pendingOsOpenFileSet = new Set<string>();
+let flushingOsOpenFiles = false;
 
 const ontologyDiscoveryCoordinator = new OntologyDiscoveryCoordinator({
   getCommands: () => currentSettings().agentCommands ?? [],
@@ -181,6 +185,49 @@ function resolveSingleInstanceData(): Record<string, string | number> {
     workspaceRoot: resolveWorkspaceModel().workspaceRoot,
   };
 }
+
+function queueOsOpenFile(filePath: string): void {
+  if (!isMarkdownFilePath(filePath)) return;
+
+  const normalizedPath = path.resolve(filePath);
+  if (pendingOsOpenFileSet.has(normalizedPath)) return;
+  pendingOsOpenFileSet.add(normalizedPath);
+  pendingOsOpenFiles.push(normalizedPath);
+  void flushOsOpenFiles();
+}
+
+async function flushOsOpenFiles(): Promise<void> {
+  if (typeof appLifecycle === "undefined" || typeof workspaceNotesService === "undefined" || !appLifecycle.isRendererReady()) {
+    return;
+  }
+  if (flushingOsOpenFiles) return;
+
+  flushingOsOpenFiles = true;
+  try {
+    while (pendingOsOpenFiles.length > 0) {
+      const filePath = pendingOsOpenFiles.shift();
+      if (!filePath) continue;
+      pendingOsOpenFileSet.delete(filePath);
+
+      try {
+        const authorizedPath = await workspaceNotesService.authorizeOpenFile(filePath);
+        appLifecycle.showMainWindow();
+        sendToRenderer("command:open-file", authorizedPath);
+      } catch (error) {
+        console.warn("[exograph] unable to open Markdown file from the operating system", { filePath, error });
+        logMain("operating-system Markdown open rejected", { filePath, error: serializeError(error) });
+      }
+    }
+  } finally {
+    flushingOsOpenFiles = false;
+    if (pendingOsOpenFiles.length > 0) void flushOsOpenFiles();
+  }
+}
+
+app.on("open-file", (event, filePath) => {
+  event.preventDefault();
+  queueOsOpenFile(filePath);
+});
 
 function extractRuntimeRoot(value: unknown): string | undefined {
   if (!value || typeof value !== "object") {
@@ -583,6 +630,10 @@ function applyOnboardingRuntimeEnv() {
 }
 
 app.whenReady().then(async () => {
+  for (const filePath of markdownFilePathsFromCommandLine(process.argv)) {
+    queueOsOpenFile(filePath);
+  }
+
   if (process.env.EXOGRAPH_GPU_PROBE_OUTPUT) {
     await runStandaloneGraphGpuProbe({
       app,
@@ -718,6 +769,7 @@ app.whenReady().then(async () => {
     openSettings: () => {
       sendToRenderer("command:open-settings", { section: "workspace" });
     },
+    onRendererReady: () => void flushOsOpenFiles(),
     restartCommandServer: () => void commandServerLifecycle.restart(),
     logMain,
   });
@@ -847,11 +899,14 @@ app.whenReady().then(async () => {
     appLifecycle.activate();
   });
 
-  app.on("second-instance", (_event, _commandLine, workingDirectory, additionalData) => {
+  app.on("second-instance", (_event, commandLine, workingDirectory, additionalData) => {
     logMain("second instance requested focus", {
       workingDirectory,
       requestedRuntimeRoot: extractRuntimeRoot(additionalData),
     });
+    for (const filePath of markdownFilePathsFromCommandLine(commandLine)) {
+      queueOsOpenFile(filePath);
+    }
     void refreshCommandServerDiscovery("second-instance");
     appLifecycle.showMainWindow();
   });

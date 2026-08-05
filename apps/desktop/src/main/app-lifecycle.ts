@@ -13,6 +13,7 @@ export interface AppLifecycleControllerOptions {
   getTerminals: () => TerminalSessionInfo[];
   getCommandServerStatus: () => { listening: boolean; port: number | null };
   openSettings: () => void;
+  onRendererReady?: () => void;
   restartCommandServer: () => void;
   logMain: (message: string, details?: unknown) => void;
 }
@@ -101,6 +102,7 @@ export class AppLifecycleController {
       }
       if (this.mainWindow === window) {
         this.rendererReady = true;
+        this.options.onRendererReady?.();
       }
       if (isTestWindow) {
         return;
