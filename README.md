@@ -45,7 +45,11 @@ pnpm dev
 Use `pnpm dev:qa` when an installed app is also running: it isolates the development app's settings and runtime. Use `pnpm pack:mac` when validating packaged-app or first-run behavior.
 
 Read [AGENTS.md](AGENTS.md) for ownership and validation guidance and
-[Architecture](docs/architecture.md) for package boundaries.
+[Architecture](docs/architecture.md) for package boundaries. Read
+[How Exograph helps agents contribute good code](artifacts/exograph-agent-contribution-first-principles.html)
+for the canonical first-principles explanation, and
+[CI/CD and release safety](docs/ci-cd.md) for the local-to-release path and
+the safeguards still required before a signed public release.
 
 ## Core workflows
 

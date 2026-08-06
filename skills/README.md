@@ -1,8 +1,10 @@
 # Exograph Skills
 
-These are reusable Markdown instructions for contributors and compatible coding
-agents. They do not execute automatically and do not grant filesystem, process,
-or network authority.
+These are repository-owned contributor Skills: reusable Markdown instructions
+for people and compatible coding agents changing Exograph itself. They are
+distinct from the product workflow Skills delivered to configured Commands.
+They do not execute automatically and do not grant filesystem, process, or
+network authority.
 
 - [ontology-design](ontology-design/SKILL.md) — inspect a
   Markdown workspace and propose the smallest evidence-backed `ontology.yaml`.
@@ -20,6 +22,10 @@ or network authority.
   run a coverage-accountable structural review with a private dependency map,
   explicit review reasons, verification evidence, and an unseen-frontier exit
   condition.
+- [agent-first-software-engineering](agent-first-software-engineering/SKILL.md) —
+  assess whether an external agent can know, change, prove, and improve
+  Exograph without a person becoming its context, terminal, or QA relay;
+  includes the completion ratchet and comparable whole-job qualification.
 
 Copy or install a Skill into the location expected by your coding environment.
 The source remains ordinary, reviewable Markdown in this repository.
