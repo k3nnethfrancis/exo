@@ -298,8 +298,14 @@ describe("SpatialGraph runtime", () => {
     expect(runtime.getScene()).toBe(scene);
 
     runtime.focus(2, true);
+    const distanceBeforeGpuZoom = runtime.getScene()!.camera.distance;
     runtime.zoomAt(610, 190, 1.35);
+    expect(runtime.getScene()!.camera.distance).toBeLessThan(distanceBeforeGpuZoom);
+    const pointBeforeGpuPan = runtime.getScene()!.projection.nodes.slice(2 * 4, 2 * 4 + 2);
     runtime.pan(24, 18);
+    const pointAfterGpuPan = runtime.getScene()!.projection.nodes.slice(2 * 4, 2 * 4 + 2);
+    expect(pointAfterGpuPan[0]).toBeCloseTo((pointBeforeGpuPan[0] ?? 0) + 24, 4);
+    expect(pointAfterGpuPan[1]).toBeCloseTo((pointBeforeGpuPan[1] ?? 0) + 18, 4);
     runtime.setSelection(2);
     frames.settle();
     const interactedScene = runtime.getScene()!;
@@ -345,6 +351,17 @@ describe("SpatialGraph runtime", () => {
     expect(runtime.getScene()).toBe(scene);
     expect(runtime.getScene()!.camera).toEqual(interactedCamera);
     expect(runtime.getScene()!.interaction.selected).toBe(2);
+
+    const distanceBeforeCanvasZoom = runtime.getScene()!.camera.distance;
+    runtime.zoomAt(400, 300, 1.2);
+    expect(runtime.getScene()!.camera.distance).toBeLessThan(distanceBeforeCanvasZoom);
+    const pointBeforeCanvasPan = runtime.getScene()!.projection.nodes.slice(2 * 4, 2 * 4 + 2);
+    runtime.pan(17, 13);
+    const pointAfterCanvasPan = runtime.getScene()!.projection.nodes.slice(2 * 4, 2 * 4 + 2);
+    expect(pointAfterCanvasPan[0]).toBeCloseTo((pointBeforeCanvasPan[0] ?? 0) + 17, 4);
+    expect(pointAfterCanvasPan[1]).toBeCloseTo((pointBeforeCanvasPan[1] ?? 0) + 13, 4);
+    frames.settle();
+    expect(context.arcs).toBeGreaterThan(bootstrapArcs);
     expect(pickGraphSceneNode(
       runtime.getScene()!.topology,
       runtime.getScene()!.projection,
@@ -352,8 +369,6 @@ describe("SpatialGraph runtime", () => {
       runtime.getScene()!.projection.nodes[2 * 4] ?? 0,
       runtime.getScene()!.projection.nodes[2 * 4 + 1] ?? 0,
     )).toBe(2);
-    expect(context.arcs).toBeGreaterThan(bootstrapArcs);
-    frames.settle();
     expect(runtime.snapshot()).toMatchObject({ pendingFrame: false, moving: false });
     runtime.dispose();
     expect(gpu.destroyCalls).toBe(1);

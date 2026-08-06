@@ -344,6 +344,43 @@ test("keeps editor, full graph, and backlink-only Connections on one navigation 
       inspectedFilePath: beforeFallback!.inspectedFilePath,
     });
 
+    const sourceBeforeCanvasZoom = await projectedGraphNode(graphCanvas, graphSourcePath);
+    const targetBeforeCanvasZoom = await projectedGraphNode(graphCanvas, graphTargetPath);
+    const pairDistanceBeforeCanvasZoom = Math.hypot(
+      sourceBeforeCanvasZoom.x - targetBeforeCanvasZoom.x,
+      sourceBeforeCanvasZoom.y - targetBeforeCanvasZoom.y,
+    );
+    await graphCanvas.evaluate((canvas, point) => {
+      canvas.dispatchEvent(new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        clientX: point.x,
+        clientY: point.y,
+        deltaMode: WheelEvent.DOM_DELTA_PIXEL,
+        deltaY: -100,
+      }));
+    }, zoomPoint);
+    const sourceAfterCanvasZoom = await projectedGraphNode(graphCanvas, graphSourcePath);
+    const targetAfterCanvasZoom = await projectedGraphNode(graphCanvas, graphTargetPath);
+    expect(Math.hypot(
+      sourceAfterCanvasZoom.x - targetAfterCanvasZoom.x,
+      sourceAfterCanvasZoom.y - targetAfterCanvasZoom.y,
+    )).toBeGreaterThan(pairDistanceBeforeCanvasZoom * 1.05);
+
+    await page.mouse.move(zoomPoint.x, zoomPoint.y);
+    await page.mouse.down({ button: "right" });
+    await page.mouse.move(zoomPoint.x + 28, zoomPoint.y + 20, { steps: 4 });
+    await page.mouse.up({ button: "right" });
+    const sourceAfterCanvasPan = await projectedGraphNode(graphCanvas, graphSourcePath);
+    expect(sourceAfterCanvasPan.x).toBeGreaterThan(sourceAfterCanvasZoom.x + 20);
+    expect(sourceAfterCanvasPan.y).toBeGreaterThan(sourceAfterCanvasZoom.y + 14);
+    expect(sourceAfterCanvasPan.picked).toBe(sourceAfterCanvasPan.index);
+    expect(await graphCanvas.evaluate((canvas) => {
+      return (canvas as HTMLCanvasElement & {
+        __exographGraphSnapshot?: () => { selected: number; rendererKind: string | null };
+      }).__exographGraphSnapshot?.() ?? null;
+    })).toMatchObject({ selected: beforeFallback!.selected, rendererKind: "canvas2d" });
+
     const initialNodeCount = Number.parseInt((await graphPane.locator(".spatial-graph__count").textContent()) ?? "0", 10);
     await writeFile(path.join(workspaceRoot, "notes/test-notes/graph-live.md"), "# Graph Live\n\n[[graph-target]]\n", "utf8");
     await expect.poll(async () => Number.parseInt((await graphPane.locator(".spatial-graph__count").textContent()) ?? "0", 10))

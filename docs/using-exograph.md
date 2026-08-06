@@ -32,7 +32,7 @@ Read [Search](search.md) before changing index settings or interpreting embeddin
 
 ## Connections and graph
 
-Open **Connections** for the active Note to inspect its outline, links, local graph neighborhood, and earned invocation history. Open the Graph pane to explore the workspace-level graph: pan, zoom, select a node, and double-click a Note node to open it.
+Open **Connections** for the active Note to inspect its outline, links, local graph neighborhood, and earned invocation history. Open the Graph pane to explore the workspace-level graph. Drag to orbit; right-drag or modified drag to pan; and use the mouse wheel, trackpad scroll, or trackpad pinch to zoom. Panning follows the grabbed content on both axes. Zoom keeps the graph point under the pointer fixed, while keyboard zoom uses the center of the graph viewport. Two-finger touch gestures combine that same pointer-centered zoom with direct pan. Select a node to inspect it, and double-click a Note node to open it.
 
 The graph is evidence-aware. It distinguishes a relation written in Markdown, one interpreted by an active ontology, and a machine-derived signal. It does not silently turn semantic similarity into a durable fact. Read [Knowledge graph](knowledge-graph.md) for the model and [Workspace ontology](workspace-ontology.md) for optional property interpretation.
 
