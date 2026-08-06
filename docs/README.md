@@ -18,7 +18,9 @@ Exograph has two documentation audiences: people using a Markdown workspace and 
 - [Architecture](architecture.md) — runtime topology, deep modules, boundaries, and reading order.
 - [Durable state](durable-state.md) — persistence owners and recovery rules.
 - [Performance contracts](performance-contracts.md) — protected latency budgets and focused gates.
-- [Terminal runtime](terminal-runtime-decision.md) — direct-PTY design constraints.
+- [How Exograph helps agents contribute good code](../artifacts/exograph-agent-contribution-first-principles.html) — the canonical first-principles explainer for context, ownership, proof, CI/CD, and durable learning.
+- [CI/CD and release safety](ci-cd.md) — local checks, GitHub workflows, release authority, and remaining launch safeguards.
+- [Terminal runtime ADR](adr/0009-direct-pty-terminal-runtime.md) — direct-PTY design constraints.
 - [Architecture decisions](adr/) — accepted decisions that remain live.
 - [Contributor skills](../skills/README.md) — reusable, provider-neutral working instructions.
 

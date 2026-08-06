@@ -53,5 +53,5 @@ MCP and the CLI are independent:
 
 `exo status` and `exo search` can work without the desktop app. `exo show`,
 `exo index`, `exo open`, and `exo invoke` require the resident app. See [CLI and
-MCP](cli.md) for the exact command surface and [MCP onboarding](provider-mcp-onboarding.md)
-for scope and security boundaries.
+MCP](cli.md) for the exact command surface, installation steps, scope, and
+security boundaries.

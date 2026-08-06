@@ -144,7 +144,7 @@ validation; only the inline path has document context and in-note review.
 There is one production terminal runtime: xterm over direct `node-pty`. App
 exit ends PTYs. A bounded in-memory tail helps renderer reload but is not a
 durable transcript or terminal-restoration system. See
-[`terminal-runtime-decision.md`](terminal-runtime-decision.md).
+[`ADR 0009`](adr/0009-direct-pty-terminal-runtime.md).
 
 ## Testing and change discipline
 
@@ -159,5 +159,11 @@ prove preload IPC. Graph renderer work additionally uses
 [`../evals/graph/README.md`](../evals/graph/README.md). Public command-server
 routes, CLI flags, preload types, and shared protocol types are contracts:
 change their focused tests and docs in the same patch.
+
+The renderer authority ratchet
+[`renderer-authority-boundary.test.ts`](../apps/desktop/src/renderer/src/renderer-authority-boundary.test.ts)
+mechanically rejects production renderer imports of Node, Electron, Electron
+main, or preload implementations. Renderer features cross the typed shared/preload
+interface instead of widening their own authority.
 
 For persisted state ownership and recovery, read [`durable-state.md`](durable-state.md).

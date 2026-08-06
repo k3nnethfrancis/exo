@@ -44,13 +44,21 @@ The Explorer is on the left. The utility rail can show terminals, previews, or C
 | --- | --- | --- |
 | Toggle Explorer | `⌘ B` | `Ctrl B` |
 | Toggle utility rail | `⌘ ⌥ B` | `Ctrl Alt B` |
-| New daily Note | `⌘ N` | `Ctrl N` |
+| New Note | `⌘ N` | `Ctrl N` |
+| New daily Note | `⌘ ⇧ N` | `Ctrl Shift N` |
 | New terminal | `⌘ T` | `Ctrl T` |
 | Save active Note | `⌘ S` | `Ctrl S` |
 | Send inline agent request | `⌘ Return` | `Ctrl Enter` |
 | Zoom the whole app | `⌘ +`, `⌘ -`, `⌘ 0` | `Ctrl +`, `Ctrl -`, `Ctrl 0` |
 
-The lower workspace menu also has the current keyboard and CLI reference.
+`⌘ N` / `Ctrl N` creates and opens `untitled.md`. If that file already exists,
+Exograph creates `untitled-2.md`, then the next available name; it never
+overwrites an existing Note. The Explorer's New Note flow also starts from
+`untitled.md` but lets you choose a name first.
+
+The lower workspace menu has the current keyboard and CLI reference. Change
+global app shortcuts per Workspace in **Settings → Shortcuts**; Help always
+shows the active bindings.
 
 ## Ask an agent
 

@@ -84,7 +84,7 @@ The interoperability convention used to project base Concepts from a Note Root.
 Generic Markdown is the zero-configuration default; permissive OKF 0.1 is an
 explicit compatibility format. Format is not the Workspace Ontology, does not
 control graph presentation, and does not change source files.
-_Avoid_: ontology, plugin, visual profile
+_Avoid_: ontology, visual profile
 
 **Properties**
 Losslessly preserved document facts projected from a Note's raw frontmatter. A
@@ -128,8 +128,8 @@ Overview, Connections/graph context, mixed panes, configured Commands, explicit
 inline invocation, reviewable observed changes, a single-active user-owned
 Ontology library, and the first reviewable graph-maintenance Skill. Optional
 Ontology discovery is an early-access proposal flow, not a required onboarding
-gate. The core does not require plugins, provider-specific harnesses, Feed,
-Gym, training, cloud indexing, or durable terminal history.
+gate. The core does not require provider-specific harnesses, Feed, Gym,
+training, cloud indexing, or durable terminal history.
 _Avoid_: minimal demo, vanilla app
 
 **Pane**
@@ -145,12 +145,14 @@ A provider-neutral, user-configured executable addressed by a handle. A Command 
 _Avoid_: Harness, provider, agent type
 
 **Skill**
-User-editable instructions and data in a writable Note Root for a bounded graph/wiki task executed by a configured Command. A Skill declares purpose, scope, expected proposal, and evaluation criteria; it does not load code, grant authority, run in the background, or bypass invocation review.
-_Avoid_: Skill Manager, plugin entrypoint, automatic agent action
-
-**Plugin**
-A future installable, versioned distribution bundle that may package Skills, ontology templates, Command templates, integrations, or other proven capabilities. Plugin describes packaging and sharing, not an internal module, runtime seam, permission grant, or arbitrary renderer code.
-_Avoid_: capability interface, core module, dynamic UI injection
+Bounded Markdown instructions for a person-initiated task. Delivery and ownership
+depend on the workflow: ontology discovery uses a Workspace-owned Skill; graph
+maintenance prefers a provider-native installed Skill, then an
+Exograph-bundled version, then an exact inline fallback. Repository contributor
+Skills are maintained with Exograph's source and guide coding agents rather
+than product Commands. No Skill loads code, grants authority, runs in the
+background, or bypasses Command trust and invocation review.
+_Avoid_: universal storage rule, authority grant, automatic agent action
 
 **Invocation**
 One explicitly authorized Command run, including its intent, executable-bound trust decision, owned process lifecycle, provider-session provenance, and one exact Changeset with durable review decisions.

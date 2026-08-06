@@ -116,10 +116,12 @@ Evidence preserved.
 ## Optional discovery
 
 The sparkle action in Settings or Graph uses the first trusted, enabled Claude
-or Codex Command to inspect a disposable Markdown-only snapshot. The provider
-receives a user-owned `skills/design-workspace-ontology.md`, a schema-bound
-response contract, read-only tools/sandboxing, and no live Workspace write
-authority. Generic Commands are not accepted by this early-access path.
+or Codex Command to inspect a disposable Markdown-only snapshot. This workflow
+uses the Workspace-owned `skills/design-workspace-ontology.md`; Exograph does
+not substitute its graph-maintenance Skill for it. The provider receives that
+Skill, a schema-bound response contract, read-only tools/sandboxing, and no live
+Workspace write authority. Generic Commands are not accepted by this
+early-access path.
 
 The Exograph host validates the returned source, rechecks the exact graph,
 Candidate, and Active identities observed before the run, and is the only
@@ -132,9 +134,11 @@ the chosen Command to use the native
 `find-and-connect-relevant-context` Skill, then opens an ordinary inline
 Invocation prefilled with bounded graph evidence and the exact active Ontology
 identity. Exograph uses the harness's installed copy when available, otherwise
-its bundled, versioned copy; preparing the action never writes a Skill into the
-Note Root. Command+Return runs the existing trust, activity, Changeset, and
-Keep/Reject path. The Skill cannot edit Ontology sources.
+its bundled, versioned copy, with an exact inline fallback when neither delivery
+path is available. Preparing the action never writes this Skill into the Note
+Root. Command+Return runs the existing trust, activity, Changeset, and
+Keep/Reject path. Skill delivery changes instructions only: it grants no
+authority, and the Skill cannot edit Ontology sources.
 
 ## Interpretation contract
 
