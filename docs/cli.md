@@ -61,13 +61,15 @@ offline.
 ```text
 exo terminals list
 exo terminals create
-exo terminals write <id> <input> [--newline]
+exo terminals write <id> [input] [--newline]
 exo terminals read <id> [--cursor n]
 exo terminals stop <id>
 ```
 
 `create` returns a stable terminal id. `write` sends exactly the supplied text;
-use `--newline` when the shell should receive a return. `read` returns the
+use `--newline` by itself to press Return, or append it to text to submit a
+line. Exograph delivers the text and Return as separate terminal events so
+interactive applications receive them reliably. `read` returns the
 bounded in-memory tail plus an opaque cursor; passing that cursor on a later
 read returns only newer output. If retained output has rolled over, `truncated`
 is true and the response contains the current tail instead of pretending it is

@@ -35,6 +35,7 @@ test("CLI controls a live direct-PTY terminal without UI automation", async () =
     const id = created.terminal.id;
     expect(id).toMatch(/^term-/);
 
+    await cliJson(["terminals", "write", id, "--newline"], env);
     await cliJson(["terminals", "write", id, "cli-terminal-proof", "--newline"], env);
     await expect.poll(async () => {
       const read = await cliJson(["terminals", "read", id], env) as { output: string };

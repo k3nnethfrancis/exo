@@ -268,8 +268,12 @@ async function runTerminals(
     const [id, ...inputArgs] = args;
     if (!id) throw new Error(commandHelp("terminals").trimEnd());
     const { input, newline } = parseTerminalWriteInput(inputArgs);
-    if (!input) throw new Error(commandHelp("terminals").trimEnd());
-    return print(client.writeTerminal(id, `${input}${newline ? "\r" : ""}`), stdout);
+    if (!input && !newline) throw new Error(commandHelp("terminals").trimEnd());
+    const response = input ? await client.writeTerminal(id, input) : undefined;
+    if (newline) {
+      return print(client.writeTerminal(id, "\r"), stdout);
+    }
+    return print(response!, stdout);
   }
   throw new Error(commandHelp("terminals").trimEnd());
 }
@@ -578,7 +582,7 @@ function commandHelp(command: string): string {
     index: "exo index [status|sync]",
     open: "exo open <path>",
     invoke: "exo invoke @handle <task>",
-    terminals: "exo terminals [list|create|read <id> [--cursor n]|write <id> <input> [--newline]|stop <id>]",
+    terminals: "exo terminals [list|create|read <id> [--cursor n]|write <id> [input] [--newline]|stop <id>]",
     mcp: "exo mcp serve",
   }[command];
   return usage ? `Usage: ${usage}\n` : help();

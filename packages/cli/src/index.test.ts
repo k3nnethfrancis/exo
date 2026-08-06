@@ -121,10 +121,11 @@ describe("minimal Exograph operator CLI", () => {
     expect(await runCli(["node", "exograph", "terminals", "list"], options)).toBe(0);
     expect(await runCli(["node", "exograph", "terminals", "create"], options)).toBe(0);
     expect(await runCli(["node", "exograph", "terminals", "write", "term-1", "echo", "hi", "--newline"], options)).toBe(0);
+    expect(await runCli(["node", "exograph", "terminals", "write", "term-1", "--newline"], options)).toBe(0);
     expect(await runCli(["node", "exograph", "terminals", "read", "term-1", "--cursor", "2"], options)).toBe(0);
     expect(await runCli(["node", "exograph", "terminals", "stop", "term-1"], options)).toBe(0);
 
-    expect(calls).toEqual(["list", "create", "write:term-1:\"echo hi\\r\"", "read:term-1:2", "stop:term-1"]);
+    expect(calls).toEqual(["list", "create", "write:term-1:\"echo hi\"", "write:term-1:\"\\r\"", "write:term-1:\"\\r\"", "read:term-1:2", "stop:term-1"]);
     expect(output).toContain('"cursor": 5');
   });
 
