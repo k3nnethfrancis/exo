@@ -8,6 +8,7 @@ export const EXOGRAPH_COMMAND_ROUTES = {
   indexSync: "/index/sync",
   open: "/open",
   spawnAgentCommand: "/agent-commands/spawn",
+  terminals: "/terminals",
 } as const;
 
 export const EXOGRAPH_COMMAND_TOKEN_HEADER = "x-exograph-command-token";
@@ -67,6 +68,29 @@ export interface ExographCommandOkResponse {
   ok: true;
 }
 
+/** A bounded, opaque cursor over the live in-memory terminal tail. */
+export interface ExographCommandTerminalReadResponse {
+  terminal: ExographCommandTerminalInfo;
+  output: string;
+  /** Pass this value back to request output produced after this read. */
+  cursor: number;
+  /** True when the requested cursor predates the retained live tail. */
+  truncated: boolean;
+}
+
+export interface ExographCommandTerminalWriteResponse extends ExographCommandOkResponse {
+  terminal: ExographCommandTerminalInfo;
+  writeId: number;
+}
+
+export interface ExographCommandTerminalCreateResponse {
+  terminal: ExographCommandTerminalInfo;
+}
+
+export interface ExographCommandTerminalListResponse {
+  terminals: ExographCommandTerminalInfo[];
+}
+
 export type ExographCommandShowRequest = Record<string, never>;
 export type ExographCommandIndexSyncRequest = Record<string, never>;
 
@@ -90,6 +114,10 @@ export interface ExographOpenFileRequest {
 export interface ExographSpawnAgentCommandRequest {
   handle: string;
   task: string;
+}
+
+export interface ExographCommandTerminalWriteRequest {
+  input: string;
 }
 
 export interface ExographSpawnAgentCommandResponse {

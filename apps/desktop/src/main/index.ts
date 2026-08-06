@@ -146,6 +146,24 @@ function createCommandServer(runtimeRoot = resolveRuntimeRoot()) {
       workspace: workspaceModel,
       terminals: terminalManager.list(),
     }),
+    onListTerminals: () => terminalManager.list(),
+    onCreateTerminal: () => terminalManager.create({ terminalKind: "shell" }),
+    onWriteTerminal: async ({ id, data }) => {
+      const terminal = terminalManager.getInfo(id);
+      if (!terminal) return { terminal: null };
+      const result = await terminalManager.write(id, data);
+      return result.ok ? { terminal, writeId: result.writeId } : { terminal: null };
+    },
+    onReadTerminal: async ({ id, cursor }) => {
+      const terminal = terminalManager.getInfo(id);
+      const tail = terminalManager.readTailSince(id, cursor);
+      return terminal && tail ? { terminal, ...tail } : null;
+    },
+    onStopTerminal: async (id) => {
+      if (!terminalManager.getInfo(id)) return false;
+      await terminalManager.kill(id);
+      return true;
+    },
     onSpawnAgentCommand: async (input) => {
       const prepared = await invocationRunner.prepare({
         context: "cli", handle: input.handle, task: input.task, message: input.task,

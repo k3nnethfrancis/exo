@@ -35,6 +35,7 @@ exo search <query> [--limit n] [--cursor cursor] [--workspace <id|label|path>]
 exo index [status|sync]
 exo open <path>
 exo invoke @handle <task>
+exo terminals [list|create|read|write|stop]
 exo mcp serve
 ```
 
@@ -49,7 +50,28 @@ discovery, an unreachable live process, an inconclusive/permission-limited
 process check, and a running app for a different workspace. Filesystem results
 remain available and continue to name `filesystem` as their effective provider.
 
-`show`, `index`, `open`, and `invoke` require the resident Exograph app. `invoke` opens a visible terminal task and is intentionally different from a note-native `@` invocation, which carries document context and uses inline review.
+`show`, `index`, `open`, `invoke`, and `terminals` require the resident Exograph app. `invoke` opens a visible terminal task and is intentionally different from a note-native `@` invocation, which carries document context and uses inline review.
+
+## Terminal control
+
+The terminal commands operate only on live, Exograph-managed shell sessions. They
+do not create a transcript, automate the UI, or provide access while the app is
+offline.
+
+```text
+exo terminals list
+exo terminals create
+exo terminals write <id> <input> [--newline]
+exo terminals read <id> [--cursor n]
+exo terminals stop <id>
+```
+
+`create` returns a stable terminal id. `write` sends exactly the supplied text;
+use `--newline` when the shell should receive a return. `read` returns the
+bounded in-memory tail plus an opaque cursor; passing that cursor on a later
+read returns only newer output. If retained output has rolled over, `truncated`
+is true and the response contains the current tail instead of pretending it is
+a complete delta.
 
 Search output is JSON with ranked paths, titles, snippets, source metadata, and an optional cursor. It does not grant filesystem authority: callers read a returned path only through their own allowed tools.
 Search limits must be integers from 1 through 20. Use `exo <command> --help`

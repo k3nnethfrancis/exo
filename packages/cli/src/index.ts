@@ -18,6 +18,10 @@ import {
   type ExographCommandSearchResponse,
   type ExographCommandStatusWithControlPlane,
   type ExographSpawnAgentCommandResponse,
+  type ExographCommandTerminalCreateResponse,
+  type ExographCommandTerminalListResponse,
+  type ExographCommandTerminalReadResponse,
+  type ExographCommandTerminalWriteResponse,
   type WorkspaceRegistryEntry,
 } from "@exograph/core";
 import { EXOGRAPH_CLI_USAGE } from "@exograph/core/operator-help";
@@ -42,6 +46,11 @@ interface AppClientLike {
   syncIndex(): Promise<ExographCommandIndexSyncResponse>;
   openFile(filePath: string): Promise<void>;
   spawnAgentCommand(handle: string, task: string): Promise<ExographSpawnAgentCommandResponse>;
+  listTerminals(): Promise<ExographCommandTerminalListResponse>;
+  createTerminal(): Promise<ExographCommandTerminalCreateResponse>;
+  writeTerminal(id: string, input: string): Promise<ExographCommandTerminalWriteResponse>;
+  readTerminal(id: string, cursor?: number): Promise<ExographCommandTerminalReadResponse>;
+  stopTerminal(id: string): Promise<void>;
 }
 
 type AppClientConnector = (runtimeRoot: string, env: NodeJS.ProcessEnv) => Promise<AppClientLike | null>;
@@ -83,6 +92,7 @@ const CLI_COMMANDS = new Set([
   "index",
   "open",
   "invoke",
+  "terminals",
   "mcp",
 ]);
 
@@ -176,6 +186,17 @@ export async function runCli(argv: string[], options: {
     );
   }
 
+  if (command === "terminals") {
+    const workspace = await resolveCliWorkspace(env);
+    const connection = await connectIfAvailable(env, connect, workspace);
+    if (!connection.client) {
+      if (connection.diagnostic) stderr.write(formatCliRuntimeDiagnostic(connection.diagnostic));
+      else stderr.write(`Exograph is not reachable. Start it with: exo start\nRuntime root: ${await resolveCliRuntimeRoot(env)}\n`);
+      return 1;
+    }
+    return runTerminals(connection.client, subcommand, args, stdout);
+  }
+
   if (command === "show") {
     assertNoUnexpectedArguments([subcommand, ...args]);
   } else if (command === "index") {
@@ -212,6 +233,73 @@ async function runIndex(client: AppClientLike, subcommand: string | undefined, s
   if (!subcommand || subcommand === "status") return print(client.getIndexStatus(), stdout);
   if (subcommand === "sync") return print(client.syncIndex(), stdout);
   throw new Error(commandHelp("index").trimEnd());
+}
+
+async function runTerminals(
+  client: AppClientLike,
+  subcommand: string | undefined,
+  args: string[],
+  stdout: { write(text: string): void },
+): Promise<number> {
+  if (!subcommand || subcommand === "list") {
+    assertNoUnexpectedArguments(args);
+    return print(client.listTerminals(), stdout);
+  }
+  if (subcommand === "create") {
+    assertNoUnexpectedArguments(args);
+    return print(client.createTerminal(), stdout);
+  }
+  if (subcommand === "stop") {
+    const [id, ...rest] = args;
+    if (!id) throw new Error(commandHelp("terminals").trimEnd());
+    assertNoUnexpectedArguments(rest);
+    await client.stopTerminal(id);
+    return print({ ok: true, terminal_id: id }, stdout);
+  }
+  if (subcommand === "read") {
+    const [id, ...rest] = args;
+    if (!id) throw new Error(commandHelp("terminals").trimEnd());
+    const { positionals, values } = parseOptions(rest, new Set(["cursor"]));
+    assertNoUnexpectedArguments(positionals);
+    const cursor = values.cursor === undefined ? undefined : parseTerminalCursor(values.cursor);
+    return print(client.readTerminal(id, cursor), stdout);
+  }
+  if (subcommand === "write") {
+    const [id, ...inputArgs] = args;
+    if (!id) throw new Error(commandHelp("terminals").trimEnd());
+    const { input, newline } = parseTerminalWriteInput(inputArgs);
+    if (!input) throw new Error(commandHelp("terminals").trimEnd());
+    return print(client.writeTerminal(id, `${input}${newline ? "\r" : ""}`), stdout);
+  }
+  throw new Error(commandHelp("terminals").trimEnd());
+}
+
+function parseTerminalCursor(value: string): number {
+  const cursor = Number(value);
+  if (!Number.isSafeInteger(cursor) || cursor < 0) {
+    throw new Error("Expected --cursor to be a non-negative integer.");
+  }
+  return cursor;
+}
+
+function parseTerminalWriteInput(args: string[]): { input: string; newline: boolean } {
+  const input: string[] = [];
+  let newline = false;
+  let positionalOnly = false;
+  for (const value of args) {
+    if (value === "--" && !positionalOnly) {
+      positionalOnly = true;
+      continue;
+    }
+    if (!positionalOnly && value === "--newline") {
+      if (newline) throw new Error("Option may be provided only once: --newline");
+      newline = true;
+      continue;
+    }
+    if (!positionalOnly && value.startsWith("-")) throw new Error(`Unknown option: ${value}`);
+    input.push(value);
+  }
+  return { input: input.join(" "), newline };
 }
 
 async function connectIfAvailable(
@@ -490,6 +578,7 @@ function commandHelp(command: string): string {
     index: "exo index [status|sync]",
     open: "exo open <path>",
     invoke: "exo invoke @handle <task>",
+    terminals: "exo terminals [list|create|read <id> [--cursor n]|write <id> <input> [--newline]|stop <id>]",
     mcp: "exo mcp serve",
   }[command];
   return usage ? `Usage: ${usage}\n` : help();
@@ -501,7 +590,7 @@ function help(): string {
     "",
     "Workspace selection: exo workspaces; status/search accept --workspace <id|label|path>.",
     "App-off: status and search use the configured workspace's filesystem roots.",
-    "App-backed: show, index maintenance, open, and invoke require Exograph to be running.",
+    "App-backed: show, index maintenance, open, invoke, and terminal control require Exograph to be running.",
     "Developer source QA: pnpm dev:qa",
     "",
   ].join("\n");

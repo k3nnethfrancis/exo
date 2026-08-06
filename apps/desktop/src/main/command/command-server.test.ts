@@ -37,13 +37,32 @@ describe("CommandServer operator contract", () => {
     }
   });
 
-  it("does not expose terminal remote-control routes", async () => {
-    const { server, port, token } = await startServer();
+  it("exposes bounded terminal lifecycle routes through the authenticated command server", async () => {
+    const writes: Array<{ id: string; data: string }> = [];
+    const terminal = { id: "term-1", title: "Shell", cwd: "/workspace", kind: "shell", command: "/bin/zsh", status: "running" };
+    const { server, port, token } = await startServer({
+      onListTerminals: () => [terminal],
+      onCreateTerminal: async () => terminal,
+      onWriteTerminal: async ({ id, data }) => {
+        writes.push({ id, data });
+        return id === terminal.id ? { terminal, writeId: 7 } : { terminal: null };
+      },
+      onReadTerminal: async ({ id, cursor }) => id === terminal.id
+        ? { terminal, output: cursor === 4 ? " next" : "ready next", cursor: 9, truncated: false }
+        : null,
+      onStopTerminal: async (id) => id === terminal.id,
+    });
     try {
-      for (const route of ["/terminals", "/terminals/term-1/tail", "/terminals/term-1/write", "/terminals/term-1/message"]) {
-        const response = await commandFetch(token, port, route);
-        expect(response.status).toBe(404);
-      }
+      await expect(fetchJson(token, port, "/terminals")).resolves.toEqual({ terminals: [terminal] });
+      await expect(fetchJson(token, port, "/terminals", { method: "POST", body: "{}" })).resolves.toEqual({ terminal });
+      await expect(fetchJson(token, port, "/terminals/term-1/write", { method: "POST", body: JSON.stringify({ input: "echo hi\r" }) }))
+        .resolves.toEqual({ ok: true, terminal, writeId: 7 });
+      expect(writes).toEqual([{ id: "term-1", data: "echo hi\r" }]);
+      await expect(fetchJson(token, port, "/terminals/term-1/read", { method: "POST", body: JSON.stringify({ cursor: 4 }) }))
+        .resolves.toEqual({ terminal, output: " next", cursor: 9, truncated: false });
+      await expect(fetchJson(token, port, "/terminals/term-1/stop", { method: "POST", body: "{}" })).resolves.toEqual({ ok: true });
+      const missing = await commandFetch(token, port, "/terminals/missing/read", { method: "POST", body: "{}" });
+      expect(missing.status).toBe(404);
     } finally {
       server.stop();
     }
@@ -264,7 +283,7 @@ function options(runtimeRoot: string): CommandServerOptions {
     errors: [],
   };
   return {
-    runtimeRoot, onShowWindow: () => {}, onOpenFile: async () => {}, onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }), onIndexStatus: async () => status, onIndexSync: async () => ({ status, phases: [], warnings: [] }), onGetStatus: () => ({ workspace: { workspaceRoot: "/workspace", defaultTerminalCwd: "/workspace", noteRoots: [], indexedRoots: [], indexing: { enabled: true, mode: "hybrid", backend: "qmd" } }, terminals: [] }), onSpawnAgentCommand: async () => { throw new Error("not used"); },
+    runtimeRoot, onShowWindow: () => {}, onOpenFile: async () => {}, onIndexSearch: async () => ({ mode: "lexical", source: "filesystem", query: "", results: [], warnings: [] }), onIndexStatus: async () => status, onIndexSync: async () => ({ status, phases: [], warnings: [] }), onGetStatus: () => ({ workspace: { workspaceRoot: "/workspace", defaultTerminalCwd: "/workspace", noteRoots: [], indexedRoots: [], indexing: { enabled: true, mode: "hybrid", backend: "qmd" } }, terminals: [] }), onSpawnAgentCommand: async () => { throw new Error("not used"); }, onListTerminals: () => [], onCreateTerminal: async () => { throw new Error("not used"); }, onWriteTerminal: async () => ({ terminal: null }), onReadTerminal: async () => null, onStopTerminal: async () => false,
   };
 }
 

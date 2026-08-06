@@ -22,7 +22,7 @@ afterEach(async () => {
 describe("AppClient", () => {
   it("accepts the exact success bodies for every command route through the HTTP seam", async () => {
     const runtimeRoot = await runtimeFixture();
-    stubCommandServer((targetUrl) => {
+    stubCommandServer((targetUrl, init) => {
       if (targetUrl.pathname === "/status") return json(statusResponse());
       if (targetUrl.pathname === "/show" || targetUrl.pathname === "/open") return json({ ok: true });
       if (targetUrl.pathname === "/search") return json(searchResponse(targetUrl.searchParams.get("q") ?? ""));
@@ -35,6 +35,11 @@ describe("AppClient", () => {
         });
       }
       if (targetUrl.pathname === "/agent-commands/spawn") return json(spawnResponse());
+      if (targetUrl.pathname === "/terminals" && (init?.method ?? "GET") === "GET") return json({ terminals: [terminalResponse()] });
+      if (targetUrl.pathname === "/terminals" && init?.method === "POST") return json({ terminal: terminalResponse() });
+      if (targetUrl.pathname === "/terminals/term-1/write") return json({ ok: true, terminal: terminalResponse(), writeId: 7 });
+      if (targetUrl.pathname === "/terminals/term-1/read") return json({ terminal: terminalResponse(), output: "ready", cursor: 5, truncated: false });
+      if (targetUrl.pathname === "/terminals/term-1/stop") return json({ ok: true });
       return json({ error: "not found" }, 404);
     });
 
@@ -47,6 +52,11 @@ describe("AppClient", () => {
     await expect(client?.getIndexStatus()).resolves.toEqual(indexStatusResponse());
     await expect(client?.syncIndex()).resolves.toMatchObject({ phases: [{ name: "update" }] });
     await expect(client?.spawnAgentCommand("@fable", "review the plan")).resolves.toEqual(spawnResponse());
+    await expect(client?.listTerminals()).resolves.toEqual({ terminals: [terminalResponse()] });
+    await expect(client?.createTerminal()).resolves.toEqual({ terminal: terminalResponse() });
+    await expect(client?.writeTerminal("term-1", "echo ready\r")).resolves.toEqual({ ok: true, terminal: terminalResponse(), writeId: 7 });
+    await expect(client?.readTerminal("term-1", 2)).resolves.toEqual({ terminal: terminalResponse(), output: "ready", cursor: 5, truncated: false });
+    await expect(client?.stopTerminal("term-1")).resolves.toBeUndefined();
   });
 
   it("reports a missing runtime root", async () => {
@@ -429,6 +439,10 @@ function spawnResponse() {
     invocation: { id: "inv-1", status: "running", handle: "fable", createdAt: "2026-07-24T00:00:00.000Z" },
     terminal: { id: "term-1", title: "Fable", cwd: "/workspace", kind: "shell", status: "running" },
   };
+}
+
+function terminalResponse() {
+  return { id: "term-1", title: "Shell", cwd: "/workspace", kind: "shell", command: "/bin/zsh", status: "running" };
 }
 
 function authHeader(init: RequestInit | undefined): string | null {

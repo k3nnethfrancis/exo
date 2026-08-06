@@ -10,6 +10,10 @@ import {
   type ExographCommandSearchResponse,
   type ExographCommandStatusWithControlPlane,
   type ExographSpawnAgentCommandResponse,
+  type ExographCommandTerminalCreateResponse,
+  type ExographCommandTerminalListResponse,
+  type ExographCommandTerminalReadResponse,
+  type ExographCommandTerminalWriteResponse,
 } from "@exograph/core";
 import { EXOGRAPH_CLI_COMMANDS } from "@exograph/core/operator-help";
 import { AppClient } from "./app-client";
@@ -23,7 +27,12 @@ const client = {
   syncIndex: async (): Promise<ExographCommandIndexSyncResponse> => ({ status: indexStatusResponse(), phases: [], warnings: [] }),
   openFile: async () => {},
   spawnAgentCommand: async (): Promise<ExographSpawnAgentCommandResponse> => spawnResponse(),
-} satisfies Pick<AppClient, "getStatus" | "showWindow" | "search" | "getIndexStatus" | "syncIndex" | "openFile" | "spawnAgentCommand">;
+  listTerminals: async (): Promise<ExographCommandTerminalListResponse> => ({ terminals: [] }),
+  createTerminal: async (): Promise<ExographCommandTerminalCreateResponse> => ({ terminal: terminalResponse() }),
+  writeTerminal: async (_id: string, _input: string): Promise<ExographCommandTerminalWriteResponse> => ({ ok: true, terminal: terminalResponse(), writeId: 1 }),
+  readTerminal: async (_id: string, _cursor?: number): Promise<ExographCommandTerminalReadResponse> => ({ terminal: terminalResponse(), output: "", cursor: 0, truncated: false }),
+  stopTerminal: async (_id: string) => {},
+} satisfies Pick<AppClient, "getStatus" | "showWindow" | "search" | "getIndexStatus" | "syncIndex" | "openFile" | "spawnAgentCommand" | "listTerminals" | "createTerminal" | "writeTerminal" | "readTerminal" | "stopTerminal">;
 const connect = async () => client;
 const matchingClientEnv = {
   ...process.env,
@@ -88,6 +97,35 @@ describe("minimal Exograph operator CLI", () => {
     expect(await runCli(["node", "exograph", "open", "note.md"], options)).toBe(0);
     expect(await runCli(["node", "exograph", "invoke", "@review", "check", "this"], options)).toBe(0);
     expect(output).toContain("exograph.search.v1");
+  });
+
+  it("controls a referenced terminal through the app-backed CLI contract", async () => {
+    let output = "";
+    const calls: string[] = [];
+    const terminalClient = {
+      ...client,
+      getStatus: async (): Promise<ExographCommandStatusWithControlPlane> => statusResponse(),
+      listTerminals: async () => { calls.push("list"); return { terminals: [terminalResponse()] }; },
+      createTerminal: async () => { calls.push("create"); return { terminal: terminalResponse() }; },
+      writeTerminal: async (id: string, input: string) => { calls.push(`write:${id}:${JSON.stringify(input)}`); return { ok: true as const, terminal: terminalResponse(), writeId: 3 }; },
+      readTerminal: async (id: string, cursor?: number) => { calls.push(`read:${id}:${cursor ?? ""}`); return { terminal: terminalResponse(), output: "ready", cursor: 5, truncated: false }; },
+      stopTerminal: async (id: string) => { calls.push(`stop:${id}`); },
+    } satisfies typeof client;
+    const options = {
+      env: matchingClientEnv,
+      stdout: { write: (text: string) => { output += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: async () => terminalClient,
+    };
+
+    expect(await runCli(["node", "exograph", "terminals", "list"], options)).toBe(0);
+    expect(await runCli(["node", "exograph", "terminals", "create"], options)).toBe(0);
+    expect(await runCli(["node", "exograph", "terminals", "write", "term-1", "echo", "hi", "--newline"], options)).toBe(0);
+    expect(await runCli(["node", "exograph", "terminals", "read", "term-1", "--cursor", "2"], options)).toBe(0);
+    expect(await runCli(["node", "exograph", "terminals", "stop", "term-1"], options)).toBe(0);
+
+    expect(calls).toEqual(["list", "create", "write:term-1:\"echo hi\\r\"", "read:term-1:2", "stop:term-1"]);
+    expect(output).toContain('"cursor": 5');
   });
 
   it("advances through page six and offset 100 with the CLI-owned cursor", async () => {
@@ -177,7 +215,7 @@ describe("minimal Exograph operator CLI", () => {
   });
 
   it("rejects deleted families instead of preserving aliases", async () => {
-    for (const command of ["read", "spawn", "preview", "config", "terminals"]) {
+    for (const command of ["read", "spawn", "preview", "config"]) {
       await expect(runCli(["node", "exograph", command], { stderr: { write: () => {} }, connectAppClient: connect })).rejects.toThrow("Usage:");
     }
   });
@@ -385,6 +423,17 @@ describe("minimal Exograph operator CLI", () => {
     }
   });
 });
+
+function terminalResponse() {
+  return {
+    id: "term-1",
+    title: "Shell",
+    cwd: "/workspace",
+    kind: "shell",
+    command: "/bin/zsh",
+    status: "running",
+  };
+}
 
 function statusResponse(workspaceRoot = "/workspace"): ExographCommandStatusWithControlPlane {
   return {

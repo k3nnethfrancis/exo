@@ -7,6 +7,11 @@ import {
   EXOGRAPH_COMMAND_TOKEN_HEADER,
   type ExographCommandBasicErrorResponse,
   type ExographCommandOkResponse,
+  type ExographCommandTerminalCreateResponse,
+  type ExographCommandTerminalInfo,
+  type ExographCommandTerminalListResponse,
+  type ExographCommandTerminalReadResponse,
+  type ExographCommandTerminalWriteResponse,
   type ExographCommandServerInfo,
   type ExographCommandStatusResponse,
   type ExographSpawnAgentCommandResponse,
@@ -27,6 +32,11 @@ export interface CommandServerOptions {
   onIndexSync: () => Promise<IndexSyncResult>;
   onGetStatus: () => ExographCommandStatusResponse;
   onSpawnAgentCommand: (input: { handle: string; task: string }) => Promise<InvocationResult>;
+  onListTerminals: () => ExographCommandTerminalInfo[];
+  onCreateTerminal: () => Promise<ExographCommandTerminalInfo>;
+  onWriteTerminal: (input: { id: string; data: string }) => Promise<{ terminal: ExographCommandTerminalInfo | null; writeId?: number }>;
+  onReadTerminal: (input: { id: string; cursor?: number }) => Promise<ExographCommandTerminalReadResponse | null>;
+  onStopTerminal: (id: string) => Promise<boolean>;
 }
 
 export class CommandServer {
@@ -203,6 +213,44 @@ export class CommandServer {
           }
           throw error;
         }
+        return;
+      }
+
+      if (method === "GET" && pathname === EXOGRAPH_COMMAND_ROUTES.terminals) {
+        json(res, { terminals: this.options.onListTerminals() } satisfies ExographCommandTerminalListResponse);
+        return;
+      }
+
+      if (method === "POST" && pathname === EXOGRAPH_COMMAND_ROUTES.terminals) {
+        json(res, { terminal: await this.options.onCreateTerminal() } satisfies ExographCommandTerminalCreateResponse);
+        return;
+      }
+
+      const terminalMatch = pathname.match(/^\/terminals\/([^/]+)\/(read|write|stop)$/);
+      if (terminalMatch && method === "POST") {
+        const [, id, action] = terminalMatch;
+        if (!id || !action) throw new CommandServerHttpError(400, "Missing terminal id or action.");
+        const body = await readBody(req);
+        if (action === "read") {
+          const cursor = isRecord(body) && typeof body.cursor === "number" && Number.isSafeInteger(body.cursor) && body.cursor >= 0
+            ? body.cursor
+            : undefined;
+          const result = await this.options.onReadTerminal({ id, cursor });
+          if (!result) throw new CommandServerHttpError(404, "Terminal was not found.");
+          json(res, result);
+          return;
+        }
+        if (action === "write") {
+          const input = isRecord(body) && typeof body.input === "string" ? body.input : undefined;
+          if (input === undefined) throw new CommandServerHttpError(400, "Missing input in body.");
+          const result = await this.options.onWriteTerminal({ id, data: input });
+          if (!result.terminal || result.writeId === undefined) throw new CommandServerHttpError(404, "Terminal was not found or cannot receive input.");
+          json(res, { ok: true, terminal: result.terminal, writeId: result.writeId } satisfies ExographCommandTerminalWriteResponse);
+          return;
+        }
+        const stopped = await this.options.onStopTerminal(id);
+        if (!stopped) throw new CommandServerHttpError(404, "Terminal was not found.");
+        json(res, { ok: true } satisfies ExographCommandOkResponse);
         return;
       }
 

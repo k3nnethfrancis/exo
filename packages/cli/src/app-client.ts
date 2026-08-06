@@ -8,6 +8,11 @@ import {
   type ExographCommandIndexSyncResponse,
   type ExographCommandIndexSyncRequest,
   type ExographCommandOkResponse,
+  type ExographCommandTerminalCreateResponse,
+  type ExographCommandTerminalListResponse,
+  type ExographCommandTerminalReadResponse,
+  type ExographCommandTerminalWriteRequest,
+  type ExographCommandTerminalWriteResponse,
   type ExographCommandSearchRequest,
   type ExographCommandSearchResponse,
   type ExographCommandServerInfo,
@@ -195,6 +200,31 @@ export class AppClient {
     return this.post(EXOGRAPH_COMMAND_ROUTES.spawnAgentCommand, request, decodeExographSpawnAgentCommandResponse, this.maintenanceRequestTimeoutMs);
   }
 
+  async listTerminals(): Promise<ExographCommandTerminalListResponse> {
+    return this.get(EXOGRAPH_COMMAND_ROUTES.terminals, decodeExographCommandTerminalListResponse);
+  }
+
+  async createTerminal(): Promise<ExographCommandTerminalCreateResponse> {
+    return this.post(EXOGRAPH_COMMAND_ROUTES.terminals, {}, decodeExographCommandTerminalCreateResponse);
+  }
+
+  async writeTerminal(id: string, input: string): Promise<ExographCommandTerminalWriteResponse> {
+    const request: ExographCommandTerminalWriteRequest = { input };
+    return this.post(`${EXOGRAPH_COMMAND_ROUTES.terminals}/${encodeURIComponent(id)}/write`, request, decodeExographCommandTerminalWriteResponse);
+  }
+
+  async readTerminal(id: string, cursor?: number): Promise<ExographCommandTerminalReadResponse> {
+    return this.post(
+      `${EXOGRAPH_COMMAND_ROUTES.terminals}/${encodeURIComponent(id)}/read`,
+      cursor === undefined ? {} : { cursor },
+      decodeExographCommandTerminalReadResponse,
+    );
+  }
+
+  async stopTerminal(id: string): Promise<void> {
+    await this.post(`${EXOGRAPH_COMMAND_ROUTES.terminals}/${encodeURIComponent(id)}/stop`, {}, decodeExographCommandOkResponse);
+  }
+
   private async get<T>(path: string, decode: (value: unknown) => T, timeoutMs = this.requestTimeoutMs): Promise<T> {
     try {
       const res = await fetch(`${this.baseUrl}${path}`, {
@@ -271,6 +301,34 @@ function decodeExographSpawnAgentCommandResponse(value: unknown): ExographSpawnA
     throw protocolShapeError("a valid agent command spawn response");
   }
   return value;
+}
+
+function decodeExographCommandTerminalListResponse(value: unknown): ExographCommandTerminalListResponse {
+  if (!isRecord(value) || !Array.isArray(value.terminals) || !value.terminals.every(isCommandTerminal)) {
+    throw protocolShapeError("a valid terminal list response");
+  }
+  return value as unknown as ExographCommandTerminalListResponse;
+}
+
+function decodeExographCommandTerminalCreateResponse(value: unknown): ExographCommandTerminalCreateResponse {
+  if (!isRecord(value) || !isCommandTerminal(value.terminal)) {
+    throw protocolShapeError("a valid terminal create response");
+  }
+  return value as unknown as ExographCommandTerminalCreateResponse;
+}
+
+function decodeExographCommandTerminalWriteResponse(value: unknown): ExographCommandTerminalWriteResponse {
+  if (!isRecord(value) || value.ok !== true || !isCommandTerminal(value.terminal) || !Number.isSafeInteger(value.writeId)) {
+    throw protocolShapeError("a valid terminal write response");
+  }
+  return value as unknown as ExographCommandTerminalWriteResponse;
+}
+
+function decodeExographCommandTerminalReadResponse(value: unknown): ExographCommandTerminalReadResponse {
+  if (!isRecord(value) || !isCommandTerminal(value.terminal) || typeof value.output !== "string" || typeof value.cursor !== "number" || !Number.isSafeInteger(value.cursor) || value.cursor < 0 || typeof value.truncated !== "boolean") {
+    throw protocolShapeError("a valid terminal read response");
+  }
+  return value as unknown as ExographCommandTerminalReadResponse;
 }
 
 function decodeSuccessfulResponse<T>(body: string, method: string, targetPath: string, decode: (value: unknown) => T): T {
