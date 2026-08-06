@@ -11,6 +11,9 @@ const electronMock = vi.hoisted(() => ({
   openSettings: vi.fn(),
   restartCommandServer: vi.fn(),
   showMessageBox: vi.fn(),
+  showDefinitionForSelection: vi.fn(),
+  replaceMisspelling: vi.fn(),
+  addWordToSpellCheckerDictionary: vi.fn(),
   trayImageCreateFromDataURL: vi.fn(),
   trayImageCreateFromPath: vi.fn(),
   trayImageSetTemplateImage: vi.fn(),
@@ -31,7 +34,13 @@ vi.mock("electron", () => ({
       return electronMock.windows.filter((window) => !window.destroyed);
     }
 
-    readonly webContents = new EventEmitter();
+    readonly webContents = Object.assign(new EventEmitter(), {
+      replaceMisspelling: electronMock.replaceMisspelling,
+      showDefinitionForSelection: electronMock.showDefinitionForSelection,
+      session: {
+        addWordToSpellCheckerDictionary: electronMock.addWordToSpellCheckerDictionary,
+      },
+    });
     destroyed = false;
     visible = false;
     hidden = false;
@@ -84,7 +93,7 @@ vi.mock("electron", () => ({
   Menu: {
     buildFromTemplate: (template: Array<Record<string, unknown>>) => {
       electronMock.menuTemplate = template;
-      return { template };
+      return { template, popup: vi.fn() };
     },
   },
   nativeImage: {
@@ -140,6 +149,9 @@ describe("AppLifecycleController", () => {
     electronMock.trayInstances.length = 0;
     electronMock.windows.length = 0;
     electronMock.menuTemplate = [];
+    electronMock.showDefinitionForSelection.mockClear();
+    electronMock.replaceMisspelling.mockClear();
+    electronMock.addWordToSpellCheckerDictionary.mockClear();
   });
 
   it("hides the workspace window on close so the process can keep running", () => {
@@ -252,6 +264,50 @@ describe("AppLifecycleController", () => {
     expect(electronMock.appQuit).not.toHaveBeenCalled();
   });
 
+  it("uses Electron's native editable context menu with spelling and selection actions", () => {
+    const controller = appLifecycleController();
+    const window = controller.createWindow() as any;
+    const event = { preventDefault: vi.fn() };
+
+    window.webContents.emit("context-menu", event, editableContext({
+      selectionText: "teh",
+      misspelledWord: "teh",
+      dictionarySuggestions: ["the"],
+    }));
+
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(menuLabels()).toEqual(expect.arrayContaining(["the", "Add to Dictionary"]));
+    expect(menuRoles()).toEqual(expect.arrayContaining([
+      "undo",
+      "redo",
+      "cut",
+      "copy",
+      "paste",
+      "pasteAndMatchStyle",
+      "delete",
+      "selectAll",
+    ]));
+    clickMenuItem("the");
+    expect(electronMock.replaceMisspelling).toHaveBeenCalledWith("the");
+    clickMenuItem("Add to Dictionary");
+    expect(electronMock.addWordToSpellCheckerDictionary).toHaveBeenCalledWith("teh");
+    if (process.platform === "darwin") {
+      clickMenuItem("Look Up");
+      expect(electronMock.showDefinitionForSelection).toHaveBeenCalledOnce();
+    }
+  });
+
+  it("leaves non-editable context menus alone", () => {
+    const controller = appLifecycleController();
+    const window = controller.createWindow() as any;
+    const event = { preventDefault: vi.fn() };
+
+    window.webContents.emit("context-menu", event, editableContext({ isEditable: false }));
+
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(electronMock.menuTemplate).toEqual([]);
+  });
+
   it("restarts command-server discovery from the resident menu", () => {
     const controller = appLifecycleController();
     controller.createWindow();
@@ -322,11 +378,37 @@ function menuLabels(): string[] {
     .filter((label): label is string => typeof label === "string");
 }
 
+function menuRoles(): string[] {
+  return electronMock.menuTemplate
+    .map((item) => item.role)
+    .filter((role): role is string => typeof role === "string");
+}
+
 function clickMenuItem(label: string): void {
   const item = electronMock.menuTemplate.find((entry) => entry.label === label);
   expect(item).toBeTruthy();
   expect(item?.click).toBeTypeOf("function");
   (item!.click as () => void)();
+}
+
+function editableContext(overrides: Record<string, unknown> = {}): any {
+  return {
+    isEditable: true,
+    selectionText: "",
+    misspelledWord: "",
+    dictionarySuggestions: [],
+    editFlags: {
+      canUndo: true,
+      canRedo: true,
+      canCut: true,
+      canCopy: true,
+      canPaste: true,
+      canDelete: true,
+      canSelectAll: true,
+      canEditRichly: false,
+    },
+    ...overrides,
+  };
 }
 
 function decodePngRgba(dataUrl: string): { width: number; height: number; alphaAt: (x: number, y: number) => number } {

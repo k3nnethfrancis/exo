@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, Tray, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, Tray, type ContextMenuParams, type MenuItemConstructorOptions } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -71,6 +71,13 @@ export class AppLifecycleController {
       }
       event.preventDefault();
       this.loadRenderer(window);
+    });
+
+    window.webContents.on("context-menu", (event, params) => {
+      const template = editableContextMenuTemplate(window, params);
+      if (!template) return;
+      event.preventDefault();
+      Menu.buildFromTemplate(template).popup({ window });
     });
 
     window.webContents.on("did-start-loading", () => {
@@ -370,6 +377,58 @@ export class AppLifecycleController {
     const existing = candidatePaths.find((candidate) => existsSync(candidate));
     return existing ?? candidatePaths[0];
   }
+}
+
+/**
+ * Build the platform menu for editable web contents. The renderer deliberately
+ * does not imitate a text menu: Chromium already reports spelling, selection,
+ * and edit capability state to Electron, which can keep this interaction native.
+ */
+export function editableContextMenuTemplate(
+  window: Pick<BrowserWindow, "webContents">,
+  params: ContextMenuParams,
+): MenuItemConstructorOptions[] | null {
+  if (!params.isEditable) return null;
+
+  const { editFlags, misspelledWord, dictionarySuggestions, selectionText } = params;
+  const template: MenuItemConstructorOptions[] = [];
+
+  if (misspelledWord) {
+    for (const suggestion of dictionarySuggestions) {
+      template.push({
+        label: suggestion,
+        click: () => window.webContents.replaceMisspelling(suggestion),
+      });
+    }
+    if (dictionarySuggestions.length > 0) template.push({ type: "separator" });
+    template.push({
+      label: "Add to Dictionary",
+      click: () => window.webContents.session.addWordToSpellCheckerDictionary(misspelledWord),
+    });
+    template.push({ type: "separator" });
+  }
+
+  template.push(
+    { role: "undo", enabled: editFlags.canUndo },
+    { role: "redo", enabled: editFlags.canRedo },
+    { type: "separator" },
+    { role: "cut", enabled: editFlags.canCut },
+    { role: "copy", enabled: editFlags.canCopy },
+    { role: "paste", enabled: editFlags.canPaste },
+    { role: "pasteAndMatchStyle", enabled: editFlags.canPaste },
+    { role: "delete", enabled: editFlags.canDelete },
+    { role: "selectAll", enabled: editFlags.canSelectAll },
+  );
+
+  if (process.platform === "darwin" && selectionText.trim()) {
+    template.push(
+      { type: "separator" },
+      { label: "Look Up", click: () => window.webContents.showDefinitionForSelection() },
+      { role: "services" },
+    );
+  }
+
+  return template;
 }
 
 function shouldRecoverRenderer(reason: string): boolean {
