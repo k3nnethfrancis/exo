@@ -1,4 +1,4 @@
-import type { AgentCommand, IndexedRoot, SearchEngine, WorkspaceContentPolicy, WorkspaceSettings, WorkspaceSettingsRevision } from "@exograph/core";
+import type { AgentCommand, IndexedRoot, SearchEngine, WorkspaceContentPolicy, WorkspaceSettings, WorkspaceSettingsRevision, WorkspaceShortcutBindings } from "@exograph/core";
 
 import type { AppearanceMode } from "./appearance";
 import type { ColorThemeId } from "./theme/types";
@@ -36,6 +36,7 @@ export interface WorkspaceSettingsDialogState {
   editorFontSize: string;
   terminalFontSize: string;
   explorerScale: string;
+  shortcutBindings?: WorkspaceShortcutBindings;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
   agentCommands: AgentCommand[];

@@ -4,7 +4,7 @@ import { chmod, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/pro
 import os from "node:os";
 import path from "node:path";
 
-import type { IndexMode, WorkspaceCanvasLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision } from "./types";
+import type { IndexMode, WorkspaceCanvasLayoutSettings, WorkspaceModel, WorkspacePaneContent, WorkspacePaneNode, WorkspaceSettings, WorkspaceSettingsRevision, WorkspaceShortcutBindings, WorkspaceShortcutId } from "./types";
 import {
   agentCommandConfigurationError,
   normalizeAgentCommand,
@@ -430,10 +430,32 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     editorFontSize: clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24),
     terminalFontSize: clampSettingsNumber(input.terminalFontSize, DEFAULT_TERMINAL_FONT_SIZE, 10, 22),
     explorerScale: clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35),
+    shortcutBindings: normalizeWorkspaceShortcutBindings(input.shortcutBindings),
     exploreIndexSearchOnEnter: typeof input.exploreIndexSearchOnEnter === "boolean" ? input.exploreIndexSearchOnEnter : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0,
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
     layout: normalizeWorkspaceLayout(input.layout),
   };
+}
+
+const WORKSPACE_SHORTCUT_IDS: readonly WorkspaceShortcutId[] = ["explorer", "utility", "new-note", "daily-note", "terminal", "save"];
+
+function normalizeWorkspaceShortcutBindings(value: unknown): WorkspaceShortcutBindings {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const bindings: WorkspaceShortcutBindings = {};
+  for (const id of WORKSPACE_SHORTCUT_IDS) {
+    const candidate = (value as Record<string, unknown>)[id];
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) continue;
+    const code = (candidate as Record<string, unknown>).code;
+    if (typeof code !== "string" || !/^(?:Key[A-Z]|Enter)$/.test(code)) continue;
+    bindings[id] = {
+      code,
+      shift: (candidate as Record<string, unknown>).shift === true,
+      alt: (candidate as Record<string, unknown>).alt === true,
+    };
+  }
+  return bindings;
 }
 
 function assertSupportedWorkspaceSettings(

@@ -61,7 +61,7 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     }
 
     const noteRootPaths = options.workspaceModel.noteRoots.map((root) => root.path);
-    const suggested = isInsideNoteRoot(directoryPath, noteRootPaths) ? "new-note.md" : "new-file.txt";
+    const suggested = isInsideNoteRoot(directoryPath, noteRootPaths) ? "untitled.md" : "new-file.txt";
     setDialog({
       kind: "create-file",
       targetPath: directoryPath,
@@ -85,6 +85,26 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     }
     await options.reloadTrees();
     await options.openFile(nextPath, options.editorFocusedLeafId);
+  }
+
+  async function createUntitledNote() {
+    const noteRoot = options.workspaceModel?.noteRoots[0]?.path;
+    if (!noteRoot) return;
+    for (let attempt = 1; attempt <= 100; attempt += 1) {
+      const filename = attempt === 1 ? "untitled.md" : `untitled-${attempt}.md`;
+      const targetPath = joinPath(noteRoot, filename);
+      try {
+        await window.exograph.workspace.createFile(targetPath);
+        options.requestGeneratedTitleSelection(targetPath);
+        await options.reloadTrees();
+        await options.openFile(targetPath, options.editorFocusedLeafId);
+        return;
+      } catch (error) {
+        if (error instanceof Error && error.message.includes("Destination already exists")) continue;
+        throw error;
+      }
+    }
+    throw new Error("Unable to create an untitled note without overwriting an existing file.");
   }
 
   function createDirectoryInDirectory(directoryPath: string) {
@@ -218,6 +238,7 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     dialog,
     setDialog,
     createFileInDirectory,
+    createUntitledNote,
     createDirectoryInDirectory,
     renameWorkspacePath,
     deleteWorkspacePath,

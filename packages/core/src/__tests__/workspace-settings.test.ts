@@ -36,6 +36,22 @@ describe("workspace settings registry", () => {
     } as unknown as Partial<WorkspaceSettings>)).toBeNull();
   });
 
+  it("retains valid workspace shortcut overrides and discards unsupported shortcut shapes", () => {
+    const settings = normalizeWorkspaceSettings({
+      ...workspaceSettingsFor("/tmp/exograph-shortcuts/notes"),
+      shortcutBindings: {
+        "new-note": { code: "KeyK" },
+        terminal: { code: "Enter", shift: true },
+        save: { code: "Digit1" },
+      },
+    });
+
+    expect(settings?.shortcutBindings).toEqual({
+      "new-note": { code: "KeyK", shift: false, alt: false },
+      terminal: { code: "Enter", shift: true, alt: false },
+    });
+  });
+
   it("retains the later full Indexed Root policy for an exact resolved-path duplicate", () => {
     const settings = normalizeWorkspaceSettings({
       workspaceRoot: "/tmp/exograph-indexed-root-dedupe",

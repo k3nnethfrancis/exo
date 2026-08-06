@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { isNewTerminalShortcut, shellPanelShortcut } from "./useAppKeybindings";
+import { resolvedWorkspaceShortcutBindings, shortcutBindingsHaveConflict } from "../shellHelpModel";
 
 describe("app keybindings", () => {
   it("maps familiar primary and secondary sidebar shortcuts without accepting noisy variants", () => {
@@ -23,5 +24,13 @@ describe("app keybindings", () => {
     expect(isNewTerminalShortcut({ key: "t", metaKey: true, ctrlKey: false, shiftKey: false, altKey: true, repeat: false })).toBe(false);
     expect(isNewTerminalShortcut({ key: "t", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: true })).toBe(false);
     expect(isNewTerminalShortcut({ key: "n", metaKey: true, ctrlKey: false, shiftKey: false, altKey: false, repeat: false })).toBe(false);
+  });
+
+  it("resolves per-workspace overrides and rejects duplicate global bindings", () => {
+    const bindings = resolvedWorkspaceShortcutBindings({ "new-note": { code: "KeyK" } });
+    expect(bindings["new-note"]).toEqual({ code: "KeyK" });
+    expect(bindings["daily-note"]).toEqual({ code: "KeyN", shift: true });
+    expect(shortcutBindingsHaveConflict({ explorer: { code: "KeyK" }, terminal: { code: "KeyK" } })).toBe(true);
+    expect(shortcutBindingsHaveConflict({ explorer: { code: "KeyK" }, terminal: { code: "KeyT" } })).toBe(false);
   });
 });

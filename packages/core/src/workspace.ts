@@ -503,6 +503,9 @@ async function findMatchingFiles(
 }
 
 export async function createWorkspaceFile(targetPath: string, content?: string): Promise<string> {
+  if (existsSync(targetPath)) {
+    throw new Error(`Destination already exists: ${targetPath}`);
+  }
   await mkdir(path.dirname(targetPath), { recursive: true });
   await writeFile(targetPath, content ?? initialWorkspaceFileContent(targetPath), "utf8");
   return targetPath;

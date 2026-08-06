@@ -22,6 +22,18 @@ describe("workspace", () => {
     }
   });
 
+  it("refuses to overwrite an existing workspace file", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-workspace-"));
+    const target = path.join(root, "existing.md");
+    try {
+      await writeFile(target, "# Keep this\n", "utf8");
+      await expect(createWorkspaceFile(target)).rejects.toThrow(`Destination already exists: ${target}`);
+      await expect(readFile(target, "utf8")).resolves.toBe("# Keep this\n");
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("resolves the default workspace model from env", () => {
     const model = resolveWorkspaceModel({
       EXOGRAPH_WORKSPACE_ROOT: fixtureWorkspaceRoot,

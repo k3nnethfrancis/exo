@@ -8,6 +8,7 @@ import { agentCommandConfigurationError } from "@exograph/core/agent-command-con
 import type { IndexSyncStateEvent, WorkspaceSettingsSaveOutcome } from "../../../shared/api";
 import { DEFAULT_AGENT_INVOCATION_PROMPT } from "@exograph/core/agent-invocation-prompt";
 import { normalizeWorkspaceContentPolicy } from "@exograph/core/workspace-content-policy";
+import { shortcutBindingsHaveConflict } from "../shellHelpModel";
 import type { AppearanceMode } from "../appearance";
 import { normalizeColorThemeId } from "../theme/registry";
 import {
@@ -198,6 +199,7 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
       editorFontSize: String(settings.editorFontSize),
       terminalFontSize: String(settings.terminalFontSize),
       explorerScale: String(settings.explorerScale),
+      shortcutBindings: settings.shortcutBindings ?? {},
       exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
       indexUpdateStrategy: settings.indexUpdateStrategy,
       agentCommands: settings.agentCommands ?? [],
@@ -217,11 +219,12 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
   function closeDialog() {
     const snapshot = dialog;
     const commandError = snapshot ? agentCommandConfigurationError(snapshot.agentCommands) : null;
-    if (snapshot && commandError) {
+    const shortcutError = snapshot && shortcutBindingsHaveConflict(snapshot.shortcutBindings) ? "Each global shortcut must be unique." : null;
+    if (snapshot && (commandError || shortcutError)) {
       // A command draft is local form state until it validates. Keep it in the
       // dialog so Close never turns a fixable validation problem into a
       // misleading runtime-recovery notice or silently discards the edit.
-      setDialog({ ...snapshot, saveStatus: "error", errorMessage: commandError });
+      setDialog({ ...snapshot, saveStatus: "error", errorMessage: commandError ?? shortcutError });
       return;
     }
     if (snapshot && snapshot.saveStatus !== "saved" && snapshot.saveStatus !== "saving") {
@@ -299,14 +302,15 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
     }
 
     const commandError = agentCommandConfigurationError(settingsDialog.agentCommands);
-    if (commandError) {
+    const shortcutError = shortcutBindingsHaveConflict(settingsDialog.shortcutBindings) ? "Each global shortcut must be unique." : null;
+    if (commandError || shortcutError) {
       const invalidDraftKey = saveOptions.includeStructural
         ? workspaceSettingsStructuralDraftKey(settingsDialog)
         : workspaceSettingsImmediateDraftKey(settingsDialog);
       setDialog((current) =>
         current
         && (saveOptions.includeStructural ? workspaceSettingsStructuralDraftKey(current) : workspaceSettingsImmediateDraftKey(current)) === invalidDraftKey
-          ? { ...current, saveStatus: "error", errorMessage: commandError }
+          ? { ...current, saveStatus: "error", errorMessage: commandError ?? shortcutError }
           : current,
       );
       return;
@@ -472,9 +476,10 @@ export function workspaceSettingsFromDialog(
   if (!currentSettings) {
     throw new Error("Workspace settings are unavailable. Close Settings and try again.");
   }
-  const commandError = agentCommandConfigurationError(settingsDialog.agentCommands);
-  if (commandError) {
-    throw new Error(commandError);
+    const commandError = agentCommandConfigurationError(settingsDialog.agentCommands);
+    const shortcutError = shortcutBindingsHaveConflict(settingsDialog.shortcutBindings) ? "Each global shortcut must be unique." : null;
+    if (commandError || shortcutError) {
+      throw new Error(commandError ?? shortcutError ?? "Shortcut configuration is invalid.");
   }
 
   const structuralSettings = {
@@ -518,6 +523,7 @@ export function workspaceSettingsFromDialog(
     editorFontSize: clampNumber(Number(settingsDialog.editorFontSize), 11, 24),
     terminalFontSize: clampNumber(Number(settingsDialog.terminalFontSize), 10, 22),
     explorerScale: clampNumber(Number(settingsDialog.explorerScale), 0.82, 1.35),
+    shortcutBindings: settingsDialog.shortcutBindings,
     exploreIndexSearchOnEnter: settingsDialog.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settingsDialog.indexUpdateStrategy,
     agentCommands: settingsDialog.agentCommands,

@@ -1,8 +1,13 @@
 import { useEffect } from "react";
+import type { WorkspaceShortcutBindings } from "@exograph/core";
+
+import { resolvedWorkspaceShortcutBindings, shortcutMatches } from "../shellHelpModel";
 
 interface UseAppKeybindingsOptions {
   activeDocumentPath: string | null;
+  shortcutBindings?: WorkspaceShortcutBindings;
   saveDocument: (filePath: string) => Promise<void>;
+  createUntitledNote: () => Promise<void>;
   openOrCreateDailyNote: () => Promise<void>;
   createShellTerminal: () => Promise<void>;
   toggleExplorerPanel: () => void;
@@ -13,10 +18,10 @@ interface UseAppKeybindingsOptions {
 export function useAppKeybindings(options: UseAppKeybindingsOptions) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
-      const mod = event.metaKey || event.ctrlKey;
+      const bindings = resolvedWorkspaceShortcutBindings(options.shortcutBindings);
       // ⌘B is a standard Markdown editor command. Let CodeMirror receive it
       // when an editor owns focus; elsewhere it remains the Explorer shortcut.
-      const panelShortcut = isCodeMirrorEvent(event) ? null : shellPanelShortcut(event);
+      const panelShortcut = isCodeMirrorEvent(event) ? null : shellPanelShortcut(event, options.shortcutBindings);
       if (panelShortcut) {
         event.preventDefault();
         event.stopPropagation();
@@ -27,13 +32,14 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
         }
         return;
       }
+      const mod = event.metaKey || event.ctrlKey;
       if (mod && !event.altKey && isZoomKey(event.key)) {
         event.preventDefault();
         event.stopPropagation();
         options.updateAppZoom(zoomDirection(event.key));
         return;
       }
-      if (mod && event.key.toLowerCase() === "s" && options.activeDocumentPath) {
+      if (shortcutMatches(event, bindings.save) && options.activeDocumentPath) {
         // Let the editor keymap flush an active inline-agent composer into the
         // document model before saving. The window-level capture handler would
         // otherwise persist only the mention and drop the draft text.
@@ -44,12 +50,17 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
         void options.saveDocument(options.activeDocumentPath);
         return;
       }
-      if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "n") {
+      if (shortcutMatches(event, bindings["new-note"])) {
+        event.preventDefault();
+        void options.createUntitledNote();
+        return;
+      }
+      if (shortcutMatches(event, bindings["daily-note"])) {
         event.preventDefault();
         void options.openOrCreateDailyNote();
         return;
       }
-      if (isNewTerminalShortcut(event)) {
+      if (shortcutMatches(event, bindings.terminal)) {
         event.preventDefault();
         void options.createShellTerminal();
       }
@@ -59,7 +70,9 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [
     options.activeDocumentPath,
+    options.shortcutBindings,
     options.saveDocument,
+    options.createUntitledNote,
     options.openOrCreateDailyNote,
     options.createShellTerminal,
     options.toggleExplorerPanel,
@@ -76,17 +89,15 @@ type ShortcutEvent = Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "shiftK
 type ShellPanelShortcutEvent = Pick<KeyboardEvent, "code" | "metaKey" | "ctrlKey" | "shiftKey" | "altKey" | "repeat">;
 export type ShellPanelShortcut = "explorer" | "utility";
 
-export function shellPanelShortcut(event: ShellPanelShortcutEvent): ShellPanelShortcut | null {
-  const mod = event.metaKey || event.ctrlKey;
-  if (!mod || event.shiftKey || event.repeat || event.code !== "KeyB") {
-    return null;
-  }
-  return event.altKey ? "utility" : "explorer";
+export function shellPanelShortcut(event: ShellPanelShortcutEvent, bindings?: WorkspaceShortcutBindings): ShellPanelShortcut | null {
+  const resolved = resolvedWorkspaceShortcutBindings(bindings);
+  if (shortcutMatches(event, resolved.explorer)) return "explorer";
+  if (shortcutMatches(event, resolved.utility)) return "utility";
+  return null;
 }
 
-export function isNewTerminalShortcut(event: ShortcutEvent): boolean {
-  const mod = event.metaKey || event.ctrlKey;
-  return mod && !event.shiftKey && !event.altKey && !event.repeat && event.key.toLowerCase() === "t";
+export function isNewTerminalShortcut(event: ShortcutEvent, bindings?: WorkspaceShortcutBindings): boolean {
+  return shortcutMatches({ ...event, code: event.key.length === 1 ? `Key${event.key.toUpperCase()}` : event.key }, resolvedWorkspaceShortcutBindings(bindings).terminal);
 }
 
 function isZoomKey(key: string): boolean {

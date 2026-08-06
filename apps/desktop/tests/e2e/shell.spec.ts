@@ -705,7 +705,7 @@ test("creates, renames, and deletes notes from the explorer", async () => {
   await cleanup();
 });
 
-test("handles global save and daily-note keybindings", async () => {
+test("handles global save, new-note, daily-note, and collision-safe creation keybindings", async () => {
   const { page, workspaceRoot, cleanup } = await launchExographWorkspaceFixture({ mutable: true });
   const modifier = process.platform === "darwin" ? "Meta" : "Control";
   const focusNotePath = path.join(workspaceRoot, "notes/test-notes/focus-note.md");
@@ -731,6 +731,13 @@ test("handles global save and daily-note keybindings", async () => {
   await expect.poll(async () => readFile(focusNotePath, "utf8")).toContain("Saved with keybinding.");
 
   await page.keyboard.press(`${modifier}+N`);
+  await expect(page.getByTestId("editor-title")).toHaveText("untitled");
+  await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes", "untitled.md"), "utf8")).toMatch(initialMarkdownNotePattern);
+  await page.keyboard.press(`${modifier}+N`);
+  await expect(page.getByTestId("editor-title")).toHaveText("untitled-2");
+  await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes", "untitled-2.md"), "utf8")).toMatch(initialMarkdownNotePattern);
+
+  await page.keyboard.press(`${modifier}+Shift+N`);
   await expect(page.getByTestId("editor-title")).toHaveText(dailyName);
   await expect.poll(async () => readFile(path.join(workspaceRoot, "notes/test-notes", `${dailyName}.md`), "utf8")).toMatch(initialMarkdownNotePattern);
   await expect.poll(() => page.evaluate(() => {

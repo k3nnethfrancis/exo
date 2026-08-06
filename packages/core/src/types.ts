@@ -44,10 +44,23 @@ export interface WorkspaceSettings {
   editorFontSize: number;
   terminalFontSize: number;
   explorerScale: number;
+  /** Per-workspace overrides for the global Mod-based shell shortcuts. */
+  shortcutBindings?: WorkspaceShortcutBindings;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: IndexUpdateStrategy;
   layout?: WorkspaceLayoutSettings;
 }
+
+export type WorkspaceShortcutId = "explorer" | "utility" | "new-note" | "daily-note" | "terminal" | "save";
+
+/** A Mod-based shortcut; Mod resolves to Command on macOS and Control elsewhere. */
+export interface WorkspaceShortcutBinding {
+  code: string;
+  shift?: boolean;
+  alt?: boolean;
+}
+
+export type WorkspaceShortcutBindings = Partial<Record<WorkspaceShortcutId, WorkspaceShortcutBinding>>;
 
 export type WorkspaceSettingsRevision = string | null;
 

@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { WorkspaceSearchResults } from "@exograph/core";
+import type { WorkspaceShortcutBindings } from "@exograph/core";
 import { ChevronRight, FileText, Folder, Globe2, Network, PanelLeft, PanelRight, SquareTerminal } from "lucide-react";
 
 import type { AppearanceMode, ResolvedAppearance } from "../appearance";
@@ -16,6 +17,7 @@ import { WorkspaceSearchField } from "./WorkspaceSearchField";
 interface ShellLayoutProps {
   titleSegments: WorkspaceBreadcrumbSegment[];
   workspaceLabel: string;
+  shortcutBindings?: WorkspaceShortcutBindings;
   noteSections: RootSection[];
   appearanceMode: AppearanceMode;
   resolvedAppearance: ResolvedAppearance;
@@ -164,7 +166,7 @@ export function ShellLayout(props: ShellLayoutProps) {
         </div>
       </aside>
       </div>
-      <WorkspaceMenu collapsed={props.sidebarCollapsed} label={props.workspaceLabel} onOpenSettings={props.onOpenWorkspaceSettings} />
+      <WorkspaceMenu collapsed={props.sidebarCollapsed} label={props.workspaceLabel} shortcutBindings={props.shortcutBindings} onOpenSettings={props.onOpenWorkspaceSettings} />
     </div>
   );
 }

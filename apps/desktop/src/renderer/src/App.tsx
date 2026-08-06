@@ -6,6 +6,7 @@ import type {
   InvocationSkillContext,
   WorkspaceModel,
   WorkspaceSettings,
+  WorkspaceShortcutBindings,
 } from "@exograph/core";
 import type { InvocationActivityEvent } from "@exograph/core/invocation-activity";
 
@@ -98,6 +99,7 @@ export function App() {
   const workspaceTrees = useWorkspaceTrees({ noteTreeMaxDepth: NOTE_TREE_MAX_DEPTH });
   const { noteTrees } = workspaceTrees;
   const [exploreIndexSearchOnEnter, setExploreIndexSearchOnEnter] = useState(false);
+  const [shortcutBindings, setShortcutBindings] = useState<WorkspaceShortcutBindings>({});
   const [qmdSearchSelected, setQmdSearchSelected] = useState(false);
   const workspaceSearch = useWorkspaceSearch({ indexedOnEnter: exploreIndexSearchOnEnter, qmdSelected: qmdSearchSelected });
   const graphInspection = useInspectedConcept();
@@ -348,7 +350,9 @@ export function App() {
 
   useAppKeybindings({
     activeDocumentPath,
+    shortcutBindings,
     saveDocument,
+    createUntitledNote: workspaceMutations.createUntitledNote,
     openOrCreateDailyNote,
     createShellTerminal: async () => {
       await createUtilityTerminal("shell");
@@ -368,6 +372,7 @@ export function App() {
     setTerminalRuntimeReadTailChars(terminalPolicy.readTailChars);
     setExplorerScale(settings.explorerScale);
     setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
+    setShortcutBindings(settings.shortcutBindings ?? {});
     setQmdSearchSelected(settings.searchEngine === "qmd");
   }
 
@@ -971,6 +976,7 @@ export function App() {
       onOpenTitleSegment={(segment) => void openTitleSegment(segment)}
       onOpenFolder={(directoryPath) => canvasNavigation.openFolderOverview(directoryPath)}
       workspaceLabel={workspaceLabel}
+      shortcutBindings={shortcutBindings}
       noteSections={noteSections}
       appearanceMode={appearanceMode}
       resolvedAppearance={resolvedAppearance}

@@ -20,6 +20,7 @@ export function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDi
     editorFontSize: settings.editorFontSize,
     terminalFontSize: settings.terminalFontSize,
     explorerScale: settings.explorerScale,
+    shortcutBindings: settings.shortcutBindings,
     exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settings.indexUpdateStrategy,
     agentCommands: settings.agentCommands,

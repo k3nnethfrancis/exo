@@ -1,5 +1,5 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
-import { Bot, FolderOpen, Palette, Search, TerminalSquare, X } from "lucide-react";
+import { Bot, FolderOpen, Keyboard, Palette, Search, TerminalSquare, X } from "lucide-react";
 import type { AgentCommand, IndexStatus, WorkspaceSettings } from "@exograph/core";
 import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@exograph/core/workspace-content-policy";
 import type { AgentCommandContinuityStatus } from "../../../shared/api";
@@ -14,6 +14,12 @@ import { PathList } from "./PathList";
 import { AgentInvocationPromptEditor } from "./AgentInvocationPromptEditor";
 import { AgentCommandConfigurator } from "./AgentCommandConfigurator";
 import { OntologyReviewRow } from "./OntologyReviewRow";
+import {
+  resolvedWorkspaceShortcutBindings,
+  shortcutBindingFromEvent,
+  shortcutBindingsHaveConflict,
+  shortcutLabel,
+} from "../shellHelpModel";
 
 interface WorkspaceSettingsDialogProps {
   indexBusy: IndexBusyState;
@@ -33,6 +39,7 @@ const SETTINGS_SECTIONS: Array<{ id: WorkspaceSettingsSection; label: string; de
   { id: "index", label: "Search", description: "Search behavior", icon: Search },
   { id: "appearance", label: "Appearance", description: "Theme and editor", icon: Palette },
   { id: "terminal", label: "Terminal", description: "Display", icon: TerminalSquare },
+  { id: "shortcuts", label: "Shortcuts", description: "App commands", icon: Keyboard },
   { id: "agents", label: "Agents", description: "@ mentions and commands", icon: Bot },
 ];
 
@@ -107,6 +114,7 @@ export function WorkspaceSettingsDialog({
             ) : null}
             {settings.section === "appearance" ? <AppearanceSection settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "terminal" ? <TerminalSection settings={settings} setSettings={setSettings} /> : null}
+            {settings.section === "shortcuts" ? <ShortcutsSection settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "agents" ? <AgentsSection settings={settings} setSettings={setSettings} /> : null}
           </div>
         </div>
@@ -177,7 +185,58 @@ export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSecti
   if (section === "terminal") {
     return "Adjust terminal text.";
   }
+  if (section === "shortcuts") {
+    return "Choose the shortcuts Exograph uses in this workspace.";
+  }
   return "Configure the agents available from @ mentions.";
+}
+
+function ShortcutsSection({ settings, setSettings }: Pick<WorkspaceSettingsDialogProps, "settings" | "setSettings">) {
+  const bindings = resolvedWorkspaceShortcutBindings(settings.shortcutBindings);
+  const rows = [
+    ["explorer", "Explorer"],
+    ["utility", "Utility pane"],
+    ["new-note", "New note"],
+    ["daily-note", "Daily note"],
+    ["terminal", "New terminal"],
+    ["save", "Save"],
+  ] as const;
+  const hasConflict = shortcutBindingsHaveConflict(settings.shortcutBindings);
+
+  return (
+    <section className="dialog-field dialog-field--section" data-testid="workspace-settings-shortcuts">
+      <div className="dialog-field__header">
+        <span className="dialog-field__label">Global shortcuts</span>
+        <button className="toolbar-button" onClick={() => setSettings((current) => current ? { ...current, shortcutBindings: {}, saveStatus: "idle" } : current)} type="button">Reset</button>
+      </div>
+      <div className="onboarding-section__hint">Click a shortcut, then press Command (or Control) plus a letter. Editor-specific commands remain in the editor.</div>
+      {rows.map(([id, label]) => (
+        <label className="settings-control-row" key={id}>
+          <span className="dialog-field__label">{label}</span>
+          <button
+            aria-label={`Set ${label} shortcut`}
+            className="toolbar-button"
+            data-testid={`workspace-settings-shortcut-${id}`}
+            onKeyDown={(event) => {
+              const binding = shortcutBindingFromEvent(event);
+              if (!binding) return;
+              event.preventDefault();
+              event.stopPropagation();
+              setSettings((current) => current ? {
+                ...current,
+                shortcutBindings: { ...current.shortcutBindings, [id]: binding },
+                saveStatus: "idle",
+              } : current);
+            }}
+            type="button"
+          >
+            {shortcutLabel(bindings[id])}
+          </button>
+        </label>
+      ))}
+      {hasConflict ? <div className="dialog-card__status dialog-card__status--error">Each global shortcut must be unique.</div> : null}
+    </section>
+  );
 }
 
 function WorkspaceSection({

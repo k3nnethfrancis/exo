@@ -1230,9 +1230,8 @@
 
 .workspace-menu__footer {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
-  align-items: center;
 }
 
 .workspace-menu__icon {
