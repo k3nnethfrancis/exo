@@ -363,7 +363,14 @@ function isExographCommandOkResponse(value: unknown): value is ExographCommandOk
 }
 
 function isIndexSearchResponse(value: unknown): value is IndexSearchResponse {
-  return isRecord(value) && typeof value.query === "string" && isIndexMode(value.mode) && isIndexBackend(value.source) && isStringArray(value.warnings) && Array.isArray(value.results) && value.results.every(isIndexSearchResult) && (value.hasMore === undefined || typeof value.hasMore === "boolean");
+  return isRecord(value) && typeof value.query === "string" && isIndexMode(value.mode) && isIndexBackend(value.source) && isStringArray(value.warnings) && Array.isArray(value.results) && value.results.every(isIndexSearchResult) && (value.hasMore === undefined || typeof value.hasMore === "boolean") && (value.incomplete === undefined || isIndexSearchIncomplete(value.incomplete));
+}
+
+function isIndexSearchIncomplete(value: unknown): boolean {
+  return isRecord(value)
+    && value.reason === "authorization_refill_limit"
+    && typeof value.requested === "number"
+    && typeof value.returned === "number";
 }
 
 function isIndexSyncResult(value: unknown): value is IndexSyncResult {

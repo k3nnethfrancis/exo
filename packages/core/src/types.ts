@@ -281,6 +281,11 @@ export interface IndexSearchResponse {
   warnings: string[];
   results: IndexSearchResult[];
   hasMore?: boolean;
+  incomplete?: {
+    reason: "authorization_refill_limit";
+    requested: number;
+    returned: number;
+  };
 }
 
 export interface IndexReadResponse {

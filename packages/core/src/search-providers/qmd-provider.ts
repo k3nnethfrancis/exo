@@ -37,9 +37,13 @@ interface QmdResultCandidate {
   result: IndexSearchResult;
 }
 
-interface FilteredQmdResults {
+interface FilteredQmdStreamResults {
   results: QmdResultCandidate[];
   rejectedCount: number;
+}
+
+interface RefilledQmdResults extends FilteredQmdStreamResults {
+  incomplete: boolean;
 }
 
 interface QmdStreamState {
@@ -48,7 +52,7 @@ interface QmdStreamState {
   maxScanLimit: number;
   rawResults: unknown[];
   boundaryScore: number | null;
-  filtered: FilteredQmdResults;
+  filtered: FilteredQmdStreamResults;
   exhausted: boolean;
   complete: boolean;
 }
@@ -57,13 +61,6 @@ class QmdStreamQueryError extends Error {
   constructor(readonly reason: unknown) {
     super(errorMessage(reason));
     this.name = "QmdStreamQueryError";
-  }
-}
-
-class QmdSearchIncompleteError extends Error {
-  constructor() {
-    super(`QMD search exhausted its bounded refill budget of ${MAX_QMD_REFILL_SLACK_PER_STREAM} additional results in a provider stream before finding enough authorized results or proving exhaustion.`);
-    this.name = "QmdSearchIncompleteError";
   }
 }
 
@@ -364,7 +361,7 @@ async function searchIndex(
       }),
     );
 
-    let filteredResults: FilteredQmdResults;
+    let filteredResults: RefilledQmdResults;
     if (effectiveMode === "lexical") {
       filteredResults = await refillQmdStreams(
         lexicalStreams(),
@@ -456,6 +453,9 @@ async function searchIndex(
     if (filteredResults.rejectedCount > 0) {
       warnings.push(droppedQmdResultWarning(filteredResults.rejectedCount));
     }
+    if (filteredResults.incomplete) {
+      warnings.push("QMD reached its authorization scan limit; returning the authorized results found so far.");
+    }
 
     return {
       query: trimmedQuery,
@@ -463,10 +463,17 @@ async function searchIndex(
       source: "qmd",
       warnings,
       results,
-      hasMore: pageableResults.length > offset + results.length,
+      hasMore: pageableResults.length > offset + results.length || filteredResults.incomplete,
+      incomplete: filteredResults.incomplete
+        ? {
+            reason: "authorization_refill_limit",
+            requested: limit,
+            returned: results.length,
+          }
+        : undefined,
     };
   } catch (error) {
-    if (error instanceof QmdSearchIncompleteError || error instanceof QmdCollectionConfigurationError) {
+    if (error instanceof QmdCollectionConfigurationError) {
       throw error;
     }
     // If QMD cannot open at all, keep basic workspace search usable. This fallback is intentionally
@@ -483,9 +490,9 @@ async function refillQmdStreams(
   collections: QmdCollectionIdentity,
   indexedRootFiles: WorkspaceFiles,
   options: IndexSearchOptions,
-): Promise<FilteredQmdResults> {
+): Promise<RefilledQmdResults> {
   if (streams.length === 0) {
-    return { results: [], rejectedCount: 0 };
+    return { results: [], rejectedCount: 0, incomplete: false };
   }
 
   const roundedTarget = Math.ceil(targetResultCount);
@@ -505,6 +512,7 @@ async function refillQmdStreams(
     complete: false,
   }));
 
+  let incomplete = false;
   while (states.some((state) => !state.complete)) {
     const activeStates = states.filter((state) => !state.complete);
     const queryResults = await Promise.allSettled(
@@ -545,13 +553,15 @@ async function refillQmdStreams(
       }
     }
     if (reachedIncompleteCap) {
-      throw new QmdSearchIncompleteError();
+      incomplete = true;
+      break;
     }
   }
 
   return {
     results: states.flatMap((state) => state.filtered.results),
     rejectedCount: states.reduce((total, state) => total + state.filtered.rejectedCount, 0),
+    incomplete,
   };
 }
 
@@ -574,7 +584,7 @@ async function filterQmdStreamResults(
   collections: QmdCollectionIdentity,
   indexedRootFiles: WorkspaceFiles,
   options: IndexSearchOptions,
-): Promise<FilteredQmdResults> {
+): Promise<FilteredQmdStreamResults> {
   const mappedResults = rawResults
     .map((result) => mapQmdResult(result, collections))
     .filter((result): result is IndexSearchResult => result !== null);
