@@ -41,7 +41,9 @@ exo mcp serve
 
 `exo status` and `exo search` work when the desktop app is not running. They
 resolve a saved workspace, use bounded filesystem retrieval, and report that
-the app is unavailable rather than claiming indexed app results.
+the app is unavailable rather than claiming indexed app results. Status names
+both the configured index and the effective filesystem provider. Start the app
+with `exo start` to use QMD through Exograph's managed desktop runtime.
 
 When runtime discovery fails, app-off status includes
 `app.diagnostic`, and app-off search includes the same object as `runtime`.

@@ -176,8 +176,10 @@ async function getIndexStatus(model: WorkspaceModel, runtimeRoot: string): Promi
       warnings: [...readinessWarnings, ...runtimeWarnings],
     };
   } catch (error) {
+    const runtimeWarning = qmdRuntimeRecoveryWarning(error);
     return {
       ...base,
+      warnings: runtimeWarning ? [...runtimeWarnings, runtimeWarning] : runtimeWarnings,
       errors: [errorMessage(error)],
     };
   } finally {
@@ -1052,15 +1054,10 @@ function errorMessage(error: unknown): string {
 
 function qmdFallbackWarning(error: unknown): string {
   const message = errorMessage(error);
-  const lowerMessage = message.toLowerCase();
-  if (
-    lowerMessage.includes("node_module_version") ||
-    lowerMessage.includes("was compiled against") ||
-    lowerMessage.includes("abi") ||
-    lowerMessage.includes("dlopen")
-  ) {
+  if (isNativeAbiMismatch(message)) {
     return `QMD native ABI mismatch (${message}); using degraded filesystem search.`;
   }
+  const lowerMessage = message.toLowerCase();
   if (
     lowerMessage.includes("vec0") ||
     lowerMessage.includes("sqlite-vec") ||
@@ -1069,4 +1066,18 @@ function qmdFallbackWarning(error: unknown): string {
     return `QMD vec0 extension is unavailable (${message}); using degraded filesystem search.`;
   }
   return `QMD search failed (${message}); using degraded filesystem search.`;
+}
+
+function qmdRuntimeRecoveryWarning(error: unknown): string | null {
+  const message = errorMessage(error);
+  if (!isNativeAbiMismatch(message)) return null;
+  return "QMD native ABI mismatch. Reinstall the packaged app from a checkout with `./scripts/install-mac-app --with-cli`; Exograph runs QMD in its managed desktop runtime.";
+}
+
+function isNativeAbiMismatch(message: string): boolean {
+  const lowerMessage = message.toLowerCase();
+  return lowerMessage.includes("node_module_version")
+    || lowerMessage.includes("was compiled against")
+    || lowerMessage.includes("abi")
+    || lowerMessage.includes("dlopen");
 }

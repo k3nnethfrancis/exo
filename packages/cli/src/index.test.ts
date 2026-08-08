@@ -271,12 +271,28 @@ describe("minimal Exograph operator CLI", () => {
       expect(await runCli(["node", "exograph", "search", "local-first"], options)).toBe(0);
 
       expect(output).toContain('"available": false');
+      expect(output).toContain('"reason": "desktop-app-unavailable"');
       expect(output).toContain("orientation.md");
       expect(output).toContain('"path"');
       expect(discoveredRuntimeRoot).toBe(path.join(workspaceRoot, ".exograph"));
     } finally {
       await rm(workspaceRoot, { recursive: true, force: true });
     }
+  });
+
+  it("reports the live QMD health with app-backed status", async () => {
+    let output = "";
+    expect(await runCli(["node", "exograph", "status"], {
+      env: matchingClientEnv,
+      stdout: { write: (text) => { output += text; } },
+      stderr: { write: () => {} },
+      connectAppClient: connect,
+    })).toBe(0);
+
+    expect(JSON.parse(output)).toMatchObject({
+      workspace: { indexing: { backend: "qmd", mode: "hybrid" } },
+      search: { backend: "qmd", mode: "hybrid", errors: [] },
+    });
   });
 
   it("adds a machine-readable discovery diagnostic while preserving app-off status and search", async () => {
@@ -494,6 +510,7 @@ function workspaceSettings(root: string): WorkspaceSettings {
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,
+    graphInverseNavigation: true,
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",
   };

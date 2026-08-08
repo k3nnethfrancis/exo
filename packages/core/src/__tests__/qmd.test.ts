@@ -972,6 +972,19 @@ describe("QMD index adapter", () => {
     expect(titleResult.results[0]).toMatchObject({ filePath: notePath, title: "Sigmund Lab", snippet: "title: Sigmund Lab" });
   });
 
+  it("reports an exact managed-runtime recovery when QMD status hits an ABI mismatch", async () => {
+    const root = await fixtureRoot();
+    const model = indexedModel(root, "hybrid");
+    createStoreError = new Error("The module was compiled against a different Node.js version using NODE_MODULE_VERSION 127");
+
+    const status = await qmdSearchProvider.getStatus(model, path.join(root, ".exograph"));
+
+    expect(status.errors[0]).toContain("NODE_MODULE_VERSION 127");
+    expect(status.warnings).toContain(
+      "QMD native ABI mismatch. Reinstall the packaged app from a checkout with `./scripts/install-mac-app --with-cli`; Exograph runs QMD in its managed desktop runtime.",
+    );
+  });
+
   it("reports missing vec0 separately when degraded search is used", async () => {
     const root = await fixtureRoot();
     const model = indexedModel(root, "hybrid");

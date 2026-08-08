@@ -158,7 +158,10 @@ export async function runCli(argv: string[], options: {
     const connection = await connectIfAvailable(env, connect, workspace);
     return print(
       connection.client
-        ? connection.status
+        ? {
+          ...connection.status,
+          search: await connection.client.getIndexStatus(),
+        }
         : appOffStatus(workspace, env, connection.diagnostic),
       stdout,
     );
@@ -442,6 +445,11 @@ async function appOffStatus(
 ): Promise<Record<string, unknown>> {
   const { model } = workspace;
   const runtimeRoot = await resolveCliRuntimeRoot(env, model);
+  const search = await filesystemSearchProvider.getStatus(model, runtimeRoot);
+  const qmdConfigured = model.searchEngine !== "filesystem"
+    && model.indexing.enabled
+    && model.indexing.mode !== "off"
+    && model.indexedRoots.length > 0;
   return {
     ok: true,
     app: {
@@ -456,7 +464,21 @@ async function appOffStatus(
       root: model.workspaceRoot,
       noteRoots: model.noteRoots.map((root) => root.path),
     },
-    search: await filesystemSearchProvider.getStatus(model, runtimeRoot),
+    search: {
+      ...search,
+      configured: model.indexing,
+      effective: {
+        provider: "filesystem",
+        mode: "lexical",
+        reason: "desktop-app-unavailable",
+      },
+      ...(qmdConfigured ? {
+        recovery: {
+          command: "exo start",
+          message: "Start Exograph to use QMD in its managed desktop runtime.",
+        },
+      } : {}),
+    },
   };
 }
 

@@ -22,6 +22,9 @@ meaning; hybrid uses both.
 If QMD is catching up or recovering, Exograph keeps foreground retrieval available
 through its simple filesystem path and reports that state. Use **Sync documents**
 for the current corpus or **Reconcile documents** when the index may be stale.
+If status reports a native ABI mismatch, do not load the app's Electron-built
+SQLite module from shell Node. Rebuild and reinstall the managed app runtime in
+one step with `./scripts/install-mac-app --with-cli`.
 Read [Search](search.md) before changing a retrieval mode or rebuilding
 embeddings.
 
