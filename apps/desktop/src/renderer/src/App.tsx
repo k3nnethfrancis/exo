@@ -30,7 +30,7 @@ import { WorkspaceSettingsDialog } from "./components/WorkspaceSettingsDialog";
 import { WorkspaceRuntimeApplyNotice } from "./components/WorkspaceRuntimeApplyNotice";
 import { useAppKeybindings } from "./hooks/useAppKeybindings";
 import { useOpenDocuments, type OpenEditorDocument } from "./hooks/useOpenDocuments";
-import { useInspectedConcept, type InspectedConcept } from "./hooks/useInspectedConcept";
+import { useInspectedConcept } from "./hooks/useInspectedConcept";
 import { usePaneDropOrchestration } from "./hooks/usePaneDropOrchestration";
 import { useShellLayout } from "./hooks/useShellLayout";
 import { useTerminalSessions } from "./hooks/useTerminalSessions";
@@ -58,9 +58,9 @@ import {
   workspaceSettingsStructuralDraftKey,
 } from "./workspaceSettingsModel";
 import { pathLabel } from "./workspaceTree";
-import { getPreviewTitle, markdownPreviewExcerpt, suggestWikilinkTargetsFromTrees } from "./graphAffordances";
+import { getPreviewTitle, markdownPreviewExcerpt } from "./graphAffordances";
 import { workspaceBreadcrumb, type WorkspaceBreadcrumbSegment } from "./workspaceBreadcrumb";
-import { DEFAULT_UTILITY_SURFACE_STATE, isUtilityDestinationActive, reduceUtilitySurface } from "./utilitySurfaceModel";
+import { DEFAULT_UTILITY_SURFACE_STATE, reduceUtilitySurface, type UtilityDestination } from "./utilitySurfaceModel";
 import { addPreviewTab, closePreviewTab, EMPTY_PREVIEW_TABS, selectPreviewTab, updatePreviewTabUrl } from "./previewTabsModel";
 import {
   applyInvocationActivityEvent,
@@ -119,6 +119,7 @@ export function App() {
   const [terminalRuntimeScrollbackLines, setTerminalRuntimeScrollbackLines] = useState(DEFAULT_TERMINAL_RUNTIME_SCROLLBACK_LINES);
   const [terminalRuntimeReadTailChars, setTerminalRuntimeReadTailChars] = useState(DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS);
   const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
+  const [graphInverseNavigation, setGraphInverseNavigation] = useState(true);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
@@ -271,7 +272,7 @@ export function App() {
 
   useEffect(() => {
     if (activeDocumentPath) {
-      graphInspection.inspect({ filePath: activeDocumentPath }, "editor");
+      graphInspection.inspect({ filePath: activeDocumentPath });
     }
   }, [activeDocumentPath, graphInspection.inspect]);
 
@@ -371,6 +372,7 @@ export function App() {
     setTerminalRuntimeScrollbackLines(terminalPolicy.scrollbackLines);
     setTerminalRuntimeReadTailChars(terminalPolicy.readTailChars);
     setExplorerScale(settings.explorerScale);
+    setGraphInverseNavigation(settings.graphInverseNavigation);
     setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
     setShortcutBindings(settings.shortcutBindings ?? {});
     setQmdSearchSelected(settings.searchEngine === "qmd");
@@ -649,7 +651,7 @@ export function App() {
     }
 
     if (/^(?:\/|[A-Za-z]:[\\/])/.test(target)) {
-      // Graph and Connections can own focus while navigating. Route an
+      // Graph and Note context can own focus while navigating. Route an
       // absolute Concept path to an editor leaf explicitly instead of treating
       // the currently focused graph/utility surface as the file destination.
       await canvasNavigation.openFile(target, findEditorLeaf(canvasTree)?.id);
@@ -701,7 +703,13 @@ export function App() {
   }
 
   async function suggestNoteTargets(query: string) {
-    return suggestWikilinkTargetsFromTrees(workspaceModel, noteTrees, query);
+    if (!activeDocumentPath) return [];
+    const suggestions = await window.exograph.notes.suggestTargets(activeDocumentPath, query);
+    return suggestions.map((suggestion) => ({
+      label: suggestion.title,
+      target: suggestion.target,
+      detail: suggestion.snippet,
+    }));
   }
 
   async function previewKnowledgeTarget(target: string) {
@@ -750,30 +758,16 @@ export function App() {
     dispatchUtility({ type: "toggle" });
   }
 
-  function toggleConnectionsSurface() {
+  function closeNoteContext() {
     dispatchUtility({ type: "close" });
   }
 
-  function openConnectionsSurface() {
-    selectUtilitySurface("connections");
-  }
-
-  function inspectGraphConcept(concept: InspectedConcept) {
-    graphInspection.inspect(concept, "graph");
-    if (concept.filePath && !openDocuments[concept.filePath]) {
-      void ensureDocumentLoaded(concept.filePath);
-    }
-  }
-
-  function focusGraphConcept(concept: InspectedConcept) {
-    graphInspection.focus(concept, "graph");
-    if (concept.filePath && !openDocuments[concept.filePath]) {
-      void ensureDocumentLoaded(concept.filePath);
-    }
+  function openNoteContext() {
+    selectUtilitySurface("context");
   }
 
   function restoreEditorInspection(filePath: string) {
-    graphInspection.inspect({ filePath }, "editor");
+    graphInspection.inspect({ filePath });
   }
 
   function activateOpenGraphTarget(filePath: string) {
@@ -781,26 +775,17 @@ export function App() {
     canvasNavigation.activateEditorDocument(filePath, targetLeaf?.id);
   }
 
-  function openGraphCanvas(focusPath?: string) {
-    if (focusPath) graphInspection.focus({ filePath: focusPath }, "editor");
+  function openGraphUtility(focusPath?: string) {
+    if (focusPath) graphInspection.focus({ filePath: focusPath });
     canvasNavigation.rememberGraphReturnPath(focusPath ?? focusedEditorPath);
-    const existing = collectLeaves(canvasTree).find((leaf) => leaf.content.kind === "graph");
-    if (existing) {
-      canvasNavigation.focusPane(existing.id);
-      return;
-    }
-    const target = findNode(canvasTree, (node) => node.kind === "leaf" && node.id === focusedPaneId) as PaneLeaf | undefined
-      ?? collectLeaves(canvasTree)[0];
-    if (!target) return;
-    const graphLeaf = canvasActions.splitLeaf(target.id, "horizontal", { kind: "graph" }, "after");
-    canvasNavigation.focusPane(graphLeaf.id);
+    selectUtilitySurface("graph");
   }
 
   function focusBrowserPane() {
     selectUtilitySurface("preview");
   }
 
-  function selectUtilitySurface(destination: "terminal" | "preview" | "connections") {
+  function selectUtilitySurface(destination: UtilityDestination) {
     flushSync(() => dispatchUtility({ type: "select", destination }));
   }
 
@@ -967,6 +952,30 @@ export function App() {
       onCreateTerminal={() => void createUtilityTerminal("shell")}
       dragManager={dragManager}
     />
+  ) : utilityState.destination === "graph" ? (
+    <GraphPane
+      inverseNavigation={graphInverseNavigation}
+      inspectedConcept={graphInspection.state.concept}
+      focusRequest={graphInspection.state.focusRequest}
+      graphReturnPath={canvasNavigation.graphReturnPath}
+      isTargetOpen={(target) => openEditorPaths.has(target)}
+      onRestoreEditorConcept={restoreEditorInspection}
+      onActivateOpenTarget={activateOpenGraphTarget}
+      onClose={() => dispatchUtility({ type: "close" })}
+      onFocus={() => undefined}
+      onOpenTarget={(target) => void openKnowledgeTarget(target)}
+      onStartMaintenance={(filePath) => void composeGraphMaintenance(filePath)}
+    />
+  ) : utilityState.destination === "context" ? (
+    <InspectorDock document={inspectedDocument} graphContext={inspectedGraphContext} open activeTag={null} tagResults={[]} invocationHistory={invocationHistory} invocationHistoryError={invocationHistoryError} requestedTab={inspectorTabRequest} onOpenInvocationHistory={(item) => {
+      invocationReviewController.openHistory(item);
+    }} onResumeInvocation={(id) => {
+      const item = invocationHistory.find((candidate) => candidate.invocationId === id);
+      void resumeInvocationInTerminal(id, item?.command);
+    }} onRetryInvocationHistory={invocationReviewController.retryHistory} onToggle={closeNoteContext} onOpenHeading={(filePath, line) => {
+      const editorLeaf = findEditorLeafByPath(canvasTree, filePath) ?? findEditorLeaf(canvasTree);
+      void canvasNavigation.openFile(filePath, editorLeaf?.id, { line });
+    }} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exograph.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />
   ) : null;
 
   return (
@@ -1001,16 +1010,17 @@ export function App() {
       onToggleUtility={toggleUtilitySurface}
       onOpenUtilityBrowser={focusBrowserPane}
       onOpenUtilityTerminal={openUtilityTerminal}
+      onOpenUtilityGraph={() => openGraphUtility(inspectedPath ?? activeDocumentPath ?? undefined)}
+      onOpenNoteContext={openNoteContext}
       revealExplorerPathRequest={revealExplorerPathRequest}
       renderLeaf={(leaf, isFocused) => {
         if (leaf.content.kind === "graph") {
           return <GraphPane
+            inverseNavigation={graphInverseNavigation}
             inspectedConcept={graphInspection.state.concept}
             focusRequest={graphInspection.state.focusRequest}
             graphReturnPath={canvasNavigation.graphReturnPath}
             isTargetOpen={(target) => openEditorPaths.has(target)}
-            onInspectConcept={inspectGraphConcept}
-            onFocusConcept={focusGraphConcept}
             onRestoreEditorConcept={restoreEditorInspection}
             onActivateOpenTarget={activateOpenGraphTarget}
             onClose={() => canvasActions.removeLeaf(leaf.id)}
@@ -1104,7 +1114,7 @@ export function App() {
               onOpenFile={(filePath) => void canvasNavigation.openFile(filePath, leaf.id)}
               onClosePane={collectLeaves(canvasTree).length > 1 ? () => canvasActions.removeLeaf(leaf.id) : null}
               dragManager={dragManager}
-              onOpenGraph={() => openGraphCanvas(pane.activePath ?? undefined)}
+              onOpenGraph={() => openGraphUtility(pane.activePath ?? undefined)}
               onUpdateFrontmatter={(key, value) => {
                 if (leaf.content.kind === "editor" && leaf.content.activePath) {
                   updateFrontmatter(leaf.content.activePath, key, value);
@@ -1150,7 +1160,7 @@ export function App() {
               editingFrozen={Boolean(pane.activePath && invocationReviewFrozenPaths.includes(pane.activePath))}
               historyAvailable={invocationHistory.length > 0 || Boolean(invocationHistoryError)}
               onOpenHistory={() => {
-                openConnectionsSurface();
+                openNoteContext();
                 setInspectorTabRequest({ tab: "history", nonce: Date.now() });
               }}
               theme={resolvedTheme}
@@ -1172,16 +1182,8 @@ export function App() {
           </>
         );
       }}
-      connections={<InspectorDock document={inspectedDocument} graphContext={inspectedGraphContext} open={isUtilityDestinationActive(utilityState, "connections")} activeTag={null} tagResults={[]} invocationHistory={invocationHistory} invocationHistoryError={invocationHistoryError} requestedTab={inspectorTabRequest} onOpenInvocationHistory={(item) => {
-        invocationReviewController.openHistory(item);
-      }} onResumeInvocation={(id) => {
-        const item = invocationHistory.find((candidate) => candidate.invocationId === id);
-        void resumeInvocationInTerminal(id, item?.command);
-      }} onRetryInvocationHistory={invocationReviewController.retryHistory} onToggle={toggleConnectionsSurface} onOpenGraphCanvas={openGraphCanvas} onOpenTarget={(target) => void openKnowledgeTarget(target)} onOpenExternal={(target) => void window.exograph.shell.openExternal(target)} onOpenTag={(tag) => void openTag(tag)} />}
       onAppearanceModeChange={updateAppearanceMode}
       onOpenWorkspaceSettings={() => void workspaceSettingsController.openDialog()}
-      connectionsOpen={isUtilityDestinationActive(utilityState, "connections")}
-      onOpenConnections={openConnectionsSurface}
       onSearchQueryChange={(value) => {
         workspaceSearch.setQuery(value);
         workspaceSearch.setSubmittedQuery(value.trim());

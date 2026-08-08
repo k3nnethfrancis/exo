@@ -52,6 +52,7 @@ describe("workspace settings footer copy", () => {
         settings={workspaceSettingsDialogFixture({
           section: "agents",
           agentCommands: [createDefaultClaudeAgentCommand(), createDefaultCodexAgentCommand()],
+          defaultAgentCommandId: "codex",
         })}
         setSettings={() => {}}
         structuralDraftKey={workspaceSettingsStructuralDraftKey}
@@ -59,12 +60,40 @@ describe("workspace settings footer copy", () => {
     );
 
     expect(html).toContain("Agents");
+    expect(html).toContain("Default agent");
+    expect(html).toContain('<option value="codex" selected="">Codex</option>');
     expect(html).toContain("@claude");
     expect(workspaceSettingsDialogIntroCopy("agents", false)).toBe("Configure the agents available from @ mentions.");
     expect(html).toContain("claude -p");
     expect(html).toContain("Keep context");
     expect(html).toContain("Fresh each time");
     expect(html).toContain("Add Custom");
+  });
+
+  it("keeps inverse navigation in a dedicated Graph section", () => {
+    const html = renderToStaticMarkup(
+      <WorkspaceSettingsDialog
+        indexBusy={null}
+        indexStatus={null}
+        onChooseFolder={() => {}}
+        onClose={() => {}}
+        onOpenWorkspaceSwitcher={() => {}}
+        onRunIndexUpdate={() => {}}
+        onSave={() => {}}
+        settings={workspaceSettingsDialogFixture({ section: "graph", graphInverseNavigation: false })}
+        setSettings={() => {}}
+        structuralDraftKey={workspaceSettingsStructuralDraftKey}
+      />,
+    );
+
+    expect(html).toContain("Inverse navigation");
+    expect(html).toContain("Reverse orbit direction while dragging.");
+    expect(html).toContain('data-testid="workspace-settings-graph-inverse-navigation"');
+    expect(html).toContain("Advanced");
+    expect(html).toContain("Ontology prompt");
+    expect(html).toContain("Used by Discover structure");
+    expect(html).toContain('data-testid="workspace-settings-ontology-prompt"');
+    expect(workspaceSettingsDialogIntroCopy("graph", false)).toBe("Adjust how the graph moves.");
   });
 
   it("keeps Markdown scope editable from Workspace settings", () => {

@@ -20,10 +20,13 @@ export function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDi
     editorFontSize: settings.editorFontSize,
     terminalFontSize: settings.terminalFontSize,
     explorerScale: settings.explorerScale,
+    graphInverseNavigation: settings.graphInverseNavigation,
+    ontologyDiscoveryPrompt: settings.ontologyDiscoveryPrompt,
     shortcutBindings: settings.shortcutBindings,
     exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,
     indexUpdateStrategy: settings.indexUpdateStrategy,
     agentCommands: settings.agentCommands,
+    defaultAgentCommandId: settings.defaultAgentCommandId,
     agentInvocationPrompt: settings.agentInvocationPrompt,
   });
 }

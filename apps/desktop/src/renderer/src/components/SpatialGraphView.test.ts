@@ -1,5 +1,7 @@
 import { performance } from "node:perf_hooks";
 import { readFileSync } from "node:fs";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { GraphTopology } from "@exograph/core";
 
@@ -10,6 +12,7 @@ import type { GraphPixelRenderer, GraphPixelRendererMeasurement } from "../graph
 import type { GraphFrameDriver } from "../graphRenderScheduler";
 import type { GraphGpuRuntime, GraphWebGpuSurface } from "../graphWebGpuRenderer";
 import { pickGraphSceneNode } from "../graphSceneFoundation";
+import { GraphBuildingIndicator } from "./SpatialGraphView";
 import {
   GraphSnapshotRefreshCoordinator,
   SpatialGraphPointerSession,
@@ -17,7 +20,9 @@ import {
   initialGraphSummaryIndexes,
   pruneGraphSnapshotCache,
   shouldRefreshGraphForWorkspaceChange,
+  shouldRevealGraphScene,
   spatialGraphDollyDragScale,
+  spatialGraphOrbitDelta,
   spatialGraphPointerAction,
   spatialGraphWheelIntent,
 } from "../spatialGraphRuntime";
@@ -185,6 +190,20 @@ async function waitFor(predicate: () => boolean): Promise<void> {
 }
 
 describe("SpatialGraph runtime", () => {
+  it("presents graph construction as a concise accessible status", () => {
+    const markup = renderToStaticMarkup(createElement(GraphBuildingIndicator));
+    const styles = readFileSync(new URL("../styles.css", import.meta.url), "utf8");
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain("Building graph");
+    expect(markup).toContain('aria-hidden="true"');
+    expect(markup.match(/class="exograph-mark__arm"/g)).toHaveLength(6);
+    expect(markup.match(/class="exograph-mark__node"/g)).toHaveLength(6);
+    expect(markup).toContain("exograph-mark--animated");
+    expect(styles).toContain("animation-iteration-count: infinite");
+    expect(styles).toContain("@keyframes exograph-mark-build-arm");
+    expect(styles).toContain("@keyframes exograph-mark-build-reduced");
+  });
+
   it("keeps the product component on the typed topology API", () => {
     const source = readFileSync(new URL("./SpatialGraphView.tsx", import.meta.url), "utf8");
     expect(source).toContain("getGraphTopology");
@@ -449,6 +468,11 @@ describe("SpatialGraph pointer session", () => {
     expect(spatialGraphPointerAction({ ...input, pointerType: "touch", button: 0 })).toBe("orbit");
   });
 
+  it("applies the saved inverse-navigation preference only to orbit deltas", () => {
+    expect(spatialGraphOrbitDelta(12, -8, true)).toEqual({ x: 12, y: -8 });
+    expect(spatialGraphOrbitDelta(12, -8, false)).toEqual({ x: -12, y: 8 });
+  });
+
   it("maps middle-button vertical drag to pointer-anchored dolly", () => {
     const session = new SpatialGraphPointerSession();
     session.begin({ pointerId: 1, x: 100, y: 100, pointerType: "mouse" }, "dolly");
@@ -502,6 +526,13 @@ describe("bounded graph labels", () => {
 });
 
 describe("graph refresh and wheel policy", () => {
+  it("reveals the initial graph only after its final layout is available", () => {
+    expect(shouldRevealGraphScene({ initialFramePending: true, layoutSettled: false, workerAvailable: true })).toBe(false);
+    expect(shouldRevealGraphScene({ initialFramePending: true, layoutSettled: true, workerAvailable: true })).toBe(true);
+    expect(shouldRevealGraphScene({ initialFramePending: true, layoutSettled: false, workerAvailable: false })).toBe(true);
+    expect(shouldRevealGraphScene({ initialFramePending: false, layoutSettled: false, workerAvailable: true })).toBe(true);
+  });
+
   it("coalesces changes, retries unchanged snapshots, then becomes idle", () => {
     const timer = new FakeRefreshTimer();
     const refresh = vi.fn();

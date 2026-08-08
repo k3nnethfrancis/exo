@@ -112,6 +112,8 @@ _Avoid_: opaque confidence score
 
 **Graph View**
 A derived projection that maps selected Concepts, Relations, Properties, Ontology meaning, and Derived Signals into layout weights, visual encodings, labels, and interaction. It changes presentation, not knowledge.
+Its inspected Concept may differ temporarily from the active editor Note;
+opening the inspected Concept synchronizes the editor to that Note.
 _Avoid_: canonical graph, ontology
 
 **Derived Signal**
@@ -119,12 +121,12 @@ A versioned machine observation such as semantic similarity, inferred type, or p
 _Avoid_: automatic edge, inferred fact
 
 **Connection**
-A relationship exposed for the focused Note through Outline, Links, Graph, or earned Invocation History. Connections are derived from user-owned documents and reviewed invocation evidence.
+A relationship exposed for the focused Note through Note context, Graph, or earned Invocation History. Connections are derived from user-owned documents and reviewed invocation evidence.
 _Avoid_: miscellaneous inspector data
 
 **Baseline Core**
 The shipped core is a trustworthy Markdown workspace, modular Search, Folder
-Overview, Connections/graph context, mixed panes, configured Commands, explicit
+Overview, Note context and Graph, mixed panes, configured Commands, explicit
 inline invocation, reviewable observed changes, a single-active user-owned
 Ontology library, and the first reviewable graph-maintenance Skill. Optional
 Ontology discovery is an early-access proposal flow, not a required onboarding
@@ -146,9 +148,10 @@ _Avoid_: Harness, provider, agent type
 
 **Skill**
 Bounded Markdown instructions for a person-initiated task. Delivery and ownership
-depend on the workflow: ontology discovery uses a Workspace-owned Skill; graph
-maintenance prefers a provider-native installed Skill, then an
-Exograph-bundled version, then an exact inline fallback. Repository contributor
+depend on the workflow: ontology discovery uses an Exograph-bundled prompt with
+an optional Workspace setting override; graph maintenance prefers a
+provider-native installed Skill, then an Exograph-bundled version, then an exact
+inline fallback. Repository contributor
 Skills are maintained with Exograph's source and guide coding agents rather
 than product Commands. No Skill loads code, grants authority, runs in the
 background, or bypasses Command trust and invocation review.

@@ -6,6 +6,7 @@ import {
   createDefaultClaudeAgentCommand,
   createDefaultCodexAgentCommand,
   InvocationStore,
+  type WorkspaceCanvasLayoutSettings,
 } from "@exograph/core";
 
 import { launchExographWorkspaceFixture, relaunchExographWorkspaceFixture } from "../helpers";
@@ -38,6 +39,7 @@ test("every non-structural Settings round trip preserves commands, layout, and o
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
+        graphInverseNavigation: true,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
       }, null, 2), "utf8");
@@ -96,6 +98,17 @@ test("every non-structural Settings round trip preserves commands, layout, and o
     });
     await expectPreservedSettings(fixture.settingsPath, seeded, {
       appearanceMode: "dark",
+      indexUpdateStrategy: "manual",
+      terminalFontSize: 14,
+    });
+
+    await editSettingsAndClose(fixture.page, "graph", async (page) => {
+      await page.getByText("Inverse navigation", { exact: true }).click();
+      await expect(page.getByTestId("workspace-settings-graph-inverse-navigation")).not.toBeChecked();
+    });
+    await expectPreservedSettings(fixture.settingsPath, seeded, {
+      appearanceMode: "dark",
+      graphInverseNavigation: false,
       indexUpdateStrategy: "manual",
       terminalFontSize: 14,
     });
@@ -230,6 +243,47 @@ test("keeps an invalid existing Agent Command in Settings instead of discarding 
     await expect(fixture.page.getByTestId("workspace-settings-status")).toContainText("Settings saved.");
     await fixture.page.getByTestId("workspace-settings-close").click();
     await expect(fixture.page.getByTestId("workspace-settings-dialog")).toHaveCount(0);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test("persists the default agent used by Exograph-initiated features", async () => {
+  const fixture = await launchExographWorkspaceFixture({
+    mutable: true,
+    prepareSettings: async ({ settingsPath, workspaceRoot }) => {
+      const noteRoot = path.join(workspaceRoot, "notes/test-notes");
+      await writeFile(settingsPath, JSON.stringify({
+        workspaceRoot,
+        defaultTerminalCwd: workspaceRoot,
+        noteRoots: [noteRoot],
+        agentCommands: [createDefaultClaudeAgentCommand(), createDefaultCodexAgentCommand()],
+        defaultAgentCommandId: "claude",
+        indexedRoots: [],
+        indexing: { enabled: false, mode: "off", backend: "qmd" },
+        searchEngine: "filesystem",
+        appearanceMode: "system",
+        colorThemeId: "exograph-neutral",
+        editorFontSize: 15,
+        terminalFontSize: 13,
+        explorerScale: 1,
+        exploreIndexSearchOnEnter: false,
+        indexUpdateStrategy: "on-save",
+      }, null, 2), "utf8");
+    },
+  });
+
+  try {
+    await fixture.page.getByTestId("workspace-menu-toggle").click();
+    await fixture.page.getByTestId("workspace-menu-settings").click();
+    await fixture.page.getByTestId("workspace-settings-tab-agents").click();
+
+    const selector = fixture.page.getByTestId("workspace-settings-default-agent");
+    await expect(selector).toHaveValue("claude");
+    await selector.selectOption("codex");
+    await expect(fixture.page.getByTestId("workspace-settings-status")).toHaveText("Settings saved.");
+    await expect.poll(() => persistedSettings(fixture.settingsPath))
+      .toMatchObject({ defaultAgentCommandId: "codex" });
   } finally {
     await fixture.cleanup();
   }
@@ -552,7 +606,7 @@ test("QMD setup defaults empty roots once and remains idempotent after restart",
   }
 });
 
-async function editSettingsAndClose(page: Page, section: "appearance" | "index" | "terminal", edit: (page: Page) => Promise<void>): Promise<void> {
+async function editSettingsAndClose(page: Page, section: "appearance" | "graph" | "index" | "terminal", edit: (page: Page) => Promise<void>): Promise<void> {
   await page.getByTestId("workspace-menu-toggle").click();
   await page.getByTestId("workspace-menu-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
@@ -583,7 +637,7 @@ async function persistedSettings(settingsPath: string): Promise<Record<string, u
   return JSON.parse(await readFile(settingsPath, "utf8")) as Record<string, unknown>;
 }
 
-function preservedLayout(focusNotePath: string) {
+function preservedLayout(focusNotePath: string): WorkspaceCanvasLayoutSettings {
   return {
     version: 3,
     canvas: {

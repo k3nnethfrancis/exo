@@ -28,7 +28,13 @@ Evidence can point to a Markdown span, a property, a path, an ontology rule, or 
 
 ## Views are not the graph
 
-Connections and the Graph pane are derived presentations. They may group tags, suppress hubs, color types, lay out topology, or fetch detail only for the focused Concept. None of that changes a Note or creates knowledge on its own.
+Note context and Graph are derived presentations over the same Workspace graph.
+The active editor **Note** and the transiently inspected **Graph Concept** are
+separate interaction states: selecting a node may inspect it without replacing
+the editor, while opening that node synchronizes both states to its Note. Note
+context groups headings, links, Artifacts, Tags, and earned history; Graph lays
+out the Workspace topology and fetches detail only for the inspected Concept.
+Neither changes a Note or creates knowledge on its own.
 
 The hot rendering path uses compact numeric topology. Labels, paths, properties, findings, and relation evidence are cold, bounded reads. This is why large graph interaction can stay responsive without weakening the semantic model.
 

@@ -8,13 +8,14 @@ import { bracketMatching, foldGutter } from "@codemirror/language";
 import { lintGutter, lintKeymap } from "@codemirror/lint";
 import { EditorSelection, Prec } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
-import { Clock3, Code2, Network, Plus, Save, SlidersHorizontal } from "lucide-react";
+import { Clock3, Code2, Plus, Save, SlidersHorizontal } from "lucide-react";
 import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exograph/core";
 import type { InvocationFileReviewPayload } from "../../../shared/api";
 import { exographEditorTheme, exographSyntaxHighlighting } from "../theme/codemirror";
 import type { ExographThemeVariant } from "../theme/types";
 import { codeLanguageForPath } from "./codeLanguages";
 import { AgentIcon } from "./AgentIcon";
+import { ExographMark } from "./ExographMark";
 import { coerceFrontmatterValue, getDocumentDisplayTitle, stringifyFrontmatterValue } from "./documentDisplay";
 import { markdownInlineFormattingEdit } from "./markdownInlineFormatting";
 import {
@@ -973,7 +974,7 @@ export function NoteEditor(props: NoteEditorProps) {
                 title="Open graph for note"
                 type="button"
               >
-                <Network size={14} />
+                <ExographMark size={14} />
               </button>
             ) : null}
             <div className="editor-panel__title" data-testid="editor-title" title={document.filePath}>

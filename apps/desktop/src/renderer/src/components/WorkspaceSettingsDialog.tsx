@@ -1,6 +1,7 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useState, type ComponentType, type Dispatch, type SetStateAction } from "react";
 import { Bot, FolderOpen, Keyboard, Palette, Search, TerminalSquare, X } from "lucide-react";
 import type { AgentCommand, IndexStatus, WorkspaceSettings } from "@exograph/core";
+import { normalizeDefaultAgentCommandId } from "@exograph/core/agent-command-configuration";
 import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@exograph/core/workspace-content-policy";
 import type { AgentCommandContinuityStatus } from "../../../shared/api";
 
@@ -12,8 +13,11 @@ import { selectWorkspaceSettingsSearchEngine } from "../workspaceSettingsModel";
 import { HelpTooltip } from "./HelpTooltip";
 import { PathList } from "./PathList";
 import { AgentInvocationPromptEditor } from "./AgentInvocationPromptEditor";
+import { DEFAULT_ONTOLOGY_DESIGN_PROMPT } from "../../../shared/ontology-design-prompt";
 import { AgentCommandConfigurator } from "./AgentCommandConfigurator";
+import { DefaultAgentSelector } from "./DefaultAgentSelector";
 import { OntologyReviewRow } from "./OntologyReviewRow";
+import { ExographMark } from "./ExographMark";
 import {
   resolvedWorkspaceShortcutBindings,
   shortcutBindingFromEvent,
@@ -34,10 +38,16 @@ interface WorkspaceSettingsDialogProps {
   structuralDraftKey: (settings: WorkspaceSettingsDialogState) => string;
 }
 
-const SETTINGS_SECTIONS: Array<{ id: WorkspaceSettingsSection; label: string; description: string; icon: typeof FolderOpen }> = [
+const SETTINGS_SECTIONS: Array<{
+  id: WorkspaceSettingsSection;
+  label: string;
+  description: string;
+  icon: ComponentType<{ size?: number }>;
+}> = [
   { id: "workspace", label: "Workspace", description: "Folders and roots", icon: FolderOpen },
   { id: "index", label: "Search", description: "Search behavior", icon: Search },
   { id: "appearance", label: "Appearance", description: "Theme and editor", icon: Palette },
+  { id: "graph", label: "Graph", description: "Navigation", icon: ExographMark },
   { id: "terminal", label: "Terminal", description: "Display", icon: TerminalSquare },
   { id: "shortcuts", label: "Shortcuts", description: "App commands", icon: Keyboard },
   { id: "agents", label: "Agents", description: "@ mentions and commands", icon: Bot },
@@ -113,6 +123,7 @@ export function WorkspaceSettingsDialog({
               />
             ) : null}
             {settings.section === "appearance" ? <AppearanceSection settings={settings} setSettings={setSettings} /> : null}
+            {settings.section === "graph" ? <GraphSection settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "terminal" ? <TerminalSection settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "shortcuts" ? <ShortcutsSection settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "agents" ? <AgentsSection settings={settings} setSettings={setSettings} /> : null}
@@ -181,6 +192,9 @@ export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSecti
 
   if (section === "appearance") {
     return "Adjust how Exograph looks and reads.";
+  }
+  if (section === "graph") {
+    return "Adjust how the graph moves.";
   }
   if (section === "terminal") {
     return "Adjust terminal text.";
@@ -654,17 +668,75 @@ function TerminalSection({
   );
 }
 
+function GraphSection({
+  settings,
+  setSettings,
+}: Pick<WorkspaceSettingsDialogProps, "settings" | "setSettings">) {
+  return (
+    <div className="dialog-form__grid dialog-form__grid--compact" data-testid="workspace-settings-graph">
+      <label className="dialog-check">
+        <input
+          checked={settings.graphInverseNavigation}
+          data-testid="workspace-settings-graph-inverse-navigation"
+          onChange={(event) => setSettings((current) => current ? {
+            ...current,
+            graphInverseNavigation: event.target.checked,
+            saveStatus: "idle",
+            errorMessage: null,
+          } : current)}
+          type="checkbox"
+        />
+        <span>
+          <strong>Inverse navigation</strong>
+          <small>Reverse orbit direction while dragging.</small>
+        </span>
+      </label>
+      <details className="agent-invocation-prompt-disclosure">
+        <summary>Advanced</summary>
+        <AgentInvocationPromptEditor
+          ariaLabel="Ontology design prompt"
+          defaultValue={DEFAULT_ONTOLOGY_DESIGN_PROMPT}
+          hint="Used only when Exograph asks the default agent to propose an Ontology."
+          onSave={(ontologyDiscoveryPrompt) => setSettings((current) => current ? {
+            ...current,
+            ontologyDiscoveryPrompt,
+            saveStatus: "idle",
+            errorMessage: null,
+          } : current)}
+          promptName="ontology prompt"
+          subtitle="Used by Discover structure"
+          testId="workspace-settings-ontology-prompt"
+          title="Ontology prompt"
+          value={settings.ontologyDiscoveryPrompt}
+        />
+      </details>
+    </div>
+  );
+}
+
 function AgentsSection({
   settings,
   setSettings,
 }: Pick<WorkspaceSettingsDialogProps, "settings" | "setSettings">) {
   return (
     <div className="agent-command-list" data-testid="workspace-settings-agents">
+      <DefaultAgentSelector
+        commands={settings.agentCommands}
+        onChange={(defaultAgentCommandId) => setSettings((current) => current ? {
+          ...current,
+          defaultAgentCommandId: defaultAgentCommandId ?? undefined,
+          saveStatus: "idle",
+          errorMessage: null,
+        } : current)}
+        testId="workspace-settings-default-agent"
+        value={settings.defaultAgentCommandId}
+      />
       <AgentCommandConfigurator
         commands={settings.agentCommands}
         onChange={(agentCommands) => setSettings((current) => current ? {
           ...current,
           agentCommands,
+          defaultAgentCommandId: normalizeDefaultAgentCommandId(current.defaultAgentCommandId, agentCommands),
           saveStatus: "idle",
           errorMessage: null,
         } : current)}

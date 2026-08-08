@@ -105,6 +105,14 @@ export function shouldRefreshGraphForWorkspaceChange(event: { filePath: string |
   return event.filePath === null || /\.md$/iu.test(event.filePath);
 }
 
+export function shouldRevealGraphScene(input: {
+  initialFramePending: boolean;
+  layoutSettled: boolean;
+  workerAvailable: boolean;
+}): boolean {
+  return !input.initialFramePending || input.layoutSettled || !input.workerAvailable;
+}
+
 /** Coalesces watcher bursts and bounds retries while derived graph state catches up. */
 export class GraphSnapshotRefreshCoordinator {
   private sourceSnapshotId: string | null = null;
@@ -647,6 +655,12 @@ export function spatialGraphWheelIntent(input: {
 /** Vertical middle-button drag follows the same dolly direction as the wheel. */
 export function spatialGraphDollyDragScale(deltaY: number): number {
   return Math.exp(clampZoomExponent(-deltaY * 0.008));
+}
+
+/** Applies the persisted orbit-direction preference before camera math. */
+export function spatialGraphOrbitDelta(deltaX: number, deltaY: number, inverse: boolean): { x: number; y: number } {
+  const direction = inverse ? 1 : -1;
+  return { x: deltaX * direction, y: deltaY * direction };
 }
 
 function clampZoomExponent(exponent: number): number {

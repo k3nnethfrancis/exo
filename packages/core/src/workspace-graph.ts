@@ -329,7 +329,7 @@ export class WorkspaceGraph {
             label: link.label || link.target,
             conceptTypes: [],
             properties: {},
-            resolution: link.resolution === "external" ? "external" : "unresolved",
+            resolution: link.resolution,
             tags: [],
           });
         }

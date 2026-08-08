@@ -36,10 +36,13 @@ export interface WorkspaceSettingsDialogState {
   editorFontSize: string;
   terminalFontSize: string;
   explorerScale: string;
+  graphInverseNavigation: boolean;
+  ontologyDiscoveryPrompt?: string;
   shortcutBindings?: WorkspaceShortcutBindings;
   exploreIndexSearchOnEnter: boolean;
   indexUpdateStrategy: WorkspaceSettings["indexUpdateStrategy"];
   agentCommands: AgentCommand[];
+  defaultAgentCommandId?: string;
   agentInvocationPrompt?: string;
   saveStatus: "idle" | "saving" | "saved" | "error";
   errorMessage: string | null;

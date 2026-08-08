@@ -288,9 +288,28 @@ describe("camera and controller transforms", () => {
     const positions = new Float32Array([-100, -50, 0, 100, 50, 0]);
     const framed = frameGraphCamera(positions, viewport);
     expect(framed.distance).toBeGreaterThan(200);
+    expect(framed.pitch).toBeCloseTo(0.46);
     expect(framed.target).toEqual([0, 0, 0]);
     expect(focusGraphCamera(positions, 1, viewport, 220)).toMatchObject({ distance: 220, target: [100, 50, 0] });
     expect(focusGraphCamera(positions, 7, viewport)).toEqual(framed);
+  });
+
+  it("opens with the full graph comfortably inside the viewport", () => {
+    const positions = new Float32Array([
+      -320, -220, -80,
+      330, -190, 40,
+      -280, 240, 70,
+      300, 230, -50,
+      0, 0, 120,
+    ]);
+    const projection = projectGraphScene(positions, frameGraphCamera(positions, viewport), viewport);
+    for (let index = 0; index < positions.length / 3; index += 1) {
+      const offset = index * 4;
+      expect(projection.nodes[offset]).toBeGreaterThan(20);
+      expect(projection.nodes[offset]).toBeLessThan(viewport.width - 20);
+      expect(projection.nodes[offset + 1]).toBeGreaterThan(20);
+      expect(projection.nodes[offset + 1]).toBeLessThan(viewport.height - 20);
+    }
   });
 
   it("orbits and pans without mutating the input camera", () => {

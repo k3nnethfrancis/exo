@@ -159,7 +159,7 @@ export type GraphKeyboardIntent =
 
 export const DEFAULT_SCENE_CAMERA: GraphCamera = {
   yaw: -0.42,
-  pitch: 0.24,
+  pitch: 0.46,
   distance: 760,
   target: [0, 0, 0],
   fov: Math.PI / 4.2,
@@ -580,7 +580,7 @@ export function frameGraphCamera(positions: Float32Array, viewport: GraphViewpor
   const bounds = graphSphereBounds(positions);
   const aspect = Math.max(0.45, viewport.width / Math.max(1, viewport.height));
   const distance = clamp(
-    (bounds.radius / Math.sin(DEFAULT_SCENE_CAMERA.fov / 2)) * (aspect < 1 ? 1 / aspect : 1) * 1.08,
+    (bounds.radius / Math.sin(DEFAULT_SCENE_CAMERA.fov / 2)) * (aspect < 1 ? 1 / aspect : 1) * 1.18,
     90,
     DEFAULT_MAXIMUM_DISTANCE,
   );

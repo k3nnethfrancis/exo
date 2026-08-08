@@ -30,15 +30,17 @@ The centered search field is immediate filename/path search. If you choose the Q
 
 Read [Search](search.md) before changing index settings or interpreting embedding status.
 
-## Connections and graph
+## Note context and Graph
 
-Open **Connections** for the active Note to inspect its outline, links, local graph neighborhood, and earned invocation history. Open the Graph pane to explore the workspace-level graph. Drag to orbit; right-drag or modified drag to pan; and use the mouse wheel, trackpad scroll, or trackpad pinch to zoom. Panning follows the grabbed content on both axes. Zoom keeps the graph point under the pointer fixed, while keyboard zoom uses the center of the graph viewport. Two-finger touch gestures combine that same pointer-centered zoom with direct pan. Select a node to inspect it, and double-click a Note node to open it.
+Open **Note context** for the active Note's outline, inbound and outbound links, Artifacts, Tags, and earned invocation history. Select an Outline heading to focus the editor and reveal that exact section. Open **Graph** from the utility rail or the editor's Graph action to explore the production workspace graph, with the active Note selected inside an elevated overview of the settled graph. Drag to orbit; right-drag or modified drag to pan; and use the mouse wheel, trackpad scroll, or trackpad pinch to zoom. Panning follows the grabbed content on both axes. Zoom keeps the graph point under the pointer fixed, while keyboard zoom uses the center of the graph viewport. Two-finger touch gestures combine that same pointer-centered zoom with direct pan. Select a node to inspect it, and double-click a Note node to open it. **Settings → Graph** can reverse the drag-orbit direction.
+
+When the Graph canvas has keyboard focus, brackets select the previous or next Note, arrow keys orbit, `+` and `-` zoom, Space or `F` focuses the selection, `O` frames the graph, Enter opens the selection, and Escape returns to the prior editor context. The same controls remain available after Canvas fallback.
 
 The graph is evidence-aware. It distinguishes a relation written in Markdown, one interpreted by an active ontology, and a machine-derived signal. It does not silently turn semantic similarity into a durable fact. Read [Knowledge graph](knowledge-graph.md) for the model and [Workspace ontology](workspace-ontology.md) for optional property interpretation.
 
 ## Panes and shortcuts
 
-The Explorer is on the left. The utility rail can show terminals, previews, or Connections; each utility kind keeps its own tabs. Drag a Note, terminal, or preview into the editor canvas when you want a split view.
+The Explorer is on the left. The utility rail switches one destination among Preview, Terminal, Graph, and Note context; Preview and Terminal keep their own tabs. Drag a Note, terminal, or preview into the editor canvas when you want a split view.
 
 | Action | macOS | Other platforms |
 | --- | --- | --- |
@@ -67,6 +69,9 @@ Codex begin as editable recommended templates; you can disable either, replace
 its executable and arguments, or add one provider-neutral Custom command with
 its own `@` handle. Removing a configuration requires confirmation and does not
 remove that command's existing Invocation History.
+
+Choose a **Default agent** for Exograph-initiated features such as **Discover
+structure**. Inline `@` invocations continue to use the agent named in the Note.
 
 In a Note, type `@`, select an enabled command, write the request inline, then
 press `⌘ Return` / `Ctrl Enter`. Exograph asks for authorization when needed, runs

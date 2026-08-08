@@ -68,6 +68,7 @@ describe("workspace settings renderer model", () => {
       editorFontSize: "15",
       terminalFontSize: "13",
       explorerScale: "1",
+      graphInverseNavigation: true,
       exploreIndexSearchOnEnter: true,
       indexUpdateStrategy: "on-save",
       agentCommands: [],
@@ -199,6 +200,7 @@ describe("workspace settings renderer model", () => {
       editorFontSize: "15",
       terminalFontSize: "13",
       explorerScale: "1",
+      graphInverseNavigation: true,
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "on-save" as const,
       agentCommands: [],
@@ -211,6 +213,9 @@ describe("workspace settings renderer model", () => {
 
     expect(workspaceSettingsImmediateDraftKey(base)).not.toBe(
       workspaceSettingsImmediateDraftKey({ ...base, colorThemeId: "exograph-solar" }),
+    );
+    expect(workspaceSettingsImmediateDraftKey(base)).not.toBe(
+      workspaceSettingsImmediateDraftKey({ ...base, graphInverseNavigation: false }),
     );
   });
 

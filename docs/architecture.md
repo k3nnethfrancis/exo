@@ -21,8 +21,9 @@ Markdown + frontmatter in a selected Note Root
   → format projection
   → WorkspaceGraph knowledge snapshot
   → optional reviewed ontology interpretation
-  → Connections / compact graph topology
-  → WebGPU or Canvas presentation
+  → derived views
+      ├─ bounded Note-context reads
+      └─ compact graph topology → WebGPU or Canvas Graph
 ```
 
 Markdown is canonical. `.exograph/` holds local, rebuildable state: indexes,
@@ -79,7 +80,7 @@ domain logic.
 | `WorkspaceFiles` | canonical paths, Note Root containment, symlink policy, watchers | graph/search interpretation |
 | `WorkspaceGraph` | graph snapshots, evidence, backlinks, ontology review and local context | rendering or direct UI state |
 | `WorkspaceIndex` | provider selection, search health, sync, honest degradation | Note/graph identity |
-| `OntologyDiscoveryCoordinator` | one serialized discovery transaction: trusted Command selection, frozen graph/Ontology identity, provider execution, validation, Candidate staging, and notification | renderer state or direct Markdown mutation |
+| `OntologyDiscoveryCoordinator` | one serialized discovery transaction: explicit default-Command validation, frozen graph/Ontology identity, provider execution, validation, Candidate staging, and notification | renderer state, silent provider fallback, or direct Markdown mutation |
 | `useWorkspaceBootstrap` + `OnboardingFlow` | one renderer setup model and its dedicated UI, including persisted resume/recovery and local CLI/MCP feedback | a second onboarding state machine or runtime activation authority |
 | `TerminalManager` | direct PTY lifecycle and bounded reload tail | provider-specific agent semantics |
 | `InvocationRunner` | command trust, process ownership, changesets, review, recovery | renderer UI decisions |

@@ -64,8 +64,8 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     const originalNoteBytes = await markdownByteMap(noteRoot);
     await expectGraphContext(fixture.page, sourcePath, { ontologyRelations: 0, outgoing: 0, backlinks: 0 });
     await expect.poll(() => ontologyEdgeCount(fixture.page)).toBe(0);
-    await openConnectionsGraph(fixture.page);
-    await expect(fixture.page.getByTestId("connections-panel-graph")).toContainText("No neighborhood yet");
+    await openUtilityGraph(fixture.page);
+    await expect(fixture.page.getByTestId("graph-pane")).toBeVisible();
 
     await openWorkspaceSettings(fixture.page);
     const row = fixture.page.getByTestId("workspace-settings-ontology");
@@ -111,14 +111,9 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     expect(acceptedEvidence.ontology).toMatchObject({ state: "active", id: "research", version: "1" });
 
     await fixture.page.getByTestId("workspace-settings-close").click();
-    const localGraph = fixture.page.getByTestId("connections-panel-graph");
-    await expect(localGraph.getByTestId("graph-neighborhood-panel")).toBeVisible();
-    await expect(localGraph).toContainText("1 edges");
-    await expect(localGraph.getByTestId("graph-neighborhood-canvas")).toHaveAttribute(
-      "aria-label",
-      /Ontology source changed, Ontology target/,
-    );
-    await expectCanvasPixels(localGraph.getByTestId("graph-neighborhood-canvas"));
+    const graphPane = fixture.page.getByTestId("graph-pane");
+    await expect(graphPane.locator(".spatial-graph__count")).toHaveText(/\d+ · \d+/);
+    await expectCanvasPixels(graphPane.locator('canvas[aria-label="Interactive knowledge graph"]'));
     await fixture.page.screenshot({ path: testInfo.outputPath("ontology-review-kept-graph.png") });
 
     await fixture.electronApp.close();
@@ -131,10 +126,10 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     expect(restartedEvidence.ontology).toEqual(acceptedEvidence.ontology);
     expect(await markdownByteMap(noteRoot)).toEqual(reviewedNoteBytes);
 
-    await openConnectionsGraph(relaunched.page);
-    const restartedLocalGraph = relaunched.page.getByTestId("connections-panel-graph");
-    await expect(restartedLocalGraph).toContainText("1 edges");
-    await expectCanvasPixels(restartedLocalGraph.getByTestId("graph-neighborhood-canvas"));
+    await openUtilityGraph(relaunched.page);
+    const restartedGraph = relaunched.page.getByTestId("graph-pane");
+    await expect(restartedGraph.locator(".spatial-graph__count")).toHaveText(/\d+ · \d+/);
+    await expectCanvasPixels(restartedGraph.locator('canvas[aria-label="Interactive knowledge graph"]'));
 
     await openWorkspaceSettings(relaunched.page);
     const restartedRow = relaunched.page.getByTestId("workspace-settings-ontology");
@@ -164,13 +159,13 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     await expectGraphContext(relaunched.page, sourcePath, { ontologyRelations: 0, outgoing: 0, backlinks: 0 });
     await expect.poll(() => ontologyEdgeCount(relaunched!.page)).toBe(0);
     await relaunched.page.getByTestId("workspace-settings-close").click();
-    await expect(restartedLocalGraph).toContainText("No neighborhood yet");
+    await expect(restartedGraph.locator(".spatial-graph__count")).toHaveText(/\d+ · \d+/);
 
     await relaunched.page.getByTestId("open-note-graph").click();
-    const graphPane = relaunched.page.getByTestId("graph-pane");
-    await expect(graphPane.locator(".spatial-graph__detail-title")).toHaveText("Ontology source changed");
+    const activeGraphPane = relaunched.page.getByTestId("graph-pane");
+    await expect(activeGraphPane.locator(".spatial-graph__detail-title")).toHaveText("Ontology source changed");
     const beforeGraphPreparation = await markdownByteMap(noteRoot);
-    await graphPane.getByRole("button", { name: "Find relevant connections" }).click();
+    await activeGraphPane.getByRole("button", { name: "Find relevant connections" }).click();
     await expect(relaunched.page.getByTestId("inline-agent-composer")).toHaveCount(1);
     await expect(relaunched.page.locator(".cm-content")).toContainText("Read and apply the Exograph-owned Skill");
     await expect(readFile(path.join(noteRoot, "skills/find-and-connect-relevant-context.md"), "utf8"))
@@ -221,11 +216,10 @@ async function openWorkspaceSettings(page: Page): Promise<void> {
   await expect(page.getByTestId("workspace-settings-ontology").getByText("Previewing…")).toHaveCount(0, { timeout: 10_000 });
 }
 
-async function openConnectionsGraph(page: Page): Promise<void> {
+async function openUtilityGraph(page: Page): Promise<void> {
   const utility = page.getByTestId("utility-pane");
   if (await utility.count() === 0 || !await utility.isVisible()) await page.getByTestId("utility-pane-toggle").click();
-  await page.getByTestId("utility-pane-connections").click();
-  await page.getByTestId("connections-tab-graph").click();
+  await page.getByTestId("utility-pane-graph").click();
 }
 
 async function expectGraphContext(

@@ -839,6 +839,7 @@ function workspaceSettings(): WorkspaceSettings {
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,
+    graphInverseNavigation: true,
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",
   };

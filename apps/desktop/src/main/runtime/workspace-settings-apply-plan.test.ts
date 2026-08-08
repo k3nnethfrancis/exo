@@ -110,6 +110,7 @@ function settings(): WorkspaceSettings {
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,
+    graphInverseNavigation: true,
     exploreIndexSearchOnEnter: true,
     indexUpdateStrategy: "on-save",
   };

@@ -620,7 +620,7 @@ test("completes and restarts the real packaged first-run journey", async () => {
   let firstApp;
   let restartedApp;
   try {
-    firstApp = await electron.launch({ executablePath, cwd: "/", env });
+    firstApp = await electron.launch({ executablePath, cwd: "/", env: definedEnvironment(env) });
     const page = firstApp.windows()[0] ?? await firstApp.firstWindow();
     await page.setViewportSize({ width: 700, height: 560 });
     expect(await firstApp.evaluate(({ app }) => app.getPath("exe"))).toBe(executablePath);
@@ -651,7 +651,7 @@ test("completes and restarts the real packaged first-run journey", async () => {
     await firstApp.close();
     firstApp = undefined;
 
-    restartedApp = await electron.launch({ executablePath, cwd: "/", env });
+    restartedApp = await electron.launch({ executablePath, cwd: "/", env: definedEnvironment(env) });
     const restartedPage = restartedApp.windows()[0] ?? await restartedApp.firstWindow();
     await restartedPage.setViewportSize({ width: 700, height: 560 });
     expect(await restartedApp.evaluate(({ app }) => app.getPath("exe"))).toBe(executablePath);
@@ -689,10 +689,17 @@ function workspaceSettings(noteRoot: string): WorkspaceSettings {
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,
+    graphInverseNavigation: true,
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",
     agentCommands: [createDefaultClaudeAgentCommand(), createDefaultCodexAgentCommand()],
   };
+}
+
+function definedEnvironment(environment: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(environment).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  );
 }
 
 async function prepareFakeProviderHome(homeRoot: string): Promise<void> {

@@ -1,9 +1,9 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, realpath, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 import { launchExographWorkspaceFixture } from "../helpers";
 
@@ -140,14 +140,15 @@ test("opens absolute local HTML paths in the preview pane", async () => {
   try {
     const firstPath = path.join(workspaceRoot, "notes", "test-notes", "artifacts", "overall-exograph-architecture.html");
     const secondPath = path.join(workspaceRoot, "notes", "test-notes", "artifacts", "core-plugin-boundary.html");
-    const secondUrl = pathToFileURL(secondPath).toString();
+    const firstUrl = pathToFileURL(await realpath(firstPath)).toString();
+    const secondUrl = pathToFileURL(await realpath(secondPath)).toString();
 
     await page.getByTestId("utility-pane-toggle").click();
     await page.getByTestId("utility-pane-preview").click();
     await page.getByRole("button", { name: "New preview" }).click();
     await page.getByTestId("browser-url-input").fill(firstPath);
     await page.getByTestId("browser-load-url").click();
-    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", pathToFileURL(firstPath).toString());
+    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", firstUrl);
     await expect.poll(async () => getPreviewLayoutMetrics(page)).toMatchObject({
       title: "Overall",
       bottomMarkerVisibleAtViewportBottom: true,
@@ -163,7 +164,7 @@ test("opens absolute local HTML paths in the preview pane", async () => {
 
     await page.getByTestId("browser-url-input").fill(firstPath);
     await page.getByTestId("browser-load-url").click();
-    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", pathToFileURL(firstPath).toString());
+    await expect(page.getByTestId("browser-preview-frame")).toHaveAttribute("src", firstUrl);
     await expect.poll(async () => getPreviewLayoutMetrics(page)).toMatchObject({
       title: "Overall",
       bottomMarkerVisibleAtViewportBottom: true,
@@ -277,7 +278,7 @@ test("returns to the Preview empty state after its final tab closes", async () =
   }
 });
 
-test("switches one utility pane between independent Preview, Terminal, and Connections destinations", async () => {
+test("switches one utility pane between independent Preview, Terminal, Graph, and Note context destinations", async () => {
   const { page, cleanup } = await launchExographWorkspaceFixture();
 
   try {
@@ -304,10 +305,16 @@ test("switches one utility pane between independent Preview, Terminal, and Conne
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
     await expect.poll(async () => page.evaluate(async () => (await window.exograph.terminals.list()).length)).toBe(1);
 
-    await page.getByTestId("utility-pane-connections").click();
-    await expect(page.getByTestId("utility-pane-connections")).toHaveAttribute("aria-pressed", "true");
+    await page.getByTestId("utility-pane-context").click();
+    await expect(page.getByTestId("utility-pane-context")).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByTestId("inspector-panel")).toBeVisible();
     await expect(page.getByTestId("browser-pane")).toHaveCount(0);
+    await expect(page.getByTestId("terminal-dock")).toHaveCount(0);
+
+    await page.getByTestId("utility-pane-graph").click();
+    await expect(page.getByTestId("utility-pane-graph")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByTestId("graph-pane")).toBeVisible();
+    await expect(page.getByTestId("inspector-panel")).toHaveCount(0);
     await expect(page.getByTestId("terminal-dock")).toHaveCount(0);
 
     await page.getByTestId("utility-pane-preview").click();
@@ -317,6 +324,7 @@ test("switches one utility pane between independent Preview, Terminal, and Conne
     );
     await expect(page.getByTestId("terminal-dock")).toHaveCount(0);
     await expect(page.getByTestId("inspector-panel")).toHaveCount(0);
+    await expect(page.getByTestId("graph-pane")).toHaveCount(0);
 
     await page.getByTestId("utility-pane-terminal").click();
     await expect(page.getByTestId("terminal-tab-shell")).toHaveCount(1);
