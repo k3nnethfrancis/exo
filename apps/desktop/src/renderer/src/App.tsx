@@ -911,6 +911,7 @@ export function App() {
         setPreviewTabs((current) => updatePreviewTabUrl(current, activePreview.id, result.url));
         return result.url;
       }}
+      onOpenExternal={(target) => window.exograph.shell.openExternal(target)}
       onClosePane={closeBrowserPane}
       tabs={utilityPreviewTabs}
       activeTabId={activePreview.id}
@@ -1080,6 +1081,7 @@ export function App() {
                 setPreviewTabs((current) => updatePreviewTabUrl(current, tab.id, result.url));
                 return result.url;
               }}
+              onOpenExternal={(target) => window.exograph.shell.openExternal(target)}
               onClosePane={() => canvasActions.removeLeaf(leaf.id)}
               tabs={[tab]}
               activeTabId={tab.id}

@@ -279,9 +279,39 @@
 
 .browser-pane__address {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
   gap: 6px;
   min-width: 0;
+}
+
+.browser-pane__status {
+  align-self: center;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--muted);
+  opacity: 0.45;
+}
+
+.browser-pane__status[data-state="loading"] {
+  background: var(--accent);
+  animation: browser-preview-pulse 900ms ease-in-out infinite alternate;
+  opacity: 0.8;
+}
+
+.browser-pane__status[data-state="loaded"] {
+  background: var(--success, #4f8a68);
+  opacity: 0.8;
+}
+
+.browser-pane__status[data-state="failed"] {
+  background: var(--danger, #b55245);
+  opacity: 1;
+}
+
+@keyframes browser-preview-pulse {
+  from { transform: scale(0.8); }
+  to { transform: scale(1.2); }
 }
 
 .browser-pane__address input {
@@ -342,4 +372,19 @@
   place-content: center;
   color: var(--muted);
   font-size: 13px;
+}
+
+.browser-pane__failure {
+  position: absolute;
+  z-index: 2;
+  right: 12px;
+  bottom: 12px;
+  max-width: calc(100% - 24px);
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--danger, #b55245) 42%, var(--divider));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-strong) 94%, transparent);
+  color: var(--text);
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 12%, transparent);
+  font-size: 12px;
 }
