@@ -1,4 +1,4 @@
-import { WidgetType } from "@codemirror/view";
+import { WidgetType, type EditorView } from "@codemirror/view";
 
 import { LIST_GEOMETRY } from "../listGeometry";
 import type { TableContext } from "./metadata";
@@ -218,31 +218,46 @@ export class TaskPrefixWidget extends WidgetType {
   }
 }
 
-export class ListFoldToggleWidget extends WidgetType {
+export class FoldToggleWidget extends WidgetType {
   constructor(
     private readonly depth: number,
     private readonly isFolded: boolean,
     private readonly parentAnchor: number,
+    private readonly placement: "list" | "outline",
+    private readonly onToggle?: (view: EditorView, anchor: number) => void,
   ) {
     super();
   }
 
-  toDOM() {
+  toDOM(view: EditorView) {
     const span = document.createElement("span");
-    span.className = "exograph-md-list-prefix exograph-md-list-prefix--fold";
-    const bulletLeft = LIST_GEOMETRY.baseIndent + this.depth * LIST_GEOMETRY.indentStep - LIST_GEOMETRY.markerLaneWidth;
-    span.style.left = `${bulletLeft - 14}px`;
-    span.style.width = "14px";
+    span.className = this.placement === "list"
+      ? "exograph-md-list-prefix exograph-md-list-prefix--fold"
+      : "exograph-md-outline-fold";
+    if (this.placement === "list") {
+      const bulletLeft = LIST_GEOMETRY.baseIndent + this.depth * LIST_GEOMETRY.indentStep - LIST_GEOMETRY.markerLaneWidth;
+      span.style.left = `${bulletLeft - 14}px`;
+      span.style.width = "14px";
+    }
 
-    const fold = document.createElement("span");
+    const fold = document.createElement("button");
+    fold.type = "button";
     fold.className = `exograph-md-fold-toggle ${this.isFolded ? "exograph-md-fold-toggle--folded" : ""}`;
     fold.dataset.exographFoldAnchor = String(this.parentAnchor);
+    fold.setAttribute("aria-expanded", String(!this.isFolded));
+    fold.setAttribute("aria-label", this.isFolded ? "Expand section" : "Collapse section");
+    fold.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      this.onToggle?.(view, this.parentAnchor);
+      event.preventDefault();
+      event.stopPropagation();
+    });
     span.appendChild(fold);
     return span;
   }
 
-  eq(other: ListFoldToggleWidget) {
-    return other.depth === this.depth && other.isFolded === this.isFolded && other.parentAnchor === this.parentAnchor;
+  eq(other: FoldToggleWidget) {
+    return other.depth === this.depth && other.isFolded === this.isFolded && other.parentAnchor === this.parentAnchor && other.placement === this.placement;
   }
 
   ignoreEvent(event: Event) {

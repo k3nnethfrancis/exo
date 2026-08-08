@@ -260,6 +260,56 @@ describe("WorkspaceNotesService", () => {
     expect(suggestions.map((suggestion) => suggestion.target)).toEqual(["agent", "agent-notes"]);
   });
 
+  it("suggests one source-relative target without duplicating the Note Root", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const sourcePath = path.join(noteRoot, "folder", "source.md");
+    const targetPath = path.join(noteRoot, "some-item.md");
+    await writeFile(sourcePath, "# Source\n", "utf8");
+    await writeFile(targetPath, "# Some Item\n", "utf8");
+
+    const [suggestion] = await service.suggestTargets(sourcePath, "some");
+
+    expect(suggestion).toMatchObject({
+      filePath: targetPath,
+      title: "some-item",
+      target: "../some-item",
+      snippet: "some-item",
+    });
+    expect(suggestion?.target).not.toMatch(/\/\//);
+    await expect(service.resolveTarget(sourcePath, suggestion!.target)).resolves.toBe(targetPath);
+  });
+
+  it("keeps cross-Root suggestions resolvable from the source Note", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-cross-root-suggestion-"));
+    const sourceRoot = path.join(workspaceRoot, "source-notes");
+    const targetRoot = path.join(workspaceRoot, "research-notes");
+    await mkdir(path.join(sourceRoot, "nested"), { recursive: true });
+    await mkdir(targetRoot, { recursive: true });
+    const sourcePath = path.join(sourceRoot, "nested", "source.md");
+    const targetPath = path.join(targetRoot, "finding.md");
+    await writeFile(sourcePath, "# Source\n", "utf8");
+    await writeFile(targetPath, "# Finding\n", "utf8");
+    const model: WorkspaceModel = {
+      workspaceRoot,
+      defaultTerminalCwd: workspaceRoot,
+      noteRoots: [
+        { id: "source", label: "Source", path: sourceRoot },
+        { id: "research", label: "Research", path: targetRoot },
+      ],
+      indexedRoots: [],
+      indexing: { enabled: false, mode: "off", backend: "qmd" },
+    };
+    const service = new WorkspaceNotesService({ getWorkspaceModel: () => model });
+
+    try {
+      const [suggestion] = await service.suggestTargets(sourcePath, "finding");
+      expect(suggestion?.target).toBe("../../research-notes/finding");
+      await expect(service.resolveTarget(sourcePath, suggestion!.target)).resolves.toBe(targetPath);
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+
   it("reads folder overviews without creating an index and hides index.md from children", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const folderPath = path.join(noteRoot, "projects");

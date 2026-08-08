@@ -3,12 +3,12 @@ import { RangeSetBuilder, type Text } from "@codemirror/state";
 
 import { LIST_GEOMETRY, listGeometryStyleVariables } from "../listGeometry";
 import { listPrefixPattern, type ListContext, type MarkdownPreviewMetadata, visibleLineNumbers } from "./metadata";
-import { GraphReferencesWidget, ListFoldToggleWidget, MarkdownImageWidget, markdownImageTarget, type MarkdownGraphReferences, TaskPrefixWidget, TableWidget } from "./widgets";
+import { FoldToggleWidget, MarkdownImageWidget, markdownImageTarget, TaskPrefixWidget, TableWidget } from "./widgets";
 
 export interface MarkdownLivePreviewOptions {
   onResolveImage: (target: string, options?: { lookupByFilename?: boolean }) => Promise<{ url: string }>;
   suppressedGeneratedTitle?: string | null;
-  graphReferences?: MarkdownGraphReferences | null;
+  onToggleFold?: (view: EditorView, anchor: number) => void;
 }
 
 interface DecorationEntry {
@@ -36,7 +36,7 @@ function foldedListLineNumbers(doc: Text, listContexts: Map<number, ListContext>
 export function buildDecorations(view: EditorView, options: MarkdownLivePreviewOptions, metadata: MarkdownPreviewMetadata, foldedParentAnchors: ReadonlySet<number>): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
   const currentLine = view.state.doc.lineAt(view.state.selection.main.head).number;
-  const { listContexts, tableContexts, codeFenceContexts } = metadata;
+  const { listContexts, tableContexts, codeFenceContexts, outlineFoldContexts } = metadata;
   const foldedLines = foldedListLineNumbers(view.state.doc, listContexts, foldedParentAnchors);
 
   // Determine which list lines have children (next line has greater depth)
@@ -59,6 +59,12 @@ export function buildDecorations(view: EditorView, options: MarkdownLivePreviewO
       const ctx = listContexts.get(ln);
       if (!ctx || (ctx.isListStart && ctx.depth <= foldDepth)) break;
       hiddenLines.add(ln);
+    }
+  }
+  for (const [lineNumber, context] of outlineFoldContexts) {
+    if (!foldedParentAnchors.has(view.state.doc.line(lineNumber).from)) continue;
+    for (let hiddenLine = lineNumber + 1; hiddenLine <= context.endLine; hiddenLine += 1) {
+      hiddenLines.add(hiddenLine);
     }
   }
 
@@ -185,25 +191,27 @@ export function buildDecorations(view: EditorView, options: MarkdownLivePreviewO
       }
     }
 
+    const outlineFold = outlineFoldContexts.get(lineNumber);
     const hasChildren = linesWithChildren.has(lineNumber);
     const isFolded = foldedLines.has(lineNumber);
-    decorateLine(line.from, line.number, text, cursorPos, listContexts, lineDecorations, hasChildren, isFolded);
+    decorateLine(line.from, line.number, text, cursorPos, listContexts, lineDecorations, hasChildren, isFolded, options.onToggleFold);
+    if (outlineFold) {
+      const outlineIsFolded = foldedParentAnchors.has(line.from);
+      lineDecorations.push({
+        from: line.from,
+        to: line.from,
+        decoration: Decoration.widget({
+          widget: new FoldToggleWidget(outlineFold.depth, outlineIsFolded, line.from, "outline", options.onToggleFold),
+          side: -1,
+        }),
+      });
+    }
     decorateInline(line.from, text, cursorPos, inlineDecorations, options);
   }
 
   // Line decorations (from === to, point decorations) must come first at each position,
   // then range decorations sorted by from, then by to.
   const all = [...lineDecorations, ...inlineDecorations];
-  if (options.graphReferences && (options.graphReferences.backlinks.length > 0 || options.graphReferences.references.length > 0)) {
-    all.push({
-      from: view.state.doc.length,
-      to: view.state.doc.length,
-      decoration: Decoration.widget({
-        widget: new GraphReferencesWidget(options.graphReferences),
-        side: 1,
-      }),
-    });
-  }
   all.sort((a, b) => a.from - b.from || a.to - b.to);
 
   for (const entry of all) {
@@ -233,6 +241,7 @@ function decorateLine(
   out: DecorationEntry[],
   hasChildren = false,
   isFolded = false,
+  onToggleFold?: (view: EditorView, anchor: number) => void,
 ) {
   const heading = text.match(/^(#{1,6})\s+/);
   if (heading) {
@@ -318,7 +327,7 @@ function decorateLine(
         out.push({
           from: lineFrom,
           to: lineFrom,
-          decoration: Decoration.widget({ widget: new ListFoldToggleWidget(listContext.depth, isFolded, lineFrom), side: -1 }),
+          decoration: Decoration.widget({ widget: new FoldToggleWidget(listContext.depth, isFolded, lineFrom, "list", onToggleFold), side: -1 }),
         });
       }
       if (!cursorInPrefix) {
@@ -367,7 +376,14 @@ function decorateLine(
     if (!cursorWithin(cursorPos, lineFrom, lineFrom + text.length)) {
       out.push({ from: lineFrom, to: lineFrom + text.length, decoration: concealDecoration });
     }
+    return;
   }
+
+  out.push({
+    from: lineFrom,
+    to: lineFrom,
+    decoration: Decoration.line({ class: "exograph-md-line exograph-md-line--body" }),
+  });
 }
 
 export function shouldRenderTaskPrefix(cursorPos: number, lineFrom: number, prefixEnd: number): boolean {

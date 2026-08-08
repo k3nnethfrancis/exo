@@ -345,7 +345,6 @@ export class WorkspaceNotesService {
     }
 
     const model = scope.model;
-    const sourceRoot = model.noteRoots.find((root) => isPathWithin(root.path, sourceFilePath));
     const noteFiles = await listMarkdownFiles(
       this.noteRootPaths(scope),
       normalizeWorkspaceContentPolicy(model.contentPolicy),
@@ -353,9 +352,13 @@ export class WorkspaceNotesService {
     this.assertCurrentScope(scope);
     const suggestions = noteFiles
       .map((filePath) => {
-        const rootPath = model.noteRoots.find((root) => isPathWithin(root.path, filePath))?.path ?? sourceRoot?.path;
+        const rootPath = model.noteRoots.find((root) => isPathWithin(root.path, filePath))?.path;
         const relativePath = rootPath ? path.relative(rootPath, filePath) : path.basename(filePath);
         const relativeWithoutExtension = relativePath.replace(/\.md$/i, "");
+        const target = path.relative(path.dirname(sourceFilePath), filePath)
+          .replace(/\.md$/i, "")
+          .split(path.sep)
+          .join("/");
         const title = path.basename(filePath, ".md");
         const haystack = `${title}\n${relativeWithoutExtension}`.toLowerCase();
         if (!haystack.includes(trimmedQuery)) {
@@ -365,7 +368,7 @@ export class WorkspaceNotesService {
         return {
           filePath,
           title,
-          target: relativeWithoutExtension,
+          target,
           snippet: relativeWithoutExtension,
         };
       })
