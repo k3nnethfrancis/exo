@@ -58,10 +58,12 @@ evidence.
 - [ ] Sign and notarize the macOS app, then verify Gatekeeper on a clean Mac.
 - [ ] Prove clean install, relaunch, uninstall/reinstall, CLI/MCP installation,
   and no dependence on a development checkout or existing shell setup.
-- [ ] Produce and verify final package-content, license, and SBOM evidence; keep
-  non-runtime tests, fixtures, and foreign-platform payloads out of the shipped
-  artifact.
-- [ ] Make local app replacement interruption-safe, with rollback evidence.
+- [x] Produce and verify package-content, license, and SPDX SBOM evidence for
+  every staged macOS app. `pack:mac` writes it under `release/evidence/` and
+  rejects first-party tests, fixtures, internal docs, and Windows payloads.
+- [x] Make local app replacement interruption-safe. The installer stages the
+  replacement, restores the prior app on interruption, and has a deterministic
+  rollback regression test.
 
 ## What CI/CD does not replace
 
