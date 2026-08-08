@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -21,7 +21,7 @@ describe("resolvePreviewTarget", () => {
 
     await expect(resolvePreviewTarget(target, fixture.settings)).resolves.toEqual({
       ok: true,
-      url: pathToFileURL(target).toString(),
+      url: pathToFileURL(await realpath(target)).toString(),
       source: "file",
     });
   });
@@ -33,7 +33,7 @@ describe("resolvePreviewTarget", () => {
 
     await expect(resolvePreviewTarget(relativeTarget, fixture.settings)).resolves.toEqual({
       ok: true,
-      url: pathToFileURL(absoluteTarget).toString(),
+      url: pathToFileURL(await realpath(absoluteTarget)).toString(),
       source: "file",
     });
   });
@@ -44,7 +44,7 @@ describe("resolvePreviewTarget", () => {
 
     await expect(resolvePreviewTarget(pathToFileURL(target).toString(), fixture.settings)).resolves.toEqual({
       ok: true,
-      url: pathToFileURL(target).toString(),
+      url: pathToFileURL(await realpath(target)).toString(),
       source: "file",
     });
   });
@@ -110,6 +110,33 @@ describe("resolvePreviewTarget", () => {
     );
   });
 
+  it("rejects a local preview that escapes through an in-root symlink", async () => {
+    const fixture = await previewFixture();
+    const outsideRoot = await mkdtemp(path.join(os.tmpdir(), "exograph-preview-symlink-outside-"));
+    tempPaths.push(outsideRoot);
+    const outsideTarget = path.join(outsideRoot, "report.html");
+    const linkedTarget = path.join(fixture.noteRoot, "artifacts", "linked-report.html");
+    await writeFile(outsideTarget, "<!doctype html><title>Outside</title>", "utf8");
+    await symlink(outsideTarget, linkedTarget);
+
+    await expect(resolvePreviewTarget(linkedTarget, fixture.settings)).rejects.toThrow(
+      "Local preview files must be inside a configured Note Root.",
+    );
+  });
+
+  it("returns the canonical URL for an in-root preview symlink", async () => {
+    const fixture = await previewFixture();
+    const target = path.join(fixture.noteRoot, "artifacts", "preview.html");
+    const linkedTarget = path.join(fixture.noteRoot, "artifacts", "linked-preview.html");
+    await symlink(target, linkedTarget);
+
+    await expect(resolvePreviewTarget(linkedTarget, fixture.settings)).resolves.toEqual({
+      ok: true,
+      url: pathToFileURL(await realpath(target)).toString(),
+      source: "file",
+    });
+  });
+
   it("fails closed for a path that was formerly a Project Root", async () => {
     const fixture = await previewFixture();
     const target = path.join(fixture.projectRoot, "docs", "artifacts", "core-plugin-boundary.html");
@@ -157,6 +184,7 @@ async function previewFixture(): Promise<{
       editorFontSize: 15,
       terminalFontSize: 13,
       explorerScale: 1,
+      graphInverseNavigation: true,
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "manual",
     },

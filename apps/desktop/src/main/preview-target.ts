@@ -2,7 +2,7 @@ import path from "node:path";
 import { stat } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import type { WorkspaceSettings } from "@exograph/core";
+import { WorkspaceFiles, type WorkspaceSettings } from "@exograph/core";
 
 export interface PreviewTargetResponse {
   ok: true;
@@ -48,22 +48,21 @@ function isTrustedLocalhost(hostname: string): boolean {
 
 async function resolveLocalPreviewPath(filePath: string, settings: WorkspaceSettings): Promise<PreviewTargetResponse> {
   const resolvedPath = path.resolve(filePath);
-  const allowedRoots = settings.noteRoots.map((rootPath) => path.resolve(rootPath));
+  const canonicalPath = await new WorkspaceFiles(settings.noteRoots).existingIdentity(resolvedPath)
+    .catch(() => {
+      throw new Error("Local preview files must be inside a configured Note Root.");
+    });
 
-  if (!allowedRoots.some((rootPath) => isPathWithin(rootPath, resolvedPath))) {
-    throw new Error("Local preview files must be inside a configured Note Root.");
-  }
-
-  if (![".html", ".htm"].includes(path.extname(resolvedPath).toLowerCase())) {
+  if (![".html", ".htm"].includes(path.extname(canonicalPath).toLowerCase())) {
     throw new Error("Local preview files must be .html or .htm files.");
   }
 
-  const fileStat = await stat(resolvedPath);
+  const fileStat = await stat(canonicalPath);
   if (!fileStat.isFile()) {
     throw new Error("Local preview target must be an existing file.");
   }
 
-  return { ok: true, url: pathToFileURL(resolvedPath).toString(), source: "file" };
+  return { ok: true, url: pathToFileURL(canonicalPath).toString(), source: "file" };
 }
 
 function parsePreviewUrl(target: string): URL | null {
@@ -88,9 +87,4 @@ function parseBareLocalhostUrl(target: string): URL | null {
     return null;
   }
   return null;
-}
-
-function isPathWithin(parentPath: string, targetPath: string): boolean {
-  const relative = path.relative(parentPath, targetPath);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
