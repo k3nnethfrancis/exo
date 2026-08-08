@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -46,8 +46,9 @@ test("preserves editor scroll when an open document refreshes from disk", async 
   await expect.poll(() => scroller.evaluate((element) => element.scrollTop)).toBeGreaterThan(800);
   await page.waitForTimeout(350);
 
+  const observedChange = waitForWorkspaceChange(page, target);
   await writeFile(target, `# External Scroll Test\n\n${longBody}\nagent appended line\n`, "utf8");
-  await page.waitForTimeout(1800);
+  await observedChange;
 
   await expect
     .poll(() =>
@@ -90,7 +91,6 @@ test("preserves editor cursor when an open document refreshes from disk", async 
 
   await writeFile(target, "# External Cursor Test\n\nfirst line\nsecond line updated\nthird line\n", "utf8");
   await expect(page.getByTestId("editor-panel")).toContainText("second line updated", { timeout: 5000 });
-  await page.waitForTimeout(800);
 
   await expect
     .poll(() =>
@@ -135,11 +135,22 @@ test("does not overwrite an unsaved document when the file changes on disk", asy
   await expect(page.getByTestId("editor-panel")).toContainText("local unsaved line");
   await expect(page.locator(".status-dot--dirty")).toHaveCount(1);
 
+  const observedChange = waitForWorkspaceChange(page, target);
   await writeFile(target, "# External Dirty Test\n\nexternal overwrite attempt\n", "utf8");
-  await page.waitForTimeout(1800);
+  await observedChange;
 
   await expect(page.getByTestId("editor-panel")).toContainText("local unsaved line");
   await expect(page.getByTestId("editor-panel")).not.toContainText("external overwrite attempt");
 
   await cleanup();
 });
+
+function waitForWorkspaceChange(page: Page, targetPath: string): Promise<unknown> {
+  return page.evaluate((expectedPath) => new Promise((resolve) => {
+    const unsubscribe = window.exograph.workspace.onDidChange((event) => {
+      if (event.filePath !== expectedPath) return;
+      unsubscribe();
+      resolve(event);
+    });
+  }), targetPath);
+}

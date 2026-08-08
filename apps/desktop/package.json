@@ -13,7 +13,7 @@
     "package:mac": "node scripts/pack-mac.mjs --mac dir",
     "dist:mac": "node scripts/pack-mac.mjs --mac dmg zip",
     "test:packaged:containment": "node scripts/run-packaged-containment.mjs",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.e2e.json --noEmit",
     "check:unused": "tsc -p tsconfig.production.json --noEmit",
     "test": "vitest run src/main src/renderer/src",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3,node-pty",
