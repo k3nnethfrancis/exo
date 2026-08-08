@@ -9,6 +9,7 @@ directories:
 files:
   - dist/**/*
   - package.json
+  - "!**/node_modules/**/prebuilds/!(darwin-${arch}){,/**}"
 
 extraResources:
   - from: ../../skills/find-and-connect-relevant-context
