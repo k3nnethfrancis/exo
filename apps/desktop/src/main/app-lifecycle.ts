@@ -1,12 +1,11 @@
-import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, Tray, type ContextMenuParams, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeImage, nativeTheme, shell, Tray, type ContextMenuParams, type MenuItemConstructorOptions } from "electron";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { TerminalSessionInfo } from "../shared/api";
-
-const TRAY_ICON_DATA_URL =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAAkklEQVR42mNgGMrAAIjPA/F9IE4gRXE/FO+H8v+jYQF8Bp3HogEXVsBn0H0cmu5DXQbjnyfktQQ0AwzQ5GHi+4kJ1Pl4DDpPrItAIADJoAY0OWTvEQQCeMJiPikGoduMnGYakMQdiDEIPRmA+OvRLCggxqD7RKYlAVKSwXk8BisQG+joCguQDJlPaeYVINYlAwsA/kdblK7gwrkAAAAASUVORK5CYII=";
+import { exographTrayIconDataUrl } from "../shared/exograph-mark";
+import { trustDesktopRenderer } from "./renderer-authority";
 
 export interface AppLifecycleControllerOptions {
   currentDirectory: string;
@@ -53,8 +52,24 @@ export class AppLifecycleController {
         y: 14,
       },
       webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
         preload: preloadPath,
+        sandbox: true,
       },
+    });
+
+    const revokeRendererTrust = trustDesktopRenderer(window.webContents);
+    window.webContents.on("will-navigate", (event, targetUrl) => {
+      if (!this.isTrustedRendererUrl(targetUrl)) {
+        event.preventDefault();
+      }
+    });
+    window.webContents.setWindowOpenHandler(({ url }) => {
+      if (isSafeExternalUrl(url)) {
+        void shell.openExternal(url);
+      }
+      return { action: "deny" };
     });
 
     this.loadRenderer(window);
@@ -159,6 +174,7 @@ export class AppLifecycleController {
     });
 
     window.on("closed", () => {
+      revokeRendererTrust();
       if (this.mainWindow === window) {
         this.mainWindow = null;
         this.rendererReady = false;
@@ -178,7 +194,10 @@ export class AppLifecycleController {
       return;
     }
 
-    const icon = nativeImage.createFromDataURL(TRAY_ICON_DATA_URL);
+    const icon = nativeImage.createFromDataURL(exographTrayIconDataUrl());
+    if (icon.isEmpty()) {
+      throw new Error("Failed to decode Exograph's macOS menu-bar icon.");
+    }
     icon.setTemplateImage(true);
 
     this.tray = new Tray(icon);
@@ -303,6 +322,18 @@ export class AppLifecycleController {
   private isRendererEntryUrl(url: string): boolean {
     const rendererPath = path.join(this.options.currentDirectory, "../renderer/index.html");
     return url === pathToFileURL(rendererPath).toString();
+  }
+
+  private isTrustedRendererUrl(url: string): boolean {
+    const devServerUrl = process.env.ELECTRON_RENDERER_URL ?? process.env.VITE_DEV_SERVER_URL;
+    if (!devServerUrl) {
+      return this.isRendererEntryUrl(url);
+    }
+    try {
+      return new URL(url).origin === new URL(devServerUrl).origin;
+    } catch {
+      return false;
+    }
   }
 
   private scheduleRendererRecovery(window: BrowserWindow, reason: string) {
@@ -433,4 +464,13 @@ export function editableContextMenuTemplate(
 
 function shouldRecoverRenderer(reason: string): boolean {
   return reason === "crashed" || reason === "oom" || reason === "killed" || reason === "abnormal-exit" || reason === "launch-failed" || reason === "load-failed";
+}
+
+export function isSafeExternalUrl(target: string): boolean {
+  try {
+    const protocol = new URL(target).protocol;
+    return protocol === "http:" || protocol === "https:";
+  } catch {
+    return false;
+  }
 }

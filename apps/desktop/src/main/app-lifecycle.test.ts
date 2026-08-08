@@ -1,7 +1,6 @@
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { inflateSync } from "node:zlib";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const electronMock = vi.hoisted(() => ({
@@ -10,6 +9,7 @@ const electronMock = vi.hoisted(() => ({
   dialogResponse: 1,
   openSettings: vi.fn(),
   restartCommandServer: vi.fn(),
+  openExternal: vi.fn(),
   showMessageBox: vi.fn(),
   showDefinitionForSelection: vi.fn(),
   replaceMisspelling: vi.fn(),
@@ -17,6 +17,7 @@ const electronMock = vi.hoisted(() => ({
   trayImageCreateFromDataURL: vi.fn(),
   trayImageCreateFromPath: vi.fn(),
   trayImageSetTemplateImage: vi.fn(),
+  trayImageIsEmpty: false,
   trayInstances: [] as Array<any>,
   windows: [] as Array<any>,
   menuTemplate: [] as Array<Record<string, unknown>>,
@@ -29,18 +30,28 @@ vi.mock("electron", () => ({
   dialog: {
     showMessageBox: electronMock.showMessageBox,
   },
+  shell: {
+    openExternal: electronMock.openExternal,
+  },
   BrowserWindow: class MockBrowserWindow extends EventEmitter {
     static getAllWindows() {
       return electronMock.windows.filter((window) => !window.destroyed);
     }
 
+    readonly mainFrame = {};
     readonly webContents = Object.assign(new EventEmitter(), {
+      id: electronMock.windows.length + 1,
+      mainFrame: this.mainFrame,
+      setWindowOpenHandler: vi.fn((handler) => {
+        this.windowOpenHandler = handler;
+      }),
       replaceMisspelling: electronMock.replaceMisspelling,
       showDefinitionForSelection: electronMock.showDefinitionForSelection,
       session: {
         addWordToSpellCheckerDictionary: electronMock.addWordToSpellCheckerDictionary,
       },
     });
+    windowOpenHandler: ((details: { url: string }) => { action: string }) | null = null;
     destroyed = false;
     visible = false;
     hidden = false;
@@ -98,17 +109,20 @@ vi.mock("electron", () => ({
   },
   nativeImage: {
     createEmpty: () => ({
+      isEmpty: () => electronMock.trayImageIsEmpty,
       setTemplateImage: electronMock.trayImageSetTemplateImage,
     }),
     createFromDataURL: (dataUrl: string) => {
       electronMock.trayImageCreateFromDataURL(dataUrl);
       return {
+        isEmpty: () => electronMock.trayImageIsEmpty,
         setTemplateImage: electronMock.trayImageSetTemplateImage,
       };
     },
     createFromPath: (iconPath: string) => {
       electronMock.trayImageCreateFromPath(iconPath);
       return {
+        isEmpty: () => electronMock.trayImageIsEmpty,
         setTemplateImage: electronMock.trayImageSetTemplateImage,
       };
     },
@@ -141,11 +155,13 @@ describe("AppLifecycleController", () => {
     electronMock.dialogResponse = 1;
     electronMock.openSettings.mockClear();
     electronMock.restartCommandServer.mockClear();
+    electronMock.openExternal.mockClear();
     electronMock.showMessageBox.mockReset();
     electronMock.showMessageBox.mockImplementation(async () => ({ response: electronMock.dialogResponse }));
     electronMock.trayImageCreateFromDataURL.mockClear();
     electronMock.trayImageCreateFromPath.mockClear();
     electronMock.trayImageSetTemplateImage.mockClear();
+    electronMock.trayImageIsEmpty = false;
     electronMock.trayInstances.length = 0;
     electronMock.windows.length = 0;
     electronMock.menuTemplate = [];
@@ -165,6 +181,22 @@ describe("AppLifecycleController", () => {
     expect(event.preventDefault).toHaveBeenCalledOnce();
     expect(window.hidden).toBe(true);
     expect(controller.getMainWindow()).toBe(window);
+  });
+
+  it("hardens the privileged renderer and rejects unexpected navigation or windows", () => {
+    const controller = appLifecycleController();
+    const window = controller.createWindow() as any;
+    const webPreferences = window.options.webPreferences;
+    expect(webPreferences).toMatchObject({ contextIsolation: true, nodeIntegration: false, sandbox: true });
+
+    const navigation = { preventDefault: vi.fn() };
+    window.webContents.emit("will-navigate", navigation, "https://example.com/phishing");
+    expect(navigation.preventDefault).toHaveBeenCalledOnce();
+
+    expect(window.windowOpenHandler({ url: "file:///tmp/private" })).toEqual({ action: "deny" });
+    expect(electronMock.openExternal).not.toHaveBeenCalled();
+    expect(window.windowOpenHandler({ url: "https://example.com/docs" })).toEqual({ action: "deny" });
+    expect(electronMock.openExternal).toHaveBeenCalledWith("https://example.com/docs");
   });
 
   it("destroys windows during explicit quit", async () => {
@@ -236,21 +268,21 @@ describe("AppLifecycleController", () => {
     expect(electronMock.trayInstances).toHaveLength(1);
   });
 
-  it("uses a transparent template tray glyph instead of a square app icon", () => {
+  it("uses the canonical six-branch mark as a transparent template tray glyph", () => {
     const controller = appLifecycleController();
 
     controller.setupTray();
 
     const dataUrl = electronMock.trayImageCreateFromDataURL.mock.calls[0]?.[0];
     expect(dataUrl).toEqual(expect.stringMatching(/^data:image\/png;base64,/));
+  });
 
-    const image = decodePngRgba(dataUrl);
-    expect(image.width).toBe(18);
-    expect(image.height).toBe(18);
-    expect(image.alphaAt(0, 0)).toBe(0);
-    expect(image.alphaAt(image.width - 1, 0)).toBe(0);
-    expect(image.alphaAt(0, image.height - 1)).toBe(0);
-    expect(image.alphaAt(image.width - 1, image.height - 1)).toBe(0);
+  it("fails loudly instead of installing an invisible menu-bar status item", () => {
+    const controller = appLifecycleController();
+    electronMock.trayImageIsEmpty = true;
+
+    expect(() => controller.setupTray()).toThrow(/Failed to decode Exograph's macOS menu-bar icon/);
+    expect(electronMock.trayInstances).toHaveLength(0);
   });
 
   it("opens settings from the resident menu without quitting the runtime", () => {
@@ -409,86 +441,4 @@ function editableContext(overrides: Record<string, unknown> = {}): any {
     },
     ...overrides,
   };
-}
-
-function decodePngRgba(dataUrl: string): { width: number; height: number; alphaAt: (x: number, y: number) => number } {
-  const buffer = Buffer.from(dataUrl.replace(/^data:image\/png;base64,/, ""), "base64");
-  let offset = 8;
-  let width = 0;
-  let height = 0;
-  const idat: Buffer[] = [];
-
-  while (offset < buffer.length) {
-    const length = buffer.readUInt32BE(offset);
-    const type = buffer.toString("ascii", offset + 4, offset + 8);
-    const data = buffer.subarray(offset + 8, offset + 8 + length);
-    offset += 12 + length;
-
-    if (type === "IHDR") {
-      width = data.readUInt32BE(0);
-      height = data.readUInt32BE(4);
-      expect(data[9]).toBe(6);
-    } else if (type === "IDAT") {
-      idat.push(data);
-    } else if (type === "IEND") {
-      break;
-    }
-  }
-
-  const inflated = inflateSync(Buffer.concat(idat));
-  const stride = width * 4;
-  const rows: Buffer[] = [];
-  let sourceOffset = 0;
-  let previousRow = Buffer.alloc(stride);
-
-  for (let y = 0; y < height; y += 1) {
-    const filter = inflated[sourceOffset];
-    sourceOffset += 1;
-    const row = Buffer.from(inflated.subarray(sourceOffset, sourceOffset + stride));
-    sourceOffset += stride;
-    unfilterPngRow(row, previousRow, filter);
-    rows.push(row);
-    previousRow = row;
-  }
-
-  return {
-    width,
-    height,
-    alphaAt: (x: number, y: number) => rows[y][x * 4 + 3],
-  };
-}
-
-function unfilterPngRow(row: Buffer, previousRow: Buffer, filter: number): void {
-  const bytesPerPixel = 4;
-  for (let index = 0; index < row.length; index += 1) {
-    const left = index >= bytesPerPixel ? row[index - bytesPerPixel] : 0;
-    const up = previousRow[index];
-    const upLeft = index >= bytesPerPixel ? previousRow[index - bytesPerPixel] : 0;
-    let value = row[index];
-
-    if (filter === 1) {
-      value += left;
-    } else if (filter === 2) {
-      value += up;
-    } else if (filter === 3) {
-      value += Math.floor((left + up) / 2);
-    } else if (filter === 4) {
-      value += paethPredictor(left, up, upLeft);
-    } else {
-      expect(filter).toBe(0);
-    }
-
-    row[index] = value & 0xff;
-  }
-}
-
-function paethPredictor(left: number, up: number, upLeft: number): number {
-  const estimate = left + up - upLeft;
-  const leftDistance = Math.abs(estimate - left);
-  const upDistance = Math.abs(estimate - up);
-  const upLeftDistance = Math.abs(estimate - upLeft);
-  if (leftDistance <= upDistance && leftDistance <= upLeftDistance) {
-    return left;
-  }
-  return upDistance <= upLeftDistance ? up : upLeft;
 }
