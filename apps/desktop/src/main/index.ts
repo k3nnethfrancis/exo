@@ -57,7 +57,7 @@ import {
   resolveOntologyMaintenanceSkill,
 } from "./workspace/ontology-maintenance-skill";
 import {
-  ensureOntologyDiscoverySkill,
+  createOntologyDesignPrompt,
   OntologyDiscoveryCoordinator,
   runOntologyDiscovery,
   stopActiveOntologyDiscoveries,
@@ -107,6 +107,7 @@ let flushingOsOpenFiles = false;
 
 const ontologyDiscoveryCoordinator = new OntologyDiscoveryCoordinator({
   getCommands: () => currentSettings().agentCommands ?? [],
+  getDefaultCommandId: () => currentSettings().defaultAgentCommandId,
   getWorkspace: () => ({
     workspaceRoot: workspaceModel.workspaceRoot,
     runtimeRoot: resolveRuntimeRoot(),
@@ -114,7 +115,7 @@ const ontologyDiscoveryCoordinator = new OntologyDiscoveryCoordinator({
   }),
   getCommandLaunchFacts: (commandId) => invocationRunner.getCommandLaunchFacts(commandId),
   getCommandTrust: (handle) => invocationRunner.getCommandTrust(handle),
-  ensureSkill: ensureOntologyDiscoverySkill,
+  getPrompt: () => createOntologyDesignPrompt(currentSettings().ontologyDiscoveryPrompt),
   invalidateDerivedState: () => workspaceNotesService.invalidateDerivedState(),
   previewOntology: (sourcePath) => workspaceNotesService.previewOntology(sourcePath),
   getGraphTopology: () => workspaceNotesService.getGraphTopology(),

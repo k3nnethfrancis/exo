@@ -78,7 +78,7 @@ export interface AgentCommandLaunchFacts {
   executablePath: string | null;
   executableReady: boolean;
   launchable: boolean;
-  block?: "disabled" | "unsupported-prompt-delivery" | "invalid-cwd-policy" | "document-required" | "cwd-missing" | "executable-missing";
+  block?: "disabled" | "unsupported-prompt-delivery" | "invalid-cwd-policy" | "document-required" | "cwd-missing" | "executable-missing" | "workspace-not-git";
   detail: string;
 }
 

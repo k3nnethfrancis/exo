@@ -1654,6 +1654,7 @@ function settings(workspaceRoot: string, command: ReturnType<typeof createDefaul
     editorFontSize: 15,
     terminalFontSize: 13,
     explorerScale: 1,
+    graphInverseNavigation: true,
     exploreIndexSearchOnEnter: true,
     indexUpdateStrategy: "manual",
   };

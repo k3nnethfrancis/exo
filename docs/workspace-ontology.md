@@ -110,16 +110,18 @@ Candidate edits alone remain inert. Their dedicated watcher notification does
 not invalidate Note caches, refresh Explorer, or replace graph identity. A
 successful Keep emits one ordinary graph-changed event. Authored Links and
 Backlinks remain authored facts; resolved local Ontology Relations appear only
-in the bounded Connections graph neighborhood with their Ontology origin and
-Evidence preserved.
+in the production Graph and bounded Note-context reads with their Ontology
+origin and Evidence preserved.
 
 ## Optional discovery
 
-The sparkle action in Settings or Graph uses the first trusted, enabled Claude
-or Codex Command to inspect a disposable Markdown-only snapshot. This workflow
-uses the Workspace-owned `skills/design-workspace-ontology.md`; Exograph does
-not substitute its graph-maintenance Skill for it. The provider receives that
-Skill, a schema-bound response contract, read-only tools/sandboxing, and no live
+The sparkle action in Settings or Graph uses the Workspace's explicit default
+Claude or Codex Command to inspect a disposable Markdown-only snapshot. The
+Command must be enabled and trusted before discovery begins. Exograph supplies
+its bundled `ontology-design` prompt, or the user's override from
+**Settings → Graph → Advanced**. Discovery preparation never writes a Skill or
+hidden instruction file into the Note Root. The provider receives the prompt,
+a schema-bound response contract, read-only tools/sandboxing, and no live
 Workspace write authority. Generic Commands are not accepted by this
 early-access path.
 

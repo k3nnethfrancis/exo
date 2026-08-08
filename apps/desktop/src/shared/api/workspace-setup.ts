@@ -12,7 +12,7 @@ import type {
 } from "@exograph/core";
 import type { WorkspaceContentInspection } from "@exograph/core";
 
-export type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "terminal" | "shortcuts" | "agents";
+export type WorkspaceSettingsSection = "workspace" | "index" | "appearance" | "graph" | "terminal" | "shortcuts" | "agents";
 
 export interface WorkspaceSetupState {
   complete: boolean;

@@ -51,7 +51,7 @@ export function normalizeAgentCommand(input: unknown, fallbackId?: string): Agen
   if (!promptDelivery) return null;
 
   const adapter = normalizeAgentCommandAdapter(candidate.adapter, { ...candidate, command });
-  return {
+  const normalized: AgentCommand = {
     id,
     label,
     handle,
@@ -64,6 +64,27 @@ export function normalizeAgentCommand(input: unknown, fallbackId?: string): Agen
     version: normalizeAgentCommandVersion(candidate.version),
     enabled: typeof candidate.enabled === "boolean" ? candidate.enabled : true,
   };
+  return migrateBuiltInCodexCommand(normalized);
+}
+
+export const LEGACY_BUILT_IN_CODEX_COMMAND = "codex exec --sandbox workspace-write -";
+
+/** Repair only Exograph's exact v1 Codex template. A user-edited command,
+ * including another command under the @codex handle, remains user-owned. */
+export function isLegacyBuiltInCodexCommand(command: AgentCommand): boolean {
+  return command.id === "codex"
+    && command.label === "Codex"
+    && command.handle === "codex"
+    && command.adapter === "codex-cli"
+    && command.cwdPolicy === "workspace_root"
+    && command.promptDelivery === "stdin"
+    && command.command === LEGACY_BUILT_IN_CODEX_COMMAND;
+}
+
+function migrateBuiltInCodexCommand(command: AgentCommand): AgentCommand {
+  return isLegacyBuiltInCodexCommand(command)
+    ? { ...command, command: createDefaultCodexAgentCommand().command, version: createDefaultCodexAgentCommand().version }
+    : command;
 }
 
 export function normalizeAgentCommands(input: unknown): AgentCommand[] {
@@ -79,6 +100,20 @@ export function normalizeAgentCommands(input: unknown): AgentCommand[] {
     commands.push(command);
     return commands;
   }, []);
+}
+
+/** Resolve the explicit command used by Exograph-initiated agent features. */
+export function normalizeDefaultAgentCommandId(
+  input: unknown,
+  commands: readonly AgentCommand[],
+): string | undefined {
+  const requested = typeof input === "string" ? input.trim() : "";
+  if (requested && commands.some((command) => command.id === requested)) return requested;
+  return commands.find((command) => command.enabled && isFeatureAgentCommand(command))?.id;
+}
+
+export function isFeatureAgentCommand(command: AgentCommand): boolean {
+  return command.adapter === "claude-code" || command.adapter === "codex-cli";
 }
 
 /** Validate a complete list without repairing or silently dropping entries. */

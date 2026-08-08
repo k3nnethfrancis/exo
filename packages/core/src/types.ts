@@ -31,8 +31,12 @@ export interface WorkspaceSettings {
   defaultTerminalCwd: string;
   noteRoots: string[];
   agentCommands?: AgentCommand[];
+  /** Command selected for Exograph-initiated agent features such as Ontology discovery. */
+  defaultAgentCommandId?: string;
   /** Editable provider-neutral prompt template used for note invocations. */
   agentInvocationPrompt?: string;
+  /** Optional override for Exograph's bundled read-only Ontology design prompt. */
+  ontologyDiscoveryPrompt?: string;
   indexedRoots: IndexedRoot[];
   /** Editable content scope. A repository recommendation may populate this during onboarding. */
   contentPolicy?: WorkspaceContentPolicy;
@@ -44,6 +48,8 @@ export interface WorkspaceSettings {
   editorFontSize: number;
   terminalFontSize: number;
   explorerScale: number;
+  /** Reverse pointer-drag orbit direction in the spatial graph. */
+  graphInverseNavigation: boolean;
   /** Per-workspace overrides for the global Mod-based shell shortcuts. */
   shortcutBindings?: WorkspaceShortcutBindings;
   exploreIndexSearchOnEnter: boolean;

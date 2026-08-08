@@ -21,6 +21,31 @@ import {
 } from "../workspace-settings";
 
 describe("workspace settings registry", () => {
+  it("defaults inverse graph navigation on and preserves an explicit preference", () => {
+    const defaults = normalizeWorkspaceSettings(workspaceSettingsFor("/tmp/exograph-graph-default/notes"));
+    const direct = normalizeWorkspaceSettings({
+      ...workspaceSettingsFor("/tmp/exograph-graph-direct/notes"),
+      graphInverseNavigation: false,
+    });
+
+    expect(defaults?.graphInverseNavigation).toBe(true);
+    expect(direct?.graphInverseNavigation).toBe(false);
+  });
+
+  it("stores only a meaningful Ontology discovery prompt override", () => {
+    const customized = normalizeWorkspaceSettings({
+      ...workspaceSettingsFor("/tmp/exograph-ontology-prompt/notes"),
+      ontologyDiscoveryPrompt: "  Inspect this workspace carefully.  ",
+    });
+    const blank = normalizeWorkspaceSettings({
+      ...workspaceSettingsFor("/tmp/exograph-ontology-prompt-default/notes"),
+      ontologyDiscoveryPrompt: "   ",
+    });
+
+    expect(customized?.ontologyDiscoveryPrompt).toBe("Inspect this workspace carefully.");
+    expect(blank?.ontologyDiscoveryPrompt).toBeUndefined();
+  });
+
   it.each([
     ["project roots", { projectRoots: [] }],
     ["migration metadata", { migrationMetadata: { mainWiki: { retiredNoteRoots: ["/tmp/other"] } } }],
@@ -388,6 +413,7 @@ describe("workspace settings registry", () => {
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
+        graphInverseNavigation: true,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
       }, env);
@@ -451,6 +477,45 @@ describe("workspace settings registry", () => {
           enabled: true,
         }],
       });
+    } finally {
+      await rm(userDataPath, { recursive: true, force: true });
+    }
+  });
+
+  it("persists the safe built-in Codex migration without changing customized commands", async () => {
+    const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-codex-migration-"));
+    const env = { EXOGRAPH_USER_DATA_PATH: userDataPath };
+    const legacy = {
+      ...createDefaultCodexAgentCommand(),
+      command: "codex exec --sandbox workspace-write -",
+      version: 1,
+    };
+    const custom = {
+      ...createDefaultClaudeAgentCommand(),
+      id: "custom",
+      label: "Custom",
+      handle: "custom",
+      command: "custom-agent -",
+      adapter: "generic" as const,
+      continuityPolicy: "fresh" as const,
+    };
+    try {
+      await writeFile(resolveWorkspaceSettingsPath(env), JSON.stringify({
+        ...workspaceSettingsFor("/tmp/exograph-codex-migration/notes"),
+        agentCommands: [legacy, custom],
+      }), { mode: 0o600 });
+
+      await expect(loadWorkspaceSettings(env)).resolves.toMatchObject({
+        agentCommands: [
+          { id: "codex", command: "codex exec --sandbox workspace-write --skip-git-repo-check -", version: 2 },
+          { id: "custom", command: "custom-agent -" },
+        ],
+      });
+      const persisted = JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8"));
+      expect(persisted.agentCommands).toMatchObject([
+        { id: "codex", command: "codex exec --sandbox workspace-write --skip-git-repo-check -", version: 2 },
+        { id: "custom", command: "custom-agent -" },
+      ]);
     } finally {
       await rm(userDataPath, { recursive: true, force: true });
     }
@@ -538,6 +603,7 @@ describe("workspace settings registry", () => {
       editorFontSize: 15,
       terminalFontSize: 13,
       explorerScale: 1,
+      graphInverseNavigation: true,
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "on-save",
       agentCommands: [createDefaultClaudeAgentCommand()],
@@ -651,6 +717,22 @@ describe("workspace settings registry", () => {
     });
   });
 
+  it("persists an explicit default agent and gives existing workspaces a compatible default", () => {
+    const commands = [createDefaultClaudeAgentCommand(), createDefaultCodexAgentCommand()];
+    const migrated = normalizeWorkspaceSettings({
+      ...workspaceSettingsFor("/tmp/exograph-agent-default/notes"),
+      agentCommands: commands,
+    });
+    const selected = normalizeWorkspaceSettings({
+      ...workspaceSettingsFor("/tmp/exograph-agent-selected/notes"),
+      agentCommands: commands,
+      defaultAgentCommandId: "codex",
+    });
+
+    expect(migrated?.defaultAgentCommandId).toBe("claude");
+    expect(selected?.defaultAgentCommandId).toBe("codex");
+  });
+
   it("normalizes current canvas layout bounds and pane contents", async () => {
     const userDataPath = await mkdtemp(path.join(os.tmpdir(), "exograph-core-layout-"));
 
@@ -666,6 +748,7 @@ describe("workspace settings registry", () => {
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
+        graphInverseNavigation: true,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
         layout: {
@@ -715,6 +798,7 @@ describe("workspace settings registry", () => {
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
+        graphInverseNavigation: true,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
         layout: {
@@ -748,6 +832,7 @@ describe("workspace settings registry", () => {
         editorFontSize: 15,
         terminalFontSize: 13,
         explorerScale: 1,
+        graphInverseNavigation: true,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
       }, env);

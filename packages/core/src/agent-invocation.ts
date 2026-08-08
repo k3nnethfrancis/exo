@@ -17,8 +17,11 @@ export { createDefaultClaudeAgentCommand, createDefaultCodexAgentCommand } from 
 export {
   agentCommandConfigurationError,
   DEFAULT_AGENT_COMMAND_PROMPT_DELIVERY,
+  isFeatureAgentCommand,
+  isLegacyBuiltInCodexCommand,
   normalizeAgentCommand,
   normalizeAgentCommands,
+  normalizeDefaultAgentCommandId,
   normalizeAgentHandle,
 } from "./agent-command-configuration";
 export type {

@@ -2,8 +2,7 @@
 
 **Status:** Current document-envelope and Changeset review contract.
 
-Exograph keeps Markdown as the canonical user document. It adds two inert, XML-like
-envelopes so a human request and an agent's durable result can be identified
+Exograph keeps Markdown as the canonical user document. It adds two inert, XML-like envelopes so a human request and an agent's durable result can be identified
 without turning the note into a proprietary chat object.
 
 ```md
@@ -79,9 +78,9 @@ linked response envelope directly after the request. For direct-edit work the
 response can be a short receipt; for analysis, research, and planning it holds
 the durable result. Terminal stdout remains only a concise session summary.
 
-Skill delivery supplies instructions, not authority. A product workflow may use
-a Workspace-owned Skill or resolve a provider-native, Exograph-bundled, or exact
-inline copy, but every run still follows the same executable trust, filesystem
+Prompt and Skill delivery supply instructions, not authority. A product workflow
+may use a saved prompt override or resolve a provider-native, Exograph-bundled,
+or exact inline Skill copy, but every run still follows the same executable trust, filesystem
 scope, observed-change, and review contracts. Repository contributor Skills are
 separate guidance for coding agents working on Exograph itself.
 

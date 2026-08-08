@@ -9,7 +9,9 @@ import {
   agentCommandConfigurationError,
   normalizeAgentCommand,
   normalizeAgentCommands,
+  normalizeDefaultAgentCommandId,
   normalizeAgentInvocationPrompt,
+  isLegacyBuiltInCodexCommand,
 } from "./agent-invocation";
 import { isPathWithinRoot } from "./path-containment";
 import { createIndexedRoot, DEFAULT_INDEXING } from "./workspace";
@@ -20,6 +22,7 @@ export const DEFAULT_COLOR_THEME_ID: WorkspaceSettings["colorThemeId"] = "exogra
 export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
 export const DEFAULT_EXPLORER_SCALE = 1;
+export const DEFAULT_GRAPH_INVERSE_NAVIGATION = true;
 const UNSUPPORTED_WORKSPACE_SETTINGS_KEYS = [
   "migrationMetadata",
   "projectRoots",
@@ -78,15 +81,33 @@ export async function loadWorkspaceSettings(env: NodeJS.ProcessEnv = process.env
   await recoverWorkspaceSettingsTransaction(env);
   const settings = await loadWorkspaceSettingsFile(env);
   const requiresIndexedRootMigration = await duplicateIndexedRootPathsInPersistence(env);
+  const requiresCodexCommandMigration = await legacyCodexCommandInPersistence(env);
   if (settings) {
     // Validate every persisted registry entry against the same canonical
     // parser before Desktop can select or rewrite it.
     await loadWorkspaceRegistryFile(env, settings);
   }
-  if (settings && requiresIndexedRootMigration) {
+  if (settings && (requiresIndexedRootMigration || requiresCodexCommandMigration)) {
     await saveWorkspaceSettings(settings, env);
   }
   return settings;
+}
+
+async function legacyCodexCommandInPersistence(env: NodeJS.ProcessEnv): Promise<boolean> {
+  try {
+    const parsed = JSON.parse(await readFile(resolveWorkspaceSettingsPath(env), "utf8")) as { agentCommands?: unknown };
+    return Array.isArray(parsed.agentCommands) && parsed.agentCommands.some((entry) => {
+      const command = normalizeAgentCommand(entry);
+      return Boolean(command && isLegacyBuiltInCodexCommand({
+        ...command,
+        command: typeof (entry as { command?: unknown }).command === "string"
+          ? (entry as { command: string }).command.trim()
+          : command.command,
+      }));
+    });
+  } catch {
+    return false;
+  }
 }
 
 async function loadWorkspaceSettingsFile(env: NodeJS.ProcessEnv): Promise<WorkspaceSettings | null> {
@@ -412,15 +433,20 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
   if (!workspaceRoot || !defaultTerminalCwd || noteRoots.length === 0) {
     return null;
   }
+  const agentCommands = normalizeAgentCommands(input.agentCommands);
+  const defaultAgentCommandId = normalizeDefaultAgentCommandId(input.defaultAgentCommandId, agentCommands);
   const agentInvocationPrompt = normalizeAgentInvocationPrompt(input.agentInvocationPrompt);
+  const ontologyDiscoveryPrompt = normalizeOptionalPrompt(input.ontologyDiscoveryPrompt);
 
   return {
     ...input,
     workspaceRoot,
     defaultTerminalCwd,
     noteRoots,
-    agentCommands: normalizeAgentCommands(input.agentCommands),
+    agentCommands,
+    ...(defaultAgentCommandId ? { defaultAgentCommandId } : {}),
     ...(agentInvocationPrompt ? { agentInvocationPrompt } : {}),
+    ontologyDiscoveryPrompt,
     indexedRoots,
     contentPolicy: normalizeWorkspaceContentPolicy(input.contentPolicy),
     indexing,
@@ -430,11 +456,22 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     editorFontSize: clampSettingsNumber(input.editorFontSize, DEFAULT_EDITOR_FONT_SIZE, 11, 24),
     terminalFontSize: clampSettingsNumber(input.terminalFontSize, DEFAULT_TERMINAL_FONT_SIZE, 10, 22),
     explorerScale: clampSettingsNumber(input.explorerScale, DEFAULT_EXPLORER_SCALE, 0.82, 1.35),
+    graphInverseNavigation: typeof input.graphInverseNavigation === "boolean"
+      ? input.graphInverseNavigation
+      : DEFAULT_GRAPH_INVERSE_NAVIGATION,
     shortcutBindings: normalizeWorkspaceShortcutBindings(input.shortcutBindings),
     exploreIndexSearchOnEnter: typeof input.exploreIndexSearchOnEnter === "boolean" ? input.exploreIndexSearchOnEnter : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0,
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",
     layout: normalizeWorkspaceLayout(input.layout),
   };
+}
+
+function normalizeOptionalPrompt(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim();
+  return normalized && Buffer.byteLength(normalized, "utf8") <= 128 * 1024
+    ? normalized
+    : undefined;
 }
 
 const WORKSPACE_SHORTCUT_IDS: readonly WorkspaceShortcutId[] = ["explorer", "utility", "new-note", "daily-note", "terminal", "save"];

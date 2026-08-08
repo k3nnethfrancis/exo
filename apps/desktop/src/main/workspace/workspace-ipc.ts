@@ -250,7 +250,18 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
   );
   handleDesktopInvoke("notes:ensure-target", async (_event, sourceFilePath, target) => handlers.ensureTarget(sourceFilePath, target));
   handleDesktopInvoke("notes:suggest-targets", async (_event, sourceFilePath, query) => handlers.suggestTargets(sourceFilePath, query));
-  handleDesktopInvoke("shell:open-external", async (_event, target) => shell.openExternal(target));
+  handleDesktopInvoke("shell:open-external", async (_event, target) => {
+    let parsed: URL;
+    try {
+      parsed = new URL(target);
+    } catch {
+      throw new Error("External links must be valid HTTP or HTTPS URLs.");
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error("External links must use HTTP or HTTPS.");
+    }
+    await shell.openExternal(parsed.toString());
+  });
   handleDesktopInvoke("shell:focus-window", async () => {
     const window = handlers.getMainWindow();
     window?.focus();
