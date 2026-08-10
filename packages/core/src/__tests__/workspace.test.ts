@@ -89,6 +89,23 @@ describe("workspace", () => {
     expect(nodes.some((node) => node.name === "focus-note.md")).toBe(true);
   });
 
+  it("can expose PDF artifacts in a deliberately narrow tree without adding them to Markdown enumeration", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-pdf-tree-"));
+    try {
+      await writeFile(path.join(root, "note.md"), "# Note\n", "utf8");
+      await writeFile(path.join(root, "paper.pdf"), "%PDF-1.4\nfixture", "utf8");
+      await writeFile(path.join(root, "ignored.txt"), "not an artifact", "utf8");
+
+      await expect(listRootTree(root, { allowedFileExtensions: [".md", ".pdf"] })).resolves.toEqual([
+        expect.objectContaining({ name: "note.md", kind: "file" }),
+        expect.objectContaining({ name: "paper.pdf", kind: "file" }),
+      ]);
+      await expect(listMarkdownFiles([root])).resolves.toEqual([path.join(root, "note.md")]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("prunes excluded content paths from a Markdown tree", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "exograph-content-tree-"));
     try {

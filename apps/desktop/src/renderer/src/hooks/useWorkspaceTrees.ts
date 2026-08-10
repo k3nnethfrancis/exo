@@ -42,7 +42,7 @@ export function useWorkspaceTrees(options: UseWorkspaceTreesOptions) {
     loadedTreeDirectoriesRef.current.add(loadKey);
 
     const children = await window.exograph.workspace.listTree(directoryPath, {
-      markdownOnly: true,
+      allowedFileExtensions: [".md", ".pdf"],
       maxDepth: 1,
       excludedPaths: excludedPathsRef.current,
     });
@@ -65,7 +65,7 @@ export async function loadInitialTrees(
     model.noteRoots.map(
       async (root) =>
         [root.path, await window.exograph.workspace.listTree(root.path, {
-          markdownOnly: true,
+          allowedFileExtensions: [".md", ".pdf"],
           maxDepth: options.noteTreeMaxDepth,
           excludedPaths: model.contentPolicy?.excludedPaths ?? [],
         })] as const,

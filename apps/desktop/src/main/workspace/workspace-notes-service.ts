@@ -266,7 +266,10 @@ export class WorkspaceNotesService {
       return null;
     }
 
-    const relativeCandidate = target.endsWith(".md")
+    const isPdfTarget = target.toLowerCase().endsWith(".pdf");
+    const relativeCandidate = isPdfTarget
+      ? path.resolve(path.dirname(sourceFilePath), target)
+      : target.endsWith(".md")
       ? path.resolve(path.dirname(sourceFilePath), target)
       : path.resolve(path.dirname(sourceFilePath), `${target}.md`);
     await files.writable(relativeCandidate);
@@ -274,8 +277,10 @@ export class WorkspaceNotesService {
 
     if (await fileExists(relativeCandidate)) {
       this.assertCurrentScope(scope);
-      return relativeCandidate;
+      return isPdfTarget ? await files.existing(relativeCandidate) : relativeCandidate;
     }
+
+    if (isPdfTarget) return null;
 
     const normalizedTarget = path.basename(target, ".md").toLowerCase();
     const noteFiles = await listMarkdownFiles(
@@ -314,6 +319,9 @@ export class WorkspaceNotesService {
     const resolved = await this.resolveTarget(sourceFilePath, target);
     if (resolved) {
       return resolved;
+    }
+    if (target.toLowerCase().endsWith(".pdf")) {
+      throw new Error("PDF link targets must be an existing file inside the active wiki.");
     }
 
     const noteRoot = scope.model.noteRoots.find((root) => isPathWithin(root.path, sourceFilePath));

@@ -44,7 +44,7 @@ import { TerminalManager } from "./terminal/terminal-manager";
 import { registerWorkspaceIpcHandlers } from "./workspace/workspace-ipc";
 import { configureProviderMcp } from "./provider-mcp-setup";
 import { findSourceProjectRoot, inspectCliInstallation, installPackagedCli } from "./cli-installation";
-import { resolvePreviewTarget } from "./preview-target";
+import { readPdfFile, resolvePreviewTarget } from "./preview-target";
 import { WorkspaceNotesService } from "./workspace/workspace-notes-service";
 import { WorkspaceWatcherService } from "./workspace/workspace-watchers";
 import { WorkspaceRuntimeCoordinator } from "./runtime/workspace-runtime-coordinator";
@@ -459,8 +459,9 @@ function registerIpcHandlers() {
     renamePath: renameWorkspacePath,
     resolvePreviewTarget: async (target) => {
       const result = await resolvePreviewTarget(target, currentSettings());
-      return { url: result.url, source: result.source };
+      return result;
     },
+    readPdfFile: (filePath) => readPdfFile(filePath, currentSettings()),
     resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
     resolveMarkdownImage: (sourceFilePath, target, lookupByFilename) => workspaceNotesService.resolveMarkdownImage(sourceFilePath, target, lookupByFilename),
     saveNote: async (filePath, frontmatter, body) => {

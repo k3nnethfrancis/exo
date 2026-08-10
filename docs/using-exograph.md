@@ -11,7 +11,7 @@ When the folder resembles a code repository, Exograph asks what should become a 
 - **Markdown notes** is the safe repository default. It keeps documentation in scope while excluding generated and code-oriented paths.
 - **All Markdown** makes every Markdown file under the selected folder a Note.
 
-This is a content decision, not an access-control change. You can change it in **Settings → Workspace**. Local code or attachment links in an in-scope Note remain visible as artifact references; they do not become searchable Notes or graph nodes.
+This is a content decision, not an access-control change. You can change it in **Settings → Workspace**. Local code or attachment links in an in-scope Note remain visible as artifact references; they do not become searchable Notes or graph nodes. PDFs inside a Note Root appear in Explorer as read-only attachments: open one directly or use a relative link such as `[[research.pdf]]` to read it in Preview, with page, zoom, fit-to-width, and selectable-text controls.
 
 ## Notes, folders, links, and properties
 

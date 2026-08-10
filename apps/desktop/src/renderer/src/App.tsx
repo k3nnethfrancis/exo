@@ -11,6 +11,7 @@ import type {
 import type { InvocationActivityEvent } from "@exograph/core/invocation-activity";
 
 import type { TerminalSessionInfo } from "../../shared/api";
+import type { PreviewTarget } from "../../shared/api/workspace-filesystem";
 
 import type { AppearanceMode, ResolvedAppearance } from "./appearance";
 import { EditorPane, type AgentComposeRequest, type EditorPaneState } from "./components/EditorPane";
@@ -61,7 +62,8 @@ import { pathLabel } from "./workspaceTree";
 import { getPreviewTitle, markdownPreviewExcerpt } from "./graphAffordances";
 import { workspaceBreadcrumb, type WorkspaceBreadcrumbSegment } from "./workspaceBreadcrumb";
 import { DEFAULT_UTILITY_SURFACE_STATE, reduceUtilitySurface, type UtilityDestination } from "./utilitySurfaceModel";
-import { addPreviewTab, closePreviewTab, EMPTY_PREVIEW_TABS, selectPreviewTab, updatePreviewTabUrl } from "./previewTabsModel";
+import { addPreviewTab, closePreviewTab, EMPTY_PREVIEW_TABS, selectPreviewTab, updatePreviewTabTarget } from "./previewTabsModel";
+import { routeMarkdownLink } from "./markdownLinkRouting";
 import {
   applyInvocationActivityEvent,
   applyInvocationRecord,
@@ -650,6 +652,17 @@ export function App() {
       return;
     }
 
+    const route = routeMarkdownLink(target);
+    if (route.kind === "pdf-preview") {
+      if (!activeDocumentPath) return;
+      const resolved = await window.exograph.notes.resolveTarget(activeDocumentPath, route.target);
+      if (!resolved) return;
+      const previewTarget = await window.exograph.workspace.resolvePreviewTarget(resolved);
+      if (previewTarget.kind !== "pdf") return;
+      createBrowserPane(previewTarget);
+      return;
+    }
+
     if (/^(?:\/|[A-Za-z]:[\\/])/.test(target)) {
       // Graph and Note context can own focus while navigating. Route an
       // absolute Concept path to an editor leaf explicitly instead of treating
@@ -716,6 +729,9 @@ export function App() {
     if (!activeDocumentPath || /^https?:\/\//.test(target)) {
       return null;
     }
+    if (routeMarkdownLink(target).kind === "pdf-preview") {
+      return null;
+    }
 
     const resolved = target.endsWith(".md") || target.includes("/")
       ? await window.exograph.notes.resolveTarget(activeDocumentPath, target)
@@ -731,12 +747,23 @@ export function App() {
     };
   }
 
-  function createBrowserPane(url = "about:blank") {
+  function createBrowserPane(target: PreviewTarget = { kind: "web", source: "url", url: "about:blank" }) {
     const id = paneId();
     flushSync(() => {
-      setPreviewTabs((current) => addPreviewTab(current, { id, url }));
+      setPreviewTabs((current) => addPreviewTab(current, { id, target }));
       dispatchUtility({ type: "select", destination: "preview" });
     });
+  }
+
+  async function openExplorerFile(filePath: string, line?: number | null) {
+    if (filePath.toLowerCase().endsWith(".pdf")) {
+      const previewTarget = await window.exograph.workspace.resolvePreviewTarget(filePath);
+      if (previewTarget.kind === "pdf") {
+        createBrowserPane(previewTarget);
+        return;
+      }
+    }
+    await canvasNavigation.openFile(filePath, undefined, { line });
   }
 
   async function createUtilityTerminal(kind: "shell", cwd?: string) {
@@ -903,13 +930,13 @@ export function App() {
   const utilityContent = utilityState.destination === "preview" && activePreview ? (
     <BrowserPane
       paneId={activePreview.id}
-      url={activePreview.url}
+      target={activePreview.target}
       compact={false}
       onFocus={() => undefined}
       onNavigate={async (target) => {
         const result = await window.exograph.workspace.resolvePreviewTarget(target);
-        setPreviewTabs((current) => updatePreviewTabUrl(current, activePreview.id, result.url));
-        return result.url;
+        setPreviewTabs((current) => updatePreviewTabTarget(current, activePreview.id, result));
+        return result;
       }}
       onOpenExternal={(target) => window.exograph.shell.openExternal(target)}
       onClosePane={closeBrowserPane}
@@ -1073,13 +1100,13 @@ export function App() {
           return (
             <BrowserPane
               paneId={leaf.id}
-              url={tab.url}
+              target={tab.target}
               compact={false}
               onFocus={() => canvasNavigation.focusPane(leaf.id)}
               onNavigate={async (target) => {
                 const result = await window.exograph.workspace.resolvePreviewTarget(target);
-                setPreviewTabs((current) => updatePreviewTabUrl(current, tab.id, result.url));
-                return result.url;
+                setPreviewTabs((current) => updatePreviewTabTarget(current, tab.id, result));
+                return result;
               }}
               onOpenExternal={(target) => window.exograph.shell.openExternal(target)}
               onClosePane={() => canvasActions.removeLeaf(leaf.id)}
@@ -1195,7 +1222,7 @@ export function App() {
         workspaceSearch.setQuery("");
         workspaceSearch.setSubmittedQuery("");
       }}
-      onOpenFile={(filePath, line) => void canvasNavigation.openFile(filePath, undefined, { line })}
+      onOpenFile={(filePath, line) => void openExplorerFile(filePath, line)}
       onOpenTerminalSession={(sessionId) => void showUtilityTerminal(sessionId)}
       onOpenTag={(tag) => void openTag(tag)}
       onExpandDirectory={(directoryPath) => void workspaceTrees.expandTreeDirectory(directoryPath)}

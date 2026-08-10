@@ -94,6 +94,29 @@ describe("WorkspaceNotesService", () => {
     await expect(service.resolveTarget(sourcePath, "https://example.com")).resolves.toBeNull();
   });
 
+  it("resolves an existing in-root PDF exactly without creating a Markdown target", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const sourcePath = path.join(noteRoot, "folder", "source.md");
+    const pdfPath = path.join(noteRoot, "folder", "report.pdf");
+    await writeFile(sourcePath, "# Source\n\n[[report.pdf]]\n", "utf8");
+    await writeFile(pdfPath, "%PDF-1.4\nfixture", "utf8");
+
+    await expect(service.resolveTarget(sourcePath, "report.pdf")).resolves.toBe(pdfPath);
+    await expect(service.ensureTarget(sourcePath, "report.pdf")).resolves.toBe(pdfPath);
+    await expect(access(path.join(noteRoot, "folder", "report.pdf.md"))).rejects.toThrow();
+  });
+
+  it("never creates a missing PDF link target", async () => {
+    const { service, noteRoot } = await workspaceNotesService();
+    const sourcePath = path.join(noteRoot, "folder", "source.md");
+    const missingPdf = path.join(noteRoot, "folder", "missing.pdf");
+    await writeFile(sourcePath, "# Source\n\n[[missing.pdf]]\n", "utf8");
+
+    await expect(service.ensureTarget(sourcePath, "missing.pdf")).rejects.toThrow("must be an existing file");
+    await expect(access(missingPdf)).rejects.toThrow();
+    await expect(access(`${missingPdf}.md`)).rejects.toThrow();
+  });
+
   it("creates missing wiki targets next to the source note by default", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const sourcePath = path.join(noteRoot, "folder", "source.md");

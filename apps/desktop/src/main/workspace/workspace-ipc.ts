@@ -46,6 +46,7 @@ export interface WorkspaceIpcHandlers {
   reviewInvocationAll: WorkspaceApi["reviewInvocationAll"];
   resumeInvocationInTerminal: WorkspaceApi["resumeInvocationInTerminal"];
   resolvePreviewTarget: WorkspaceApi["resolvePreviewTarget"];
+  readPdfFile: WorkspaceApi["readPdfFile"];
   getGraphContext: NotesApi["getGraphContext"];
   getGraphTopology: NotesApi["getGraphTopology"];
   getGraphConceptSummaries: NotesApi["getGraphConceptSummaries"];
@@ -101,6 +102,7 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     return handlers.getFolderOverview(authorizedDirectory);
   });
   handleDesktopInvoke("workspace:resolve-preview-target", async (_event, target) => handlers.resolvePreviewTarget(target));
+  handleDesktopInvoke("workspace:read-pdf-file", async (_event, filePath) => handlers.readPdfFile(filePath));
   handleDesktopInvoke("workspace:launch-agent-invocation", async (_event, input) => {
     const documentPath = await workspaceFiles().existing(input.documentPath);
     return handlers.launchAgentInvocation({ ...input, documentPath });

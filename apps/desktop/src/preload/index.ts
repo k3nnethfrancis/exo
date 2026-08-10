@@ -44,6 +44,7 @@ const api: DesktopApi = {
     keepOntology: (guard) => invokeDesktop("workspace:ontology-keep", guard),
     rejectOntology: (guard) => invokeDesktop("workspace:ontology-reject", guard),
     resolvePreviewTarget: (target) => invokeDesktop("workspace:resolve-preview-target", target),
+    readPdfFile: (filePath) => invokeDesktop("workspace:read-pdf-file", filePath),
     launchAgentInvocation: (input) => invokeDesktop("workspace:launch-agent-invocation", input),
     getAgentInvocationAuthorization: (input) => invokeDesktop("workspace:get-agent-invocation-authorization", input),
     prepareGraphMaintenanceSkill: (input) => invokeDesktop("workspace:prepare-graph-maintenance-skill", input),

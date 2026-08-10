@@ -23,6 +23,7 @@ export interface DesktopInvokeHandlers {
   "workspace:ontology-keep": WorkspaceApi["keepOntology"];
   "workspace:ontology-reject": WorkspaceApi["rejectOntology"];
   "workspace:resolve-preview-target": WorkspaceApi["resolvePreviewTarget"];
+  "workspace:read-pdf-file": WorkspaceApi["readPdfFile"];
   "workspace:launch-agent-invocation": WorkspaceApi["launchAgentInvocation"];
   "workspace:get-agent-invocation-authorization": WorkspaceApi["getAgentInvocationAuthorization"];
   "workspace:prepare-graph-maintenance-skill": WorkspaceApi["prepareGraphMaintenanceSkill"];

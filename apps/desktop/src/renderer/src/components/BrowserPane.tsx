@@ -1,18 +1,20 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { ExternalLink, Globe2, Plus, RotateCw, X } from "lucide-react";
+import { ExternalLink, FileText, Globe2, Plus, RotateCw, X } from "lucide-react";
 
 import { ChromeTab } from "./Chrome";
 import type { DragManager } from "../hooks/useDragManager";
+import type { PreviewTarget } from "../../../shared/api/workspace-filesystem";
+import { PdfDocumentView } from "./PdfDocumentView";
 
 interface BrowserPaneProps {
   paneId: string;
-  url: string;
+  target: PreviewTarget;
   compact: boolean;
   onFocus: () => void;
-  onNavigate: (target: string) => Promise<string>;
+  onNavigate: (target: string) => Promise<PreviewTarget>;
   onOpenExternal: (target: string) => Promise<void>;
   onClosePane: (() => void) | null;
-  tabs?: Array<{ id: string; url: string }>;
+  tabs?: Array<{ id: string; target: PreviewTarget }>;
   activeTabId?: string | null;
   onSelectTab?: (id: string) => void;
   onCreateTab?: () => void;
@@ -21,20 +23,20 @@ interface BrowserPaneProps {
 }
 
 export function BrowserPane(props: BrowserPaneProps) {
-  const { paneId, url, compact, onFocus, onNavigate, onClosePane } = props;
-  const tabs = props.tabs?.length ? props.tabs : [{ id: paneId, url }];
-  const [draftUrl, setDraftUrl] = useState(url);
+  const { paneId, target, compact, onFocus, onNavigate, onClosePane } = props;
+  const tabs = props.tabs?.length ? props.tabs : [{ id: paneId, target }];
+  const [draftUrl, setDraftUrl] = useState(target.url);
   const [error, setError] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<"idle" | "loading" | "loaded" | "failed">("idle");
   const [reloadRevision, setReloadRevision] = useState(0);
-  const safeUrl = useMemo(() => trustedPreviewFrameUrl(url), [url]);
+  const safeUrl = useMemo(() => trustedPreviewFrameUrl(target.url), [target.url]);
   const canOpenExternal = isTrustedLocalhostUrl(safeUrl);
   const loadKey = `${safeUrl}:${reloadRevision}`;
   const activeLoadKey = useRef(loadKey);
 
   useEffect(() => {
-    setDraftUrl(url);
-  }, [url]);
+    setDraftUrl(target.url);
+  }, [target.url]);
 
   useEffect(() => {
     activeLoadKey.current = loadKey;
@@ -65,9 +67,9 @@ export function BrowserPane(props: BrowserPaneProps) {
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void onNavigate(draftUrl)
-      .then((nextUrl) => {
+      .then((nextTarget) => {
         setError(null);
-        setDraftUrl(nextUrl);
+        setDraftUrl(nextTarget.url);
         setReloadRevision((current) => current + 1);
       })
       .catch((caught) => {
@@ -89,7 +91,7 @@ export function BrowserPane(props: BrowserPaneProps) {
               dropKind="browser"
               onClick={() => { props.onSelectTab?.(tab.id); focusPreviewPane(); }}
               onMouseDown={(event) => props.dragManager?.startDrag(event, { kind: "preview", previewId: tab.id, sourcePaneId: props.paneId })}
-              leading={<Globe2 size={13} />}
+              leading={tab.target.kind === "pdf" ? <FileText size={13} /> : <Globe2 size={13} />}
               closeLabel="Close preview pane"
               closeIcon={<X size={12} />}
               onClose={props.onCloseTab || onClosePane ? (event) => {
@@ -136,7 +138,9 @@ export function BrowserPane(props: BrowserPaneProps) {
           </button>
         </form>
       </div>
-      {safeUrl === "about:blank" ? (
+      {target.kind === "pdf" ? (
+        <PdfDocumentView filePath={target.filePath} key={paneId} />
+      ) : safeUrl === "about:blank" ? (
         <div className="browser-pane__empty">{error ?? "Enter a local or localhost URL to preview."}</div>
       ) : (
         <iframe
