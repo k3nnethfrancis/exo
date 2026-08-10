@@ -70,6 +70,22 @@ test("opens a contained PDF from Explorer with reader controls and Preview-only 
     await expect(page.getByLabel("Page 1 of 2")).toBeVisible();
     await expect(page.getByLabel("Selectable PDF text")).toContainText("PDF fixture page one");
 
+    await page.locator(".pdf-document-view__surface").click();
+    await expect(page.getByTestId("pdf-document-view")).toBeFocused();
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.getByLabel("Page 1 of 2")).toBeVisible();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByLabel("Page 2 of 2")).toBeVisible();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByLabel("Page 2 of 2")).toBeVisible();
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.getByLabel("Page 1 of 2")).toBeVisible();
+
+    const address = page.getByRole("textbox", { name: "Preview URL" });
+    await address.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByLabel("Page 1 of 2")).toBeVisible();
+
     await page.getByRole("button", { name: "Zoom in" }).click();
     await expect(page.getByLabel("Zoom 120 percent")).toBeVisible();
     await page.getByRole("button", { name: "Next page" }).click();
