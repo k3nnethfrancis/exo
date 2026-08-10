@@ -306,7 +306,7 @@ test("keeps MCP and CLI setup independent without touching real provider state",
   await expect(page.getByText("Choose CLI, MCP, or both.")).toBeVisible();
   // CLI inspection is asynchronous; wait for the deliberately fake packaged
   // command before taking the control snapshot for the MCP-isolation check.
-  await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI ready");
+  await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI installed");
   const cliStateBefore = await page.locator(".onboarding-cli-installation").innerText();
 
   await page.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" }).click();
@@ -345,7 +345,9 @@ test("installs the bundled CLI before enabling MCP", async () => {
     await expect(page.getByRole("button", { name: "Install MCP" })).toBeDisabled();
 
     await page.getByRole("button", { name: "Install CLI" }).click();
-    await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI ready");
+    await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI installed");
+    await expect(page.locator(".onboarding-cli-installation")).toContainText("Available to Exograph and MCP");
+    await expect(page.locator(".onboarding-cli-shell-path")).toContainText('export PATH="$HOME/.local/bin:$PATH"');
     await expect(readOptional(path.join(homeRoot, ".local", "bin", "exo"))).resolves.toContain("exograph-packaged-cli");
 
     await page.getByRole("button", { name: "Install MCP" }).click();
@@ -634,7 +636,9 @@ test("completes and restarts the real packaged first-run journey", async () => {
     await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI not installed");
     await page.screenshot({ path: path.join(evidenceRoot, "02-packaged-agent-access.png"), fullPage: true });
     await page.getByRole("button", { name: "Install CLI" }).click();
-    await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI ready");
+    await expect(page.locator(".onboarding-cli-installation")).toContainText("CLI installed");
+    await expect(page.locator(".onboarding-cli-installation")).toContainText("Available to Exograph and MCP");
+    await expect(page.locator(".onboarding-cli-shell-path")).toContainText('export PATH="$HOME/.local/bin:$PATH"');
     await expect(readOptional(path.join(homeRoot, ".local", "bin", "exo"))).resolves.toContain("exograph-packaged-cli");
     await page.locator(".onboarding-provider-menu__item").filter({ hasText: "Codex" }).click();
     await page.getByRole("button", { name: "Install MCP" }).click();

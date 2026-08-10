@@ -64,7 +64,7 @@ export function OnboardingFlow({ actions, onDismiss, onEditState, state }: Onboa
         if (!cancelled) setCliInstallation(status);
       })
       .catch(() => {
-        if (!cancelled) setCliInstallation({ state: "unavailable" });
+        if (!cancelled) setCliInstallation({ state: "unavailable", shellPathAvailable: false });
       });
     return () => {
       cancelled = true;
@@ -467,10 +467,18 @@ export function OnboardingFlow({ actions, onDismiss, onEditState, state }: Onboa
                   <div className={`onboarding-cli-installation onboarding-cli-installation--${cliInstallation?.state ?? "checking"}`} aria-live="polite">
                     {cliInstallation?.state === "current" ? <Check aria-hidden="true" size={15} strokeWidth={2.2} /> : <SquareTerminal aria-hidden="true" size={15} strokeWidth={1.8} />}
                     <span>
-                      <strong>{cliReady ? "CLI ready" : cliInstallation?.state === "non-exograph" ? "Existing command kept" : "CLI not installed"}</strong>
-                      {cliReady ? <small>exograph is available to shells and MCP hosts</small> : <small>Installs the CLI bundled with this app.</small>}
+                      <strong>{cliReady ? "CLI installed" : cliInstallation?.state === "non-exograph" ? "Existing command kept" : "CLI not installed"}</strong>
+                      {cliReady ? (
+                        <small>{cliInstallation.shellPathAvailable ? "Available to Exograph, MCP, and your shell" : "Available to Exograph and MCP"}</small>
+                      ) : <small>Installs the CLI bundled with this app.</small>}
                     </span>
                   </div>
+                  {cliReady && !cliInstallation.shellPathAvailable && cliInstallation.shellPathCommand ? (
+                    <div className="onboarding-cli-shell-path">
+                      <span>Add to your shell</span>
+                      <code>{cliInstallation.shellPathCommand}</code>
+                    </div>
+                  ) : null}
                   {!cliReady ? (
                     <button
                       className="toolbar-button"

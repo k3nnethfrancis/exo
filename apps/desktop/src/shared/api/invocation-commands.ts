@@ -127,6 +127,10 @@ export interface CliInstallationStatus {
   state: "current" | "legacy-exograph" | "missing" | "non-exograph" | "unavailable";
   /** The command found on PATH, when one is present. */
   commandPath?: string;
+  /** Whether the unmodified user-shell PATH can resolve this exact command. */
+  shellPathAvailable: boolean;
+  /** A shell command that exposes the installed CLI without changing shell files. */
+  shellPathCommand?: string;
   /** The checkout command it should point to, when this app can identify one. */
   sourcePath?: string;
   /** A command the user may run from a known checkout. Never run by the app. */

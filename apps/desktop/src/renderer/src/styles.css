@@ -3658,6 +3658,25 @@ select.dialog-card__input {
   white-space: nowrap;
 }
 
+.onboarding-cli-shell-path {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.onboarding-cli-shell-path code {
+  overflow-x: auto;
+  padding: 6px 8px;
+  border: 1px solid var(--surface-border);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: var(--mono-font);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
 .agent-invocation-prompt-disclosure {
   display: grid;
   gap: 8px;
