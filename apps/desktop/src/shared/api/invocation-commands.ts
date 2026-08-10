@@ -57,6 +57,7 @@ export interface InvocationReviewListItem {
 
 export interface InvocationHistoryItem {
   invocationId: string;
+  protocolInvocationId?: string;
   createdAt: string;
   endedAt?: string;
   command: Pick<InvocationRecord["command"], "handle" | "label">;

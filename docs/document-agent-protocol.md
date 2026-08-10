@@ -93,9 +93,9 @@ user chooses Run or Cancel. It is not a progress surface.
 | State | Surface | Exit |
 | --- | --- | --- |
 | Checking | Same-frame cursor-adjacent acknowledgement while Exograph verifies executable identity and trust | Run, authorize, or restore the draft |
-| Running | Cursor glyph plus one bounded bottom-left activity state | Stop the full process tree |
-| Review | Inline diff, anchored Keep/Reject, file position, and optional batch actions | Resolve every file or explicitly keep a drifted current file |
-| Completed | Brief result that gets out of the way | Dismiss or resume session |
+| Running | One compact activity state anchored to the invocation | Stop the full process tree |
+| Review | The same anchored surface becomes Keep/Reject/Open session as soon as a settled file proposal exists, even if the provider process is still finishing | Resolve every file or explicitly keep a drifted current file |
+| Completed | Brief result; the response keeps a subtle hover/focus session handoff when the provider returned resumable identity | Dismiss or resume session |
 | Failed | Compact actionable failure; details only on request | Dismiss or resume session |
 
 One invocation owns one exact Changeset across all authorized Note Roots.

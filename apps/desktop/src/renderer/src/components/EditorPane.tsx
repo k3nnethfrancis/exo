@@ -1,8 +1,8 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
 
 import type { AgentCommand, InvocationSkillContext, NoteDocument, WorkspaceGraphContext } from "@exograph/core";
 import type { InvocationFileReviewPayload } from "../../../shared/api";
-import type { InvocationReviewQueueProjection } from "./invocation";
+import type { InvocationReviewPosition, InvocationReviewQueueProjection } from "./invocation";
 import type { DragManager } from "../hooks/useDragManager";
 import type { ExographThemeVariant } from "../theme/types";
 
@@ -75,6 +75,11 @@ interface EditorPaneProps {
   agentComposeRequest?: AgentComposeRequest | null;
   onAgentComposeRequestHandled?: (nonce: number) => void;
   isNoteDocument: (filePath: string) => boolean;
+  invocationActivity?: {
+    protocolInvocationId?: string;
+    render: (position?: InvocationReviewPosition) => ReactNode;
+  };
+  onResumeProtocolInvocation?: (protocolInvocationId: string) => void;
 }
 
 export function EditorPane(props: EditorPaneProps) {
@@ -118,6 +123,8 @@ export function EditorPane(props: EditorPaneProps) {
     agentComposeRequest,
     onAgentComposeRequestHandled,
     isNoteDocument,
+    invocationActivity,
+    onResumeProtocolInvocation,
   } = props;
 
   const activeDocument = pane.activePath ? documents[pane.activePath] ?? null : null;
@@ -229,6 +236,8 @@ export function EditorPane(props: EditorPaneProps) {
         agentComposeRequest={agentComposeRequest?.filePath === activeDocument?.filePath ? agentComposeRequest : null}
         onAgentComposeRequestHandled={onAgentComposeRequestHandled}
         onDiagnosticContext={updateFaultContext}
+        invocationActivity={invocationActivity}
+        onResumeProtocolInvocation={onResumeProtocolInvocation}
       /></EditorFaultBoundary>}
     </div>
   );
@@ -247,4 +256,5 @@ export interface EditorInvocationReview {
   onRefreshConflict: () => void;
   onOpenConflict: () => void;
   onDismiss?: () => void;
+  onResume?: () => void;
 }

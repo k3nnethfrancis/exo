@@ -232,8 +232,42 @@ function invocationDecorations(state: EditorState): DecorationSet {
         class: `inline-agent-composer__mention inline-agent-composer__mention--${agentPresentation(invocation.agent)}`,
       }).range(invocation.contentFrom, invocation.contentFrom + mention.length));
     }
+    if (invocation.kind === "response") {
+      decorations.push(Decoration.widget({
+        widget: new PersistedInvocationResumeWidget(invocation.invocationId),
+        side: 1,
+      }).range(invocation.contentTo));
+    }
   }
   return Decoration.set(decorations, true);
+}
+
+class PersistedInvocationResumeWidget extends WidgetType {
+  constructor(private readonly protocolInvocationId: string) { super(); }
+
+  eq(other: PersistedInvocationResumeWidget): boolean {
+    return other.protocolInvocationId === this.protocolInvocationId;
+  }
+
+  toDOM(): HTMLElement {
+    const button = document.createElement("button");
+    button.className = "inline-agent-response__resume";
+    button.type = "button";
+    button.title = "Open agent session";
+    button.setAttribute("aria-label", "Open agent session");
+    button.dataset.protocolInvocationId = this.protocolInvocationId;
+    button.innerHTML = '<svg aria-hidden="true" viewBox="0 0 16 16"><path d="M6 3h7v7M13 3 4 12"/></svg>';
+    button.addEventListener("mousedown", (event) => event.preventDefault());
+    button.addEventListener("click", () => {
+      button.dispatchEvent(new CustomEvent("exograph:resume-invocation", {
+        bubbles: true,
+        detail: { protocolInvocationId: this.protocolInvocationId },
+      }));
+    });
+    return button;
+  }
+
+  ignoreEvent(): boolean { return false; }
 }
 
 export function isPersistedInvocationPosition(state: EditorState, position: number): boolean {

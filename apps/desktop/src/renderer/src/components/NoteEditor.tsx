@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 
 import CodeMirror, { ExternalChange, type ReactCodeMirrorRef } from "@uiw/react-codemirror";
@@ -10,6 +10,7 @@ import { EditorSelection, Prec } from "@codemirror/state";
 import { keymap, lineNumbers, EditorView, type ViewUpdate } from "@codemirror/view";
 import { Clock3, Code2, Plus, Save, SlidersHorizontal } from "lucide-react";
 import type { AgentCommand, NoteDocument, WorkspaceGraphContext } from "@exograph/core";
+import { findDocumentAgentEnvelopes } from "@exograph/core/document-agent-protocol";
 import type { InvocationFileReviewPayload } from "../../../shared/api";
 import { exographEditorTheme, exographSyntaxHighlighting } from "../theme/codemirror";
 import type { ExographThemeVariant } from "../theme/types";
@@ -110,6 +111,11 @@ interface NoteEditorProps {
   agentComposeRequest?: AgentComposeRequest | null;
   onAgentComposeRequestHandled?: (nonce: number) => void;
   onDiagnosticContext: (context: EditorFaultContext) => void;
+  invocationActivity?: {
+    protocolInvocationId?: string;
+    render: (position?: InvocationReviewPosition) => ReactNode;
+  };
+  onResumeProtocolInvocation?: (protocolInvocationId: string) => void;
 }
 
 export interface EditorInitialSelectionRequest {
@@ -154,6 +160,8 @@ export function NoteEditor(props: NoteEditorProps) {
     agentComposeRequest,
     onAgentComposeRequestHandled,
     onDiagnosticContext,
+    invocationActivity,
+    onResumeProtocolInvocation,
   } = props;
   const [rawMarkdownMode, setRawMarkdownMode] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(false);
@@ -177,6 +185,18 @@ export function NoteEditor(props: NoteEditorProps) {
   const [newPropertyKey, setNewPropertyKey] = useState("");
   const [newPropertyValue, setNewPropertyValue] = useState("");
   const [reviewPosition, setReviewPosition] = useState<InvocationReviewPosition | undefined>(undefined);
+  const [activityPosition, setActivityPosition] = useState<InvocationReviewPosition | undefined>(undefined);
+
+  useEffect(() => {
+    const root = codeMirrorRef.current?.view?.dom;
+    if (!root || !onResumeProtocolInvocation) return;
+    const onResume = (event: Event) => {
+      const protocolInvocationId = (event as CustomEvent<{ protocolInvocationId?: string }>).detail?.protocolInvocationId;
+      if (protocolInvocationId) onResumeProtocolInvocation(protocolInvocationId);
+    };
+    root.addEventListener("exograph:resume-invocation", onResume);
+    return () => root.removeEventListener("exograph:resume-invocation", onResume);
+  }, [document?.filePath, onResumeProtocolInvocation]);
 
   useEffect(() => {
     setRawMarkdownMode(false);
@@ -839,6 +859,53 @@ export function NoteEditor(props: NoteEditorProps) {
     };
   }, [document?.body, document?.filePath, document?.kind, invocationReview?.payload]);
 
+  useLayoutEffect(() => {
+    const view = codeMirrorRef.current?.view;
+    const protocolInvocationId = invocationActivity?.protocolInvocationId;
+    if (!view || !protocolInvocationId) {
+      setActivityPosition(undefined);
+      return;
+    }
+    const place = () => {
+      const envelopes = findDocumentAgentEnvelopes(view.state.doc.toString());
+      const envelope = envelopes.find((candidate) =>
+        candidate.kind === "response" && candidate.invocationId === protocolInvocationId,
+      ) ?? envelopes.find((candidate) =>
+        candidate.kind === "invocation" && candidate.id === protocolInvocationId,
+      );
+      const surface = view.dom.closest<HTMLElement>(".editor-surface");
+      const bounds = surface?.getBoundingClientRect();
+      const coords = envelope ? view.coordsAtPos(envelope.contentTo) : null;
+      if (!coords || !bounds) {
+        setActivityPosition(undefined);
+        return;
+      }
+      const maxWidth = Math.max(180, Math.min(280, bounds.width - 24));
+      const left = Math.max(bounds.left + 12, Math.min(coords.left + 12, bounds.right - maxWidth - 12));
+      const preferredTop = coords.bottom + 7;
+      const top = preferredTop + 58 <= bounds.bottom
+        ? preferredTop
+        : Math.max(bounds.top + 12, coords.top - 56);
+      setActivityPosition({ left, top, maxWidth, origin: `${Math.round(coords.left)}px ${Math.round(coords.top)}px` });
+    };
+    let frame: number | null = null;
+    const schedulePlacement = () => {
+      if (frame !== null) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = null;
+        place();
+      });
+    };
+    place();
+    view.scrollDOM.addEventListener("scroll", schedulePlacement, { passive: true });
+    window.addEventListener("resize", schedulePlacement);
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      view.scrollDOM.removeEventListener("scroll", schedulePlacement);
+      window.removeEventListener("resize", schedulePlacement);
+    };
+  }, [document?.body, document?.filePath, invocationActivity?.protocolInvocationId]);
+
   useEffect(() => {
     if (!document || !revealLineRequest || revealLineRequest.filePath !== document.filePath) {
       return;
@@ -1218,8 +1285,10 @@ export function NoteEditor(props: NoteEditorProps) {
             onRefreshConflict={invocationReview.onRefreshConflict}
             onOpenConflict={invocationReview.onOpenConflict}
             onDismiss={invocationReview.onDismiss}
+            onResume={invocationReview.onResume}
           />
         ) : null}
+        {invocationActivity ? invocationActivity.render(activityPosition) : null}
       </div>
 
     </section>
@@ -1239,6 +1308,7 @@ interface NoteInvocationReview {
   onRefreshConflict: () => void;
   onOpenConflict: () => void;
   onDismiss?: () => void;
+  onResume?: () => void;
 }
 
 function clampPosition(position: number, docLength: number): number {

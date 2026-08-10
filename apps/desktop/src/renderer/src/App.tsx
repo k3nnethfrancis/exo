@@ -74,6 +74,7 @@ import {
   failActiveInvocationActivity,
   failInvocationActivity,
   invocationCommandPresentation,
+  resolveInvocationActivityPaneId,
   takeEarlyInvocationActivityEvents,
   type InvocationActivityState,
 } from "./invocationActivityState";
@@ -93,6 +94,7 @@ interface PendingInvocationAuthorization {
   draft: InlineAgentDraft;
   fingerprint: string;
   reason: string;
+  paneId: string;
   skill?: InvocationSkillContext;
 }
 
@@ -283,7 +285,7 @@ export function App() {
       if (record.workspaceRoot && record.workspaceRoot !== workspaceModel?.workspaceRoot) {
         return;
       }
-      if (record.taggedDocumentPath) {
+      if (record.taggedDocumentPath && (record.changeset || record.status !== "pending" && record.status !== "running")) {
         scheduleOpenDocumentRefresh(record.taggedDocumentPath);
       }
       invocationReviewController.applyRecord(record);
@@ -296,7 +298,7 @@ export function App() {
   useEffect(() => {
     return window.exograph.workspace.onInvocationActivity((event) => {
       setInvocationActivity((current) => {
-        if (current?.invocationId === null && current.kind !== "done" && current.kind !== "failed") {
+        if (current?.invocationId === null && current.kind !== "done" && current.kind !== "stopped" && current.kind !== "failed") {
           bufferEarlyInvocationActivityEvent(invocationActivityEarlyEventsRef.current, event);
           return current;
         }
@@ -463,7 +465,7 @@ export function App() {
     return status;
   }
 
-  async function invokeInlineAgent(draft: InlineAgentDraft, documentPath: string) {
+  async function invokeInlineAgent(draft: InlineAgentDraft, documentPath: string, paneId: string) {
     const document = openDocuments[documentPath] ?? null;
     if (!document) {
       return;
@@ -474,7 +476,7 @@ export function App() {
     );
     // The send gesture receives an immediate, honest response before either
     // fingerprint or trust IPC can yield to another frame.
-    setInvocationActivity(acknowledgeInvocationActivity(commandPresentation));
+    setInvocationActivity(acknowledgeInvocationActivity(commandPresentation, paneId, draft.protocolInvocationId));
     // CodeMirror owns the authoritative post-envelope body. Its ordinary
     // React propagation is deliberately deprioritized for typing latency, so
     // publish this exact snapshot to the synchronous document ref before any
@@ -488,12 +490,12 @@ export function App() {
       });
     } catch (error) {
       cancelInlineAgentDraft(draft, () => undefined);
-      setInvocationActivity(failInvocationActivity(commandPresentation, error));
+      setInvocationActivity(failInvocationActivity(commandPresentation, error, paneId));
       return;
     }
     if (!authorization.launchable || !authorization.cwd) {
       cancelInlineAgentDraft(draft, () => undefined);
-      setInvocationActivity(failInvocationActivity(commandPresentation, authorization.detail));
+      setInvocationActivity(failInvocationActivity(commandPresentation, authorization.detail, paneId));
       return;
     }
     const pending = {
@@ -503,6 +505,7 @@ export function App() {
       draft,
       fingerprint: authorization.fingerprint,
       reason: authorization.detail,
+      paneId,
       ...(draft.skill ? { skill: draft.skill } : {}),
     };
     if (!authorization.trusted) {
@@ -521,7 +524,7 @@ export function App() {
     // soon as the decision is made; failures belong to the document status UI.
     setPendingInvocationAuthorization(null);
     invocationActivityEarlyEventsRef.current.clear();
-    setInvocationActivity(beginInvocationActivity(pending.command));
+    setInvocationActivity(beginInvocationActivity(pending.command, pending.paneId, pending.draft.protocolInvocationId));
     try {
       await saveDocument(pending.document.filePath);
       const persisted = await window.exograph.notes.read(pending.document.filePath);
@@ -543,7 +546,7 @@ export function App() {
       const earlyEvents = takeEarlyInvocationActivityEvents(invocationActivityEarlyEventsRef.current, result.invocation.id);
       setInvocationActivity((current) => bindInvocationActivity(current, result.invocation, earlyEvents));
     } catch (error) {
-      setInvocationActivity(failInvocationActivity(pending.command, error));
+      setInvocationActivity(failInvocationActivity(pending.command, error, pending.paneId));
     }
   }
 
@@ -557,9 +560,6 @@ export function App() {
   }
 
   async function stopInlineAgentInvocation(invocationId: string) {
-    setInvocationActivity((current) => current?.invocationId === invocationId
-      ? { ...current, kind: "finishing", label: undefined }
-      : current);
     try {
       const finalized = await window.exograph.workspace.endAgentInvocation(invocationId);
       if (!finalized) return;
@@ -921,12 +921,16 @@ export function App() {
     ? workspaceBreadcrumb(activeDocument.filePath, workspaceModel?.noteRoots.map((root) => root.path) ?? [])
     : [{ kind: "folder" as const, label: workspaceLabel, path: workspaceModel?.workspaceRoot ?? "" }];
   const canvasLeaves = collectLeaves(canvasTree);
+  const editorPaneIds = canvasLeaves.flatMap((leaf) => leaf.content.kind === "editor" ? [leaf.id] : []);
+  const invocationActivityPaneId = invocationActivity
+    ? resolveInvocationActivityPaneId(invocationActivity.paneId, editorPaneIds, focusedPaneId)
+    : null;
   const canvasTerminalIds = new Set(canvasLeaves.flatMap((leaf) => leaf.content.kind === "terminal" ? [leaf.content.terminalId] : []));
   const canvasPreviewIds = new Set(canvasLeaves.flatMap((leaf) => leaf.content.kind === "browser" ? [leaf.content.previewId] : []));
   const utilityTerminalSessions = terminalSessions.filter((session) => !canvasTerminalIds.has(session.id));
   const utilityPreviewTabs = previewTabs.tabs.filter((tab) => !canvasPreviewIds.has(tab.id));
   const activePreview = utilityPreviewTabs.find((tab) => tab.id === previewTabs.activeId) ?? utilityPreviewTabs[0] ?? null;
-  const activityCanStop = invocationActivity?.kind !== "done" && invocationActivity?.kind !== "failed";
+  const activityCanStop = invocationActivity?.kind !== "done" && invocationActivity?.kind !== "stopped" && invocationActivity?.kind !== "failed" && invocationActivity?.kind !== "review";
   const utilityContent = utilityState.destination === "preview" && activePreview ? (
     <BrowserPane
       paneId={activePreview.id}
@@ -1161,7 +1165,7 @@ export function App() {
               onPreviewTarget={(target) => previewKnowledgeTarget(target)}
               agentCommands={workspaceSettingsRef.current?.agentCommands ?? []}
               onInvokeAgent={(draft) => {
-                if (pane.activePath) void invokeInlineAgent(draft, pane.activePath);
+                if (pane.activePath) void invokeInlineAgent(draft, pane.activePath, leaf.id);
               }}
               invocationReview={
                 isFocused && activeReviewEntry && activeReviewPayload && pane.activePath && invocationReviewMatchesPath(activeReviewPayload, pane.activePath, activeReviewEntry.source)
@@ -1182,6 +1186,9 @@ export function App() {
                       onOpenConflict: () => openInvocationReviewDocument(activeReviewPayload, activeReviewEntry.source),
                       onDismiss: activeReviewEntry.source === "history"
                         ? invocationReviewController.dismissHistory
+                        : undefined,
+                      onResume: invocationActivity?.providerSessionId && invocationActivity.invocationId === activeReviewEntry.invocationId
+                        ? () => void resumeInvocationInTerminal(activeReviewEntry.invocationId, activeReviewEntry.command)
                         : undefined,
                     }
                   : null
@@ -1207,6 +1214,32 @@ export function App() {
                 setAgentComposeRequest((current) => current?.nonce === nonce ? null : current);
               }}
               isNoteDocument={(filePath) => workspaceModel ? workspaceModel.noteRoots.some((root) => isPathWithin(root.path, filePath)) : true}
+              invocationActivity={invocationActivity && leaf.id === invocationActivityPaneId && invocationActivity.kind !== "review" ? {
+                protocolInvocationId: invocationActivity.protocolInvocationId,
+                render: (position) => (
+                  <InvocationActivitySurface
+                    commandHandle={invocationActivity.commandHandle}
+                    commandLabel={invocationActivity.commandLabel}
+                    kind={invocationActivity.kind}
+                    label={invocationActivity.label}
+                    errorDetail={invocationActivity.errorDetail}
+                    position={position}
+                    onDismiss={invocationActivity.kind === "done" || invocationActivity.kind === "stopped" || invocationActivity.kind === "failed"
+                      ? () => setInvocationActivity(null)
+                      : undefined}
+                    onResume={invocationActivity.providerSessionId && invocationActivity.invocationId
+                      ? () => void resumeInvocationInTerminal(invocationActivity.invocationId!)
+                      : undefined}
+                    onStop={activityCanStop && invocationActivity.invocationId
+                      ? () => void stopInlineAgentInvocation(invocationActivity.invocationId!)
+                      : undefined}
+                  />
+                ),
+              } : undefined}
+              onResumeProtocolInvocation={(protocolInvocationId) => {
+                const item = invocationHistory.find((candidate) => candidate.protocolInvocationId === protocolInvocationId && candidate.providerSessionId);
+                if (item) void resumeInvocationInTerminal(item.invocationId, item.command);
+              }}
             />
           </>
         );
@@ -1293,25 +1326,6 @@ export function App() {
             authorization,
           )}
           onCancel={cancelPendingInlineAgentInvocation}
-        />
-      ) : null}
-
-      {invocationActivity ? (
-        <InvocationActivitySurface
-          commandHandle={invocationActivity.commandHandle}
-          commandLabel={invocationActivity.commandLabel}
-          kind={invocationActivity.kind}
-          label={invocationActivity.label}
-          errorDetail={invocationActivity.errorDetail}
-          onDismiss={invocationActivity.kind === "done" || invocationActivity.kind === "failed"
-            ? () => setInvocationActivity(null)
-            : undefined}
-          onResume={invocationActivity.providerSessionId && invocationActivity.invocationId
-            ? () => void resumeInvocationInTerminal(invocationActivity.invocationId!)
-            : undefined}
-          onStop={activityCanStop && invocationActivity.invocationId
-            ? () => void stopInlineAgentInvocation(invocationActivity.invocationId!)
-            : undefined}
         />
       ) : null}
 
