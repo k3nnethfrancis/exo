@@ -1,6 +1,9 @@
 # Knowledge graph
 
-Exograph derives a live graph from ordinary Markdown. The graph helps navigation and retrieval; it does not replace your files as the source of truth.
+Exograph derives a live, evidence-aware graph from ordinary Markdown. People
+explore it spatially; Search and future agent traversal use the same Concept and
+Relation model. The graph remains a projection over the files rather than a
+second knowledge store.
 
 ## What becomes a graph object
 
@@ -36,7 +39,16 @@ context groups headings, links, Artifacts, Tags, and earned history; Graph lays
 out the Workspace topology and fetches detail only for the inspected Concept.
 Neither changes a Note or creates knowledge on its own.
 
-The hot rendering path uses compact numeric topology. Labels, paths, properties, findings, and relation evidence are cold, bounded reads. This is why large graph interaction can stay responsive without weakening the semantic model.
+The hot rendering path uses compact numeric topology. Labels, paths,
+properties, findings, and relation evidence are cold, bounded reads. WebGPU and
+the deterministic Canvas fallback consume the same scene, keeping large graph
+interaction responsive without weakening the semantic model.
+
+That separation also creates the boundary for agent traversal. A future CLI
+surface can return bounded paths, relation direction, origin, evidence, and
+stable cursors without scraping the visual renderer or inventing a second graph
+representation. The desktop graph ships now; bounded CLI graph traversal does
+not yet.
 
 ## Add more meaning deliberately
 

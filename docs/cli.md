@@ -1,6 +1,7 @@
 # CLI and MCP
 
-Exograph exposes two complementary local integration surfaces:
+Exograph exposes the same scoped Workspace context to people and agents through
+two complementary local integration surfaces:
 
 - **CLI** for people and agents that can use a shell.
 - **MCP** for clients that can call tools but may not have shell access.
@@ -81,6 +82,12 @@ Search output is JSON with ranked paths, titles, snippets, source metadata, and 
 Search limits must be integers from 1 through 20. Use `exo <command> --help`
 for command-specific usage; unknown options, missing option values, and invalid
 limits exit unsuccessfully instead of being silently normalized.
+
+The CLI is also the intended home for bounded graph traversal. That command is
+not part of the current public surface. Its planned contract returns compact
+paths with direction, depth, Relation origin and Ontology filters, evidence,
+and stable pagination so agents can navigate the same graph shown in the app
+without controlling the UI.
 
 ## MCP
 

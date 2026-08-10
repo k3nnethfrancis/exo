@@ -1,6 +1,13 @@
 # Exograph documentation
 
-Exograph has two documentation audiences: people using a Markdown workspace and people changing the software. Start with the document that matches your job; the deeper contracts are linked from there.
+Exograph is an open-source exocortex built from user-owned Markdown, an optional
+portable Ontology, replaceable local Search, an explorable knowledge graph, and
+provider-neutral terminal agents. People use these systems through the desktop
+workspace; agents address the same scoped context through the CLI and MCP.
+
+The documentation has two audiences: people using a Workspace and people
+changing the software. Start with the document that matches your job; deeper
+contracts are linked from there.
 
 ## Use Exograph
 

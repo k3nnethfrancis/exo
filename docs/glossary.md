@@ -5,15 +5,23 @@ This public glossary defines product meaning, not implementation.
 ## Language
 
 **Exograph**
-The open-source knowledge-graph interface and Markdown editor. Exograph lets people
-work with and manage a user-owned knowledge graph alongside terminal agents.
+The open-source exocortex interface: a Markdown editor, portable Ontology,
+replaceable local Search system, explorable knowledge graph, and agent operator
+surface over user-owned files.
 _Avoid_: lab name, the category name itself
 
 **Exocortex**
 The user-owned system formed by Markdown, relationships, evidence, local
-retrieval, and reviewable agent work. Exograph is its interface; ordinary files
-remain the durable substrate.
+retrieval, Ontology, and reviewable agent work. Exograph is its interface;
+ordinary files remain the durable substrate shared by people and tools.
 _Avoid_: proprietary database, app-owned memory, product synonym
+
+**Search**
+The provider-neutral retrieval boundary used by the desktop app, CLI, and MCP.
+Filesystem retrieval and QMD are current implementations; indexes, embeddings,
+rerankers, and future trained components remain replaceable derived systems
+over the same Markdown corpus.
+_Avoid_: QMD synonym, canonical knowledge store
 
 **Knowledge Graph**
 A user-owned, durable graph of Notes, relationships, evidence, and history that

@@ -1,8 +1,9 @@
 # Architecture
 
-Exograph is a local Electron application over user-owned Markdown. This document is
-the technical map for contributors: follow the boundaries below rather than
-adding convenience paths around them.
+Exograph is a local Electron application that gives people and agents two
+interfaces over the same user-owned Markdown, graph, Ontology, and Search
+contracts. This document is the technical map for contributors: follow the
+boundaries below rather than adding convenience paths around them.
 
 ## Read in this order
 

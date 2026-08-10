@@ -1,6 +1,8 @@
 # Using Exograph
 
-Exograph works over a folder of Markdown you control. It does not import that folder into a proprietary database: your files remain usable in any editor.
+Exograph works over Markdown you control. It brings the editor, Ontology,
+Search, visual graph, and terminal agents into one Workspace while keeping the
+files usable in any other editor or shell.
 
 ## Set up a workspace
 

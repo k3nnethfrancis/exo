@@ -12,6 +12,12 @@ rewrites Notes, executes code, chooses models, or controls presentation. A
 Workspace without an explicitly kept Ontology keeps its ordinary base graph;
 there is simply no additional ontology interpretation.
 
+`ontology.yaml` is the portable semantic contract between a person's files,
+the visual graph, Search, and agent tools. It names which existing fields carry
+meaning without hiding that meaning in an application database or a model
+prompt. The same source can therefore guide human inspection, validation,
+retrieval experiments, and future bounded agent traversal.
+
 ## Start with the base graph
 
 Exograph does not require an Ontology for its knowledge graph to work. In Generic Markdown,
