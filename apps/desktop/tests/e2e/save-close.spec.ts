@@ -52,6 +52,7 @@ test("saves edits made during an earlier save even after their tab closes", asyn
     await page.getByTestId("sidebar").getByRole("button", { name: "save-close, file", exact: true }).click();
     await expect(page.getByTestId("editor-panel")).toContainText("v2 survives closing");
   } finally {
+    await electronApp.evaluate(() => (globalThis as unknown as { saveCloseGate?: { release: () => void } }).saveCloseGate?.release()).catch(() => {});
     await fixture.cleanup();
   }
 });
