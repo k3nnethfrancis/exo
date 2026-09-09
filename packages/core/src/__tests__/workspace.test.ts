@@ -34,6 +34,25 @@ describe("workspace", () => {
     }
   });
 
+  it("allows exactly one concurrent create and preserves that writer's complete content", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exograph-workspace-"));
+    const target = path.join(root, "new-folder", "shared.md");
+    const contents = ["first writer\n".repeat(1_000), "second writer\n".repeat(1_000)];
+    try {
+      const results = await Promise.allSettled(contents.map((content) => createWorkspaceFile(target, content)));
+      const winners = results.flatMap((result, index) => result.status === "fulfilled" ? [index] : []);
+
+      expect(winners).toHaveLength(1);
+      await expect(readFile(target, "utf8")).resolves.toBe(contents[winners[0]!]);
+      for (const result of results) {
+        if (result.status === "fulfilled") expect(result.value).toBe(target);
+        else expect(result.reason).toEqual(new Error(`Destination already exists: ${target}`));
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   it("resolves the default workspace model from env", () => {
     const model = resolveWorkspaceModel({
       EXOGRAPH_WORKSPACE_ROOT: fixtureWorkspaceRoot,
