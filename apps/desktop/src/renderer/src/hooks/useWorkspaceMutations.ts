@@ -21,6 +21,7 @@ export type WorkspaceDialogState =
     }
   | {
       kind: "rename";
+      preserveMarkdown: boolean;
       targetPath: string;
       value: string;
       title: string;
@@ -124,10 +125,11 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     await options.openFile(result.indexPath, options.editorFocusedLeafId);
   }
 
-  function renameWorkspacePath(sourcePath: string) {
+  function renameWorkspacePath(sourcePath: string, kind: "file" | "directory") {
     const currentName = sourcePath.split("/").at(-1) ?? sourcePath;
     setDialog({
       kind: "rename",
+      preserveMarkdown: kind === "file" && /\.md$/i.test(sourcePath),
       targetPath: sourcePath,
       value: currentName,
       title: "Rename",
@@ -228,7 +230,7 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     } else if (dialog.kind === "create-directory") {
       await commitCreateDirectory(dialog.targetPath, value);
     } else {
-      await commitRenameWorkspacePath(dialog.targetPath, value);
+      await commitRenameWorkspacePath(dialog.targetPath, markdownRenameFilename(value, dialog.preserveMarkdown));
     }
 
     setDialog(null);
@@ -236,6 +238,7 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
 
   return {
     dialog,
+    renameFilename: dialog?.kind === "rename" ? markdownRenameFilename(dialog.value.trim(), dialog.preserveMarkdown) : null,
     setDialog,
     createFileInDirectory,
     createUntitledNote,
@@ -265,4 +268,8 @@ function ensureDefaultExtension(name: string, directoryPath: string, noteRootPat
 
 function isPathWithin(parentPath: string, targetPath: string): boolean {
   return targetPath === parentPath || targetPath.startsWith(`${parentPath}/`);
+}
+
+function markdownRenameFilename(name: string, preserveMarkdown: boolean): string {
+  return name && preserveMarkdown && !/\.md$/i.test(name) ? `${name}.md` : name;
 }

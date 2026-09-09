@@ -42,6 +42,8 @@ The graph is evidence-aware. It distinguishes a relation written in Markdown, on
 
 ## Panes and shortcuts
 
+Rename a Markdown Note from its Explorer context menu. The rename dialog shows the resulting filename and preserves `.md` when omitted, including names containing dots (for example, `draft.v2` becomes `draft.v2.md`). Renaming folders does not add a file extension.
+
 The Explorer is on the left. The utility rail switches one destination among Preview, Terminal, Graph, and Note context; Preview and Terminal keep their own tabs. Drag a Note, terminal, or preview into the editor canvas when you want a split view.
 
 | Action | macOS | Other platforms |

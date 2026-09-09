@@ -36,7 +36,7 @@ interface FileTreeProps {
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
   onCreateTerminal: (directoryPath: string) => void;
-  onRenamePath: (targetPath: string) => void;
+  onRenamePath: (targetPath: string, kind: "file" | "directory") => void;
   onDeletePath: (targetPath: string) => void;
   mirrored?: boolean;
   revealPathRequest?: { path: string; nonce: number } | null;
@@ -288,7 +288,7 @@ export function FileTree(props: FileTreeProps) {
               className="tree-context-menu__item"
               onClick={() => {
                 dismissContextMenu();
-                onRenamePath(contextTarget.path);
+                onRenamePath(contextTarget.path, contextTarget.kind);
               }}
               type="button"
             >
