@@ -2,6 +2,7 @@ import type { IndexSearchResponse, IndexStatus, IndexSyncResult, WorkspaceModel 
 
 export const EXOGRAPH_COMMAND_ROUTES = {
   status: "/status",
+  graphTraverse: "/graph/traverse",
   show: "/show",
   search: "/search",
   indexStatus: "/index/status",
@@ -143,3 +144,5 @@ export interface ExographSpawnAgentCommandErrorResponse {
   error: string;
   [key: string]: unknown;
 }
+
+export type { GraphTraversalRequest as ExographCommandGraphTraverseRequest, GraphTraversalResult as ExographCommandGraphTraverseResponse } from "./graph-traversal";

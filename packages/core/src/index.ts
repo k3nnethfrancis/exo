@@ -29,3 +29,5 @@ export * from "./store-paths";
 export * from "./workspace-index";
 export * from "./search-provider";
 export * from "./command-protocol";
+
+export * from "./graph-traversal";

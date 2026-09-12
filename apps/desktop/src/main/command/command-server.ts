@@ -1,3 +1,4 @@
+import { parseGraphTraversalRequest, type GraphTraversalRequest, type GraphTraversalResult } from "@exograph/core";
 import { randomBytes } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { mkdir } from "node:fs/promises";
@@ -25,6 +26,7 @@ import { InvocationRunnerError, type InvocationResult } from "../invocation/invo
 
 export interface CommandServerOptions {
   runtimeRoot: string;
+  onGraphTraverse?: (request: GraphTraversalRequest) => Promise<GraphTraversalResult>;
   onShowWindow: () => void;
   onOpenFile: (filePath: string) => Promise<void>;
   onIndexSearch: (query: string, options: { limit?: number; offset?: number; intent?: string; includeContent?: boolean; maxLinesPerResult?: number }) => Promise<IndexSearchResponse>;
@@ -118,6 +120,17 @@ export class CommandServer {
       if (method === "POST" && pathname === EXOGRAPH_COMMAND_ROUTES.show) {
         this.options.onShowWindow();
         json(res, { ok: true } satisfies ExographCommandOkResponse);
+        return;
+      }
+
+      if (method === "POST" && pathname === EXOGRAPH_COMMAND_ROUTES.graphTraverse) {
+        const body = await readBody(req);
+        let request: GraphTraversalRequest;
+        try { request = parseGraphTraversalRequest(body); }
+        catch (error) { throw new CommandServerHttpError(400, error instanceof Error ? error.message : String(error)); }
+        if (request.workspaceRoot !== this.options.onGetStatus().workspace.workspaceRoot) throw new CommandServerHttpError(409, "Traversal Workspace does not match the active Workspace.");
+        if (!this.options.onGraphTraverse) throw new CommandServerHttpError(503, "Graph traversal is unavailable in this runtime.");
+        json(res, await this.options.onGraphTraverse(request));
         return;
       }
 

@@ -1,3 +1,4 @@
+import type { GraphTraversalRequest, GraphTraversalResult } from "@exograph/core";
 import { access, readdir, realpath, stat } from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
@@ -409,6 +410,16 @@ export class WorkspaceNotesService {
       ));
     }
     return this.awaitCurrentScope(scope, this.workspaceGraph(scope).contextForNote(authorizedPath));
+  }
+
+  async traverseGraph(request: GraphTraversalRequest): Promise<GraphTraversalResult> {
+    const scope = this.scope;
+    if (request.workspaceRoot !== scope.model.workspaceRoot) throw new Error("Traversal Workspace does not match the active Workspace.");
+    const derivedIndex = this.derivedIndex;
+    if (derivedIndex && scope.runtimeRoot) {
+      return this.awaitCurrentScope(scope, derivedIndex.graphTraverse(scope.model, scope.runtimeRoot, request, scope.controller.signal));
+    }
+    return this.awaitCurrentScope(scope, this.workspaceGraph(scope).traverse(request));
   }
 
   async getGraphTopology(): Promise<GraphTopology> {

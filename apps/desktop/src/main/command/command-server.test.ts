@@ -1,9 +1,11 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import { EXOGRAPH_COMMAND_TOKEN_HEADER, type IndexStatus, type WorkspaceSettings } from "@exograph/core";
+import { WorkspaceGraph, EXOGRAPH_COMMAND_TOKEN_HEADER, type IndexStatus, type WorkspaceSettings } from "@exograph/core";
 
 import { CommandServer, type CommandServerOptions } from "./command-server";
 
@@ -14,6 +16,51 @@ afterEach(async () => {
 });
 
 describe("CommandServer operator contract", () => {
+  it("runs a real CLI child through authenticated HTTP to the Core filesystem graph", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-http-traversal-")); tempPaths.push(root);
+    const startPath = path.join(root, "a.md");
+    await writeFile(startPath, "# A\n[[b]] [[b]]"); await writeFile(path.join(root, "b.md"), "# B");
+    const model = { workspaceRoot: root, defaultTerminalCwd: root, noteRoots: [{ id: "note-root-1", label: "Notes", path: root }], indexedRoots: [], indexing: { enabled: false, mode: "off" as const, backend: "qmd" as const } };
+    const graph = new WorkspaceGraph(model);
+    const { server, runtimeRoot } = await startServer({ onGetStatus: () => ({ workspace: model, terminals: [] }), onGraphTraverse: (request) => graph.traverse(request) });
+    await writeFile(path.join(runtimeRoot, "server.json"), JSON.stringify(server.getServerInfo()));
+    try {
+      const repo = path.resolve(import.meta.dirname, "../../../../..");
+      const { stdout } = await promisify(execFile)(process.execPath, ["--import", "tsx", path.join(repo, "packages/cli/src/index.ts"), "graph", "traverse", "--start-path", startPath, "--limit", "1"], {
+        cwd: repo,
+        env: { ...process.env, EXOGRAPH_WORKSPACE_ROOT: root, EXOGRAPH_NOTE_ROOTS: root, EXOGRAPH_RUNTIME_ROOT: runtimeRoot },
+      });
+      const result = JSON.parse(stdout);
+      expect(result.status).toBe("ok");
+      expect(result.workspace.root).toBe(root);
+      expect(result.nodes[0].relativePath).toBe("a.md");
+      expect(result.edges).toHaveLength(2);
+      expect(result.events.filter((event: { type: string }) => event.type === "visit")).toHaveLength(2);
+      expect(result.nextCursor).toEqual(expect.any(String));
+    } finally { await server.stop(); }
+  });
+
+  it("authorizes and validates traversal before invoking the scoped graph owner", async () => {
+    const calls: unknown[] = [];
+    const { server, port, token } = await startServer({ onGraphTraverse: async (request) => {
+      calls.push(request);
+      return { schemaVersion: "exograph.graph-traversal.v1", workspace: { root: request.workspaceRoot, noteRootIds: [] }, snapshotId: "s", status: "error", code: "missing-start", message: "Not found" };
+    } });
+    const body = JSON.stringify({ workspaceRoot: "/workspace", start: "note:a" });
+    try {
+      expect((await fetch(`http://127.0.0.1:${port}/graph/traverse`, { method: "POST", body })).status).toBe(401);
+      for (const request of [{ workspaceRoot: "/workspace", start: "a", maxDepth: 4 }, { workspaceRoot: "/workspace", start: "a", unknown: true }]) {
+        expect((await commandFetch(token, port, "/graph/traverse", { method: "POST", body: JSON.stringify(request) })).status).toBe(400);
+      }
+      expect((await commandFetch(token, port, "/graph/traverse", { method: "POST", body: JSON.stringify({ workspaceRoot: "/elsewhere", start: "a" }) })).status).toBe(409);
+      expect(calls).toHaveLength(0);
+      const response = await commandFetch(token, port, "/graph/traverse", { method: "POST", body });
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ status: "error", code: "missing-start" });
+      expect(calls).toEqual([{ workspaceRoot: "/workspace", start: "note:a" }]);
+    } finally { await server.stop(); }
+  });
+
   it("keeps the exact status success body on the wire", async () => {
     const expected = commandStatusResponse();
     const { server, port, token } = await startServer({ onGetStatus: () => expected });

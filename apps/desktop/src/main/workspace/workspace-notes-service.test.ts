@@ -4,11 +4,27 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 
-import { repositoryWorkspaceContentPolicy, type WorkspaceModel } from "@exograph/core";
+import { repositoryWorkspaceContentPolicy, type GraphTraversalResult, type WorkspaceModel } from "@exograph/core";
 import type { DerivedIndexClient } from "../indexing/derived-index-process";
 import { WorkspaceNotesService } from "./workspace-notes-service";
 
 describe("WorkspaceNotesService", () => {
+  it("rejects traversal outside the active scope and discards late worker results after switching", async () => {
+    const model = workspaceModel("/workspace", "/workspace/notes");
+    const held = deferred<GraphTraversalResult>();
+    let signal: AbortSignal | undefined;
+    const graphTraverse = vi.fn((_model, _runtime, _request, activeSignal) => { signal = activeSignal; return held.promise; });
+    const service = new WorkspaceNotesService({ getWorkspaceModel: () => model, getRuntimeRoot: () => "/runtime", derivedIndex: { graphTraverse } as unknown as DerivedIndexClient });
+    await expect(service.traverseGraph({ workspaceRoot: "/other", start: "a" })).rejects.toThrow();
+    expect(graphTraverse).not.toHaveBeenCalled();
+    const result = service.traverseGraph({ workspaceRoot: "/workspace", start: "a" });
+    const rejection = expect(result).rejects.toThrow();
+    service.activateWorkspace({ model: workspaceModel("/other", "/other/notes"), runtimeRoot: "/other-runtime", generation: 1 });
+    expect(signal?.aborted).toBe(true);
+    held.resolve({ schemaVersion: "exograph.graph-traversal.v1", workspace: { root: "/workspace", noteRootIds: [] }, snapshotId: "s", status: "error", code: "missing-start", message: "Missing" });
+    await rejection;
+  });
+
   it("authorizes only existing files inside the active wiki for operator opens", async () => {
     const { service, noteRoot } = await workspaceNotesService();
     const notePath = path.join(noteRoot, "opened.md");

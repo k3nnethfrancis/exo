@@ -141,6 +141,7 @@ function createCommandServer(runtimeRoot = resolveRuntimeRoot()) {
       sendToRenderer("command:open-file", authorizedPath);
     },
     onIndexSearch: (query, options) => indexingService.search(query, options),
+    onGraphTraverse: (request) => workspaceNotesService.traverseGraph(request),
     onIndexStatus: () => indexingService.getMeasuredStatus(),
     onIndexSync: () => indexingService.runSync("command"),
     onGetStatus: () => ({

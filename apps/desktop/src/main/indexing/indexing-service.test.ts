@@ -642,6 +642,7 @@ function derivedIndexClient(): DerivedIndexClient {
     update: vi.fn(async () => status),
     embed: vi.fn(async () => status),
     sync: vi.fn(async () => ({ status, phases: [], warnings: [] })),
+    graphTraverse: vi.fn(),
     graphContext: vi.fn(async () => null),
     graphTopology: vi.fn(async () => { throw new Error("graph topology is not used by indexing tests"); }),
     graphConceptSummaries: vi.fn(async () => { throw new Error("graph summaries are not used by indexing tests"); }),
