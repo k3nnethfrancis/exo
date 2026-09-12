@@ -355,6 +355,7 @@ export function App() {
 
   useAppKeybindings({
     activeDocumentPath,
+    settingsOpen: Boolean(workspaceSettingsDialog),
     shortcutBindings,
     saveDocument,
     createUntitledNote: workspaceMutations.createUntitledNote,

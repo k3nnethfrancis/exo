@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { isNewTerminalShortcut, shellPanelShortcut } from "./useAppKeybindings";
-import { resolvedWorkspaceShortcutBindings, shortcutBindingsHaveConflict } from "../shellHelpModel";
+import { resolvedWorkspaceShortcutBindings, shortcutBindingIssue, shortcutBindingsHaveConflict } from "../shellHelpModel";
 
 describe("app keybindings", () => {
   it("maps familiar primary and secondary sidebar shortcuts without accepting noisy variants", () => {
@@ -33,4 +33,14 @@ describe("app keybindings", () => {
     expect(shortcutBindingsHaveConflict({ explorer: { code: "KeyK" }, terminal: { code: "KeyK" } })).toBe(true);
     expect(shortcutBindingsHaveConflict({ explorer: { code: "KeyK" }, terminal: { code: "KeyT" } })).toBe(false);
   });
+});
+
+
+it("keeps native and Invoke combinations out of the configurable global bindings", () => {
+  for (const binding of [{ code: "KeyC" }, { code: "KeyQ", alt: true }, { code: "Enter" }, { code: "KeyZ", shift: true }, { code: "KeyG" }, { code: "KeyG", shift: true }, { code: "KeyG", alt: true }, { code: "KeyD" }, { code: "KeyK", shift: true }]) {
+    expect(shortcutBindingIssue("explorer", binding, {})).toContain("Reserved");
+  }
+  expect(shortcutBindingIssue("explorer", { code: "KeyB" }, {})).toBeNull();
+  expect(shortcutBindingIssue("save", { code: "KeyS" }, {})).toBeNull();
+  expect(shortcutBindingIssue("explorer", { code: "KeyE", alt: true }, {})).toBeNull();
 });

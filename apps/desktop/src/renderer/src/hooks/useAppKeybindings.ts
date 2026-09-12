@@ -5,6 +5,7 @@ import { resolvedWorkspaceShortcutBindings, shortcutMatches } from "../shellHelp
 
 interface UseAppKeybindingsOptions {
   activeDocumentPath: string | null;
+  settingsOpen?: boolean;
   shortcutBindings?: WorkspaceShortcutBindings;
   saveDocument: (filePath: string) => Promise<void>;
   createUntitledNote: () => Promise<void>;
@@ -18,6 +19,8 @@ interface UseAppKeybindingsOptions {
 export function useAppKeybindings(options: UseAppKeybindingsOptions) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      // The modal owns keyboard interaction, including its shortcut recorder.
+      if (options.settingsOpen) return;
       const bindings = resolvedWorkspaceShortcutBindings(options.shortcutBindings);
       // ⌘B is a standard Markdown editor command. Let CodeMirror receive it
       // when an editor owns focus; elsewhere it remains the Explorer shortcut.
@@ -70,6 +73,7 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [
     options.activeDocumentPath,
+    options.settingsOpen,
     options.shortcutBindings,
     options.saveDocument,
     options.createUntitledNote,
