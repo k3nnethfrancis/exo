@@ -38,6 +38,8 @@ Open **Note context** for the active Note's outline, inbound and outbound links,
 
 When the Graph canvas has keyboard focus, brackets select the previous or next Note, arrow keys orbit, `+` and `-` zoom, Space or `F` focuses the selection, `O` frames the graph, Enter opens the selection, and Escape returns to the prior editor context. The same controls remain available after Canvas fallback.
 
+A framed graph fits again when the pane changes size. After you pan, orbit, zoom, or focus, resizing preserves your camera direction and target, moving back within the zoom range when needed to keep a previously visible selection in view. Use **Frame graph** to restore the overview.
+
 The graph is evidence-aware. It distinguishes a relation written in Markdown, one interpreted by an active ontology, and a machine-derived signal. It does not silently turn semantic similarity into a durable fact. Read [Knowledge graph](knowledge-graph.md) for the model and [Workspace ontology](workspace-ontology.md) for optional property interpretation.
 
 ## Panes and shortcuts
