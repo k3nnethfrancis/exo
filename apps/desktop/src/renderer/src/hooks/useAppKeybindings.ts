@@ -47,7 +47,7 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
           return;
         }
         event.preventDefault();
-        void options.saveDocument(options.activeDocumentPath);
+        void options.saveDocument(options.activeDocumentPath).catch(() => { /* The document owner displays save failures and conflicts. */ });
         return;
       }
       if (shortcutMatches(event, bindings["new-note"])) {

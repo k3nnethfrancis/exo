@@ -67,6 +67,7 @@ export interface WorkspaceIpcHandlers {
   resolveTarget: NotesApi["resolveTarget"];
   resolveMarkdownImage: NotesApi["resolveMarkdownImage"];
   saveNote: NotesApi["save"];
+  saveNoteCopy: NotesApi["saveCopy"];
   saveSettings: WorkspaceApi["saveSettings"];
   searchIndex: WorkspaceApi["searchIndex"];
   searchTag: WorkspaceApi["searchTag"];
@@ -224,9 +225,13 @@ export function registerWorkspaceIpcHandlers(handlers: WorkspaceIpcHandlers) {
     const authorizedPath = await workspaceFiles().existing(filePath);
     return handlers.readNote(authorizedPath);
   });
-  handleDesktopInvoke("notes:save", async (_event, filePath, frontmatter, body) => {
+  handleDesktopInvoke("notes:save", async (_event, filePath, frontmatter, body, expectedRevision) => {
     const authorizedPath = await workspaceFiles().writable(filePath);
-    return handlers.saveNote(authorizedPath, frontmatter, body);
+    return handlers.saveNote(authorizedPath, frontmatter, body, expectedRevision);
+  });
+  handleDesktopInvoke("notes:save-copy", async (_event, filePath, frontmatter, body) => {
+    const authorizedPath = await workspaceFiles().writable(filePath);
+    return handlers.saveNoteCopy(authorizedPath, frontmatter, body);
   });
   handleDesktopInvoke("notes:stat", async (_event, filePath) => {
     const authorizedPath = await workspaceFiles().writable(filePath);

@@ -3987,3 +3987,13 @@ select.dialog-card__input {
     grid-template-columns: 280px 1fr;
   }
 }
+
+.save-conflict-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  flex-shrink: 0;
+}

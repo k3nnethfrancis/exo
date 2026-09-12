@@ -1,3 +1,4 @@
+import { planWorkspaceSettingsApply } from "./runtime/workspace-settings-apply-plan";
 import { app, nativeTheme, powerMonitor } from "electron";
 import path from "node:path";
 import { appendFile, mkdir, stat } from "node:fs/promises";
@@ -16,10 +17,9 @@ import {
   WORKSPACE_RUNTIME_DIRECTORY,
   markOnboardingComplete,
   readOnboardingStateStore,
-  readWorkspaceDocument,
+  DocumentPersistence,
   renameWorkspacePath,
   resolveWorkspaceModel,
-  saveWorkspaceDocument,
   workspaceModelFromSettings,
   writeOnboardingStateStore,
   type OnboardingStateStore,
@@ -455,7 +455,7 @@ function registerIpcHandlers() {
     markOnboardingComplete: () => completeWorkspaceOnboarding(),
     listTree: listRootTree,
     listWorkspaces: () => workspaceConfig.listWorkspaces(),
-    readNote: readWorkspaceDocument,
+    readNote: (filePath) => documentPersistence.read(filePath),
     renamePath: renameWorkspacePath,
     resolvePreviewTarget: async (target) => {
       const result = await resolvePreviewTarget(target, currentSettings());
@@ -464,9 +464,15 @@ function registerIpcHandlers() {
     readPdfFile: (filePath) => readPdfFile(filePath, currentSettings()),
     resolveTarget: (sourceFilePath, target) => workspaceNotesService.resolveTarget(sourceFilePath, target),
     resolveMarkdownImage: (sourceFilePath, target, lookupByFilename) => workspaceNotesService.resolveMarkdownImage(sourceFilePath, target, lookupByFilename),
-    saveNote: async (filePath, frontmatter, body) => {
-      await saveWorkspaceDocument(filePath, frontmatter, body);
+    saveNote: async (filePath, frontmatter, body, expectedRevision) => {
+      const result = await documentPersistence.save(filePath, frontmatter, body, expectedRevision);
+      if (result.status === "saved") indexingService.scheduleForFile(filePath, "note-save");
+      return result;
+    },
+    saveNoteCopy: async (filePath, frontmatter, body) => {
+      const document = await documentPersistence.saveCopy(filePath, frontmatter, body);
       indexingService.scheduleForFile(filePath, "note-save");
+      return document;
     },
     saveSettings,
     searchIndex: (query, options) => indexingService.search(query, options),
@@ -582,7 +588,17 @@ function currentSnapshot() {
   return { settings: currentSettings(), revision: workspaceSettingsRevision };
 }
 
+const documentPersistence = new DocumentPersistence();
+
 async function saveSettings(request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> {
+  const previous = currentSettings();
+  const apply = () => commitSettings(request);
+  return planWorkspaceSettingsApply(previous, { ...previous, ...request.settings }).reactivateWorkspace
+    ? appLifecycle.withDocumentsFlushed(apply)
+    : apply();
+}
+
+async function commitSettings(request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> {
   const previous = currentSettings();
   const saved = await workspaceConfig.patch(request.expectedRevision, { ...previous, ...request.settings });
   if (workspaceRuntimeCoordinator.applySettings({
@@ -617,6 +633,10 @@ async function saveSettings(request: WorkspaceSettingsSaveRequest): Promise<Work
 }
 
 async function switchWorkspace(workspaceId: string, expectedRevision: string | null): Promise<WorkspaceSettingsSaveOutcome> {
+  return appLifecycle.withDocumentsFlushed(() => commitWorkspaceSwitch(workspaceId, expectedRevision));
+}
+
+async function commitWorkspaceSwitch(workspaceId: string, expectedRevision: string | null): Promise<WorkspaceSettingsSaveOutcome> {
   const saved = await workspaceConfig.switchWorkspace(workspaceId, expectedRevision);
   const activation = await workspaceRuntimeCoordinator.activate({
     previousSettings: currentSettings(),
@@ -953,15 +973,12 @@ function resolveRuntimeRoot(): string {
 }
 
 app.on("before-quit", (event) => {
-  const mainWindow = appLifecycle?.getMainWindow();
   if (!quitFlushComplete) {
     event.preventDefault();
     if (quitFlushStarted) return;
     quitFlushStarted = true;
     void awaitInvocationAwareQuit({
-      flushDirtyDocuments: () => mainWindow && !mainWindow.isDestroyed() && appLifecycle.isRendererReady()
-        ? mainWindow.webContents.executeJavaScript("globalThis.__exographFlushDirtyDocuments?.()", true)
-        : Promise.resolve(),
+      flushDirtyDocuments: () => appLifecycle?.prepareDocumentTransition() ?? Promise.resolve(),
       stopInvocations: async () => {
         await Promise.all([
           typeof invocationRunner === "undefined" ? Promise.resolve() : invocationRunner.stopAll(),
@@ -977,6 +994,8 @@ app.on("before-quit", (event) => {
       app.quit();
     }).catch((error) => {
       quitFlushStarted = false;
+      void appLifecycle?.finishDocumentTransition();
+      appLifecycle?.showMainWindow();
       logMain("quit remains blocked because durable shutdown did not settle", serializeError(error));
     });
     return;

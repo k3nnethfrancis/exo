@@ -5,6 +5,7 @@ import type { PaneNodeId } from "./usePaneTree";
 import { directoryOf, pathLabel } from "../workspaceTree";
 
 export type WorkspaceDialogState =
+  | { kind: "save-copy"; sourcePath: string; targetPath: string; value: string; title: string; confirmLabel: string }
   | {
       kind: "create-file";
       targetPath: string;
@@ -46,6 +47,7 @@ interface UseWorkspaceMutationsOptions {
   activeDocumentPath: string | null;
   editorFocusedLeafId: PaneNodeId;
   reloadTrees: () => Promise<void>;
+  saveConflictCopy: (filePath: string, destination: string) => Promise<void>;
   openFile: (filePath: string, leafId?: PaneNodeId) => Promise<void>;
   remapOpenPaths: (sourcePath: string, nextPath: string) => void;
   removeDeletedPaths: (targetPath: string) => void;
@@ -55,6 +57,13 @@ interface UseWorkspaceMutationsOptions {
 
 export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
   const [dialog, setDialog] = useState<WorkspaceDialogState | null>(null);
+  const [dialogError, setDialogError] = useState<string | null>(null);
+  const [dialogPending, setDialogPending] = useState(false);
+
+  function saveConflictCopy(filePath: string) {
+    setDialogError(null);
+    setDialog({ kind: "save-copy", sourcePath: filePath, targetPath: directoryOf(filePath), value: pathLabel(filePath).replace(/(\.[^.]+)?$/, "-local-copy$1"), title: "Save local edits as a copy", confirmLabel: "Save copy" });
+  }
 
   function createFileInDirectory(directoryPath: string) {
     if (!options.workspaceModel) {
@@ -225,7 +234,15 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
       return;
     }
 
-    if (dialog.kind === "create-file") {
+    if (dialog.kind === "save-copy") {
+      if (value.includes("/") || value === "." || value === "..") throw new Error("Enter a filename in the current folder.");
+      const filename = conflictCopyFilename(value, dialog.sourcePath);
+      const nextPath = joinPath(dialog.targetPath, filename);
+      await options.saveConflictCopy(dialog.sourcePath, nextPath);
+      options.remapOpenPaths(dialog.sourcePath, nextPath);
+      await options.reloadTrees();
+      await options.openFile(nextPath);
+    } else if (dialog.kind === "create-file") {
       await commitCreateFile(dialog.targetPath, value);
     } else if (dialog.kind === "create-directory") {
       await commitCreateDirectory(dialog.targetPath, value);
@@ -238,6 +255,7 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
 
   return {
     dialog,
+    copyFilename: dialog?.kind === "save-copy" ? conflictCopyFilename(dialog.value.trim(), dialog.sourcePath) : null,
     renameFilename: dialog?.kind === "rename" ? markdownRenameFilename(dialog.value.trim(), dialog.preserveMarkdown) : null,
     setDialog,
     createFileInDirectory,
@@ -246,7 +264,17 @@ export function useWorkspaceMutations(options: UseWorkspaceMutationsOptions) {
     renameWorkspacePath,
     deleteWorkspacePath,
     moveWorkspacePathIntoDirectory,
-    submitDialog,
+    dialogError,
+    dialogPending,
+    saveConflictCopy,
+    submitDialog: async () => {
+      if (dialogPending) return;
+      setDialogPending(true);
+      setDialogError(null);
+      try { await submitDialog(); }
+      catch (error) { setDialogError(error instanceof Error ? error.message : String(error)); }
+      finally { setDialogPending(false); }
+    },
   };
 }
 
@@ -272,4 +300,8 @@ function isPathWithin(parentPath: string, targetPath: string): boolean {
 
 function markdownRenameFilename(name: string, preserveMarkdown: boolean): string {
   return name && preserveMarkdown && !/\.md$/i.test(name) ? `${name}.md` : name;
+}
+
+function conflictCopyFilename(name: string, sourcePath: string): string {
+  return name && /\.md(?:own)?$/i.test(sourcePath) && !/\.md(?:own)?$/i.test(name) ? `${name}.md` : name;
 }

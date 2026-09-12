@@ -56,6 +56,7 @@ export interface DesktopInvokeHandlers {
   "workspace:delete-path": WorkspaceApi["deletePath"];
   "notes:read": NotesApi["read"];
   "notes:save": NotesApi["save"];
+  "notes:save-copy": NotesApi["saveCopy"];
   "notes:stat": NotesApi["stat"];
   "notes:get-graph-context": NotesApi["getGraphContext"];
   "notes:get-graph-topology": NotesApi["getGraphTopology"];

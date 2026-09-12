@@ -119,7 +119,8 @@ const api: DesktopApi = {
   },
   notes: {
     read: (filePath) => invokeDesktop("notes:read", filePath),
-    save: (filePath, frontmatter, body) => invokeDesktop("notes:save", filePath, frontmatter, body),
+    save: (filePath, frontmatter, body, expectedRevision) => invokeDesktop("notes:save", filePath, frontmatter, body, expectedRevision),
+    saveCopy: (filePath, frontmatter, body) => invokeDesktop("notes:save-copy", filePath, frontmatter, body),
     stat: (filePath) => invokeDesktop("notes:stat", filePath),
     getGraphContext: (filePath) => invokeDesktop("notes:get-graph-context", filePath),
     getGraphTopology: () => invokeDesktop("notes:get-graph-topology"),
