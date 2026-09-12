@@ -118,7 +118,10 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     const row = fixture.page.getByTestId("workspace-settings-ontology");
     await expect(row).toContainText("Generic");
     const settingsPanel = fixture.page.locator(".workspace-settings-panel");
-    const availableWidth = await settingsPanel.evaluate(element => element.clientWidth);
+    const availableWidth = await settingsPanel.evaluate(element => {
+      const style = getComputedStyle(element);
+      return element.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+    });
     expect((await row.boundingBox())!.width).toBeGreaterThanOrEqual(availableWidth - 2);
     await expect(row).toContainText("research");
     await expect(row).toContainText("2 typed");
