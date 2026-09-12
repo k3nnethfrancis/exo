@@ -172,7 +172,7 @@ export function WorkspaceSettingsDialog({
 }
 
 export function workspaceSettingsSavedFooterCopy(hasStructuralChanges: boolean): string {
-  return hasStructuralChanges ? "Draft saved. Apply to use workspace or search changes." : "Settings saved.";
+  return hasStructuralChanges ? "Apply to save workspace and search changes. Closing Settings discards unapplied changes." : "Settings saved.";
 }
 
 export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSection, hasStructuralChanges: boolean): string {
@@ -380,7 +380,7 @@ function IndexSection({
       </div>
       {!qmdSelected ? (
         <div className="onboarding-section__hint" data-testid="workspace-settings-simple-search-note">
-          Simple search is active. Switch to QMD to set up or resume a local index.
+          Simple search matches filenames and paths. Choose QMD for indexed search.
         </div>
       ) : null}
       {qmdSelected ? (

@@ -28,7 +28,7 @@ describe("workspace settings footer copy", () => {
   });
 
   it("only mentions Apply when structural changes are pending", () => {
-    expect(workspaceSettingsSavedFooterCopy(true)).toContain("Apply");
+    expect(workspaceSettingsSavedFooterCopy(true)).toBe("Apply to save workspace and search changes. Closing Settings discards unapplied changes.");
     expect(workspaceSettingsSavedFooterCopy(false)).toBe("Settings saved.");
   });
 
@@ -245,7 +245,7 @@ describe("workspace settings footer copy", () => {
       />,
     );
 
-    expect(html).toContain("Simple search is active");
+    expect(html).toContain("Simple search matches filenames and paths. Choose QMD for indexed search.");
     expect(html).not.toContain("Search maintenance");
     expect(html).not.toContain("Sync documents");
   });
