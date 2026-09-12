@@ -76,10 +76,16 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     const compact = fixture.page.getByTestId("graph-ontology");
     const summary = compact.locator(":scope > summary");
     await expect(summary).toHaveText("Active: Generic");
-    const selection = () => fixture.page.locator(".spatial-graph__interaction").evaluate(element => (element as HTMLCanvasElement & {
-      __exographGraphSnapshot: () => { selected: number };
-    }).__exographGraphSnapshot().selected);
+    const selection = () => fixture.page.locator("canvas.spatial-graph__interaction").evaluate(element => {
+      const snapshot = (element as HTMLCanvasElement & {
+        __exographGraphSnapshot?: () => { selected: number } | null;
+      }).__exographGraphSnapshot?.();
+      if (!snapshot || !Number.isInteger(snapshot.selected)) throw new Error("Graph selection snapshot unavailable");
+      return snapshot.selected;
+    });
+    await expect.poll(selection).toBeGreaterThanOrEqual(0);
     const selectedBefore = await selection();
+    expect(selectedBefore).toBeGreaterThanOrEqual(0);
     await summary.click();
     await compact.getByRole("combobox", { name: "Preview ontology" }).selectOption({ label: "criticism" });
     await expect(compact).toContainText("Preview: criticism");
@@ -194,6 +200,7 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     const activeGraphPane = relaunched.page.getByTestId("graph-pane");
     await expect(activeGraphPane.locator(".spatial-graph__detail-title")).toHaveText("Ontology source changed");
     const beforeGraphPreparation = await markdownByteMap(noteRoot);
+    await activeGraphPane.locator(".spatial-graph__detail details > summary").click();
     await activeGraphPane.getByRole("button", { name: "Find relevant connections" }).click();
     await expect(relaunched.page.getByTestId("inline-agent-composer")).toHaveCount(1);
     await expect(relaunched.page.locator(".cm-content")).toContainText("Read and apply the Exograph-owned Skill");
