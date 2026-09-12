@@ -124,6 +124,7 @@ export function App() {
   const [terminalRuntimeReadTailChars, setTerminalRuntimeReadTailChars] = useState(DEFAULT_TERMINAL_PENDING_HYDRATION_CHARS);
   const [explorerScale, setExplorerScale] = useState(DEFAULT_EXPLORER_SCALE);
   const [graphInverseNavigation, setGraphInverseNavigation] = useState(true);
+  const [graphShowOverflowLabels, setGraphShowOverflowLabels] = useState(true);
   const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
@@ -386,6 +387,7 @@ export function App() {
     setTerminalRuntimeReadTailChars(terminalPolicy.readTailChars);
     setExplorerScale(settings.explorerScale);
     setGraphInverseNavigation(settings.graphInverseNavigation);
+    setGraphShowOverflowLabels(settings.graphShowOverflowLabels);
     setExploreIndexSearchOnEnter(settings.exploreIndexSearchOnEnter);
     setShortcutBindings(settings.shortcutBindings ?? {});
     setQmdSearchSelected(settings.searchEngine === "qmd");
@@ -996,6 +998,7 @@ export function App() {
   ) : utilityState.destination === "graph" ? (
     <GraphPane
       inverseNavigation={graphInverseNavigation}
+      showOverflowLabels={graphShowOverflowLabels}
       inspectedConcept={graphInspection.state.concept}
       focusRequest={graphInspection.state.focusRequest}
       graphReturnPath={canvasNavigation.graphReturnPath}
@@ -1058,6 +1061,7 @@ export function App() {
         if (leaf.content.kind === "graph") {
           return <GraphPane
             inverseNavigation={graphInverseNavigation}
+            showOverflowLabels={graphShowOverflowLabels}
             inspectedConcept={graphInspection.state.concept}
             focusRequest={graphInspection.state.focusRequest}
             graphReturnPath={canvasNavigation.graphReturnPath}

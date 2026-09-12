@@ -299,6 +299,7 @@ export class SpatialGraphRuntime {
   private summaries = new Map<number, GraphConceptSummary>();
   private transition: CameraTransition | null = null;
   private cameraFramed = true;
+  private showOverflowLabels = true;
   private dpr: number;
   private externalPendingWork = 0;
   private layoutMessages = 0;
@@ -379,6 +380,12 @@ export class SpatialGraphRuntime {
   setPalette(palette: GraphPresentationPalette): void {
     this.palette = palette;
     this.scheduler.invalidate("theme");
+  }
+
+  setShowOverflowLabels(show: boolean): void {
+    if (this.showOverflowLabels === show) return;
+    this.showOverflowLabels = show;
+    this.scheduler.invalidate("label-preference");
   }
 
   setSummaries(summaries: readonly GraphConceptSummary[]): void {
@@ -554,6 +561,7 @@ export class SpatialGraphRuntime {
     const viewport = this.scene.projection.viewport;
     const labelPlan = planGraphLabels(this.scene.topology, this.scene.projection, this.scene.interaction, candidates, {
       maxLabels: Math.max(6, Math.min(20, Math.floor(viewport.width * viewport.height / 18_000))),
+      showOverflowLabels: this.showOverflowLabels,
     });
     this.labelPlans += 1;
     try {

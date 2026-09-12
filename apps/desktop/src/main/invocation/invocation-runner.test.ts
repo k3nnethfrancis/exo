@@ -1743,6 +1743,7 @@ function settings(workspaceRoot: string, command: ReturnType<typeof createDefaul
     terminalFontSize: 13,
     explorerScale: 1,
     graphInverseNavigation: true,
+    graphShowOverflowLabels: true,
     exploreIndexSearchOnEnter: true,
     indexUpdateStrategy: "manual",
   };

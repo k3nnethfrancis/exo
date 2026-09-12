@@ -54,8 +54,15 @@ test("graph surfaces follow pane resizing, metadata height and app zoom through 
     expect(richPoint.visible).toBe(true);
     await canvas.click({ position: richPoint });
     await expect(page.locator(".spatial-graph__detail-title")).toHaveText("Viewport Rich");
+    await expect(page.locator(".spatial-graph__detail-properties")).toBeHidden();
+    await page.locator(".spatial-graph__detail summary").click();
     await expect(page.locator(".spatial-graph__detail-properties")).toBeVisible();
     await expect.poll(async () => (await viewport.boundingBox())!.height).toBeLessThan(heightBefore - 15);
+    await assertSurfaceParity(page);
+
+    await page.locator(".spatial-graph__detail summary").press("Enter");
+    await expect(page.locator(".spatial-graph__detail-properties")).toBeHidden();
+    await expect.poll(async () => (await viewport.boundingBox())!.height).toBeGreaterThan(heightBefore - 2);
     await assertSurfaceParity(page);
 
     await fixture.electronApp.evaluate(({ BrowserWindow }) => {

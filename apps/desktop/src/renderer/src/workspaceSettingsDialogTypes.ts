@@ -37,6 +37,7 @@ export interface WorkspaceSettingsDialogState {
   terminalFontSize: string;
   explorerScale: string;
   graphInverseNavigation: boolean;
+  graphShowOverflowLabels: boolean;
   ontologyDiscoveryPrompt?: string;
   shortcutBindings?: WorkspaceShortcutBindings;
   exploreIndexSearchOnEnter: boolean;

@@ -21,6 +21,20 @@ import {
 } from "../workspace-settings";
 
 describe("workspace settings registry", () => {
+  it.each([
+    [undefined, true],
+    ["false", true],
+    [null, true],
+    [0, true],
+    [false, false],
+    [true, true],
+  ])("normalizes overflow labels %j to %j", (value, expected) => {
+    const { graphShowOverflowLabels: _preference, ...input } = workspaceSettingsFor("/tmp/exograph-graph-labels/notes");
+    const raw = value === undefined ? input : { ...input, graphShowOverflowLabels: value };
+    const settings = normalizeWorkspaceSettings(raw as Parameters<typeof normalizeWorkspaceSettings>[0]);
+    expect(settings?.graphShowOverflowLabels).toBe(expected);
+  });
+
   it("defaults inverse graph navigation on and preserves an explicit preference", () => {
     const defaults = normalizeWorkspaceSettings(workspaceSettingsFor("/tmp/exograph-graph-default/notes"));
     const direct = normalizeWorkspaceSettings({
@@ -414,6 +428,7 @@ describe("workspace settings registry", () => {
         terminalFontSize: 13,
         explorerScale: 1,
         graphInverseNavigation: true,
+        graphShowOverflowLabels: true,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
       }, env);
@@ -604,6 +619,7 @@ describe("workspace settings registry", () => {
       terminalFontSize: 13,
       explorerScale: 1,
       graphInverseNavigation: true,
+      graphShowOverflowLabels: false,
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "on-save",
       agentCommands: [createDefaultClaudeAgentCommand()],
@@ -635,6 +651,7 @@ describe("workspace settings registry", () => {
       await saveWorkspaceSettings({ ...loaded!, appearanceMode: "dark" }, env);
 
       const reloaded = await loadWorkspaceSettings(env) as typeof initialSettings | null;
+      expect(reloaded?.graphShowOverflowLabels).toBe(false);
       expect(reloaded).toMatchObject({
         appearanceMode: "dark",
         agentCommands: initialSettings.agentCommands,
@@ -749,6 +766,7 @@ describe("workspace settings registry", () => {
         terminalFontSize: 13,
         explorerScale: 1,
         graphInverseNavigation: true,
+        graphShowOverflowLabels: true,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
         layout: {
@@ -799,6 +817,7 @@ describe("workspace settings registry", () => {
         terminalFontSize: 13,
         explorerScale: 1,
         graphInverseNavigation: true,
+        graphShowOverflowLabels: true,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
         layout: {
@@ -833,6 +852,7 @@ describe("workspace settings registry", () => {
         terminalFontSize: 13,
         explorerScale: 1,
         graphInverseNavigation: true,
+        graphShowOverflowLabels: true,
         exploreIndexSearchOnEnter: false,
         indexUpdateStrategy: "on-save",
       }, env);

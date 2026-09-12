@@ -221,6 +221,7 @@ async function previewFixture(): Promise<{
       terminalFontSize: 13,
       explorerScale: 1,
       graphInverseNavigation: true,
+      graphShowOverflowLabels: true,
       exploreIndexSearchOnEnter: false,
       indexUpdateStrategy: "manual",
     },

@@ -212,6 +212,34 @@ describe("SpatialGraph runtime", () => {
     expect(source).toContain("getGraphConceptDetailByIndex");
   });
 
+  it("updates overflow labels without resetting camera or graph selection", () => {
+    const frames = new FakeFrameDriver();
+    const context = new MockContext();
+    const runtime = new SpatialGraphRuntime(surface(context), { frameDriver: frames, palette: palette() });
+    const graph = topology(30);
+    runtime.setTopology(graph, { width: 800, height: 600 });
+    runtime.applyLayoutFrame({ topologyHash: graph.topologyHash, layoutEpochId: graph.layoutEpochId, sequence: 1, settled: true, positions: new Float32Array(90) });
+    runtime.setSummaries(Array.from({ length: 30 }, (_, index) => ({ index, label: `Synthetic Note ${index}`, filePath: `/notes/${index}.md` })));
+    runtime.setSelection(0);
+    const scene = runtime.getScene()!;
+    frames.settle();
+    context.labels = 0;
+    runtime.setShowOverflowLabels(false);
+    frames.settle();
+    const anchoredCount = context.labels;
+    expect(anchoredCount).toBeGreaterThan(0);
+    const camera = structuredClone(scene.camera);
+    context.labels = 0;
+    runtime.setShowOverflowLabels(true);
+    frames.settle();
+    expect(context.labels).toBeGreaterThan(anchoredCount);
+    expect(scene.camera).toEqual(camera);
+    expect(scene.interaction.selected).toBe(0);
+    runtime.setShowOverflowLabels(true);
+    expect(frames.callbacks.size).toBe(0);
+    runtime.dispose();
+  });
+
   it("draws a deterministic scene immediately, rejects late layout, and becomes quiescent", () => {
     const frames = new FakeFrameDriver();
     const runtime = new SpatialGraphRuntime(surface(), { frameDriver: frames, palette: palette() });

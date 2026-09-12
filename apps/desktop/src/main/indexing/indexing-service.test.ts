@@ -707,6 +707,7 @@ function workspaceSettings(): WorkspaceSettings {
     terminalFontSize: 13,
     explorerScale: 1,
     graphInverseNavigation: true,
+    graphShowOverflowLabels: true,
     exploreIndexSearchOnEnter: true,
     indexUpdateStrategy: "on-save",
   };

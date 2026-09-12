@@ -18,6 +18,7 @@ export function workspaceSettingsDialogFixture(
     terminalFontSize: "13",
     explorerScale: "1",
     graphInverseNavigation: true,
+    graphShowOverflowLabels: true,
     shortcutBindings: {},
     exploreIndexSearchOnEnter: false,
     indexUpdateStrategy: "on-save",

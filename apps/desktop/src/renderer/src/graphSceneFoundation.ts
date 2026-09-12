@@ -132,6 +132,7 @@ export interface GraphLabelPlan {
 
 export interface GraphLabelPlanOptions {
   maxLabels: number;
+  showOverflowLabels?: boolean;
   edgeInset?: number;
   collisionGap?: number;
 }
@@ -559,7 +560,9 @@ export function planGraphLabels(
     const anchors = graphLabelAnchors(nodeX, nodeY, radius, candidate.width, candidate.height);
     const anchored = anchors.find((placement) => labelFits(placement.box, projection.viewport, inset)
       && occupied.every((box) => !boxesOverlap(placement.box, box, gap)));
-    const fallback = anchored ?? findFreeLabelCell(candidate, projection.viewport, occupied, inset, gap);
+    const fallback = anchored ?? (options.showOverflowLabels === false
+      ? null
+      : findFreeLabelCell(candidate, projection.viewport, occupied, inset, gap));
     if (!fallback) {
       if (entry.required) omittedRequired.push(candidate.index);
       continue;
