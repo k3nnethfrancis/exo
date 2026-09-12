@@ -22,11 +22,14 @@ test("shortcut capture stays modal, names conflicts, and persists a working bind
     await capture.click();
     await capture.press("Meta+Alt+e");
     await expect(capture).not.toHaveText("Press a shortcut…");
-    await page.getByRole("button", { name: "Change Utility pane shortcut", exact: true }).click();
+    await page.getByRole("button", { name: "Change Utility shortcut", exact: true }).click();
     await page.keyboard.press("Meta+Alt+e");
     await expect(page.getByRole("status")).toContainText("Already used by Explorer");
     await page.keyboard.press("Escape");
     await page.getByTestId("workspace-settings-close").click();
+    await expect(page.getByTestId("workspace-settings-dialog")).toBeHidden();
+    await expect.poll(() => page.evaluate(async () => (await window.exograph.workspace.getSettings()).settings.shortcutBindings))
+      .toMatchObject({ explorer: { code: "KeyE", alt: true } });
     await page.keyboard.press("Meta+Alt+e");
     await expect(explorer).not.toHaveAttribute("aria-label", before!);
 
@@ -38,6 +41,9 @@ test("shortcut capture stays modal, names conflicts, and persists a working bind
     await relaunched.page.getByRole("button", { name: "Reset all", exact: true }).click();
     await expect(restored).toContainText("B");
     await relaunched.page.getByTestId("workspace-settings-close").click();
+    await expect(relaunched.page.getByTestId("workspace-settings-dialog")).toBeHidden();
+    await expect.poll(() => relaunched!.page.evaluate(async () => (await window.exograph.workspace.getSettings()).settings.shortcutBindings))
+      .toEqual({});
     const toggle = relaunched.page.locator('[aria-label="Show explorer"], [aria-label="Hide explorer"]');
     const prior = await toggle.getAttribute("aria-label");
     await relaunched.page.keyboard.press("Meta+b");
