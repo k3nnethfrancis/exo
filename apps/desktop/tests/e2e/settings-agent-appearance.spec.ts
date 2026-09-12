@@ -27,10 +27,19 @@ test("custom command appearance uploads, persists, renders, and resets", async (
     await expect.poll(() => savedAppearance(page)).toMatchObject({ color: "#0088cc", iconDataUrl: expect.stringContaining("data:image/png;base64,") });
     const saved = await savedAppearance(page);
     const editor = page.locator(".editor-surface .cm-content").first();
-    await editor.click();
-    await page.keyboard.press("Meta+End");
-    await page.keyboard.type("\n\n@localqa");
+    // Establish the same exact document/selection boundary as the invocation
+    // journeys. Keyboard.type with literal newlines does not guarantee a
+    // CodeMirror line break, and platform End bindings vary.
+    await editor.evaluate((content) => {
+      const view = (content as HTMLElement & { cmView?: { view?: { state: { doc: { length: number } }; dispatch: (transaction: unknown) => void; focus: () => void } } }).cmView?.view;
+      if (!view) throw new Error("Unable to resolve the fixture editor");
+      const insert = "\n\n@localqa";
+      const end = view.state.doc.length;
+      view.dispatch({ changes: { from: end, insert }, selection: { anchor: end + insert.length } });
+      view.focus();
+    });
     const suggestion = page.getByTestId("agent-suggestion-localqa");
+    await expect(suggestion).toBeVisible();
     await expect(suggestion.locator("img")).toHaveAttribute("src", saved!.iconDataUrl!);
     await page.keyboard.press("Enter");
     const send = page.getByRole("button", { name: "Send message to @localqa", exact: true });
