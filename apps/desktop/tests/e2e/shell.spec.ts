@@ -1041,7 +1041,7 @@ test("accepts terminal keyboard input", async () => {
 
   await page.getByTestId("editor-panel").click();
   await page.getByTestId("terminal-surface").click();
-  await page.keyboard.type("after editor");
+  await page.keyboard.type(" after editor");
   await expect(page.getByTestId("terminal-surface")).toContainText("hello exograph after editor");
 
   await cleanup();
