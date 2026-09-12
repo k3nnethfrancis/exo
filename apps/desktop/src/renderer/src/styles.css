@@ -3087,6 +3087,16 @@ select.dialog-card__input {
   min-width: 0;
 }
 
+.workspace-settings-graph > .dialog-check > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.workspace-settings-graph > .dialog-check small {
+  color: var(--muted);
+}
+
 .dialog-form__grid--compact {
   grid-template-columns: minmax(0, 220px);
   align-content: start;
