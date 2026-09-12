@@ -11,6 +11,31 @@ import {
 
 import { launchExographWorkspaceFixture, relaunchExographWorkspaceFixture } from "../helpers";
 
+test("overflow label preference saves immediately and survives close and restart", async () => {
+  const fixture = await launchExographWorkspaceFixture({ mutable: true });
+  let relaunched: Awaited<ReturnType<typeof relaunchExographWorkspaceFixture>> | null = null;
+  try {
+    await openSettingsSection(fixture.page, "graph");
+    const toggle = fixture.page.getByRole("checkbox", { name: "Show overflow labels", exact: true });
+    await expect(toggle).toBeChecked();
+    await toggle.uncheck();
+    await expect.poll(() => persistedSettings(fixture.settingsPath)).toMatchObject({ graphShowOverflowLabels: false });
+    await fixture.page.getByTestId("workspace-settings-close").click();
+    await openSettingsSection(fixture.page, "graph");
+    await expect(toggle).not.toBeChecked();
+    await fixture.electronApp.close();
+    relaunched = await relaunchExographWorkspaceFixture(fixture);
+    await openSettingsSection(relaunched.page, "graph");
+    const restored = relaunched.page.getByRole("checkbox", { name: "Show overflow labels", exact: true });
+    await expect(restored).not.toBeChecked();
+    await restored.check();
+    await expect.poll(() => persistedSettings(fixture.settingsPath)).toMatchObject({ graphShowOverflowLabels: true });
+  } finally {
+    await relaunched?.electronApp.close().catch(() => {});
+    await fixture.cleanup();
+  }
+});
+
 test("every non-structural Settings round trip preserves commands, layout, and opaque metadata", async () => {
   const fixture = await launchExographWorkspaceFixture({
     mutable: true,
@@ -617,7 +642,7 @@ async function editSettingsAndClose(page: Page, section: "appearance" | "graph" 
   await expect(page.getByTestId("workspace-settings-dialog")).not.toBeVisible();
 }
 
-async function openSettingsSection(page: Page, section: "workspace" | "index"): Promise<void> {
+async function openSettingsSection(page: Page, section: "workspace" | "index" | "graph"): Promise<void> {
   await page.getByTestId("workspace-menu-toggle").click();
   await page.getByTestId("workspace-menu-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();

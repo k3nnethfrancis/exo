@@ -40,6 +40,8 @@ When the Graph canvas has keyboard focus, brackets select the previous or next N
 
 A framed graph fits again when the pane changes size. After you pan, orbit, zoom, or focus, resizing preserves your camera direction and target, moving back within the zoom range when needed to keep a previously visible selection in view. Use **Frame graph** to restore the overview.
 
+Turn off **Settings → Graph → Show overflow labels** to hide labels placed away from crowded nodes. Labels that fit beside their nodes remain visible. This preference is saved for the workspace. The selected Note's title and link count stay below the graph; expand **Details** for its type, path, properties, and connection tools.
+
 The graph is evidence-aware. It distinguishes a relation written in Markdown, one interpreted by an active ontology, and a machine-derived signal. It does not silently turn semantic similarity into a durable fact. Read [Knowledge graph](knowledge-graph.md) for the model and [Workspace ontology](workspace-ontology.md) for optional property interpretation.
 
 ## Panes and shortcuts

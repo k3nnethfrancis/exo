@@ -411,6 +411,25 @@ describe("picking and focal labels", () => {
     }
   });
 
+  it("can omit detached overflow while keeping labels beside nodes and reporting hidden selection labels", () => {
+    const graph = topology();
+    const projection = projectionState(new Float32Array([
+      210, 160, 0.3, 1,
+      0, 0, 0.3, 1,
+      0, 0, 0.3, 1,
+      0, 0, 0.3, 1,
+    ]), { width: 420, height: 320 });
+    const interaction = emptyGraphSelection(4, graph.edges.endpoints.length / 2);
+    interaction.selected = 1;
+    const candidates = [0, 1, 2, 3].map(index => ({ index, text: `Node ${index}`, width: 80, height: 14 }));
+    const shown = planGraphLabels(graph, projection, interaction, candidates, { maxLabels: 4 });
+    const hidden = planGraphLabels(graph, projection, interaction, candidates, { maxLabels: 4, showOverflowLabels: false });
+    expect(shown.placements).toHaveLength(4);
+    expect(hidden.placements).toEqual([shown.placements.find(placement => placement.index === 0)]);
+    expect(hidden.omittedRequired).toEqual([1]);
+    expect(interaction.selected).toBe(1);
+  });
+
   it("reports a required label that physically cannot fit instead of overlapping", () => {
     const graph = topology({
       nodes: {

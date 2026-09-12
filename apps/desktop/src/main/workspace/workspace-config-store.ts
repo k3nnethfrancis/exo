@@ -4,6 +4,7 @@ import {
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_EXPLORER_SCALE,
   DEFAULT_GRAPH_INVERSE_NAVIGATION,
+  DEFAULT_GRAPH_SHOW_OVERFLOW_LABELS,
   DEFAULT_TERMINAL_FONT_SIZE,
   getWorkspaceRegistryEntry,
   listWorkspaceRegistryEntries,
@@ -114,6 +115,7 @@ export function workspaceSettingsFromModel(model: WorkspaceModel): WorkspaceSett
       terminalFontSize: DEFAULT_TERMINAL_FONT_SIZE,
       explorerScale: DEFAULT_EXPLORER_SCALE,
       graphInverseNavigation: DEFAULT_GRAPH_INVERSE_NAVIGATION,
+      graphShowOverflowLabels: DEFAULT_GRAPH_SHOW_OVERFLOW_LABELS,
       exploreIndexSearchOnEnter: model.indexing.enabled && model.indexing.mode !== "off" && model.indexedRoots.length > 0,
       indexUpdateStrategy: "on-save",
   };

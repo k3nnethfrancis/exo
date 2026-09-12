@@ -6,6 +6,7 @@ import { ExographMark } from "./ExographMark";
 
 interface GraphPaneProps {
   inverseNavigation: boolean;
+  showOverflowLabels: boolean;
   onClose: () => void;
   onFocus: () => void;
   onOpenTarget: (target: string) => void;
@@ -27,6 +28,7 @@ export function GraphPane(props: GraphPaneProps) {
       </header>
       <SpatialGraphView
         inverseNavigation={props.inverseNavigation}
+        showOverflowLabels={props.showOverflowLabels}
         inspectedConcept={props.inspectedConcept}
         focusRequest={props.focusRequest}
         graphReturnPath={props.graphReturnPath}

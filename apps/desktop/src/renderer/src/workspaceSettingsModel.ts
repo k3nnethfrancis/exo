@@ -21,6 +21,7 @@ export function workspaceSettingsImmediateDraftKey(settings: WorkspaceSettingsDi
     terminalFontSize: settings.terminalFontSize,
     explorerScale: settings.explorerScale,
     graphInverseNavigation: settings.graphInverseNavigation,
+    graphShowOverflowLabels: settings.graphShowOverflowLabels,
     ontologyDiscoveryPrompt: settings.ontologyDiscoveryPrompt,
     shortcutBindings: settings.shortcutBindings,
     exploreIndexSearchOnEnter: settings.exploreIndexSearchOnEnter,

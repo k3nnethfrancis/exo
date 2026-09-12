@@ -86,6 +86,9 @@ describe("workspace settings footer copy", () => {
       />,
     );
 
+    expect(html).toContain("Show overflow labels");
+    expect(html).toContain("Place labels away from their nodes when there is not enough room.");
+    expect(html).toContain('data-testid="workspace-settings-graph-overflow-labels"');
     expect(html).toContain("Inverse navigation");
     expect(html).toContain("Reverse orbit direction while dragging.");
     expect(html).toContain('data-testid="workspace-settings-graph-inverse-navigation"');
@@ -93,7 +96,7 @@ describe("workspace settings footer copy", () => {
     expect(html).toContain("Ontology prompt");
     expect(html).toContain("Used by Discover structure");
     expect(html).toContain('data-testid="workspace-settings-ontology-prompt"');
-    expect(workspaceSettingsDialogIntroCopy("graph", false)).toBe("Adjust how the graph moves.");
+    expect(workspaceSettingsDialogIntroCopy("graph", false)).toBe("Adjust graph navigation and labels.");
   });
 
   it("keeps Markdown scope editable from Workspace settings", () => {

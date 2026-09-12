@@ -23,6 +23,7 @@ export const DEFAULT_EDITOR_FONT_SIZE = 15;
 export const DEFAULT_TERMINAL_FONT_SIZE = 13;
 export const DEFAULT_EXPLORER_SCALE = 1;
 export const DEFAULT_GRAPH_INVERSE_NAVIGATION = true;
+export const DEFAULT_GRAPH_SHOW_OVERFLOW_LABELS = true;
 const UNSUPPORTED_WORKSPACE_SETTINGS_KEYS = [
   "migrationMetadata",
   "projectRoots",
@@ -459,6 +460,9 @@ export function normalizeWorkspaceSettings(input: Partial<WorkspaceSettings> | n
     graphInverseNavigation: typeof input.graphInverseNavigation === "boolean"
       ? input.graphInverseNavigation
       : DEFAULT_GRAPH_INVERSE_NAVIGATION,
+    graphShowOverflowLabels: typeof input.graphShowOverflowLabels === "boolean"
+      ? input.graphShowOverflowLabels
+      : DEFAULT_GRAPH_SHOW_OVERFLOW_LABELS,
     shortcutBindings: normalizeWorkspaceShortcutBindings(input.shortcutBindings),
     exploreIndexSearchOnEnter: typeof input.exploreIndexSearchOnEnter === "boolean" ? input.exploreIndexSearchOnEnter : indexing.enabled && indexing.mode !== "off" && indexedRoots.length > 0,
     indexUpdateStrategy: input.indexUpdateStrategy === "manual" ? "manual" : "on-save",

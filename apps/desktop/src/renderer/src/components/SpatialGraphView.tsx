@@ -41,6 +41,7 @@ import { OntologyReviewRow } from "./OntologyReviewRow";
 
 interface SpatialGraphViewProps {
   inverseNavigation: boolean;
+  showOverflowLabels: boolean;
   refreshKey?: string;
   inspectedConcept: InspectedConcept | null;
   focusRequest: GraphFocusRequest | null;
@@ -81,6 +82,7 @@ export function GraphBuildingIndicator() {
 
 export function SpatialGraphView({
   inverseNavigation,
+  showOverflowLabels,
   refreshKey,
   inspectedConcept,
   focusRequest,
@@ -339,6 +341,10 @@ export function SpatialGraphView({
       delete canvas.__exographGraphForceCanvasFallback;
     };
   }, [rendererNonce, updatePendingWork]);
+
+  useEffect(() => {
+    runtimeRef.current?.setShowOverflowLabels(showOverflowLabels);
+  }, [showOverflowLabels, rendererNonce]);
 
   useEffect(() => {
     const runtime = runtimeRef.current;

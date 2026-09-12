@@ -194,7 +194,7 @@ export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSecti
     return "Adjust how Exograph looks and reads.";
   }
   if (section === "graph") {
-    return "Adjust how the graph moves.";
+    return "Adjust graph navigation and labels.";
   }
   if (section === "terminal") {
     return "Adjust terminal text.";
@@ -689,6 +689,25 @@ function GraphSection({
         <span>
           <strong>Inverse navigation</strong>
           <small>Reverse orbit direction while dragging.</small>
+        </span>
+      </label>
+      <label className="dialog-check">
+        <input
+          checked={settings.graphShowOverflowLabels}
+          aria-labelledby="graph-overflow-labels-title"
+          aria-describedby="graph-overflow-labels-description"
+          data-testid="workspace-settings-graph-overflow-labels"
+          onChange={(event) => setSettings((current) => current ? {
+            ...current,
+            graphShowOverflowLabels: event.target.checked,
+            saveStatus: "idle",
+            errorMessage: null,
+          } : current)}
+          type="checkbox"
+        />
+        <span>
+          <strong id="graph-overflow-labels-title">Show overflow labels</strong>
+          <small id="graph-overflow-labels-description">Place labels away from their nodes when there is not enough room.</small>
         </span>
       </label>
       <details className="agent-invocation-prompt-disclosure">

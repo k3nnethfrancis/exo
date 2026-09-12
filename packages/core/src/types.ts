@@ -50,6 +50,7 @@ export interface WorkspaceSettings {
   explorerScale: number;
   /** Reverse pointer-drag orbit direction in the spatial graph. */
   graphInverseNavigation: boolean;
+  graphShowOverflowLabels: boolean;
   /** Per-workspace overrides for the global Mod-based shell shortcuts. */
   shortcutBindings?: WorkspaceShortcutBindings;
   exploreIndexSearchOnEnter: boolean;
