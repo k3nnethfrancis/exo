@@ -11,9 +11,10 @@ afterEach(async () => {
   if (renderer) await act(async () => renderer!.unmount());
   renderer = undefined;
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
-async function fixture(gate: Promise<void> = Promise.resolve()) {
+async function fixture(gate: Promise<void> = Promise.resolve(), autosave = false) {
   const settings = normalizeWorkspaceSettings({ workspaceRoot: "/workspace", noteRoots: ["/workspace/notes"], defaultTerminalCwd: "/workspace" })!;
   const save = vi.fn(async (request: WorkspaceSettingsSaveRequest): Promise<WorkspaceSettingsSaveOutcome> => {
     await gate;
@@ -21,7 +22,8 @@ async function fixture(gate: Promise<void> = Promise.resolve()) {
   });
   vi.stubGlobal("window", {
     // Drive saves explicitly so draft and in-flight states are observable.
-    setTimeout: () => 1, clearTimeout: () => {},
+    setTimeout: autosave ? globalThis.setTimeout : () => 1,
+    clearTimeout: autosave ? globalThis.clearTimeout : () => {},
     exograph: { workspace: {
       getSettings: async () => ({ settings, revision: "initial" }),
       getIndexStatus: async () => null,
@@ -52,6 +54,19 @@ describe("numeric settings feedback", () => {
     expect(String(f.options.workspaceSettingsRef.current[field])).toBe(expected);
     expect(f.current().dialog?.defaultTerminalCwd).toBe("/unapplied");
     expect(f.options.workspaceSettingsRef.current.defaultTerminalCwd).toBe("/workspace");
+  });
+
+  it("finishes normalized autosave without scheduling another write, including on Close", async () => {
+    vi.useFakeTimers();
+    const f = await fixture(undefined, true);
+    await act(async () => f.current().setDialog(current => current && { ...current, editorFontSize: "1", saveStatus: "idle" }));
+    await act(async () => vi.advanceTimersByTimeAsync(650));
+    expect(f.current().dialog).toMatchObject({ editorFontSize: "11", saveStatus: "saved" });
+    expect(f.save).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(2000));
+    await act(async () => f.current().closeDialog());
+    expect(f.current().dialog).toBeNull();
+    expect(f.save).toHaveBeenCalledTimes(1);
   });
 
   it.each([false, true])("does not replace newer input when includeStructural=%s", async (includeStructural) => {
