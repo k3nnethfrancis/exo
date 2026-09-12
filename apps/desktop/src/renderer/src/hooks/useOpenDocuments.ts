@@ -323,7 +323,7 @@ export function useOpenDocuments(options: UseOpenDocumentsOptions) {
         const stillDirty = latest.body !== document.body
           || JSON.stringify(latest.frontmatter) !== JSON.stringify(document.frontmatter);
         const next = { ...current };
-        if (!remainsOpen) delete next[filePath];
+        if (!remainsOpen && !stillDirty) delete next[filePath];
         else next[filePath] = { ...latest, dirty: stillDirty, diskVersion };
         openDocumentsRef.current = next;
         setOpenDocuments(next);

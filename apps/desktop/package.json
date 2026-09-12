@@ -52,9 +52,11 @@
     "@electron/rebuild": "4.0.3",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@types/react-test-renderer": "19.1.0",
     "@vitejs/plugin-react": "5.2.0",
     "electron": "41.0.2",
     "electron-vite": "5.0.0",
+    "react-test-renderer": "19.2.4",
     "vite": "7.3.3"
   }
 }

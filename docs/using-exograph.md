@@ -42,6 +42,8 @@ The graph is evidence-aware. It distinguishes a relation written in Markdown, on
 
 ## Panes and shortcuts
 
+Closing a Note tab lets pending saves finish, including edits made while an earlier save was in progress.
+
 The Explorer is on the left. The utility rail switches one destination among Preview, Terminal, Graph, and Note context; Preview and Terminal keep their own tabs. Drag a Note, terminal, or preview into the editor canvas when you want a split view.
 
 | Action | macOS | Other platforms |
