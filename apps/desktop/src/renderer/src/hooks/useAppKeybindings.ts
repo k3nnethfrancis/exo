@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import type { WorkspaceShortcutBindings } from "@exograph/core";
 
-import { resolvedWorkspaceShortcutBindings, shortcutMatches } from "../shellHelpModel";
+import { editorOwnsShortcut, resolvedWorkspaceShortcutBindings, shortcutMatches } from "../shellHelpModel";
 
 interface UseAppKeybindingsOptions {
   activeDocumentPath: string | null;
+  settingsOpen?: boolean;
   shortcutBindings?: WorkspaceShortcutBindings;
   saveDocument: (filePath: string) => Promise<void>;
   createUntitledNote: () => Promise<void>;
@@ -18,11 +19,14 @@ interface UseAppKeybindingsOptions {
 export function useAppKeybindings(options: UseAppKeybindingsOptions) {
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      // The modal owns keyboard interaction, including its shortcut recorder.
+      if (options.settingsOpen) return;
       const bindings = resolvedWorkspaceShortcutBindings(options.shortcutBindings);
-      // ⌘B is a standard Markdown editor command. Let CodeMirror receive it
-      // when an editor owns focus; elsewhere it remains the Explorer shortcut.
-      const panelShortcut = isCodeMirrorEvent(event) ? null : shellPanelShortcut(event, options.shortcutBindings);
+      const panelShortcut = shellPanelShortcut(event, options.shortcutBindings);
       if (panelShortcut) {
+        // Preserve Markdown's Mod+B and editor bindings from older settings,
+        // while allowing validated custom panel shortcuts inside the editor.
+        if (isCodeMirrorEvent(event) && editorOwnsShortcut(bindings[panelShortcut])) return;
         event.preventDefault();
         event.stopPropagation();
         if (panelShortcut === "explorer") {
@@ -70,6 +74,7 @@ export function useAppKeybindings(options: UseAppKeybindingsOptions) {
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [
     options.activeDocumentPath,
+    options.settingsOpen,
     options.shortcutBindings,
     options.saveDocument,
     options.createUntitledNote,

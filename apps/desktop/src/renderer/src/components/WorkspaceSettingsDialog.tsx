@@ -18,12 +18,7 @@ import { AgentCommandConfigurator } from "./AgentCommandConfigurator";
 import { DefaultAgentSelector } from "./DefaultAgentSelector";
 import { OntologyReviewRow } from "./OntologyReviewRow";
 import { ExographMark } from "./ExographMark";
-import {
-  resolvedWorkspaceShortcutBindings,
-  shortcutBindingFromEvent,
-  shortcutBindingsHaveConflict,
-  shortcutLabel,
-} from "../shellHelpModel";
+import { ShortcutsSection } from "./ShortcutsSection";
 
 interface WorkspaceSettingsDialogProps {
   indexBusy: IndexBusyState;
@@ -125,7 +120,7 @@ export function WorkspaceSettingsDialog({
             {settings.section === "appearance" ? <AppearanceSection settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "graph" ? <GraphSection settings={settings} setSettings={setSettings} /> : null}
             {settings.section === "terminal" ? <TerminalSection settings={settings} setSettings={setSettings} /> : null}
-            {settings.section === "shortcuts" ? <ShortcutsSection settings={settings} setSettings={setSettings} /> : null}
+            {settings.section === "shortcuts" ? <ShortcutsSection bindings={settings.shortcutBindings} onChange={(shortcutBindings) => setSettings((current) => current ? { ...current, shortcutBindings, saveStatus: "idle" } : current)} /> : null}
             {settings.section === "agents" ? <AgentsSection settings={settings} setSettings={setSettings} /> : null}
           </div>
         </div>
@@ -203,54 +198,6 @@ export function workspaceSettingsDialogIntroCopy(section: WorkspaceSettingsSecti
     return "Choose the shortcuts Exograph uses in this workspace.";
   }
   return "Configure the agents available from @ mentions.";
-}
-
-function ShortcutsSection({ settings, setSettings }: Pick<WorkspaceSettingsDialogProps, "settings" | "setSettings">) {
-  const bindings = resolvedWorkspaceShortcutBindings(settings.shortcutBindings);
-  const rows = [
-    ["explorer", "Explorer"],
-    ["utility", "Utility pane"],
-    ["new-note", "New note"],
-    ["daily-note", "Daily note"],
-    ["terminal", "New terminal"],
-    ["save", "Save"],
-  ] as const;
-  const hasConflict = shortcutBindingsHaveConflict(settings.shortcutBindings);
-
-  return (
-    <section className="dialog-field dialog-field--section" data-testid="workspace-settings-shortcuts">
-      <div className="dialog-field__header">
-        <span className="dialog-field__label">Global shortcuts</span>
-        <button className="toolbar-button" onClick={() => setSettings((current) => current ? { ...current, shortcutBindings: {}, saveStatus: "idle" } : current)} type="button">Reset</button>
-      </div>
-      <div className="onboarding-section__hint">Click a shortcut, then press Command (or Control) plus a letter. Editor-specific commands remain in the editor.</div>
-      {rows.map(([id, label]) => (
-        <label className="settings-control-row" key={id}>
-          <span className="dialog-field__label">{label}</span>
-          <button
-            aria-label={`Set ${label} shortcut`}
-            className="toolbar-button"
-            data-testid={`workspace-settings-shortcut-${id}`}
-            onKeyDown={(event) => {
-              const binding = shortcutBindingFromEvent(event);
-              if (!binding) return;
-              event.preventDefault();
-              event.stopPropagation();
-              setSettings((current) => current ? {
-                ...current,
-                shortcutBindings: { ...current.shortcutBindings, [id]: binding },
-                saveStatus: "idle",
-              } : current);
-            }}
-            type="button"
-          >
-            {shortcutLabel(bindings[id])}
-          </button>
-        </label>
-      ))}
-      {hasConflict ? <div className="dialog-card__status dialog-card__status--error">Each global shortcut must be unique.</div> : null}
-    </section>
-  );
 }
 
 function WorkspaceSection({
