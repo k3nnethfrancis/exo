@@ -109,7 +109,9 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     await expect(summary).toBeFocused();
     expect(await selection()).toBe(selectedBefore);
     await summary.click();
-    await fixture.page.getByTestId("editor-title").click();
+    const outsideEditor = fixture.page.locator(".editor-surface .cm-content").first();
+    await expect(outsideEditor).toBeVisible();
+    await outsideEditor.click({ position: { x: 8, y: 8 } });
     await expect(compact).not.toHaveAttribute("open", "");
 
     await openWorkspaceSettings(fixture.page);
