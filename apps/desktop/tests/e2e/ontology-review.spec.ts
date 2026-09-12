@@ -66,6 +66,35 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     await expect.poll(() => ontologyEdgeCount(fixture.page)).toBe(0);
     await openUtilityGraph(fixture.page);
     await expect(fixture.page.getByTestId("graph-pane")).toBeVisible();
+    await expect(fixture.page.locator(".spatial-graph__viewport")).toHaveAttribute("data-scene-ready", "true");
+    const paneBounds = (await fixture.page.getByTestId("utility-pane").boundingBox())!;
+    const handle = (await fixture.page.getByTestId("utility-pane-resizer").boundingBox())!;
+    await fixture.page.mouse.move(handle.x + handle.width / 2, handle.y + 120);
+    await fixture.page.mouse.down();
+    await fixture.page.mouse.move(handle.x + handle.width / 2 + paneBounds.width - 240, handle.y + 120, { steps: 8 });
+    await fixture.page.mouse.up();
+    const compact = fixture.page.getByTestId("graph-ontology");
+    const summary = compact.locator(":scope > summary");
+    await expect(summary).toHaveText("Active: Generic");
+    const selection = () => fixture.page.locator(".spatial-graph__interaction").evaluate(element => (element as HTMLCanvasElement & {
+      __exographGraphSnapshot: () => { selected: number };
+    }).__exographGraphSnapshot().selected);
+    const selectedBefore = await selection();
+    await summary.click();
+    await compact.getByRole("combobox", { name: "Preview ontology" }).selectOption({ label: "criticism" });
+    await expect(compact).toContainText("Preview: criticism");
+    await expect(summary).toHaveText("Active: Generic");
+    expect(await ontologyEdgeCount(fixture.page)).toBe(0);
+    const popup = fixture.page.getByTestId("graph-ontology-review");
+    expect(await popup.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+    await compact.getByRole("button", { name: "Activate ontology" }).focus();
+    await fixture.page.keyboard.press("Escape");
+    await expect(compact).not.toHaveAttribute("open", "");
+    await expect(summary).toBeFocused();
+    expect(await selection()).toBe(selectedBefore);
+    await summary.click();
+    await fixture.page.getByTestId("editor-title").click();
+    await expect(compact).not.toHaveAttribute("open", "");
 
     await openWorkspaceSettings(fixture.page);
     const row = fixture.page.getByTestId("workspace-settings-ontology");
@@ -74,7 +103,7 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     await expect(row).toContainText("2 typed");
     await expect(row).toContainText("+1 relations");
     await expect(row).toContainText("0 findings");
-    await expect(row.getByRole("button", { name: "Keep ontology" })).toBeVisible();
+    await expect(row.getByRole("button", { name: "Activate ontology" })).toBeVisible();
     await expect(row).not.toContainText(fixture.workspaceRoot);
     await fixture.page.screenshot({ path: testInfo.outputPath("ontology-review-candidate.png") });
 
@@ -85,15 +114,15 @@ test("reviews Ontology effects before publishing one persistent graph change", a
       { timeout: 10_000 },
     ).toBe("Ontology source changed");
 
-    await row.getByRole("button", { name: "Keep ontology" }).click();
+    await row.getByRole("button", { name: "Activate ontology" }).click();
     await expect(row).toContainText("Changed—review again");
     await expectGraphContext(fixture.page, sourcePath, { ontologyRelations: 0, outgoing: 0, backlinks: 0 });
     await expect.poll(() => ontologyEdgeCount(fixture.page)).toBe(0);
 
-    await expect(row.getByRole("button", { name: "Keep ontology" })).toBeVisible();
-    await row.getByRole("button", { name: "Keep ontology" }).click();
-    await expect(row).toContainText("Applied");
-    await expect(row.getByRole("button", { name: "Keep ontology" })).toHaveCount(0);
+    await expect(row.getByRole("button", { name: "Activate ontology" })).toBeVisible();
+    await row.getByRole("button", { name: "Activate ontology" }).click();
+    await expect(row).toContainText("Activated");
+    await expect(row.getByRole("button", { name: "Activate ontology" })).toHaveCount(0);
     await expectGraphContext(fixture.page, sourcePath, { ontologyRelations: 1, outgoing: 0, backlinks: 0 });
     await expectGraphContext(fixture.page, targetPath, { ontologyRelations: 1, outgoing: 0, backlinks: 0 });
     await expect.poll(() => ontologyEdgeCount(fixture.page)).toBe(1);
@@ -134,7 +163,7 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     await openWorkspaceSettings(relaunched.page);
     const restartedRow = relaunched.page.getByTestId("workspace-settings-ontology");
     await expect(restartedRow).toContainText("research");
-    await expect(restartedRow.getByRole("button", { name: "Keep ontology" })).toHaveCount(0);
+    await expect(restartedRow.getByRole("button", { name: "Activate ontology" })).toHaveCount(0);
 
     await writeOntology(fixture.workspaceRoot, 2);
     await expect(restartedRow).toContainText("v2");
@@ -147,15 +176,15 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     expect(afterRejectEvidence.ontology).toEqual(acceptedEvidence.ontology);
     expect(afterRejectEvidence.sourceSnapshotId).toBe(restartedEvidence.sourceSnapshotId);
 
-    const selector = restartedRow.getByRole("combobox", { name: "Choose ontology" });
+    const selector = restartedRow.getByRole("combobox", { name: "Preview ontology" });
     await selector.selectOption({ label: "criticism" });
-    await expect(restartedRow).toContainText("→ criticism");
-    await restartedRow.getByRole("button", { name: "Keep ontology" }).click();
+    await expect(restartedRow).toContainText("Preview: criticism");
+    await restartedRow.getByRole("button", { name: "Activate ontology" }).click();
     await expect.poll(async () => (await ontologyEvidence(relaunched!.page, sourcePath)).relation?.predicate).toBe("refutes");
 
     await selector.selectOption({ label: "Generic" });
-    await expect(restartedRow).toContainText("→ Generic");
-    await restartedRow.getByRole("button", { name: "Keep ontology" }).click();
+    await expect(restartedRow).toContainText("Preview: Generic");
+    await restartedRow.getByRole("button", { name: "Activate ontology" }).click();
     await expectGraphContext(relaunched.page, sourcePath, { ontologyRelations: 0, outgoing: 0, backlinks: 0 });
     await expect.poll(() => ontologyEdgeCount(relaunched!.page)).toBe(0);
     await relaunched.page.getByTestId("workspace-settings-close").click();
@@ -213,6 +242,7 @@ async function openWorkspaceSettings(page: Page): Promise<void> {
   await page.getByTestId("workspace-menu-toggle").click();
   await page.getByTestId("workspace-menu-settings").click();
   await expect(page.getByTestId("workspace-settings-dialog")).toBeVisible();
+  await page.getByTestId("workspace-settings-tab-graph").click();
   await expect(page.getByTestId("workspace-settings-ontology").getByText("Previewing…")).toHaveCount(0, { timeout: 10_000 });
 }
 
