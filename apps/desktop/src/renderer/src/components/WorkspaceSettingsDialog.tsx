@@ -10,7 +10,6 @@ import { THEME_FAMILIES, normalizeColorThemeId } from "../theme/registry";
 import type { ColorThemeId } from "../theme/types";
 import type { IndexBusyState, WorkspaceSettingsDialogState, WorkspaceSettingsSection } from "../workspaceSettingsDialogTypes";
 import { selectWorkspaceSettingsSearchEngine } from "../workspaceSettingsModel";
-import { HelpTooltip } from "./HelpTooltip";
 import { PathList } from "./PathList";
 import { AgentInvocationPromptEditor } from "./AgentInvocationPromptEditor";
 import { DEFAULT_ONTOLOGY_DESIGN_PROMPT } from "../../../shared/ontology-design-prompt";
@@ -475,10 +474,8 @@ function IndexSection({
         </div>
       </div>
       <details className="dialog-details dialog-details--section settings-maintenance">
-        <summary>
-          Search maintenance
-          <HelpTooltip label="Use these controls when QMD is stale or embeddings are incomplete." />
-        </summary>
+        <summary>Search maintenance</summary>
+        <p className="dialog-card__hint">Use these controls when QMD is stale or embeddings are incomplete.</p>
         {indexStatus?.recentJobs?.length ? (
           <div className="index-activity" data-testid="workspace-settings-index-activity">
             <div className="index-activity__title">Recent activity</div>
