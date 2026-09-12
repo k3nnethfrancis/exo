@@ -93,16 +93,18 @@ describe("bounded canonical graph traversal", () => {
     expect(traverseKnowledgeGraph(huge, base)).toMatchObject({ code: "too-large" });
   });
 
-  it("uses real WorkspaceGraph projection and rejects a cursor after graph mutation", async () => {
+  it("preserves differently labelled link occurrences through WorkspaceGraph and rejects stale cursors", async () => {
     const root = await mkdtemp(path.join(tmpdir(), "exo-traverse-"));
     try {
       const notes = path.join(root, "notes"); await mkdir(notes);
       const startPath = path.join(notes, "a.md");
-      await writeFile(startPath, "# A\n[[b]] [[b]]"); await writeFile(path.join(notes, "b.md"), "# B\n");
+      await writeFile(startPath, "# A\n[one](b.md) [two](b.md)"); await writeFile(path.join(notes, "b.md"), "# B\n");
       const model = { workspaceRoot: root, defaultTerminalCwd: root, noteRoots: [{ id: "notes", label: "Notes", path: notes }], indexedRoots: [], indexing: { enabled: false, mode: "off" as const, backend: "qmd" as const } };
       const request = { workspaceRoot: root, startPath, limit: 1 };
       const first = ok(await new WorkspaceGraph(model).traverse(request));
       expect(first.request.start).toBe("note:notes:a.md"); expect(first.edges).toHaveLength(2);
+      expect(new Set(first.edges.map((edge) => edge.id)).size).toBe(2);
+      expect(first.edges.map((edge) => edge.label)).toEqual(["one", "two"]);
       expect(first.evidence.map((e) => e.relativePath)).toEqual(["a.md", "a.md"]);
       await writeFile(startPath, "# A changed\n[[b]]");
       expect(await new WorkspaceGraph(model).traverse({ ...request, cursor: first.nextCursor! })).toMatchObject({ code: "stale-cursor" });
