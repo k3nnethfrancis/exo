@@ -63,7 +63,7 @@ interface ShellLayoutProps {
   onCreateFile: (directoryPath: string) => void;
   onCreateDirectory: (directoryPath: string) => void;
   onCreateTerminalInDirectory: (directoryPath: string) => void;
-  onRenamePath: (targetPath: string) => void;
+  onRenamePath: (targetPath: string, kind: "file" | "directory") => void;
   onDeletePath: (targetPath: string) => void;
   onOpenTitleSegment: (segment: WorkspaceBreadcrumbSegment) => void;
 }

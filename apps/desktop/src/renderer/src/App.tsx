@@ -1264,7 +1264,7 @@ export function App() {
       onCreateFile={(directoryPath) => workspaceMutations.createFileInDirectory(directoryPath)}
       onCreateDirectory={(directoryPath) => workspaceMutations.createDirectoryInDirectory(directoryPath)}
       onCreateTerminalInDirectory={(directoryPath) => void createUtilityTerminal("shell", directoryPath)}
-      onRenamePath={(targetPath) => workspaceMutations.renameWorkspacePath(targetPath)}
+      onRenamePath={(targetPath, kind) => workspaceMutations.renameWorkspacePath(targetPath, kind)}
       onDeletePath={(targetPath) => workspaceMutations.deleteWorkspacePath(targetPath)}
     />
 
@@ -1300,6 +1300,11 @@ export function App() {
                   }
                 }}
               />
+            ) : null}
+            {workspaceDialog.kind === "rename" && workspaceDialog.preserveMarkdown ? (
+              <div className="dialog-card__message">
+                Filename: {workspaceMutations.renameFilename}
+              </div>
             ) : null}
             <div className="dialog-card__actions">
               <button className="toolbar-button" onClick={() => setWorkspaceDialog(null)} type="button">
