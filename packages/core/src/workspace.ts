@@ -507,11 +507,15 @@ async function findMatchingFiles(
 }
 
 export async function createWorkspaceFile(targetPath: string, content?: string): Promise<string> {
-  if (existsSync(targetPath)) {
-    throw new Error(`Destination already exists: ${targetPath}`);
-  }
   await mkdir(path.dirname(targetPath), { recursive: true });
-  await writeFile(targetPath, content ?? initialWorkspaceFileContent(targetPath), "utf8");
+  try {
+    await writeFile(targetPath, content ?? initialWorkspaceFileContent(targetPath), { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "EEXIST") {
+      throw new Error(`Destination already exists: ${targetPath}`);
+    }
+    throw error;
+  }
   return targetPath;
 }
 
