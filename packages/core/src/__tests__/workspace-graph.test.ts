@@ -43,6 +43,32 @@ describe("WorkspaceGraph", () => {
     expect(cedarContext?.backlinks).toHaveLength(2);
   });
 
+  it("assigns unique stable relation IDs to differently labeled links from the same Note", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "exograph-workspace-graph-alias-occurrences-"));
+    roots.push(workspace);
+    const notes = path.join(workspace, "notes");
+    await mkdir(path.join(notes, "one"), { recursive: true });
+    const sourcePath = path.join(notes, "Atlas.md");
+    const links = ["[[one/Cedar]]", "[[one/Cedar|alias]]", "[Another label](one/Cedar.md)"];
+    const body = `# Atlas\n\n🧠 ${links.join(" ")}\n`;
+    await writeFile(sourcePath, body);
+    await writeFile(path.join(notes, "one", "Cedar.md"), "# Cedar\n");
+    const graph = new WorkspaceGraph(model(workspace, notes));
+    const snapshot = await graph.knowledgeSnapshot();
+    const relations = snapshot.relations;
+    expect(relations).toHaveLength(3);
+    expect(new Set(relations.map((relation) => relation.id)).size).toBe(3);
+    expect(new Set(relations.map((relation) => relation.target)).size).toBe(1);
+    expect(relations.every((relation) => relation.resolution === "resolved")).toBe(true);
+    expect(relations.map((relation) => relation.label).sort()).toEqual(["Another label", "alias", "one/Cedar"]);
+    const spans = relations.flatMap((relation) => relation.evidence.flatMap((evidence) => evidence.kind === "source-span" && evidence.sourceRange ? [evidence.sourceRange] : []));
+    expect(spans).toHaveLength(3);
+    expect(new Set(spans.map((span) => span.from)).size).toBe(3);
+    expect(spans.map((span) => body.slice(span.from, span.to)).sort()).toEqual([...links].sort());
+    await graph.rebuild();
+    expect((await graph.knowledgeSnapshot()).relations).toEqual(relations);
+  });
+
   it("does not project Markdown beneath excluded repository paths", async () => {
     const workspace = await mkdtemp(path.join(os.tmpdir(), "exograph-workspace-graph-policy-"));
     roots.push(workspace);
