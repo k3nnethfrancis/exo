@@ -217,6 +217,14 @@ export function App() {
     onLastEditorClosed: (openRecoveredFile) => void openOrCreateDailyNote(openRecoveredFile),
   });
   const openEditorPaths = useMemo(() => collectOpenEditorPaths(canvasTree), [canvasTree]);
+  useEffect(() => {
+    const hiddenConflict = Object.entries(openDocuments).find(([filePath, document]) => document.saveConflict && !openEditorPaths.has(filePath));
+    if (hiddenConflict) canvasNavigation.activateEditorDocument(hiddenConflict[0]);
+  }, [openDocuments, openEditorPaths]);
+  useEffect(() => {
+    const request = openDocumentsState.conflictRevealRequest;
+    if (request) canvasNavigation.activateEditorDocument(request.filePath);
+  }, [openDocumentsState.conflictRevealRequest]);
   const inspectedPath = graphInspection.state.concept
     ? graphInspection.state.concept.filePath ?? null
     : activeDocumentPath;
@@ -229,6 +237,7 @@ export function App() {
     reloadTrees,
     openFile: canvasNavigation.openFile,
     remapOpenPaths: canvasNavigation.remapOpenPaths,
+    saveConflictCopy: openDocumentsState.saveConflictCopy,
     removeDeletedPaths: canvasNavigation.removeDeletedPaths,
     revealExplorerPath: (path) => setRevealExplorerPathRequest({ path, nonce: Date.now() }),
     requestGeneratedTitleSelection,
@@ -1158,7 +1167,11 @@ export function App() {
                   updateBody(leaf.content.activePath, body);
                 }
               }}
-              onSave={() => void (leaf.content.kind === "editor" && leaf.content.activePath ? saveDocument(leaf.content.activePath) : Promise.resolve())}
+              onSave={() => void (leaf.content.kind === "editor" && leaf.content.activePath ? saveDocument(leaf.content.activePath) : Promise.resolve()).catch(() => {})}
+              onSaveConflictCopy={() => { if (pane.activePath) workspaceMutations.saveConflictCopy(pane.activePath); }}
+              onDiscardSaveConflict={async () => {
+                if (pane.activePath && await openDocumentsState.discardSaveConflict(pane.activePath) === "closed") canvasNavigation.removeDeletedPaths(pane.activePath);
+              }}
               onOpenTag={(tag) => void openTag(tag)}
               onOpenTarget={(target) => void openKnowledgeTarget(target)}
               onSuggestTargets={(query) => suggestNoteTargets(query)}
@@ -1193,7 +1206,7 @@ export function App() {
                     }
                   : null
               }
-              editingFrozen={Boolean(pane.activePath && invocationReviewFrozenPaths.includes(pane.activePath))}
+              editingFrozen={openDocumentsState.transitionPending || Boolean(pane.activePath && (invocationReviewFrozenPaths.includes(pane.activePath) || openDocuments[pane.activePath]?.resolvingConflict))}
               historyAvailable={invocationHistory.length > 0 || Boolean(invocationHistoryError)}
               onOpenHistory={() => {
                 openNoteContext();
@@ -1279,6 +1292,7 @@ export function App() {
         <div className="dialog-overlay" data-testid="workspace-dialog-overlay">
           <div className="dialog-card" data-testid="workspace-dialog">
             <div className="dialog-card__title">{workspaceDialog.title}</div>
+            {workspaceMutations.dialogError ? <div role="alert" className="dialog-card__message">{workspaceMutations.dialogError}</div> : null}
             {"message" in workspaceDialog ? <div className="dialog-card__message">{workspaceDialog.message}</div> : null}
             {"value" in workspaceDialog ? (
               <input
@@ -1301,6 +1315,7 @@ export function App() {
                 }}
               />
             ) : null}
+            {workspaceDialog.kind === "save-copy" ? <div className="dialog-card__message">Filename: {workspaceMutations.copyFilename}</div> : null}
             {workspaceDialog.kind === "rename" && workspaceDialog.preserveMarkdown ? (
               <div className="dialog-card__message">
                 Filename: {workspaceMutations.renameFilename}
@@ -1313,6 +1328,7 @@ export function App() {
               <button
                 className={`toolbar-button ${workspaceDialog.kind === "delete" ? "toolbar-button--danger" : ""}`}
                 data-testid="workspace-dialog-confirm"
+                disabled={workspaceMutations.dialogPending}
                 onClick={() => void workspaceMutations.submitDialog()}
                 type="button"
               >

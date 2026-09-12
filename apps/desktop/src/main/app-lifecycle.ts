@@ -34,6 +34,24 @@ export class AppLifecycleController {
     return this.rendererReady;
   }
 
+  async prepareDocumentTransition(): Promise<void> {
+    const window = this.mainWindow;
+    if (!window || window.isDestroyed() || !this.rendererReady) return;
+    await window.webContents.executeJavaScript("globalThis.__exographPrepareDocumentTransition?.()", true);
+  }
+
+  async finishDocumentTransition(): Promise<void> {
+    const window = this.mainWindow;
+    if (!window || window.isDestroyed() || !this.rendererReady) return;
+    await window.webContents.executeJavaScript("globalThis.__exographFinishDocumentTransition?.()", true);
+  }
+
+  async withDocumentsFlushed<T>(operation: () => Promise<T>): Promise<T> {
+    await this.prepareDocumentTransition();
+    try { return await operation(); }
+    finally { await this.finishDocumentTransition(); }
+  }
+
   createWindow(): BrowserWindow {
     const preloadPath = this.resolvePreloadPath();
     const isTestWindow = process.env.EXOGRAPH_TEST === "1";
@@ -85,7 +103,10 @@ export class AppLifecycleController {
         return;
       }
       event.preventDefault();
-      this.loadRenderer(window);
+      void this.withDocumentsFlushed(async () => { this.loadRenderer(window); }).catch((error) => {
+        this.showMainWindow();
+        this.options.logMain("reload blocked by document save", error);
+      });
     });
 
     window.webContents.on("context-menu", (event, params) => {

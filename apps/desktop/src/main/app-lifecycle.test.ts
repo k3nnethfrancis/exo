@@ -42,6 +42,7 @@ vi.mock("electron", () => ({
     readonly webContents = Object.assign(new EventEmitter(), {
       id: electronMock.windows.length + 1,
       mainFrame: this.mainFrame,
+      executeJavaScript: vi.fn(async () => undefined),
       setWindowOpenHandler: vi.fn((handler) => {
         this.windowOpenHandler = handler;
       }),
@@ -168,6 +169,39 @@ describe("AppLifecycleController", () => {
     electronMock.showDefinitionForSelection.mockClear();
     electronMock.replaceMisspelling.mockClear();
     electronMock.addWordToSpellCheckerDictionary.mockClear();
+  });
+
+  it("blocks Workspace replacement when renderer preparation reports a conflict", async () => {
+    const controller = appLifecycleController();
+    const window = controller.createWindow() as any;
+    window.webContents.emit("did-finish-load");
+    window.webContents.executeJavaScript.mockRejectedValueOnce(new Error("Resolve document conflict"));
+    const replaceWorkspace = vi.fn(async () => undefined);
+    await expect(controller.withDocumentsFlushed(replaceWorkspace)).rejects.toThrow("Resolve document conflict");
+    expect(replaceWorkspace).not.toHaveBeenCalled();
+  });
+
+  it("keeps editing frozen across a Workspace mutation and releases it even if the mutation fails", async () => {
+    const controller = appLifecycleController();
+    const window = controller.createWindow() as any;
+    window.webContents.emit("did-finish-load");
+    const order: string[] = [];
+    window.webContents.executeJavaScript.mockImplementation(async (script: string) => { order.push(script.includes("Prepare") ? "prepare" : "finish"); });
+    await expect(controller.withDocumentsFlushed(async () => { order.push("replace"); throw new Error("failed"); })).rejects.toThrow("failed");
+    expect(order).toEqual(["prepare", "replace", "finish"]);
+  });
+
+  it("blocks packaged Cmd-R when a conflict prevents preparation", async () => {
+    const controller = appLifecycleController();
+    const window = controller.createWindow() as any;
+    window.webContents.emit("did-finish-load");
+    window.webContents.executeJavaScript.mockRejectedValueOnce(new Error("Resolve document conflict"));
+    const event = { preventDefault: vi.fn() };
+    window.webContents.emit("before-input-event", event, { type: "keyDown", meta: true, key: "r" });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(event.preventDefault).toHaveBeenCalledOnce();
+    expect(window.loadFile).toHaveBeenCalledOnce();
   });
 
   it("hides the workspace window on close so the process can keep running", () => {

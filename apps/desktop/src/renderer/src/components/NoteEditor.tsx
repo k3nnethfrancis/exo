@@ -1,3 +1,4 @@
+import { SaveConflictNotice } from "./SaveConflictNotice";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 
@@ -75,19 +76,23 @@ interface AgentSuggestionState {
 
 interface EditorDocument extends NoteDocument {
   dirty: boolean;
+  saveConflict?: "changed" | "missing";
+  resolvingConflict?: boolean;
   readOnly?: boolean;
 }
 
 interface NoteEditorProps {
   document: EditorDocument | null;
   graphContext: WorkspaceGraphContext | null;
-  saveStatus: "idle" | "saving" | "saved" | "error";
+  saveStatus: "idle" | "saving" | "saved" | "error" | "conflict";
   propertiesCollapsed: boolean;
   onToggleProperties: () => void;
   onOpenGraph: () => void;
   onUpdateFrontmatter: (key: string, value: unknown) => void;
   onBodyChange: (body: string) => void;
   onSave: () => void | Promise<void>;
+  onSaveConflictCopy?: () => void;
+  onDiscardSaveConflict?: () => Promise<void>;
   onOpenTag: (tag: string) => void;
   onOpenTarget: (target: string) => void;
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
@@ -137,6 +142,8 @@ export function NoteEditor(props: NoteEditorProps) {
     onUpdateFrontmatter,
     onBodyChange,
     onSave,
+    onSaveConflictCopy,
+    onDiscardSaveConflict,
     onOpenTag,
     onOpenTarget,
     onSuggestTargets,
@@ -1052,13 +1059,13 @@ export function NoteEditor(props: NoteEditorProps) {
 
         <div className="editor-panel__actions">
           <span className="sr-only" data-testid="editor-save-status" aria-live="polite">
-            {saveStatus === "saving" ? "Saving" : saveStatus === "saved" ? "Saved" : saveStatus === "error" ? "Save failed" : document.dirty ? "Unsaved" : "Saved"}
+            {saveStatus === "saving" ? "Saving" : saveStatus === "saved" ? "Saved" : saveStatus === "conflict" ? "Save conflict" : saveStatus === "error" ? "Save failed" : document.dirty ? "Unsaved" : "Saved"}
           </span>
           <button
             aria-label="Save document"
             className={`toolbar-button toolbar-button--icon ${compact ? "toolbar-button--compact" : ""}`}
             data-testid="editor-save"
-            disabled={!document.dirty || saveStatus === "saving"}
+            disabled={!document.dirty || saveStatus === "saving" || Boolean(document.saveConflict) || editingFrozen}
             onClick={() => {
               const view = codeMirrorRef.current?.view;
               if (inlineComposerActive && view) flushSync(() => bodyChangeRef.current(view.state.doc.toString()));
@@ -1083,6 +1090,8 @@ export function NoteEditor(props: NoteEditorProps) {
           ) : null}
         </div>
       </div>
+
+      {document.saveConflict ? <SaveConflictNotice kind={document.saveConflict} pending={Boolean(document.resolvingConflict) || editingFrozen} onSaveCopy={onSaveConflictCopy} onDiscard={onDiscardSaveConflict} /> : null}
 
       {showNoteMetadata && !propertiesCollapsed ? (
         <div className="properties-card" data-testid="properties-panel">

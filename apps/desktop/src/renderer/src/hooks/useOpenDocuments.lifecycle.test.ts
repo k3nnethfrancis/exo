@@ -26,13 +26,14 @@ async function mountDocuments() {
   const save = vi.fn(async (_path: string, frontmatter: Record<string, unknown>, body: string) => {
     if (save.mock.calls.length === 1) await firstSave;
     disk = { body, frontmatter };
+    return { status: "saved", revision: "a".repeat(64) };
   });
   vi.stubGlobal("window", {
-    setTimeout, clearTimeout,
+    setTimeout, clearTimeout, addEventListener() {}, removeEventListener() {},
     exograph: {
       workspace: { onGraphChanged: () => () => {} },
       notes: {
-        read: async () => ({ filePath, title: "Save close", kind: "markdown", ...disk }),
+        read: async () => ({ revision: "a".repeat(64), filePath, title: "Save close", kind: "markdown", ...disk }),
         stat: async () => ({ size: disk.body.length, mtimeMs: save.mock.calls.length }),
         getGraphContext: async () => null,
         save,

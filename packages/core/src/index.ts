@@ -7,6 +7,7 @@ export * from "./folder-index";
 export * from "./workspace-settings";
 export * from "./terminal-settings";
 export * from "./notes";
+export * from "./document-persistence";
 export * from "./onboarding-state";
 export * from "./knowledge-graph";
 export { NOTE_ROOT_FORMAT_ID, type NoteRootFormatId, type NoteRootFormatStatus } from "./note-root-format";

@@ -78,6 +78,7 @@ domain logic.
 | --- | --- | --- |
 | `WorkspaceConfigStore` | canonical settings, workspace registry, revisioned atomic writes, unknown-key preservation, unsupported-format rejection | live runtime activation |
 | `WorkspaceRuntimeCoordinator` | swaps expensive workspace authority when roots change | unrelated appearance/layout saves |
+| `DocumentPersistence` + `useOpenDocuments` | exact-byte read revisions, guarded editor saves and exclusive copies; dirty buffers and explicit conflict resolution | filesystem authorization, invocation journals or crash recovery |
 | `WorkspaceFiles` | canonical paths, Note Root containment, symlink policy, watchers | graph/search interpretation |
 | `WorkspaceGraph` | graph snapshots, evidence, backlinks, ontology review and local context | rendering or direct UI state |
 | `WorkspaceIndex` | provider selection, search health, sync, honest degradation | Note/graph identity |
@@ -93,6 +94,27 @@ invariant. Add a new abstraction only after two concrete call sites prove the
 same contract.
 
 ## Critical boundaries
+
+### Editor saves and external writers
+
+Desktop Note reads return a SHA-256 revision of the exact bytes parsed. Every
+editor save supplies that revision. `DocumentPersistence` serializes editor
+saves by canonical path and compares current bytes before writing through an
+existing file handle. A missing file is never recreated by autosave. A mismatch
+returns a typed conflict; the renderer retains the latest dirty buffer and
+pauses autosave until the person saves an exclusive copy or explicitly discards
+local edits and reloads the current file. A late conflict reopens its editor.
+Normal quit, reload, Workspace activation and root-authority changes flush while
+editing is frozen, and stop if any buffer cannot save.
+
+External tools and invocation writers do not participate in the editor save
+queue. Revision checking detects observed changes; it is not atomic filesystem
+compare-and-swap against an uncooperative writer. A path check after writing
+also catches an observed replacement of the open file. There remains a race
+with outside writes during or immediately after the check/write sequence.
+Buffers and conflicts remain in renderer memory: renderer crashes, force-kill,
+power loss and failed partial filesystem writes have no new recovery guarantee.
+This boundary creates no recovery store or invocation journal entries.
 
 ### Workspace and filesystem authority
 

@@ -16,6 +16,8 @@ import type { InlineAgentDraft } from "./inlineAgentComposer";
 
 interface EditorDocument extends NoteDocument {
   dirty: boolean;
+  saveConflict?: "changed" | "missing";
+  resolvingConflict?: boolean;
 }
 
 export interface EditorPaneState {
@@ -38,7 +40,7 @@ interface EditorPaneProps {
   pane: EditorPaneState;
   documents: Record<string, EditorDocument>;
   graphContextByPath: Record<string, WorkspaceGraphContext>;
-  saveStatuses: Record<string, "idle" | "saving" | "saved" | "error">;
+  saveStatuses: Record<string, "idle" | "saving" | "saved" | "error" | "conflict">;
   isFocused: boolean;
   onFocusPane: () => void;
   onActivateTab: (filePath: string) => void;
@@ -54,6 +56,8 @@ interface EditorPaneProps {
   onUpdateFrontmatter: (key: string, value: unknown) => void;
   onBodyChange: (body: string) => void;
   onSave: () => void;
+  onSaveConflictCopy?: () => void;
+  onDiscardSaveConflict?: () => Promise<void>;
   onOpenTag: (tag: string) => void;
   onOpenTarget: (target: string) => void;
   onSuggestTargets: (query: string) => Promise<Array<{ label: string; target: string; detail?: string }>>;
@@ -102,6 +106,8 @@ export function EditorPane(props: EditorPaneProps) {
     onUpdateFrontmatter,
     onBodyChange,
     onSave,
+    onSaveConflictCopy,
+    onDiscardSaveConflict,
     onOpenTag,
     onOpenTarget,
     onSuggestTargets,
@@ -213,6 +219,8 @@ export function EditorPane(props: EditorPaneProps) {
         onUpdateFrontmatter={onUpdateFrontmatter}
         onBodyChange={onBodyChange}
         onSave={onSave}
+        onSaveConflictCopy={onSaveConflictCopy}
+        onDiscardSaveConflict={onDiscardSaveConflict}
         onOpenTag={onOpenTag}
         onOpenTarget={onOpenTarget}
         onSuggestTargets={onSuggestTargets}
