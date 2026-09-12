@@ -92,6 +92,7 @@ export function SpatialGraphView({
   onStartMaintenance,
   onFocus,
 }: SpatialGraphViewProps) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const keyboardHelpId = useId();
   const webGpuCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -196,7 +197,8 @@ export function SpatialGraphView({
   useEffect(() => {
     const canvas = canvasRef.current as DebugCanvas | null;
     const webGpuCanvas = webGpuCanvasRef.current;
-    if (!canvas || !webGpuCanvas) return;
+    const viewportElement = viewportRef.current;
+    if (!canvas || !webGpuCanvas || !viewportElement) return;
     setError(null);
     let runtime: SpatialGraphRuntime;
     try {
@@ -307,14 +309,14 @@ export function SpatialGraphView({
       setError(reason instanceof Error ? reason.message : "Graph layout worker could not start.");
     }
     const resize = () => {
-      const rect = canvas.getBoundingClientRect();
+      const rect = viewportElement.getBoundingClientRect();
       runtime.resize(
         { width: Math.max(1, Math.round(rect.width)), height: Math.max(1, Math.round(rect.height)) },
         window.devicePixelRatio || 1,
       );
     };
     const resizeObserver = new ResizeObserver(resize);
-    resizeObserver.observe(canvas);
+    resizeObserver.observe(viewportElement);
     const themeObserver = new MutationObserver(() => runtime.setPalette(resolveGraphPalette(canvas)));
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-appearance-mode"] });
     setRuntimeVersion((value) => value + 1);
@@ -357,7 +359,7 @@ export function SpatialGraphView({
       topologyRef.current = next;
       setTopology(next);
       refreshCoordinatorRef.current?.observeSnapshot(next.sourceSnapshotId);
-      const rect = canvasRef.current?.getBoundingClientRect();
+      const rect = viewportRef.current?.getBoundingClientRect();
       const viewport = { width: Math.max(1, Math.round(rect?.width ?? 1)), height: Math.max(1, Math.round(rect?.height ?? 1)) };
       const scene = runtime.setTopology(next, viewport);
       setRouteNodeCount(scene.interaction.pathNodes.reduce((count, value) => count + Number(value > 0), 0));
@@ -485,7 +487,7 @@ export function SpatialGraphView({
         <button aria-label="Frame graph" onClick={() => runtimeRef.current?.frameAll()} title="Frame graph" type="button"><Scan size={14} /></button>
         <button aria-label="Refresh graph" onClick={() => setReloadNonce((value) => value + 1)} title="Refresh graph" type="button"><RefreshCw size={14} /></button>
       </div>
-      <div className="spatial-graph__viewport" data-scene-ready={sceneReady ? "true" : "false"}>
+      <div ref={viewportRef} className="spatial-graph__viewport" data-scene-ready={sceneReady ? "true" : "false"}>
         <canvas
           ref={webGpuCanvasRef}
           aria-hidden="true"

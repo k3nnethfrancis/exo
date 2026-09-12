@@ -21,6 +21,7 @@ import {
   projectGraphScene,
   reconcileGraphLayout,
   reconcileGraphScene,
+  retainGraphSelectionOnResize,
   reconcileGraphSelection,
   selectGraphPath,
   validateGraphTopology,
@@ -452,4 +453,31 @@ describe("large numeric scene contract", () => {
     expect(projected.nodes).toHaveLength(count * 4);
     expect(elapsed).toBeLessThan(500);
   });
+});
+
+
+describe("narrow graph framing", () => {
+  it.each([{ width: 230, height: 800 }, { width: 200, height: 1000 }])("fits horizontal extents in $width by $height", (viewport) => {
+    const { right } = cameraBasis(DEFAULT_SCENE_CAMERA);
+    const positions = new Float32Array([...right.map(value => -1000 * value), ...right.map(value => 1000 * value)]);
+    const projected = projectGraphScene(positions, frameGraphCamera(positions, viewport), viewport);
+    for (let index = 0; index < 2; index += 1) {
+      expect(projected.nodes[index * 4]).toBeGreaterThan(12);
+      expect(projected.nodes[index * 4]).toBeLessThan(viewport.width - 12);
+      expect(projected.nodes[index * 4 + 3]).toBe(1);
+    }
+  });
+});
+
+
+it("retains a valid manual camera when selection containment would exceed the zoom limit", () => {
+  const camera = { ...DEFAULT_SCENE_CAMERA, distance: 30_000 };
+  const { right } = cameraBasis(camera);
+  const positions = new Float32Array(right.map(value => value * 10_000));
+  const before = { width: 800, height: 800 };
+  const after = { width: 230, height: 800 };
+  expect(projectGraphScene(positions, camera, before).nodes[3]).toBe(1);
+  const resized = retainGraphSelectionOnResize(positions, camera, 0, before, after);
+  expect(resized).toEqual(camera);
+  expect(projectGraphScene(new Float32Array(camera.target), resized, after).nodes[3]).toBe(1);
 });

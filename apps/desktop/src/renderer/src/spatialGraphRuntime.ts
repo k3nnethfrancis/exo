@@ -25,6 +25,7 @@ import {
   planGraphLabels,
   projectGraphScene,
   reconcileGraphScene,
+  retainGraphSelectionOnResize,
   selectGraphPath,
   zoomGraphCameraAt,
   type GraphCamera,
@@ -297,6 +298,7 @@ export class SpatialGraphRuntime {
   private palette: GraphPresentationPalette;
   private summaries = new Map<number, GraphConceptSummary>();
   private transition: CameraTransition | null = null;
+  private cameraFramed = true;
   private dpr: number;
   private externalPendingWork = 0;
   private layoutMessages = 0;
@@ -349,11 +351,8 @@ export class SpatialGraphRuntime {
     const next = sameEpoch && this.scene
       ? { ...this.scene, topology }
       : this.scene ? reconcileGraphScene(this.scene, topology) : createGraphScene(topology, viewport);
-    if (next.projection.viewport.width !== viewport.width || next.projection.viewport.height !== viewport.height) {
-      next.projection = projectGraphScene(next.layout.positions, next.camera, viewport);
-    }
     this.scene = next;
-    this.resizeRenderers(viewport, this.dpr);
+    this.resize(viewport, this.dpr);
     this.scheduler.invalidate("topology");
     return next;
   }
@@ -361,6 +360,17 @@ export class SpatialGraphRuntime {
   resize(viewport: GraphViewport, dpr = this.dpr): void {
     if (!this.scene || this.disposed) return;
     this.dpr = dpr;
+    const previous = this.scene.projection.viewport;
+    if (previous.width !== viewport.width || previous.height !== viewport.height) {
+      this.scene.camera = this.cameraFramed
+        ? frameGraphCamera(this.scene.layout.positions, viewport)
+        : retainGraphSelectionOnResize(this.scene.layout.positions, this.scene.camera, this.scene.interaction.selected, previous, viewport);
+      if (this.transition) {
+        // Continue toward the same focused target in the new viewport.
+        this.transition.from = cloneCamera(this.scene.camera);
+        this.transition.startedAt = null;
+      }
+    }
     this.scene.projection = projectGraphScene(this.scene.layout.positions, this.scene.camera, viewport);
     this.resizeRenderers(viewport, dpr);
     this.scheduler.invalidate("resize");
@@ -450,6 +460,7 @@ export class SpatialGraphRuntime {
   setCamera(camera: GraphCamera, reason = "camera"): void {
     if (!this.scene) return;
     this.cancelMotion();
+    this.cameraFramed = reason === "frame-all";
     this.scene.camera = cloneCamera(camera);
     this.scene.projection = projectGraphScene(this.scene.layout.positions, this.scene.camera, this.scene.projection.viewport);
     this.scheduler.invalidate(reason);
@@ -462,6 +473,7 @@ export class SpatialGraphRuntime {
 
   focus(index: number, reducedMotion: boolean): void {
     if (!this.scene || index < 0 || index >= this.scene.topology.nodes.seeds.length) return;
+    this.cameraFramed = false;
     const target = focusGraphCamera(this.scene.layout.positions, index, this.scene.projection.viewport);
     if (reducedMotion) {
       this.setCamera(target, "focus");
@@ -524,6 +536,7 @@ export class SpatialGraphRuntime {
   private mutateCamera(update: (camera: GraphCamera) => GraphCamera, reason: string): void {
     if (!this.scene) return;
     this.cancelMotion();
+    this.cameraFramed = false;
     this.scene.camera = update(this.scene.camera);
     this.scene.projection = projectGraphScene(this.scene.layout.positions, this.scene.camera, this.scene.projection.viewport);
     this.scheduler.invalidate(reason);
