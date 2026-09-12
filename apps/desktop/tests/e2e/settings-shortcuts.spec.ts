@@ -30,6 +30,9 @@ test("shortcut capture stays modal, names conflicts, and persists a working bind
     await expect(page.getByTestId("workspace-settings-dialog")).toBeHidden();
     await expect.poll(() => page.evaluate(async () => (await window.exograph.workspace.getSettings()).settings.shortcutBindings))
       .toMatchObject({ explorer: { code: "KeyE", alt: true } });
+    const editor = page.locator(".editor-surface .cm-content").first();
+    await editor.focus();
+    await expect(editor).toBeFocused();
     await page.keyboard.press("Meta+Alt+e");
     await expect(explorer).not.toHaveAttribute("aria-label", before!);
 
