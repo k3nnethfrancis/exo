@@ -402,6 +402,13 @@ export function useWorkspaceSettingsController(options: UseWorkspaceSettingsCont
         return {
           ...current,
           settingsRevision: saved.revision,
+          // Publish the normalized values without replacing input typed after
+          // this save began, including while a structural Apply is in flight.
+          ...Object.fromEntries(
+            (["editorFontSize", "terminalFontSize", "explorerScale"] as const)
+              .filter((field) => current[field] === settingsDialog[field])
+              .map((field) => [field, String(saved.settings[field])]),
+          ),
           ...(savedDraftIsCurrent
             ? saveOptions.includeStructural
               ? {
