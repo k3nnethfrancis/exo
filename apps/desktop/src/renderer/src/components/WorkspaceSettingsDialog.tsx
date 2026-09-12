@@ -620,7 +620,7 @@ function GraphSection({
   setSettings,
 }: Pick<WorkspaceSettingsDialogProps, "settings" | "setSettings">) {
   return (
-    <div className="dialog-form__grid dialog-form__grid--compact" data-testid="workspace-settings-graph">
+    <div className="dialog-form__grid workspace-settings-graph" data-testid="workspace-settings-graph">
       <OntologyReviewRow />
       <label className="dialog-check">
         <input
