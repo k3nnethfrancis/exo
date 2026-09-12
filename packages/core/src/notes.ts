@@ -83,9 +83,12 @@ function preserveTrailingNewline(body: string, serialized: string): string {
 
 export function extractWikilinks(body: string): WikilinkReference[] {
   return Array.from(body.matchAll(WIKILINK_PATTERN)).map((match) => {
-    const target = match[1].trim();
+    const content = match[1];
+    const aliasSeparator = content.indexOf("|");
+    const target = (aliasSeparator < 0 ? content : content.slice(0, aliasSeparator)).trim();
+    const label = aliasSeparator < 0 ? target : content.slice(aliasSeparator + 1).trim();
     const from = match.index ?? 0;
-    return { label: target, target, sourceRange: { from, to: from + match[0].length } };
+    return { label, target, sourceRange: { from, to: from + match[0].length } };
   });
 }
 

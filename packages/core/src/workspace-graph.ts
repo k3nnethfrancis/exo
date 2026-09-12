@@ -333,11 +333,11 @@ export class WorkspaceGraph {
             tags: [],
           });
         }
-        const relationKey = `${entry.note.id}\u0000${targetId}\u0000references\u0000${link.label}`;
+        const relationKey = `relation:link:${encodeURIComponent(entry.note.id)}:${encodeURIComponent(targetId)}`;
         const occurrence = relationCounts.get(relationKey) ?? 0;
         relationCounts.set(relationKey, occurrence + 1);
         const relation: RelationEdge = {
-          id: `relation:link:${encodeURIComponent(entry.note.id)}:${encodeURIComponent(targetId)}:${occurrence}`,
+          id: `${relationKey}:${occurrence}`,
           source: entry.note.id,
           target: targetId,
           family: "link",
