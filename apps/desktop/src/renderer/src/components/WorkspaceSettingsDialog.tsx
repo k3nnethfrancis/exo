@@ -74,6 +74,9 @@ export function WorkspaceSettingsDialog({
         if (backdropPress.current) event.preventDefault();
       }}
       onPointerCancel={() => { backdropPress.current = false; }}
+      onPointerUp={(event) => {
+        backdropPress.current = backdropPress.current && event.target === event.currentTarget;
+      }}
       onClick={(event) => {
         const closeFromBackdrop = backdropPress.current && event.target === event.currentTarget && !event.defaultPrevented;
         backdropPress.current = false;

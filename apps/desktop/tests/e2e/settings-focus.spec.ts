@@ -68,6 +68,13 @@ test("Settings closes only for a backdrop click and keeps capture Escape local",
     await page.mouse.up();
     await expect(dialog).toBeVisible();
 
+    // A drag from the backdrop into the card must not dismiss it either.
+    await page.mouse.move(5, 5);
+    await page.mouse.down();
+    await page.mouse.move(bounds.x + 30, bounds.y + 25);
+    await page.mouse.up();
+    await expect(dialog).toBeVisible();
+
     await overlay.click({ position: { x: 5, y: 5 } });
     await expect(dialog).toHaveCount(0);
     await expect(menu).toBeFocused();
