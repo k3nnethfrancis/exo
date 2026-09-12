@@ -16,6 +16,7 @@ contracts are linked from there.
 - [Knowledge graph](knowledge-graph.md) — what the graph represents and what it deliberately does not.
 - [Agent invocations](document-agent-protocol.md) — inline `@` requests, review, durable response blocks, and session handoff.
 - [CLI and MCP](cli.md) — shell commands, app-off behavior, and the bounded MCP server.
+- [CLI graph traversal](graph-traversal.md) — bounded graph queries, snapshot cursors, and execution traces.
 - [Workspace ontology](workspace-ontology.md) — optional `ontology.yaml` interpretation and review.
 - [Note Root Formats](note-root-formats.md) — Generic Markdown and OKF 0.1 compatibility.
 - [Troubleshooting](troubleshooting.md) — first repairs for workspace scope, search, invocations, MCP, and CLI.

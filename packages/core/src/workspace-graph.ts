@@ -1,3 +1,4 @@
+import { traverseKnowledgeGraph, type GraphTraversalRequest, type GraphTraversalResult } from "./graph-traversal";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -197,6 +198,10 @@ export class WorkspaceGraph {
       resolution: resolved.status,
       note: resolved.note,
     };
+  }
+
+  async traverse(request: GraphTraversalRequest): Promise<GraphTraversalResult> {
+    return traverseKnowledgeGraph(await this.knowledgeSnapshot(), request);
   }
 
   async contextForNote(filePath: string): Promise<WorkspaceGraphContext | null> {

@@ -41,6 +41,33 @@ const matchingClientEnv = {
 };
 
 describe("minimal Exograph operator CLI", () => {
+  it("traverses real offline notes with explicit scope and snapshot-bound pagination", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "exo-cli-traverse-"));
+    try {
+      await writeFile(path.join(root, "a.md"), "# A\n[[b]] [[b]]");
+      await writeFile(path.join(root, "b.md"), "# B\n");
+      let output = "";
+      const options = { env: { EXOGRAPH_WORKSPACE_ROOT: root, EXOGRAPH_NOTE_ROOTS: root, EXOGRAPH_RUNTIME_ROOT: path.join(root, ".runtime") }, stdout: { write: (text: string) => { output += text; } } };
+      const args = ["node", "exo", "graph", "traverse", "--offline", "--start-path", path.join(root, "a.md"), "--limit", "1"];
+      expect(await runCli(args, options)).toBe(0);
+      const first = JSON.parse(output);
+      expect(first.nodes[0].relativePath).toBe("a.md");
+      expect(first.edges).toHaveLength(2);
+      output = "";
+      expect(await runCli([...args, "--cursor", first.nextCursor], options)).toBe(0);
+      const second = JSON.parse(output);
+      expect(second.nodes[0].relativePath).toBe("b.md");
+      expect(second.snapshotId).toBe(first.snapshotId);
+      expect(second.execution.visitedCount).toBe(2);
+      expect(second.traversalId).not.toBe(first.traversalId);
+      output = "";
+      expect(await runCli([...args, "--cursor", "invalid"], options)).toBe(1);
+      expect(JSON.parse(output).code).toBe("invalid-cursor");
+      await expect(runCli([...args, "--max-depth", "4"], options)).rejects.toThrow();
+      await expect(runCli(args, { env: {} })).rejects.toThrow(/explicit/i);
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it("prints every command from the shared operator catalog", async () => {
     let help = "";
     expect(await runCli(["node", "exograph", "--help"], { stderr: { write: (text) => { help += text; } } })).toBe(0);
