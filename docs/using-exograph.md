@@ -46,6 +46,8 @@ The graph is evidence-aware. It distinguishes a relation written in Markdown, on
 
 ## Panes and shortcuts
 
+Workspace Settings initially focuses Close. Tab and Shift+Tab stay within the dialog; Escape follows the same save checks as Close and returns focus to the opener.
+
 Rename a Markdown Note from its Explorer context menu. The rename dialog shows the resulting filename and preserves `.md` when omitted, including names containing dots (for example, `draft.v2` becomes `draft.v2.md`). Renaming folders does not add a file extension.
 
 Closing a Note tab lets pending saves finish, including edits made while an earlier save was in progress.

@@ -1,10 +1,11 @@
-import { useEffect, useState, type ComponentType, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useId, useState, type ComponentType, type Dispatch, type SetStateAction } from "react";
 import { Bot, FolderOpen, Keyboard, Palette, Search, TerminalSquare, X } from "lucide-react";
 import type { AgentCommand, IndexStatus, WorkspaceSettings } from "@exograph/core";
 import { normalizeDefaultAgentCommandId } from "@exograph/core/agent-command-configuration";
 import { defaultWorkspaceContentPolicy, repositoryWorkspaceContentPolicy } from "@exograph/core/workspace-content-policy";
 import type { AgentCommandContinuityStatus } from "../../../shared/api";
 
+import { useSettingsDialogFocus } from "../hooks/useSettingsDialogFocus";
 import type { AppearanceMode } from "../appearance";
 import { THEME_FAMILIES, normalizeColorThemeId } from "../theme/registry";
 import type { ColorThemeId } from "../theme/types";
@@ -59,14 +60,17 @@ export function WorkspaceSettingsDialog({
   setSettings,
   structuralDraftKey,
 }: WorkspaceSettingsDialogProps) {
+  const titleId = useId();
+  const { dialogRef, closeRef, onKeyDown } = useSettingsDialogFocus(onClose);
   const hasStructuralChanges = structuralDraftKey(settings) !== settings.appliedWorkspaceKey;
 
   return (
     <div className="dialog-overlay" data-testid="workspace-settings-overlay">
-      <div className="dialog-card dialog-card--settings" data-testid="workspace-settings-dialog">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} onKeyDown={onKeyDown} className="dialog-card dialog-card--settings" data-testid="workspace-settings-dialog">
         <div className="dialog-card__header">
-          <div className="dialog-card__title">Workspace Settings</div>
+          <div id={titleId} className="dialog-card__title">Workspace Settings</div>
           <button
+            ref={closeRef}
             aria-label="Close workspace settings"
             className="dialog-card__close"
             data-testid="workspace-settings-close"
