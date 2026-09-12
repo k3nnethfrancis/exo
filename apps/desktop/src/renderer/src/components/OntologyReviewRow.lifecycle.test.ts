@@ -51,7 +51,20 @@ it("dismisses the compact review without leaking Escape or stealing outside-clic
   vi.stubGlobal("Node", Target);
   let pointerdown: (event: { target: Target }) => void;
   const outside = new Target();
-  const disclosure = { open: true, contains: (target: Target) => target !== outside };
+  let graphBottom = 390;
+  let resized: () => void;
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(callback: () => void) { resized = callback; }
+    observe() {}
+    disconnect() {}
+  });
+  const graph = { getBoundingClientRect: () => ({ bottom: graphBottom }) };
+  const toolbar = { getBoundingClientRect: () => ({ bottom: 40 }) };
+  const setProperty = vi.fn();
+  const disclosure = { open: true, contains: (target: Target) => target !== outside,
+    closest: (selector: string) => selector === ".spatial-graph" ? graph : toolbar,
+    style: { setProperty },
+  };
   const summary = { focus: vi.fn() };
   vi.stubGlobal("document", { addEventListener: (_: string, callback: typeof pointerdown) => { pointerdown = callback; }, removeEventListener() {} });
   await act(async () => {
@@ -60,6 +73,10 @@ it("dismisses the compact review without leaking Escape or stealing outside-clic
       onKeep() {}, onReject() {}, onReopen() {}, onSelect() {},
     }), { createNodeMock: element => element.type === "details" ? disclosure : element.type === "summary" ? summary : null });
   });
+  expect(setProperty).toHaveBeenLastCalledWith("--ontology-review-height", "344px");
+  graphBottom = 270;
+  resized!();
+  expect(setProperty).toHaveBeenLastCalledWith("--ontology-review-height", "224px");
   const key = (defaultPrevented: boolean) => ({ key: "Escape", defaultPrevented, preventDefault: vi.fn(), stopPropagation: vi.fn() });
   const consumed = key(true);
   renderer!.root.findByType("details").props.onKeyDown(consumed);

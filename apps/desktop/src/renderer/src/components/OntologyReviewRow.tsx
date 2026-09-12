@@ -247,8 +247,23 @@ function OntologyReviewDisclosure({ identity, children }: { identity: string; ch
       const disclosure = disclosureRef.current;
       if (disclosure?.open && event.target instanceof Node && !disclosure.contains(event.target)) disclosure.open = false;
     };
+    const disclosure = disclosureRef.current;
+    const graph = disclosure?.closest(".spatial-graph");
+    const toolbar = disclosure?.closest(".spatial-graph__toolbar");
+    const measureAvailableHeight = () => {
+      if (!graph || !toolbar || !disclosure) return;
+      const height = Math.max(0, graph.getBoundingClientRect().bottom - toolbar.getBoundingClientRect().bottom - 6);
+      disclosure.style.setProperty("--ontology-review-height", `${height}px`);
+    };
+    const observer = new ResizeObserver(measureAvailableHeight);
+    if (graph) observer.observe(graph);
+    if (toolbar) observer.observe(toolbar);
+    measureAvailableHeight();
     document.addEventListener("pointerdown", dismissOutside);
-    return () => document.removeEventListener("pointerdown", dismissOutside);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("pointerdown", dismissOutside);
+    };
   }, []);
   return (
     <details ref={disclosureRef} className="ontology-review-control" data-testid="graph-ontology"

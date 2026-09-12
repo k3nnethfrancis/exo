@@ -2686,7 +2686,8 @@ select.dialog-card__input {
   top: 100%;
   left: 4px;
   right: 4px;
-  max-height: min(400px, 65vh);
+  min-height: 0;
+  max-height: min(400px, 65vh, var(--ontology-review-height, 280px));
   overflow: auto;
   background: var(--surface-2);
   grid-template-columns: minmax(0, 1fr);

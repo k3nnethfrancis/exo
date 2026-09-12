@@ -93,6 +93,16 @@ test("reviews Ontology effects before publishing one persistent graph change", a
     expect(await ontologyEdgeCount(fixture.page)).toBe(0);
     const popup = fixture.page.getByTestId("graph-ontology-review");
     expect(await popup.evaluate(element => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(1);
+    const popupFitsGraph = () => popup.evaluate(element => {
+      const graph = element.closest(".spatial-graph")!;
+      return element.getBoundingClientRect().bottom <= graph.getBoundingClientRect().bottom - 4;
+    });
+    await expect.poll(popupFitsGraph).toBe(true);
+    // Exercise a short graph host as well as the normal utility height.
+    const graphSurface = fixture.page.getByTestId("spatial-graph");
+    await graphSurface.evaluate(element => { element.style.height = "200px"; });
+    await expect.poll(popupFitsGraph).toBe(true);
+    await graphSurface.evaluate(element => { element.style.removeProperty("height"); });
     await compact.getByRole("button", { name: "Activate ontology" }).focus();
     await fixture.page.keyboard.press("Escape");
     await expect(compact).not.toHaveAttribute("open", "");
