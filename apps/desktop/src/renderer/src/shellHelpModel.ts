@@ -88,15 +88,16 @@ export function shortcutBindingIssue(id: WorkspaceShortcutId, binding: Workspace
   if (binding.code === "Enter") return "Reserved for Invoke. Choose another shortcut.";
   if (["KeyQ", "KeyW", "KeyH", "KeyM"].includes(binding.code)) return "Reserved for a system command. Choose another shortcut.";
   const native = !binding.alt && !binding.shift && ["KeyC", "KeyV", "KeyX", "KeyO", "KeyP", "KeyR", "KeyL"].includes(binding.code);
-  const localEditor = !binding.alt && !binding.shift && ((binding.code === "KeyB" && id !== "explorer") || (binding.code === "KeyS" && id !== "save"));
-  if (native || localEditor || editorOwnsShortcut(binding)) return "Reserved for a system or editor command. Choose another shortcut.";
+  const sharedEditorDefault = !binding.alt && !binding.shift && ((binding.code === "KeyB" && id === "explorer") || (binding.code === "KeyS" && id === "save"));
+  if (native || (!sharedEditorDefault && editorOwnsShortcut(binding))) return "Reserved for a system or editor command. Choose another shortcut.";
   return null;
 }
 
 
 /** These are the keymaps enabled by NoteEditor's basicSetup. Include both
  * platform spellings because workspace primary-modifier bindings are portable. */
-function editorOwnsShortcut(binding: WorkspaceShortcutBinding): boolean {
+export function editorOwnsShortcut(binding: WorkspaceShortcutBinding): boolean {
+  if (!binding.alt && !binding.shift && ["KeyB", "KeyS", "KeyC", "KeyV", "KeyX"].includes(binding.code)) return true;
   return [...defaultKeymap, ...historyKeymap, ...searchKeymap].some(command =>
     [command.key, command.mac, command.win, command.linux].some(key => {
       if (!key) return false;
